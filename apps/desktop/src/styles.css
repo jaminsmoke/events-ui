@@ -273,6 +273,7 @@ header {
 }
 
 .node {
+  --pulso: #58a6ff44;
   min-width: 232px;
   max-width: 340px;
   background: #10151c;
@@ -286,6 +287,7 @@ header {
 }
 
 .node.lane-descartadas {
+  --pulso: #f0883e44;
   border-color: #5c2f2f;
 }
 
@@ -335,6 +337,26 @@ header {
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   text-align: center;
+}
+
+/* El contador del carril que acaba de recibir una idea: un golpe, no un latido. */
+.count.pulso {
+  animation: pulso 900ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@keyframes pulso {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 transparent;
+  }
+  30% {
+    transform: scale(1.35);
+    box-shadow: 0 0 0 4px var(--pulso);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 transparent;
+  }
 }
 
 .arrow {

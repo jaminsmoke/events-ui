@@ -159,12 +159,14 @@ function NodeBox({
   onToggle,
   boxRef,
   volando,
+  pulsa,
 }: {
   node: TreeNode;
   cerrados: ReadonlySet<string>;
   onToggle: (key: string) => void;
   boxRef?: Ref<HTMLElement>;
   volando: (uid: string, nodo: string) => boolean;
+  pulsa?: boolean;
 }) {
   const tiene = node.kids.length > 0;
   const abierto = tiene && !cerrados.has(node.key);
@@ -178,7 +180,7 @@ function NodeBox({
         aria-expanded={tiene ? abierto : undefined}
       >
         <span className="node-title">{node.title}</span>
-        <span className="count">{node.total}</span>
+        <span className={`count${pulsa ? " pulso" : ""}`}>{node.total}</span>
         {tiene ? <Arrow open={abierto} /> : <span className="arrow" />}
       </button>
 
@@ -341,6 +343,7 @@ export default function App() {
   const [cables, setCables] = useState<Cable[]>([]);
   const [chispas, setChispas] = useState<{ lane: LaneId; id: number }[]>([]);
   const totalesPrevios = useRef(new Map<LaneId, number>());
+  const [pulsos, setPulsos] = useState<{ lane: LaneId; id: number }[]>([]);
   const [vuelos, setVuelos] = useState<Vuelo[]>([]);
   const carrilesPrevios = useRef(new Map<string, LaneId>());
   const rects = useRef(new Map<string, Rect>());
@@ -560,24 +563,33 @@ export default function App() {
   }, [ideas]);
 
   /* El cambio en el almacén es instantáneo; la animación no. Cuando un carril
-   * cambia de tamaño, una chispa recorre su cable para que se vea llegar. */
+   * cambia de tamaño, una chispa recorre su cable para que se vea llegar, y si
+   * además ha recibido una idea, su contador da un golpe. */
   useEffect(() => {
     if (!tree) return;
     const nuevas: { lane: LaneId; id: number }[] = [];
+    const suben: LaneId[] = [];
     for (const lane of tree.carriles) {
       const id = lane.tone;
       if (id !== "cola" && id !== "descartadas") continue;
       const antes = totalesPrevios.current.get(id);
       if (antes !== undefined && antes !== lane.total) {
         nuevas.push({ lane: id, id: Date.now() + Math.random() });
+        if (lane.total > antes) suben.push(id);
       }
       totalesPrevios.current.set(id, lane.total);
     }
     if (nuevas.length === 0) return;
 
-    // En un frame, no en el cuerpo del efecto: la chispa no puede entrar en
-    // cascada con el render que acaba de pintar las filas.
-    const raf = requestAnimationFrame(() => setChispas((prev) => [...prev, ...nuevas]));
+    // En un frame, no en el cuerpo del efecto: las animaciones no pueden entrar
+    // en cascada con el render que acaba de pintar las filas.
+    const raf = requestAnimationFrame(() => {
+      setChispas((prev) => [...prev, ...nuevas]);
+      if (suben.length > 0) {
+        const sello = Date.now();
+        setPulsos((prev) => [...prev, ...suben.map((lane, i) => ({ lane, id: sello + i }))]);
+      }
+    });
     return () => cancelAnimationFrame(raf);
   }, [tree]);
 
@@ -587,6 +599,13 @@ export default function App() {
     const timer = setTimeout(() => setChispas([]), 1150);
     return () => clearTimeout(timer);
   }, [chispas]);
+
+  // El pulso del contador también es un golpe breve, no un estado.
+  useEffect(() => {
+    if (pulsos.length === 0) return;
+    const timer = setTimeout(() => setPulsos([]), 1000);
+    return () => clearTimeout(timer);
+  }, [pulsos]);
 
   return (
     <main className="shell">
@@ -712,6 +731,7 @@ export default function App() {
                       carrilRefs.current[i] = el;
                     }}
                     volando={volando}
+                    pulsa={pulsos.some((pulso) => pulso.lane === lane.tone)}
                   />
                 ))}
               </div>

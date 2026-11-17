@@ -542,6 +542,9 @@ export default function App() {
     medir();
     const ro = new ResizeObserver(medir);
     ro.observe(cajon);
+    // El lienzo también: al encoger la ventana puede empezar a recortar sin que
+    // cambie ni la vista ni el árbol.
+    if (boardRef.current) ro.observe(boardRef.current);
     for (const el of carrilRefs.current) if (el) ro.observe(el);
     return () => ro.disconnect();
   }, [tree, cerrados, vista]);

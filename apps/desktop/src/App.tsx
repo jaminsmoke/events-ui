@@ -141,7 +141,16 @@ type Cable = { lane: LaneId; d: string; x1: number; y1: number };
 type Rect = { x: number; y: number; w: number; h: number };
 
 /** Una fila cruzando de un carril al otro. */
-type Vuelo = { id: number; uid: string; title: string; from: Rect; to: Rect; lane: LaneId };
+type Vuelo = {
+  id: number;
+  uid: string;
+  title: string;
+  from: Rect;
+  to: Rect;
+  lane: LaneId;
+  /** Sin fila de destino —carril plegado—: la copia se desvanece al llegar. */
+  funde: boolean;
+};
 
 /** Un nodo entero: cabecera plegable y, debajo, su propia lista. */
 function NodeBox({
@@ -211,13 +220,14 @@ function VueloFila({
 
   return (
     <div
-      className={`vuelo ${vuelo.lane}`}
+      className={`vuelo ${vuelo.lane}${vuelo.funde ? " funde" : ""}`}
       style={{
         left: vuelo.from.x,
         top: vuelo.from.y,
         width: vuelo.from.w,
         height: vuelo.from.h,
         transform: enVuelo ? `translate(${dx}px, ${dy}px)` : "none",
+        opacity: enVuelo && vuelo.funde ? 0 : 1,
       }}
       onTransitionEnd={(e) => {
         if (e.propertyName === "transform") onDone(vuelo.id);
@@ -492,21 +502,40 @@ export default function App() {
       });
     }
 
+    /* Con el carril plegado no hay fila que medir: el vuelo arranca o aterriza
+     * en la cabecera del nodo, que es lo único que se ve de él. */
+    const cabecera = (lane: LaneId): Rect | undefined => {
+      const el = map.querySelector<HTMLElement>(`.node.lane-${lane}`);
+      if (!el) return undefined;
+      const r = el.getBoundingClientRect();
+      return {
+        x: r.left - caja.left + 8,
+        y: r.top - caja.top + 6,
+        w: Math.max(80, r.width - 16),
+        h: 20,
+      };
+    };
+
     const carriles = new Map(ideas.map((idea) => [idea.uid, laneOf(idea.status)]));
     const nuevos: Vuelo[] = [];
     let n = 0;
     for (const [uid, lane] of carriles) {
       const antes = carrilesPrevios.current.get(uid);
-      const desde = antes ? rects.current.get(`${antes}:${uid}`) : undefined;
-      const hacia = ahora.get(`${lane}:${uid}`);
-      if (!antes || antes === lane || !desde || !hacia) continue;
+      if (!antes || antes === lane) continue;
+
+      const desde = rects.current.get(`${antes}:${uid}`) ?? cabecera(antes);
+      const fila = ahora.get(`${lane}:${uid}`);
+      const hasta = fila ?? cabecera(lane);
+      if (!desde || !hasta) continue;
+
       nuevos.push({
         id: Date.now() + n++,
         uid,
         title: ideas.find((idea) => idea.uid === uid)?.title ?? "",
         from: desde,
-        to: hacia,
+        to: hasta,
         lane,
+        funde: fila === undefined,
       });
     }
 

@@ -1,7 +1,8 @@
 import { useLayoutEffect, useState } from "react";
 import type { Ref } from "react";
 
-import type { TreeNode, Vuelo } from "./mapa";
+import type { TreeNode } from "./arbol";
+import type { Vuelo } from "./vuelos";
 
 /** Flecha de plegado. Vacía si el nodo no tiene items. */
 function Arrow({ open }: { open: boolean }) {

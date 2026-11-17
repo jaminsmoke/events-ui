@@ -1,23 +1,6 @@
-import type { Connection, Idea } from "./api";
-
-export type Status = Idea["status"];
-
-/** Los dos carriles del nivel siguiente.
- *
- *  No son tablas: son una vista sobre `ideas.status`. `rejected`/`superseded`
- *  cierran la rama; el resto sigue en cola. Un carril de verdad solo hará falta
- *  cuando las columnas sean datos (nombre, orden, por repo), no dos constantes.
- */
-export const LANES = [
-  { id: "cola", title: "En cola" },
-  { id: "descartadas", title: "Descartadas" },
-] as const;
-
-export type LaneId = (typeof LANES)[number]["id"];
-
-export function laneOf(status: Status): LaneId {
-  return status === "rejected" || status === "superseded" ? "descartadas" : "cola";
-}
+import type { Connection, Idea } from "../core/api";
+import { LANES, laneOf } from "./carriles";
+import type { LaneId } from "./carriles";
 
 /* ---------- el nodo, estilo Unreal ----------
  *
@@ -96,21 +79,3 @@ export function buildTree(ideas: Idea[], links: Connection[]): Tree {
 
   return { cajon, carriles };
 }
-
-/** Un cable del cajón a un carril, ya medido en píxeles del mapa. */
-export type Cable = { lane: LaneId; d: string; x1: number; y1: number };
-
-/** Rectángulo relativo al mapa: lo que un vuelo necesita para saber de dónde a dónde. */
-export type Rect = { x: number; y: number; w: number; h: number };
-
-/** Una fila cruzando de un carril al otro. */
-export type Vuelo = {
-  id: number;
-  uid: string;
-  title: string;
-  from: Rect;
-  to: Rect;
-  lane: LaneId;
-  /** Sin fila de destino —carril plegado—: la copia se desvanece al llegar. */
-  funde: boolean;
-};

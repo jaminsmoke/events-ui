@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
 
-/** Zoom del lienzo: ni una miniatura ilegible ni un nodo que no cabe. */
-export const ZOOM_MIN = 0.4;
-export const ZOOM_MAX = 2.5;
+/** Zoom del lienzo, acotado a lo útil.
+ *
+ *  El esquema es pequeño: no hay nada que leer al 25% ni un nodo que necesite el
+ *  300%. Por debajo del 50% los títulos se vuelven ilegibles y por encima del
+ *  150% el mapa ocupa mucho más que su ventana y se pierde de vista. */
+export const ZOOM_MIN = 0.5;
+export const ZOOM_MAX = 1.5;
 export const ZOOM_PASO = 1.08;
 
 export type Vista = { x: number; y: number; k: number };
@@ -57,7 +61,10 @@ export function useCamara({
 
   /* Encuadrar: que el esquema quepa entero y centrado. Se mide con `offsetWidth`
    * y `clientWidth`, que no llevan el transform encima, así el cálculo vale con
-   * cualquier zoom y no depende de la vista actual. */
+   * cualquier zoom y no depende de la vista actual.
+   *
+   *  El tope es 1: encuadrar nunca agranda el mapa por encima de su tamaño real,
+   *  solo lo encoge si no cabe. El suelo es el mismo de la cámara. */
   const encuadrar = useCallback(() => {
     movida.current = false;
     const board = boardRef.current;

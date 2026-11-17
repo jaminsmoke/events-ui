@@ -23,13 +23,16 @@ body {
   font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
+/* Alto fijo de ventana: el lienzo no crece con el contenido, se recorta y la
+ * cámara es la que encuadra. Si creciera, el encuadre mediría un hueco falso. */
 .shell {
   display: flex;
   flex-direction: column;
   max-width: 1180px;
-  min-height: 100vh;
+  height: 100vh;
   margin: 0 auto;
   padding: 36px 24px;
+  overflow: hidden;
 }
 
 h1 {
@@ -186,6 +189,7 @@ header {
   position: relative;
   display: flex;
   flex: 1;
+  min-height: 0;
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -226,6 +230,17 @@ header {
 .vista .btn {
   padding: 2px 8px;
   font-size: 12px;
+}
+
+.vista .btn:disabled {
+  opacity: 0.35;
+}
+
+.vista-flecha {
+  min-width: 24px;
+  padding: 2px 6px;
+  font-size: 14px;
+  line-height: 1.1;
 }
 
 .map {

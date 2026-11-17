@@ -447,6 +447,19 @@ export default function App() {
     setVuelos((prev) => prev.filter((v) => v.id !== id));
   }, []);
 
+  // Zoom desde los botones: se ancla en el centro del mapa, no en el cursor.
+  const zoom = useCallback((factor: number) => {
+    setVista((v) => {
+      const k = acotar(v.k * factor, ZOOM_MIN, ZOOM_MAX);
+      if (k === v.k) return v;
+      const caja = mapRef.current?.getBoundingClientRect();
+      if (!caja) return { ...v, k };
+      const lx = caja.width / v.k / 2;
+      const ly = caja.height / v.k / 2;
+      return { x: v.x + lx * (v.k - k), y: v.y + ly * (v.k - k), k };
+    });
+  }, []);
+
   const toggle = useCallback((key: string) => {
     setCerrados((prev) => {
       const next = new Set(prev);
@@ -849,7 +862,25 @@ export default function App() {
           )}
           {/* Nivel de cámara y vuelta atrás: el lienzo se puede perder de vista. */}
           <div className="vista">
+            <button
+              type="button"
+              className="btn ghost vista-flecha"
+              aria-label="Alejar"
+              disabled={vista.k <= ZOOM_MIN}
+              onClick={() => zoom(1 / ZOOM_PASO)}
+            >
+              −
+            </button>
             <span className="vista-nivel">{Math.round(vista.k * 100)}%</span>
+            <button
+              type="button"
+              className="btn ghost vista-flecha"
+              aria-label="Acercar"
+              disabled={vista.k >= ZOOM_MAX}
+              onClick={() => zoom(ZOOM_PASO)}
+            >
+              +
+            </button>
             <button
               type="button"
               className="btn ghost"

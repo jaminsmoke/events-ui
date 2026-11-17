@@ -50,35 +50,28 @@ function laneOf(status: Status): LaneId {
   return status === "rejected" || status === "superseded" ? "descartadas" : "cola";
 }
 
-/* ---------- geometría del mapa ----------
+/* ---------- el nodo, estilo Unreal ----------
  *
- *  Nodos sueltos sobre un lienzo, unidos por cables. Nada de tarjetas que
- *  envuelvan tarjetas: el primer nivel es `Ideas`, el segundo los dos carriles
- *  y de ahí cuelgan las ideas.
+ *  El nodo es compacto: una cabecera con el título, un contador y una flecha.
+ *  Cuando tiene items, la flecha los despliega **dentro** del nodo como filas,
+ *  igual que un nodo de Unreal enseña sus opciones. Nada de un nodo por item ni
+ *  de tarjetas dentro de tarjetas.
  *
- *  Es un **visor**: aquí no se arrastra, ni se crea, ni se borra nada. El mapa
- *  solo refleja lo que ya hay en el almacén del repo, y todo lo demás entra por
- *  la API desde fuera. El proyecto no es un nodo: vive en la barra de arriba.
+ *  Es un **visor**: plegar y desplegar cambia lo que se ve, nunca el almacén.
+ *  Aquí no se mueve, ni se crea, ni se borra nada; eso entra por la API.
  */
 
-const NODE_W = 200;
-const NODE_H = 74;
-const STEP_X = 232;
-const STEP_Y = 92;
-
-type MapNode = {
+type TreeNode = {
   key: string;
-  x: number;
-  y: number;
   title: string;
-  sub: string;
+  /** Ideas que hay por debajo: todas las del repo, las del carril, o las sub-ideas. */
+  total: number;
+  kids: TreeNode[];
   idea?: Idea;
-  lane?: LaneId;
+  tone?: "root" | LaneId;
 };
 
-function buildMap(ideas: Idea[], links: Connection[]) {
-  const nodes: MapNode[] = [];
-  const wires: [string, string][] = [];
+function buildTree(ideas: Idea[], links: Connection[]): TreeNode {
   const byUid = new Map(ideas.map((idea) => [idea.uid, idea]));
 
   const hijos = new Map<string, string[]>();
@@ -88,114 +81,79 @@ function buildMap(ideas: Idea[], links: Connection[]) {
     lista.push(link.child_uid);
     hijos.set(link.parent_uid, lista);
   }
-  // Quien tiene padre en `connections` se dibuja colgando de él, no del carril.
-  const conPadre = new Set(links.filter((link) => link.kind === "child").map((l) => l.child_uid));
 
-  const centros = new Map<string, number>();
-  let cursor = 0;
-  let columnas = 2;
-
-  /* Coloca una idea y su descendencia; devuelve el centro vertical de su rama.
-   * Los hijos se colocan primero y el padre queda centrado sobre ellos. `camino`
-   * corta los ciclos: una idea repetida devuelve su centro y no se pinta dos veces. */
-  const colocar = (uid: string, columna: number, camino: ReadonlySet<string>): number => {
-    const conocido = centros.get(uid);
-    if (conocido !== undefined) return conocido;
-
+  /* Una idea y lo que cuelga de ella. `camino` corta los ciclos: la API ya los
+   * rechaza, pero una conexión repetida no puede colgar el render. */
+  const rama = (uid: string, camino: ReadonlySet<string>): TreeNode | null => {
     const idea = byUid.get(uid);
-    if (!idea) return cursor; // conexión huérfana: la FK ya lo impide, pero no se pinta
+    if (!idea || camino.has(uid)) return null;
 
     const siguiente: ReadonlySet<string> = new Set([...camino, uid]);
-    const kids = (hijos.get(uid) ?? []).filter((kid) => !camino.has(kid));
+    const kids = (hijos.get(uid) ?? [])
+      .map((kid) => rama(kid, siguiente))
+      .filter((nodo): nodo is TreeNode => nodo !== null);
 
-    let centro: number;
-    if (kids.length === 0) {
-      centro = cursor + STEP_Y / 2;
-      cursor += STEP_Y;
-    } else {
-      const centrosKids = kids.map((kid) => colocar(kid, columna + 1, siguiente));
-      const arriba = centrosKids[0];
-      const abajo = centrosKids[centrosKids.length - 1];
-      centro = arriba !== undefined && abajo !== undefined ? (arriba + abajo) / 2 : 0;
-    }
-
-    columnas = Math.max(columnas, columna + 1);
-    centros.set(uid, centro);
-    nodes.push({
-      key: uid,
-      x: columna * STEP_X,
-      y: centro - NODE_H / 2,
-      title: idea.title,
-      sub: idea.description,
-      idea,
-    });
-    for (const kid of kids) wires.push([uid, kid]);
-    return centro;
+    return { key: uid, title: idea.title, total: kids.length, kids, idea };
   };
 
-  const centrosCarril: number[] = [];
-  for (const lane of LANES) {
+  // Quien tiene padre en `connections` se dibuja dentro de él, no en el carril.
+  const conPadre = new Set(links.filter((link) => link.kind === "child").map((l) => l.child_uid));
+
+  const carriles: TreeNode[] = LANES.map((lane) => {
     const items = ideas.filter((idea) => laneOf(idea.status) === lane.id);
-    // Quien ya cuelga de otra idea no vuelve a nacer en el carril: se dibuja en
-    // su columna, debajo de su padre. Si no, los dos acaban en la misma x.
-    const raices = items.filter((idea) => !conPadre.has(idea.uid));
-    const centrosIdeas = raices.map((idea) => colocar(idea.uid, 2, new Set()));
+    const kids = items
+      .filter((idea) => !conPadre.has(idea.uid))
+      .map((idea) => rama(idea.uid, new Set()))
+      .filter((nodo): nodo is TreeNode => nodo !== null);
 
-    // Un carril vacío sigue ocupando sitio: el nodo se queda, sin hijos.
-    let centro: number;
-    const primero = centrosIdeas[0];
-    const ultimo = centrosIdeas[centrosIdeas.length - 1];
-    if (primero !== undefined && ultimo !== undefined) {
-      centro = (primero + ultimo) / 2;
-    } else {
-      centro = cursor + STEP_Y / 2;
-      cursor += STEP_Y;
-    }
-    centrosCarril.push(centro);
-
-    const key = `lane-${lane.id}`;
-    nodes.push({
-      key,
-      x: STEP_X,
-      y: centro - NODE_H / 2,
-      title: lane.title,
-      sub: `${items.length} ${items.length === 1 ? "idea" : "ideas"}`,
-      lane: lane.id,
-    });
-    wires.push(["root", key]);
-    for (const idea of raices) wires.push([key, idea.uid]);
-  }
-
-  // `Ideas` es la raíz del tablero, no el proyecto: la carpeta se lee arriba.
-  const first = centrosCarril[0];
-  const last = centrosCarril[centrosCarril.length - 1];
-  const raiz = first !== undefined && last !== undefined ? (first + last) / 2 : 0;
-  nodes.push({
-    key: "root",
-    x: 0,
-    y: raiz - NODE_H / 2,
-    title: "Ideas",
-    sub: `${ideas.length} ${ideas.length === 1 ? "idea" : "ideas"}`,
+    return { key: `lane-${lane.id}`, title: lane.title, total: items.length, kids, tone: lane.id };
   });
 
-  // `columnas` es el índice siguiente: el ancho sale del último nodo, no de la
-  // columna que aún no existe (dejaba 232px muertos a la derecha).
-  return {
-    nodes,
-    wires,
-    width: (columnas - 1) * STEP_X + NODE_W,
-    height: Math.max(cursor, NODE_H),
-  };
+  return { key: "ideas", title: "Ideas", total: ideas.length, kids: carriles, tone: "root" };
 }
 
-/** Cable de un nodo a otro: sale por la derecha y entra por la izquierda. */
-function wirePath(from: MapNode, to: MapNode): string {
-  const x1 = from.x + NODE_W;
-  const y1 = from.y + NODE_H / 2;
-  const x2 = to.x;
-  const y2 = to.y + NODE_H / 2;
-  const mid = (x1 + x2) / 2;
-  return `M ${x1} ${y1} C ${mid} ${y1}, ${mid} ${y2}, ${x2} ${y2}`;
+/** Flecha de plegado. Vacía si el nodo no tiene items. */
+function Arrow({ open }: { open: boolean }) {
+  return <span className="arrow">{open ? "▾" : "▸"}</span>;
+}
+
+/** Una fila del nodo: título, contador y, si tiene items, su propia flecha. */
+function NodeRow({
+  node,
+  cerrados,
+  onToggle,
+}: {
+  node: TreeNode;
+  cerrados: ReadonlySet<string>;
+  onToggle: (key: string) => void;
+}) {
+  const tiene = node.kids.length > 0;
+  const abierto = tiene && !cerrados.has(node.key);
+
+  return (
+    <div className={`row${node.tone ? ` lane-${node.tone}` : ""}`}>
+      <button
+        type="button"
+        className="row-head"
+        onClick={() => tiene && onToggle(node.key)}
+        aria-expanded={tiene ? abierto : undefined}
+        title={node.idea?.description || undefined}
+      >
+        {node.idea && <span className={`dot status-${node.idea.status}`} />}
+        <span className="row-title">{node.title}</span>
+        {node.total > 0 && <span className="count">{node.total}</span>}
+        {tiene && <Arrow open={abierto} />}
+      </button>
+
+      {abierto && (
+        <div className="row-kids">
+          {node.kids.map((kid) => (
+            <NodeRow key={kid.key} node={kid} cerrados={cerrados} onToggle={onToggle} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /** GET tipado: si el core responde 404/400, el `detail` del core es el mensaje. */
@@ -234,6 +192,8 @@ export default function App() {
   const [links, setLinks] = useState<Connection[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [manual, setManual] = useState("");
+  // Lo plegado, no lo abierto: por defecto el flujo se ve entero.
+  const [cerrados, setCerrados] = useState<ReadonlySet<string>>(() => new Set());
 
   // Carga inicial + vigilancia del `PRAGMA data_version` del almacén del repo.
   // Los `setState` van en continuaciones async, nunca en el cuerpo del efecto;
@@ -308,12 +268,21 @@ export default function App() {
     if (typeof dir === "string") abrir(dir);
   }, [abrir]);
 
+  const toggle = useCallback((key: string) => {
+    setCerrados((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
   const busy = repo !== null && ideas === null && error === null;
-  const map = useMemo(
-    () => (repo ? buildMap(ideas ?? [], links) : null),
+  const tree = useMemo(
+    () => (repo ? buildTree(ideas ?? [], links) : null),
     [repo, ideas, links],
   );
-  const byKey = new Map<string, MapNode>((map?.nodes ?? []).map((node) => [node.key, node]));
+  const abierto = tree !== null && !cerrados.has(tree.key);
 
   return (
     <main className="shell">
@@ -383,34 +352,28 @@ export default function App() {
           {!busy && ideas?.length === 0 && (
             <p className="hint">Todavía no hay ideas en este repo.</p>
           )}
-          {!busy && map && (
-            <div className="map" style={{ width: map.width, height: map.height }}>
-              <svg className="wires" width={map.width} height={map.height} aria-hidden="true">
-                {map.wires.map(([from, to]) => {
-                  const a = byKey.get(from);
-                  const b = byKey.get(to);
-                  return a && b ? (
-                    <path key={`${from}->${to}`} d={wirePath(a, b)} className="wire" />
-                  ) : null;
-                })}
-              </svg>
-              {map.nodes.map((node) => (
-                <div
-                  key={node.key}
-                  className={`node${node.idea ? "" : " hub"}${
-                    node.lane ? ` lane-${node.lane}` : ""
-                  }`}
-                  style={{ left: node.x, top: node.y }}
+          {!busy && tree && (
+            <div className="map">
+              <section className={`node${abierto ? " open" : ""}`}>
+                <button
+                  type="button"
+                  className="node-head"
+                  onClick={() => toggle(tree.key)}
+                  aria-expanded={abierto}
                 >
-                  <span className="node-title">{node.title}</span>
-                  {node.sub && <span className="node-sub">{node.sub}</span>}
-                  {node.idea && (
-                    <span className="node-meta mono">
-                      {node.idea.kind} · {node.idea.status}
-                    </span>
-                  )}
-                </div>
-              ))}
+                  <span className="node-title">{tree.title}</span>
+                  <span className="count">{tree.total}</span>
+                  <Arrow open={abierto} />
+                </button>
+
+                {abierto && (
+                  <div className="node-body">
+                    {tree.kids.map((kid) => (
+                      <NodeRow key={kid.key} node={kid} cerrados={cerrados} onToggle={toggle} />
+                    ))}
+                  </div>
+                )}
+              </section>
             </div>
           )}
         </section>

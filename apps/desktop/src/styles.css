@@ -168,88 +168,170 @@ header {
   font-size: 12.5px;
 }
 
-/* ---------- mapa de nodos ---------- */
+/* ---------- el nodo ----------
+ *
+ *  Compacto y plegable, como un nodo de Unreal: la cabecera es el nodo entero
+ *  cuando está cerrado; al abrirse aparecen sus items como filas dentro.
+ *  Puro visor: aquí no hay arrastre ni cajas editables.
+ */
 
 .board {
   position: relative;
 }
 
-/* Lienzo del tamaño del contenido; hoy los nodos se colocan a mano desde TS. */
 .map {
-  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
   margin-top: 4px;
 }
 
-.wires {
-  position: absolute;
-  inset: 0;
-  overflow: visible;
-  pointer-events: none;
-}
-
-.wire {
-  fill: none;
-  stroke: #2f3d52;
-  stroke-width: 1.4;
-  stroke-dasharray: 4 5;
-}
-
-/* Un nodo es una pieza suelta: borde propio, sin caja que lo contenga. */
 .node {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  width: 200px;
-  height: 74px;
-  padding: 10px 12px;
-  overflow: hidden;
+  min-width: 232px;
+  max-width: 340px;
   background: #10151c;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  color: inherit;
+  border: 1px solid #3c5f8f;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.node-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 9px;
+  background: #16233a;
+  border: 0;
+  color: var(--fg);
   font: inherit;
+  font-size: 13px;
+  font-weight: 600;
   text-align: left;
+  cursor: pointer;
 }
 
-/* Nodos de estructura (raíz y carriles): no se abren, solo informan. */
-.node.hub {
-  border-style: dashed;
-  background: #0c1117;
-}
-
-.node.lane-cola {
-  border-color: #2e4a6b;
-}
-
-.node.lane-descartadas {
-  border-color: #5c2f2f;
+.node-head:hover {
+  background: #1a2a45;
 }
 
 .node-title {
-  display: -webkit-box;
+  flex: 1;
   overflow: hidden;
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.25;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-.node-sub {
-  overflow: hidden;
-  color: var(--muted);
-  font-size: 12px;
-  white-space: nowrap;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.node-meta {
-  margin-top: auto;
-  color: var(--muted);
+/* Contador redondo de la cabecera: cuántas ideas hay dentro. */
+.count {
+  min-width: 18px;
+  padding: 0 6px;
+  border: 1px solid #4a6b9a;
+  border-radius: 99px;
+  color: #cfe0f7;
   font-size: 10.5px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.arrow {
+  width: 8px;
+  color: #7fa6d8;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.node-body {
+  border-top: 1px solid #24354d;
+}
+
+/* Las filas no son tarjetas: son líneas del nodo, sin caja ni borde propio. */
+.row {
+  border-top: 1px solid #1b2534;
+}
+
+.node-body > .row:first-child {
+  border-top: 0;
+}
+
+.row-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 3px 9px;
+  background: transparent;
+  border: 0;
+  color: var(--fg);
+  font: inherit;
+  font-size: 11.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.row-head:hover {
+  background: #151d29;
+}
+
+.row:not(:has(.row-head[aria-expanded])) > .row-head {
+  cursor: default;
+}
+
+.row-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row .count {
+  border-color: #33465e;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.row .arrow {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+/* Un nivel más de profundidad: sangría y guía fina, sin otra caja. */
+.row-kids {
+  margin-left: 9px;
+  padding-left: 8px;
+  border-left: 1px solid #1f2a3a;
+}
+
+/* Punto de estado de una idea: el carril ya lo dice, esto lo repite a golpe de vista. */
+.dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 99px;
+  background: var(--muted);
+}
+
+.dot.status-proposed,
+.dot.status-draft {
+  background: var(--accent);
+}
+
+.dot.status-accepted {
+  background: var(--good);
+}
+
+.dot.status-rejected,
+.dot.status-superseded {
+  background: var(--bad);
+}
+
+.row.lane-cola > .row-head {
+  box-shadow: inset 2px 0 0 #2e4a6b;
+}
+
+.row.lane-descartadas > .row-head {
+  box-shadow: inset 2px 0 0 #5c2f2f;
 }
 
 .meta {

@@ -362,6 +362,8 @@ export default function App() {
   const [arrastrando, setArrastrando] = useState(false);
   const agarre = useRef<{ x: number; y: number } | null>(null);
   const encuadrado = useRef<string | null>(null);
+  // ¿La cámara la movió el usuario? Entonces al redimensionar no se toca.
+  const movida = useRef(false);
 
   // Carga inicial + vigilancia del `PRAGMA data_version` del almacén del repo.
   // Los `setState` van en continuaciones async, nunca en el cuerpo del efecto;
@@ -424,6 +426,7 @@ export default function App() {
     setLinks([]);
     setError(null);
     encuadrado.current = null; // repo nuevo, encuadre nuevo
+    movida.current = false;
     setRepo(path);
   }, []);
 
@@ -449,6 +452,7 @@ export default function App() {
 
   // Zoom desde los botones: se ancla en el centro del mapa, no en el cursor.
   const zoom = useCallback((factor: number) => {
+    movida.current = true;
     setVista((v) => {
       const k = acotar(v.k * factor, ZOOM_MIN, ZOOM_MAX);
       if (k === v.k) return v;
@@ -608,6 +612,7 @@ export default function App() {
       if (!caja || !e.deltaY) return;
       e.preventDefault();
 
+      movida.current = true;
       setVista((v) => {
         const k = acotar(v.k * (e.deltaY < 0 ? ZOOM_PASO : 1 / ZOOM_PASO), ZOOM_MIN, ZOOM_MAX);
         if (k === v.k) return v;
@@ -622,34 +627,49 @@ export default function App() {
     return () => board.removeEventListener("wheel", rueda);
   }, []);
 
-  /* Encuadre de bienvenida: al abrir un repo, la cámara se ajusta para que el
-   * esquema quepa entero y centrado. Una sola vez por repo: después manda el
-   * ratón, y volver al 100% sigue estando en el mando de la esquina. */
-  useLayoutEffect(() => {
+  /* Encuadrar: que el esquema quepa entero y centrado. Se mide con `offsetWidth`
+   * y `clientWidth`, que no llevan el transform encima, así el cálculo vale con
+   * cualquier zoom y no depende de la vista actual. */
+  const encuadrar = useCallback(() => {
     const board = boardRef.current;
     const map = mapRef.current;
-    if (!board || !map || !tree || !repo || encuadrado.current === repo) return;
+    if (!board || !map) return;
 
     const ancho = map.offsetWidth;
     const alto = map.offsetHeight;
     if (!ancho || !alto) return;
 
+    const k = acotar(
+      Math.min((board.clientWidth - 64) / ancho, (board.clientHeight - 120) / alto),
+      ZOOM_MIN,
+      1,
+    );
+    setVista({
+      x: (board.clientWidth - ancho * k) / 2 - map.offsetLeft,
+      y: (board.clientHeight - alto * k) / 2 - map.offsetTop,
+      k,
+    });
+  }, []);
+
+  /* Bienvenida: al abrir un repo se encuadra una vez. Después manda el ratón. */
+  useLayoutEffect(() => {
+    if (!tree || !repo || encuadrado.current === repo) return;
+    if (!boardRef.current || !mapRef.current) return;
     encuadrado.current = repo;
-
-    const caja = board.getBoundingClientRect();
-    const r = map.getBoundingClientRect();
-    // El origen del transform es la esquina: el layout está en `r` menos el
-    // translate, así la medida vale con cualquier zoom.
-    const baseX = r.left - caja.left - vista.x;
-    const baseY = r.top - caja.top - vista.y;
-
-    const k = acotar(Math.min((caja.width - 64) / ancho, (caja.height - 120) / alto), ZOOM_MIN, 1);
-    const x = (caja.width - ancho * k) / 2 - baseX;
-    const y = (caja.height - alto * k) / 2 - baseY;
-
-    const raf = requestAnimationFrame(() => setVista({ x, y, k }));
+    const raf = requestAnimationFrame(encuadrar);
     return () => cancelAnimationFrame(raf);
-  }, [repo, tree, vista]);
+  }, [repo, tree, encuadrar]);
+
+  /* Si cambia el tamaño de la ventana se vuelve a encuadrar, salvo que el usuario
+   * haya movido la cámara: entonces su vista manda y solo se recoloca el layout,
+   * que va centrado por flex. */
+  useEffect(() => {
+    const alRedimensionar = () => {
+      if (!movida.current) encuadrar();
+    };
+    window.addEventListener("resize", alRedimensionar);
+    return () => window.removeEventListener("resize", alRedimensionar);
+  }, [encuadrar]);
 
   /* El cambio en el almacén es instantáneo; la animación no. Cuando un carril
    * cambia de tamaño, una chispa recorre su cable para que se vea llegar, y si
@@ -766,6 +786,7 @@ export default function App() {
             // Arrastrar solo desde el fondo: sobre un nodo no se mueve nada.
             if (e.button !== 0 || (e.target as HTMLElement).closest(".node, .vista")) return;
             agarre.current = { x: e.clientX, y: e.clientY };
+            movida.current = true;
             setArrastrando(true);
             try {
               e.currentTarget.setPointerCapture(e.pointerId);
@@ -789,7 +810,10 @@ export default function App() {
             agarre.current = null;
             setArrastrando(false);
           }}
-          onDoubleClick={() => setVista({ x: 0, y: 0, k: 1 })}
+          onDoubleClick={() => {
+            movida.current = true;
+            setVista({ x: 0, y: 0, k: 1 });
+          }}
         >
           {busy && <p className="hint">Cargando…</p>}
           {!busy && ideas?.length === 0 && (
@@ -886,7 +910,10 @@ export default function App() {
               type="button"
               className="btn ghost"
               title="Volver al 100% y centrar"
-              onClick={() => setVista({ x: 0, y: 0, k: 1 })}
+              onClick={() => {
+                movida.current = true;
+                setVista({ x: 0, y: 0, k: 1 });
+              }}
             >
               100%
             </button>

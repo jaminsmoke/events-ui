@@ -538,7 +538,8 @@ export default function App() {
     for (const fila of map.querySelectorAll<HTMLElement>(".row[data-uid]")) {
       const uid = fila.dataset.uid;
       const nodo = fila.dataset.nodo;
-      if (!uid || !nodo || nodo === "ideas") continue;
+      // El cajón no vuela: sus filas no son origen ni destino de nada.
+      if (!uid || !nodo || nodo === "root") continue;
       const r = fila.getBoundingClientRect();
       ahora.set(`${nodo}:${uid}`, {
         x: (r.left - caja.left) / k,

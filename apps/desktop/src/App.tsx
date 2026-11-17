@@ -359,6 +359,7 @@ export default function App() {
   // Vista del lienzo: solo mueve la cámara. Los nodos no se tocan.
   const boardRef = useRef<HTMLElement | null>(null);
   const [vista, setVista] = useState({ x: 0, y: 0, k: 1 });
+  const [recortado, setRecortado] = useState(false);
   const [arrastrando, setArrastrando] = useState(false);
   const agarre = useRef<{ x: number; y: number } | null>(null);
   const encuadrado = useRef<string | null>(null);
@@ -524,6 +525,18 @@ export default function App() {
         });
       });
       setCables(trazos);
+
+      // ¿Queda algo fuera del lienzo? Entonces se ofrece reencuadrar.
+      const vistaMapa = map.getBoundingClientRect();
+      const hueco = boardRef.current?.getBoundingClientRect();
+      setRecortado(
+        hueco
+          ? vistaMapa.left < hueco.left - 1 ||
+              vistaMapa.right > hueco.right + 1 ||
+              vistaMapa.top < hueco.top - 1 ||
+              vistaMapa.bottom > hueco.bottom + 1
+          : false,
+      );
     };
 
     medir();
@@ -531,7 +544,7 @@ export default function App() {
     ro.observe(cajon);
     for (const el of carrilRefs.current) if (el) ro.observe(el);
     return () => ro.disconnect();
-  }, [tree, cerrados, vista.k]);
+  }, [tree, cerrados, vista]);
 
   /* El vuelo: si una idea cambia de carril, su fila no aparece de golpe en el
    * nodo nuevo — se va volando desde donde estaba, y el destino la espera
@@ -674,6 +687,31 @@ export default function App() {
     window.addEventListener("resize", alRedimensionar);
     return () => window.removeEventListener("resize", alRedimensionar);
   }, [encuadrar]);
+
+  /* Teclado: + y − acercan y alejan, 0 vuelve al 100% y F reencuadra. Nada de
+   * atajos sobre el input de ruta. */
+  useEffect(() => {
+    const teclas = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === "+" || e.key === "=") {
+        e.preventDefault();
+        zoom(ZOOM_PASO);
+      } else if (e.key === "-" || e.key === "_") {
+        e.preventDefault();
+        zoom(1 / ZOOM_PASO);
+      } else if (e.key === "0") {
+        e.preventDefault();
+        movida.current = true;
+        setVista({ x: 0, y: 0, k: 1 });
+      } else if (e.key.toLowerCase() === "f") {
+        movida.current = false;
+        encuadrar();
+      }
+    };
+
+    window.addEventListener("keydown", teclas);
+    return () => window.removeEventListener("keydown", teclas);
+  }, [zoom, encuadrar]);
 
   /* El cambio en el almacén es instantáneo; la animación no. Cuando un carril
    * cambia de tamaño, una chispa recorre su cable para que se vea llegar, y si
@@ -890,6 +928,20 @@ export default function App() {
               </div>
             </div>
           )}
+          {/* Si el esquema no cabe, se dice y se ofrece encuadrarlo. */}
+          {recortado && (
+            <button
+              type="button"
+              className="aviso-recorte"
+              onClick={() => {
+                movida.current = false;
+                encuadrar();
+              }}
+            >
+              Hay esquema fuera de la vista · Encuadrar
+            </button>
+          )}
+
           {/* Nivel de cámara y vuelta atrás: el lienzo se puede perder de vista. */}
           <div className="vista">
             <button

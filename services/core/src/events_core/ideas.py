@@ -25,7 +25,10 @@ EUI_DIR = ".EUI"
 # extensión, se migra solo la primera vez que se abre.
 DB_FILENAME = "EUI_DATABASE.sqlite"
 LEGACY_DB_FILENAME = "EUI_DATABASE"
-SCHEMA_PATH = Path(__file__).with_name("schema") / "ideas.sql"
+SCHEMA_DIR = Path(__file__).with_name("schema")
+# Se aplican todos los `*.sql` en orden: un fichero nuevo no obliga a tocar este
+# módulo. `PRAGMA user_version` dice cuál hay aplicado en cada almacén.
+SCHEMA_VERSION = 2
 
 REPOS_ROOT_ENV_VAR = "EVENTSUI_REPOS_ROOT"
 BUSY_TIMEOUT_MS = 5_000
@@ -108,11 +111,18 @@ def init_repo(repo: str) -> Path:
 
     db_file = directory / EUI_DIR / DB_FILENAME
     with closing(connect(db_file, create=True)) as conn:
-        conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+        aplicar_esquema(conn)
         conn.commit()
 
     (db_file.parent / ".gitignore").write_text(EUI_GITIGNORE, encoding="utf-8")
     return db_file
+
+
+def aplicar_esquema(conn: sqlite3.Connection) -> None:
+    """Aplica `schema/*.sql` y marca la versión. Idempotente: todo es IF NOT EXISTS."""
+    for script in sorted(SCHEMA_DIR.glob("*.sql")):
+        conn.executescript(script.read_text(encoding="utf-8"))
+    conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
 
 def ensure_repo(repo: str) -> Path:
@@ -124,7 +134,24 @@ def ensure_repo(repo: str) -> Path:
     """
     db_file = db_file_for(repo)
     _migrar_nombre_viejo(db_file)
-    return db_file if db_file.is_file() else init_repo(repo)
+    if not db_file.is_file():
+        return init_repo(repo)
+    _migrar_esquema(db_file)
+    return db_file
+
+
+def _migrar_esquema(db_file: Path) -> None:
+    """Sube al día un almacén que ya existía.
+
+    Un repo viejo no vuelve a pasar por `init_repo`, así que una tabla nueva no
+    llegaría nunca. `user_version` evita abrir en escritura en cada lectura: si
+    ya está al día, no se toca nada.
+    """
+    with closing(connect(db_file)) as conn:
+        if conn.execute("PRAGMA user_version").fetchone()[0] >= SCHEMA_VERSION:
+            return
+        aplicar_esquema(conn)
+        conn.commit()
 
 
 def _contar_ideas(db_file: Path) -> int | None:
@@ -257,7 +284,72 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
 
 
 def delete_idea(repo: str, uid: str) -> bool:
+    """Borra la idea; sus conexiones se van con ella (ON DELETE CASCADE)."""
     with closing(connect(ensure_repo(repo))) as conn:
         cursor = conn.execute("DELETE FROM ideas WHERE uid = ?", (uid,))
         conn.commit()
     return cursor.rowcount > 0
+
+
+def list_connections(repo: str, *, parent_uid: str | None = None) -> list[dict[str, Any]]:
+    """Conexiones del mapa, opcionalmente solo las que cuelgan de un padre."""
+    with closing(connect(ensure_repo(repo))) as conn:
+        rows = conn.execute(
+            "SELECT * FROM connections"
+            " WHERE (:parent IS NULL OR parent_uid = :parent)"
+            " ORDER BY created_at, id",
+            {"parent": parent_uid},
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def create_connection(
+    repo: str,
+    *,
+    parent_uid: str,
+    child_uid: str,
+    kind: str = "child",
+) -> dict[str, Any]:
+    """Cuelga una idea de otra.
+
+    La FK avisa si alguna de las dos no existe y el `UNIQUE` si ya estaban
+    unidas. Antes de insertar se comprueba el ciclo: `A -> B -> A` colgaría el
+    mapa para siempre en cuanto se recorra.
+    """
+    if parent_uid == child_uid:
+        raise InvalidInput("una idea no se conecta consigo misma")
+
+    with closing(connect(ensure_repo(repo))) as conn:
+        # Cierra ciclo si el hijo ya está por encima del padre: al colgar
+        # `parent -> child`, el hijo se convertiría en su propio antepasado.
+        if _alcanza(conn, objetivo=child_uid, desde=parent_uid):
+            raise InvalidInput("esa conexión crearía un ciclo")
+        try:
+            cursor = conn.execute(
+                "INSERT INTO connections (parent_uid, child_uid, kind, created_at)"
+                " VALUES (?, ?, ?, ?)",
+                (parent_uid, child_uid, kind, now_iso()),
+            )
+            conn.commit()
+        except sqlite3.IntegrityError as exc:
+            raise InvalidInput(str(exc)) from exc
+        row = conn.execute("SELECT * FROM connections WHERE id = ?", (cursor.lastrowid,)).fetchone()
+    return dict(row)
+
+
+def _alcanza(conn: sqlite3.Connection, objetivo: str, desde: str) -> bool:
+    """¿`objetivo` está por encima de `desde`? Entonces la arista cierra un ciclo."""
+    vistos: set[str] = set()
+    pila = [desde]
+    while pila:
+        actual = pila.pop()
+        if actual in vistos:
+            continue
+        vistos.add(actual)
+        for (padre,) in conn.execute(
+            "SELECT parent_uid FROM connections WHERE child_uid = ?", (actual,)
+        ):
+            if padre == objetivo:
+                return True
+            pila.append(padre)
+    return False

@@ -125,3 +125,15 @@ migración de nombre.
 
 Si aparecen los dos ficheros a la vez, manda el `.sqlite` y el viejo se retira solo
 cuando no tiene ideas dentro: una migración no borra datos.
+
+### Conexiones del mapa
+
+`ideas` guarda los nodos y `connections` guarda qué idea cuelga de cuál
+(`parent_uid`/`child_uid`/`kind`). El motivo de que sea tabla y no una columna
+`parent_uid` en `ideas`: una idea puede colgar de dos ramas y mover de sitio debe
+ser cambiar una línea, no reescribir la idea. `ON DELETE CASCADE` limpia las
+conexiones al borrar una idea y `_alcanza` rechaza ciclos antes de insertar.
+
+El esquema se aplica desde todos los `schema/*.sql` en orden y se marca con
+`PRAGMA user_version`: un almacén que ya existía no pasa por `init_repo`, así que
+`_migrar_esquema` lo pone al día en la primera lectura.

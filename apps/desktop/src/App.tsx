@@ -15,6 +15,15 @@ type Idea = {
   updated_at: string;
 };
 
+/** Espejo de GET /connections: qué idea cuelga de cuál. */
+type Connection = {
+  id: number;
+  parent_uid: string;
+  child_uid: string;
+  kind: "child" | "related" | "supersedes";
+  created_at: string;
+};
+
 type Status = Idea["status"];
 
 /** Los dos carriles del nivel siguiente.
@@ -55,59 +64,113 @@ type MapNode = {
   lane?: LaneId;
 };
 
-function buildMap(repo: string, ideas: Idea[]) {
+function buildMap(repo: string, ideas: Idea[], links: Connection[]) {
   const nodes: MapNode[] = [];
   const wires: [string, string][] = [];
-  const rootKey = "root";
-  const lanes: { y: number }[] = [];
-  let cursor = 0;
+  const byUid = new Map(ideas.map((idea) => [idea.uid, idea]));
 
+  const hijos = new Map<string, string[]>();
+  for (const link of links) {
+    if (link.kind !== "child") continue;
+    const lista = hijos.get(link.parent_uid) ?? [];
+    lista.push(link.child_uid);
+    hijos.set(link.parent_uid, lista);
+  }
+  // Quien tiene padre en `connections` se dibuja colgando de él, no del carril.
+  const conPadre = new Set(links.filter((link) => link.kind === "child").map((l) => l.child_uid));
+
+  const centros = new Map<string, number>();
+  let cursor = 0;
+  let columnas = 2;
+
+  /* Coloca una idea y su descendencia; devuelve el centro vertical de su rama.
+   * Los hijos se colocan primero y el padre queda centrado sobre ellos. `camino`
+   * corta los ciclos: una idea repetida devuelve su centro y no se pinta dos veces. */
+  const colocar = (uid: string, columna: number, camino: ReadonlySet<string>): number => {
+    const conocido = centros.get(uid);
+    if (conocido !== undefined) return conocido;
+
+    const idea = byUid.get(uid);
+    if (!idea) return cursor; // conexión huérfana: la FK ya lo impide, pero no se pinta
+
+    const siguiente: ReadonlySet<string> = new Set([...camino, uid]);
+    const kids = (hijos.get(uid) ?? []).filter((kid) => !camino.has(kid));
+
+    let centro: number;
+    if (kids.length === 0) {
+      centro = cursor + STEP_Y / 2;
+      cursor += STEP_Y;
+    } else {
+      const centrosKids = kids.map((kid) => colocar(kid, columna + 1, siguiente));
+      const arriba = centrosKids[0];
+      const abajo = centrosKids[centrosKids.length - 1];
+      centro = arriba !== undefined && abajo !== undefined ? (arriba + abajo) / 2 : 0;
+    }
+
+    columnas = Math.max(columnas, columna + 1);
+    centros.set(uid, centro);
+    nodes.push({
+      key: uid,
+      x: columna * STEP_X,
+      y: centro - NODE_H / 2,
+      title: idea.title,
+      sub: idea.description,
+      idea,
+    });
+    for (const kid of kids) wires.push([uid, kid]);
+    return centro;
+  };
+
+  const centrosCarril: number[] = [];
   for (const lane of LANES) {
     const items = ideas.filter((idea) => laneOf(idea.status) === lane.id);
+    const centrosIdeas = items.map((idea) => colocar(idea.uid, 2, new Set()));
+
     // Un carril vacío sigue ocupando sitio: el nodo se queda, sin hijos.
-    const count = Math.max(items.length, 1);
-    const top = cursor;
-    cursor += count * STEP_Y;
+    let centro: number;
+    const primero = centrosIdeas[0];
+    const ultimo = centrosIdeas[centrosIdeas.length - 1];
+    if (primero !== undefined && ultimo !== undefined) {
+      centro = (primero + ultimo) / 2;
+    } else {
+      centro = cursor + STEP_Y / 2;
+      cursor += STEP_Y;
+    }
+    centrosCarril.push(centro);
 
     const key = `lane-${lane.id}`;
-    const y = top + ((count - 1) * STEP_Y) / 2;
-    lanes.push({ y });
     nodes.push({
       key,
       x: STEP_X,
-      y,
+      y: centro - NODE_H / 2,
       title: lane.title,
       sub: `${items.length} ${items.length === 1 ? "idea" : "ideas"}`,
       lane: lane.id,
     });
-    wires.push([rootKey, key]);
-
-    items.forEach((idea, index) => {
-      nodes.push({
-        key: idea.uid,
-        x: STEP_X * 2,
-        y: top + index * STEP_Y,
-        title: idea.title,
-        sub: idea.description,
-        idea,
-      });
-      wires.push([key, idea.uid]);
-    });
+    wires.push(["root", key]);
+    for (const idea of items) {
+      if (!conPadre.has(idea.uid)) wires.push([key, idea.uid]);
+    }
   }
 
   // La raíz se centra sobre sus hijos: el mapa crece hacia la derecha desde ella.
-  const first = lanes[0];
-  const last = lanes[lanes.length - 1];
-  const rootY = first && last ? (first.y + last.y) / 2 : 0;
+  const first = centrosCarril[0];
+  const last = centrosCarril[centrosCarril.length - 1];
+  const raiz = first !== undefined && last !== undefined ? (first + last) / 2 : 0;
   nodes.push({
-    key: rootKey,
+    key: "root",
     x: 0,
-    y: rootY,
+    y: raiz - NODE_H / 2,
     title: folderName(repo),
     sub: `${ideas.length} ${ideas.length === 1 ? "idea" : "ideas"}`,
   });
 
-  return { nodes, wires, width: STEP_X * 2 + NODE_W, height: Math.max(cursor, NODE_H) };
+  return {
+    nodes,
+    wires,
+    width: columnas * STEP_X + NODE_W,
+    height: Math.max(cursor, NODE_H),
+  };
 }
 
 /** Cable de un nodo a otro: sale por la derecha y entra por la izquierda. */
@@ -118,6 +181,16 @@ function wirePath(from: MapNode, to: MapNode): string {
   const y2 = to.y + NODE_H / 2;
   const mid = (x1 + x2) / 2;
   return `M ${x1} ${y1} C ${mid} ${y1}, ${mid} ${y2}, ${x2} ${y2}`;
+}
+
+/** GET tipado: si el core responde 404/400, el `detail` del core es el mensaje. */
+async function getJson<T>(url: string, signal: AbortSignal): Promise<T> {
+  const res = await fetch(url, { signal });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { detail?: string } | null;
+    throw new Error(body?.detail ?? `HTTP ${res.status}`);
+  }
+  return (await res.json()) as T;
 }
 
 const STORAGE_KEY = "eui.repo";
@@ -143,6 +216,7 @@ export default function App() {
   const [repo, setRepo] = useState<string | null>(storedRepo);
   // `null` = todavía sin respuesta; `[]` = el repo está sembrado pero vacío.
   const [ideas, setIdeas] = useState<Idea[] | null>(null);
+  const [links, setLinks] = useState<Connection[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [manual, setManual] = useState("");
 
@@ -153,18 +227,16 @@ export default function App() {
     if (!repo) return;
     const controller = new AbortController();
 
-    fetch(`/api/ideas?repo=${encodeURIComponent(repo)}`, { signal: controller.signal })
-      .then(async (res) => {
-        if (!res.ok) {
-          // El core siembra el almacén si falta; un 404 aquí es que la carpeta no
-          // existe, y su `detail` dice cuál.
-          const body = (await res.json().catch(() => null)) as { detail?: string } | null;
-          throw new Error(body?.detail ?? `HTTP ${res.status}`);
-        }
-        return (await res.json()) as Idea[];
-      })
-      .then((list) => {
+    // El core siembra el almacén si falta; un 404 aquí es que la carpeta no
+    // existe, y su `detail` dice cuál.
+    const q = `repo=${encodeURIComponent(repo)}`;
+    Promise.all([
+      getJson<Idea[]>(`/api/ideas?${q}`, controller.signal),
+      getJson<Connection[]>(`/api/connections?${q}`, controller.signal),
+    ])
+      .then(([list, enlaces]) => {
         setIdeas(list);
+        setLinks(enlaces);
         setError(null);
         localStorage.setItem(STORAGE_KEY, repo);
       })
@@ -179,6 +251,7 @@ export default function App() {
 
   const abrir = useCallback((path: string) => {
     setIdeas(null);
+    setLinks([]);
     setError(null);
     setRepo(path);
   }, []);
@@ -194,7 +267,10 @@ export default function App() {
   }, [abrir]);
 
   const busy = repo !== null && ideas === null && error === null;
-  const map = useMemo(() => (repo ? buildMap(repo, ideas ?? []) : null), [repo, ideas]);
+  const map = useMemo(
+    () => (repo ? buildMap(repo, ideas ?? [], links) : null),
+    [repo, ideas, links],
+  );
   const byKey = new Map<string, MapNode>((map?.nodes ?? []).map((node) => [node.key, node]));
 
   return (

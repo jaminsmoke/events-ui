@@ -71,6 +71,17 @@ class Idea(IdeaCreate):
     updated_at: str
 
 
+class ConnectionCreate(BaseModel):
+    parent_uid: str = Field(min_length=1)
+    child_uid: str = Field(min_length=1)
+    kind: Literal["child", "related", "supersedes"] = "child"
+
+
+class Connection(ConnectionCreate):
+    id: int
+    created_at: str
+
+
 @app.exception_handler(FileNotFoundError)
 def _sin_fichero(_request: Request, exc: FileNotFoundError) -> JSONResponse:
     return JSONResponse(status_code=404, content={"detail": str(exc)})
@@ -152,3 +163,18 @@ def patch_idea(uid: str, body: IdeaUpdate, repo: RepoParam) -> dict[str, Any]:
 def remove_idea(uid: str, repo: RepoParam) -> None:
     if not ideas.delete_idea(repo, uid):
         raise KeyError(uid)
+
+
+@app.get("/connections", response_model=list[Connection], tags=["connections"])
+def get_connections(
+    repo: RepoParam,
+    parent_uid: Annotated[
+        str | None, Query(description="Solo las que cuelgan de esta idea")
+    ] = None,
+) -> list[dict[str, Any]]:
+    return ideas.list_connections(repo, parent_uid=parent_uid)
+
+
+@app.post("/connections", response_model=Connection, status_code=201, tags=["connections"])
+def post_connection(body: ConnectionCreate, repo: RepoParam) -> dict[str, Any]:
+    return ideas.create_connection(repo, **body.model_dump())

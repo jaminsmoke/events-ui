@@ -24,3 +24,9 @@ CREATE TABLE IF NOT EXISTS connections (
     UNIQUE (parent_uid, child_uid, kind),
     CHECK (parent_uid <> child_uid)
 );
+
+-- El chequeo de ciclos de `create_connection` sube por el árbol buscando por
+-- `child_uid`. También está en `migraciones/0003`: un almacén nuevo nace con el
+-- índice, uno viejo lo recibe al abrirse. El texto debe ser idéntico en los dos
+-- sitios, o las dos rutas no darían el mismo esquema.
+CREATE INDEX IF NOT EXISTS idx_connections_child_uid ON connections (child_uid);

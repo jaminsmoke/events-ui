@@ -137,3 +137,23 @@ conexiones al borrar una idea y `_alcanza` rechaza ciclos antes de insertar.
 El esquema se aplica desde todos los `schema/*.sql` en orden y se marca con
 `PRAGMA user_version`: un almacén que ya existía no pasa por `init_repo`, así que
 `_migrar_esquema` lo pone al día en la primera lectura.
+
+### Migraciones por versión
+
+Reaplicar `schema/*.sql` no basta para lo que de verdad duele: todos son
+`IF NOT EXISTS`, así que una columna nueva llega a un almacén nuevo y **nunca** a
+uno que ya existe. Un `.EUI` commiteado en un repo es justamente el caso que no se
+puede recrear.
+
+Por eso `schema/` es el estado final y cada cambio vive además en
+`migraciones/NNNN_nombre.sql`, numerado por versión. `_migrar_esquema` ejecuta los
+pasos que falten, en orden, y aborta si la secuencia tiene un hueco. El mismo SQL
+va en los dos sitios —`schema/` para el almacén que nace, la migración para el que
+ya existía— y ese acuerdo se comprueba comparando el esquema resultante de las dos
+rutas.
+
+Cada paso se aplica con `BEGIN IMMEDIATE`, el SQL, `PRAGMA user_version` y
+`PRAGMA foreign_key_check` en la misma transacción: si algo falla se deshace todo,
+versión incluida, y el almacén se queda como estaba en vez de a medias. Nada de
+`executescript` (hace COMMIT de lo abierto) y nada de `;` dentro de los comentarios
+de una migración, que el troceador corta por ahí.

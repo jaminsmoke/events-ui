@@ -88,8 +88,16 @@ dentro de `repoprobe/repos`. Va en query porque las rutas de Windows no son un
 segmento válido de URL.
 
 Sin ORM y sin scripts sueltos: el esquema vive en
-`services/core/src/events_core/schema/ideas.sql` y las operaciones se hacen por API,
+`services/core/src/events_core/schema/*.sql` y las operaciones se hacen por API,
 navegable desde `/docs`.
+
+`schema/` es el estado **final**: con eso nace un almacén nuevo. Los cambios de
+esquema van además en `migraciones/0003_algo.sql`, un fichero numerado por versión
+(el número manda sobre el resto del nombre) que llevan un almacén existente de la
+versión anterior a la siguiente. `PRAGMA user_version` dice por cuál va cada
+`.EUI/EUI_DATABASE.sqlite`, y `ensure_repo` aplica los pasos que falten en la
+primera lectura. Añadir una columna o cambiar un `CHECK` es, entonces, editar
+`schema/` **y** crear su paso, con el mismo SQL en los dos sitios.
 
 ## Estado
 

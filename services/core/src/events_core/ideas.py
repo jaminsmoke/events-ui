@@ -14,7 +14,7 @@ import os
 import sqlite3
 import threading
 import uuid
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from contextlib import closing, suppress
 from datetime import UTC, datetime
 from pathlib import Path
@@ -29,9 +29,12 @@ EUI_DIR = ".EUI"
 DB_FILENAME = "EUI_DATABASE.sqlite"
 LEGACY_DB_FILENAME = "EUI_DATABASE"
 SCHEMA_DIR = Path(__file__).with_name("schema")
-# Se aplican todos los `*.sql` en orden: un fichero nuevo no obliga a tocar este
-# módulo. `PRAGMA user_version` dice cuál hay aplicado en cada almacén.
-SCHEMA_VERSION = 2
+# Los pasos que llevan un almacén viejo hasta aquí. `schema/` es el estado final:
+# un almacén que nace hoy se crea con él y no ejecuta ninguna migración.
+MIGRATIONS_DIR = Path(__file__).with_name("migraciones")
+# Se aplican todos los `schema/*.sql` en orden: un fichero nuevo no obliga a tocar
+# este módulo. `PRAGMA user_version` dice cuál hay aplicado en cada almacén.
+SCHEMA_VERSION = 3
 
 REPOS_ROOT_ENV_VAR = "EVENTSUI_REPOS_ROOT"
 BUSY_TIMEOUT_MS = 5_000
@@ -170,18 +173,102 @@ def ensure_repo(repo: str) -> Path:
     return db_file
 
 
-def _migrar_esquema(db_file: Path) -> None:
-    """Sube al día un almacén que ya existía.
+# Dos peticiones a la vez no deben migrar el mismo almacén: la segunda vería la
+# versión vieja y repetiría pasos que la primera está aplicando.
+_ESQUEMA_LOCK = threading.RLock()
 
-    Un repo viejo no vuelve a pasar por `init_repo`, así que una tabla nueva no
-    llegaría nunca. `user_version` evita abrir en escritura en cada lectura: si
-    ya está al día, no se toca nada.
+
+def _migrar_esquema(db_file: Path) -> None:
+    """Sube al día un almacén que ya existía, paso a paso.
+
+    Un repo viejo no vuelve a pasar por `init_repo`, así que ni una tabla nueva ni
+    un `CHECK` cambiado le llegarían nunca: reaplicar `schema/*.sql` solo sirve
+    para lo que es `IF NOT EXISTS`. Por eso cada cambio de esquema es un fichero
+    numerado en `migraciones/`, y `user_version` dice por cuál va el almacén.
+
+    Si ya está al día no se ejecuta ni un paso (esto corre en cada lectura).
     """
-    with closing(connect(db_file)) as conn:
-        if conn.execute("PRAGMA user_version").fetchone()[0] >= SCHEMA_VERSION:
+    with _ESQUEMA_LOCK, closing(connect(db_file)) as conn:
+        version = int(conn.execute("PRAGMA user_version").fetchone()[0])
+        if version >= SCHEMA_VERSION:
             return
-        aplicar_esquema(conn)
-        conn.commit()
+
+        if version == 0:
+            # Almacén de antes de que existiera la versión: no se sabe de dónde
+            # parte, así que se le pone el esquema base (idempotente) y se marca
+            # como al día. Los pasos ya están reflejados en él.
+            aplicar_esquema(conn)
+            conn.commit()
+            return
+
+        conn.isolation_level = None  # las transacciones las llevamos nosotros
+        for numero, script in _pasos(version):
+            _aplicar_paso(conn, numero, script)
+
+
+def _pasos(version: int) -> list[tuple[int, Path]]:
+    """Migraciones que faltan, en orden, comprobando que no hay huecos.
+
+    El número va en el nombre (`0003_algo.sql`) y manda sobre el alfabético: así el
+    orden no depende de cómo se llame el resto del fichero.
+    """
+    pasos: list[tuple[int, Path]] = []
+    for script in MIGRATIONS_DIR.glob("*.sql"):
+        cabecera = script.name.split("_", 1)[0]
+        if not cabecera.isdigit():
+            raise RuntimeError(f"migración sin número en el nombre: {script.name}")
+        numero = int(cabecera)
+        if numero <= version:
+            continue
+        if numero > SCHEMA_VERSION:
+            raise RuntimeError(
+                f"{script.name} apunta a la versión {numero} y SCHEMA_VERSION es {SCHEMA_VERSION}"
+            )
+        pasos.append((numero, script))
+
+    numeros = sorted(numero for numero, _ in pasos)
+    if numeros != list(range(version + 1, SCHEMA_VERSION + 1)):
+        raise RuntimeError(
+            f"migraciones incompletas desde la versión {version}:"
+            f" hay {numeros}, se esperan {list(range(version + 1, SCHEMA_VERSION + 1))}"
+        )
+    return pasos
+
+
+def _sentencias(sql: str) -> Iterator[str]:
+    """Trocea un script por `;` sin romperse con comentarios ni literales.
+
+    `executescript` no vale aquí: hace COMMIT de lo que hubiera abierto antes de
+    empezar, y la migración entera —con su `user_version`— tiene que ser una sola
+    transacción. Ojo al escribir migraciones: sin `;` dentro de los comentarios.
+    """
+    pendiente = ""
+    for linea in sql.splitlines(keepends=True):
+        pendiente += linea
+        if sqlite3.complete_statement(pendiente):
+            yield pendiente
+            pendiente = ""
+
+
+def _aplicar_paso(conn: sqlite3.Connection, numero: int, script: Path) -> None:
+    """Ejecuta una migración y sube la versión en la misma transacción.
+
+    Un paso a medias es peor que un paso sin empezar: si algo falla se deshace
+    todo, incluido el `user_version`, y el almacén sigue en la versión anterior.
+    Además se comprueba que no queden conexiones huérfanas.
+    """
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        for sentencia in _sentencias(script.read_text(encoding="utf-8")):
+            conn.execute(sentencia)
+        conn.execute(f"PRAGMA user_version = {numero}")
+        huerfanas = conn.execute("PRAGMA foreign_key_check").fetchall()
+        if huerfanas:
+            raise RuntimeError(f"la migración {numero:04d} deja {len(huerfanas)} filas huérfanas")
+        conn.execute("COMMIT")
+    except (sqlite3.Error, RuntimeError):
+        conn.execute("ROLLBACK")
+        raise
 
 
 def _contar_ideas(db_file: Path) -> int | None:

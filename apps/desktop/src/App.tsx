@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { open as openFolder } from "@tauri-apps/plugin-dialog";
@@ -16,6 +16,111 @@ type Idea = {
   created_at: string;
   updated_at: string;
 };
+
+type Status = Idea["status"];
+
+/** Los dos carriles del nivel siguiente.
+ *
+ *  No son tablas: son una vista sobre `ideas.status`. `rejected`/`superseded`
+ *  cierran la rama; el resto sigue en cola. Un carril de verdad solo hará falta
+ *  cuando las columnas sean datos (nombre, orden, por repo), no dos constantes.
+ */
+const LANES = [
+  { id: "cola", title: "En cola" },
+  { id: "descartadas", title: "Descartadas" },
+] as const;
+
+type LaneId = (typeof LANES)[number]["id"];
+
+function laneOf(status: Status): LaneId {
+  return status === "rejected" || status === "superseded" ? "descartadas" : "cola";
+}
+
+/* ---------- geometría del mapa ----------
+ *
+ *  Nodos sueltos sobre un lienzo, unidos por cables. Nada de tarjetas que
+ *  envuelvan tarjetas: el nivel 1 son dos nodos y el nivel 2 las ideas.
+ */
+
+const NODE_W = 200;
+const NODE_H = 74;
+const STEP_X = 232;
+const STEP_Y = 92;
+
+type MapNode = {
+  key: string;
+  x: number;
+  y: number;
+  title: string;
+  sub: string;
+  idea?: Idea;
+  lane?: LaneId;
+};
+
+function buildMap(repo: string, ideas: Idea[]) {
+  const nodes: MapNode[] = [];
+  const wires: [string, string][] = [];
+  const rootKey = "root";
+  const lanes: { y: number }[] = [];
+  let cursor = 0;
+
+  for (const lane of LANES) {
+    const items = ideas.filter((idea) => laneOf(idea.status) === lane.id);
+    // Un carril vacío sigue ocupando sitio: el nodo se queda, sin hijos.
+    const count = Math.max(items.length, 1);
+    const top = cursor;
+    cursor += count * STEP_Y;
+
+    const key = `lane-${lane.id}`;
+    const y = top + ((count - 1) * STEP_Y) / 2;
+    lanes.push({ y });
+    nodes.push({
+      key,
+      x: STEP_X,
+      y,
+      title: lane.title,
+      sub: `${items.length} ${items.length === 1 ? "idea" : "ideas"}`,
+      lane: lane.id,
+    });
+    wires.push([rootKey, key]);
+
+    items.forEach((idea, index) => {
+      nodes.push({
+        key: idea.uid,
+        x: STEP_X * 2,
+        y: top + index * STEP_Y,
+        title: idea.title,
+        sub: idea.description,
+        idea,
+      });
+      wires.push([key, idea.uid]);
+    });
+  }
+
+  // La raíz se centra sobre sus hijos: el mapa crece hacia la derecha desde ella.
+  const first = lanes[0];
+  const last = lanes[lanes.length - 1];
+  const rootY = first && last ? (first.y + last.y) / 2 : 0;
+  nodes.push({
+    key: rootKey,
+    x: 0,
+    y: rootY,
+    title: folderName(repo),
+    sub: `${ideas.length} ${ideas.length === 1 ? "idea" : "ideas"}`,
+  });
+
+  return { nodes, wires, width: STEP_X * 2 + NODE_W, height: Math.max(cursor, NODE_H) };
+}
+
+/** Cable de un nodo a otro: sale por la derecha y entra por la izquierda. */
+function wirePath(from: MapNode, to: MapNode): string {
+  const x1 = from.x + NODE_W;
+  const y1 = from.y + NODE_H / 2;
+  const x2 = to.x;
+  const y2 = to.y + NODE_H / 2;
+  const mid = (x1 + x2) / 2;
+  return `M ${x1} ${y1} C ${mid} ${y1}, ${mid} ${y2}, ${x2} ${y2}`;
+}
 
 const STORAGE_KEY = "eui.repo";
 
@@ -56,7 +161,17 @@ function Meta({ idea }: { idea: Idea }) {
  *  `react-markdown` no interpreta HTML crudo salvo que se lo añadas con
  *  `rehype-raw`, así que el contenido del repo no puede inyectar etiquetas.
  */
-function IdeaDetail({ idea, onClose }: { idea: Idea; onClose: () => void }) {
+function IdeaDetail({
+  idea,
+  onClose,
+  onMove,
+}: {
+  idea: Idea;
+  onClose: () => void;
+  onMove: (status: Status) => void;
+}) {
+  const descartada = idea.status === "rejected" || idea.status === "superseded";
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
@@ -74,6 +189,14 @@ function IdeaDetail({ idea, onClose }: { idea: Idea; onClose: () => void }) {
         </button>
       </div>
       <Meta idea={idea} />
+      <div className="detail-actions">
+        <button className="btn ghost" onClick={() => onMove("proposed")} disabled={!descartada}>
+          En cola
+        </button>
+        <button className="btn ghost" onClick={() => onMove("rejected")} disabled={descartada}>
+          Descartar
+        </button>
+      </div>
       {idea.description && <p className="detail-desc">{idea.description}</p>}
       <div className="md">
         {idea.content.trim() ? (
@@ -145,8 +268,30 @@ export default function App() {
     if (typeof dir === "string") abrir(dir);
   }, [abrir]);
 
+  /** Mover de carril es un `PATCH` del `status`: no hay tabla de columnas ni
+   *  copia del registro, así que la idea sigue siendo la misma fila. */
+  const mover = useCallback(
+    async (uid: string, status: Status) => {
+      if (!repo) return;
+      const res = await fetch(`/api/ideas/${uid}?repo=${encodeURIComponent(repo)}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) {
+        setError(`no se pudo mover la idea (HTTP ${res.status})`);
+        return;
+      }
+      const updated = (await res.json()) as Idea;
+      setIdeas((list) => list?.map((item) => (item.uid === uid ? updated : item)) ?? list);
+    },
+    [repo],
+  );
+
   const busy = repo !== null && ideas === null && error === null;
   const selected = ideas?.find((idea) => idea.uid === selectedUid) ?? null;
+  const map = useMemo(() => (repo ? buildMap(repo, ideas ?? []) : null), [repo, ideas]);
+  const byKey = new Map<string, MapNode>((map?.nodes ?? []).map((node) => [node.key, node]));
   const close = useCallback(() => setSelectedUid(null), []);
 
   return (
@@ -212,31 +357,60 @@ export default function App() {
       )}
 
       {repo && !error && (
-        <section className="card">
-          <h2>Ideas · {ideas?.length ?? 0}</h2>
+        <section className="board">
           {busy && <p className="hint">Cargando…</p>}
           {!busy && ideas?.length === 0 && (
             <p className="hint">Todavía no hay ideas en este repo.</p>
           )}
-          <ul className="ideas">
-            {ideas?.map((idea) => (
-              <li key={idea.uid} className={idea.uid === selectedUid ? "open" : undefined}>
-                <button
-                  className="idea-row"
-                  onClick={() => setSelectedUid(idea.uid)}
-                  aria-expanded={idea.uid === selectedUid}
-                >
-                  <span className="idea-title">{idea.title}</span>
-                  {idea.description && <span className="idea-desc">{idea.description}</span>}
-                  <Meta idea={idea} />
-                </button>
-              </li>
-            ))}
-          </ul>
+          {!busy && map && (
+            <div className="map" style={{ width: map.width, height: map.height }}>
+              <svg className="wires" width={map.width} height={map.height} aria-hidden="true">
+                {map.wires.map(([from, to]) => {
+                  const a = byKey.get(from);
+                  const b = byKey.get(to);
+                  return a && b ? (
+                    <path key={`${from}->${to}`} d={wirePath(a, b)} className="wire" />
+                  ) : null;
+                })}
+              </svg>
+              {map.nodes.map((node) =>
+                node.idea ? (
+                  <button
+                    key={node.key}
+                    className={`node${node.key === selectedUid ? " selected" : ""}`}
+                    style={{ left: node.x, top: node.y }}
+                    onClick={() => setSelectedUid(node.key)}
+                    aria-expanded={node.key === selectedUid}
+                  >
+                    <span className="node-title">{node.title}</span>
+                    {node.sub && <span className="node-sub">{node.sub}</span>}
+                    <span className="node-meta mono">
+                      {node.idea.kind} · {node.idea.status}
+                    </span>
+                  </button>
+                ) : (
+                  <div
+                    key={node.key}
+                    className={`node hub${node.lane ? ` lane-${node.lane}` : ""}`}
+                    style={{ left: node.x, top: node.y }}
+                  >
+                    <span className="node-title">{node.title}</span>
+                    <span className="node-sub mono">{node.sub}</span>
+                  </div>
+                ),
+              )}
+            </div>
+          )}
         </section>
       )}
 
-      {selected && <IdeaDetail idea={selected} onClose={close} />}
+      {selected && (
+        <IdeaDetail
+          idea={selected}
+          onClose={close}
+          onMove={(status) => void mover(selected.uid, status)}
+        />
+      )}
     </main>
   );
 }

@@ -584,7 +584,7 @@ export default function App() {
   // Cada chispa vive lo que dura su animación.
   useEffect(() => {
     if (chispas.length === 0) return;
-    const timer = setTimeout(() => setChispas([]), 900);
+    const timer = setTimeout(() => setChispas([]), 1150);
     return () => clearTimeout(timer);
   }, [chispas]);
 
@@ -687,7 +687,7 @@ export default function App() {
                   const cable = cables.find((c) => c.lane === chispa.lane);
                   return cable ? (
                     <circle key={chispa.id} r={3.5} className={`spark ${chispa.lane}`}>
-                      <animateMotion dur="0.6s" path={cable.d} fill="freeze" />
+                      <animateMotion dur="0.64s" path={cable.d} fill="freeze" />
                     </circle>
                   ) : null;
                 })}

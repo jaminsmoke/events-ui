@@ -82,6 +82,14 @@ class Connection(ConnectionCreate):
     created_at: str
 
 
+class Revision(BaseModel):
+    """Firma del almacén para el refresco en vivo (`PRAGMA data_version`)."""
+
+    data_version: int
+    ideas: int
+    connections: int
+
+
 @app.exception_handler(FileNotFoundError)
 def _sin_fichero(_request: Request, exc: FileNotFoundError) -> JSONResponse:
     return JSONResponse(status_code=404, content={"detail": str(exc)})
@@ -178,3 +186,9 @@ def get_connections(
 @app.post("/connections", response_model=Connection, status_code=201, tags=["connections"])
 def post_connection(body: ConnectionCreate, repo: RepoParam) -> dict[str, Any]:
     return ideas.create_connection(repo, **body.model_dump())
+
+
+@app.get("/revision", response_model=Revision, tags=["connections"])
+def get_revision(repo: RepoParam) -> dict[str, Any]:
+    """Sondeo de cambio: la UI lo pide cada par de segundos, sin traerse el mapa."""
+    return ideas.revision(repo)

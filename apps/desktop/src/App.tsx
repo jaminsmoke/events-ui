@@ -24,6 +24,13 @@ type Connection = {
   created_at: string;
 };
 
+/** Espejo de GET /revision: firma del almacén para el refresco en vivo. */
+type Revision = {
+  data_version: number;
+  ideas: number;
+  connections: number;
+};
+
 type Status = Idea["status"];
 
 /** Los dos carriles del nivel siguiente.
@@ -166,10 +173,12 @@ function buildMap(repo: string, ideas: Idea[], links: Connection[]) {
     sub: `${ideas.length} ${ideas.length === 1 ? "idea" : "ideas"}`,
   });
 
+  // `columnas` es el índice siguiente: el ancho sale del último nodo, no de la
+  // columna que aún no existe (dejaba 232px muertos a la derecha).
   return {
     nodes,
     wires,
-    width: columnas * STEP_X + NODE_W,
+    width: (columnas - 1) * STEP_X + NODE_W,
     height: Math.max(cursor, NODE_H),
   };
 }
@@ -221,33 +230,60 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [manual, setManual] = useState("");
 
-  // Una sola ruta de carga: cambiar `repo` dispara la petición. Los `setState` van
-  // en las continuaciones async, nunca en el cuerpo del efecto, para no encadenar
-  // renders; el abort cancela la petición anterior si se cambia de repo rápido.
+  // Carga inicial + vigilancia del `PRAGMA data_version` del almacén del repo.
+  // Los `setState` van en continuaciones async, nunca en el cuerpo del efecto;
+  // el abort cancela lo pendiente si se cambia de repo a mitad.
+  //
+  // El core siembra el almacén si falta; un 404 aquí es que la carpeta no existe.
   useEffect(() => {
     if (!repo) return;
     const controller = new AbortController();
-
-    // El core siembra el almacén si falta; un 404 aquí es que la carpeta no
-    // existe, y su `detail` dice cuál.
     const q = `repo=${encodeURIComponent(repo)}`;
-    Promise.all([
-      getJson<Idea[]>(`/api/ideas?${q}`, controller.signal),
-      getJson<Connection[]>(`/api/connections?${q}`, controller.signal),
-    ])
-      .then(([list, enlaces]) => {
-        setIdeas(list);
-        setLinks(enlaces);
-        setError(null);
-        localStorage.setItem(STORAGE_KEY, repo);
-      })
-      .catch((err: unknown) => {
-        if (controller.signal.aborted) return;
-        setIdeas([]);
-        setError(err instanceof Error ? err.message : String(err));
-      });
+    let firma: string | null = null;
 
-    return () => controller.abort();
+    const cargar = () => {
+      Promise.all([
+        getJson<Idea[]>(`/api/ideas?${q}`, controller.signal),
+        getJson<Connection[]>(`/api/connections?${q}`, controller.signal),
+      ])
+        .then(([list, enlaces]) => {
+          setIdeas(list);
+          setLinks(enlaces);
+          setError(null);
+          localStorage.setItem(STORAGE_KEY, repo);
+        })
+        .catch((err: unknown) => {
+          if (controller.signal.aborted) return;
+          setIdeas([]);
+          setError(err instanceof Error ? err.message : String(err));
+        });
+    };
+
+    const vigilar = () => {
+      getJson<Revision>(`/api/revision?${q}`, controller.signal)
+        .then((rev) => {
+          const actual = `${rev.data_version}/${rev.ideas}/${rev.connections}`;
+          if (firma === null) {
+            firma = actual;
+            return;
+          }
+          if (actual !== firma) {
+            firma = actual;
+            cargar();
+          }
+        })
+        .catch(() => {
+          // Core reiniciándose o repo movido: se reintenta en el siguiente tick.
+        });
+    };
+
+    cargar();
+    vigilar();
+    const timer = setInterval(vigilar, 2000);
+    return () => {
+      controller.abort();
+      clearInterval(timer);
+    };
   }, [repo]);
 
   const abrir = useCallback((path: string) => {

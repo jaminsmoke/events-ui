@@ -19,6 +19,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from .db import data_version, open_read_only
+
 EUI_DIR = ".EUI"
 # Con extensión: un SQLite sin extensión no lo reconoce ningún editor ni visor, y
 # en un repo commiteado no hay forma de saber qué es. El nombre viejo, sin
@@ -335,6 +337,22 @@ def create_connection(
             raise InvalidInput(str(exc)) from exc
         row = conn.execute("SELECT * FROM connections WHERE id = ?", (cursor.lastrowid,)).fetchone()
     return dict(row)
+
+
+def revision(repo: str) -> dict[str, Any]:
+    """Firma barata del almacén para saber si hay que releer.
+
+    `PRAGMA data_version` cambia cuando **otra** conexión hace commit, así que la
+    UI puede sondear esto cada par de segundos en vez de traerse todas las ideas.
+    Los conteos van de propina: cubren el caso de un commit que no cambia la firma.
+    """
+    db_file = ensure_repo(repo)
+    with closing(open_read_only(db_file)) as conn:
+        return {
+            "data_version": data_version(conn),
+            "ideas": conn.execute("SELECT count(*) FROM ideas").fetchone()[0],
+            "connections": conn.execute("SELECT count(*) FROM connections").fetchone()[0],
+        }
 
 
 def _alcanza(conn: sqlite3.Connection, objetivo: str, desde: str) -> bool:

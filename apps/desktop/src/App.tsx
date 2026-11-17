@@ -124,7 +124,10 @@ function buildMap(repo: string, ideas: Idea[], links: Connection[]) {
   const centrosCarril: number[] = [];
   for (const lane of LANES) {
     const items = ideas.filter((idea) => laneOf(idea.status) === lane.id);
-    const centrosIdeas = items.map((idea) => colocar(idea.uid, 2, new Set()));
+    // Quien ya cuelga de otra idea no vuelve a nacer en el carril: se dibuja en
+    // su columna, debajo de su padre. Si no, los dos acaban en la misma x.
+    const raices = items.filter((idea) => !conPadre.has(idea.uid));
+    const centrosIdeas = raices.map((idea) => colocar(idea.uid, 2, new Set()));
 
     // Un carril vacío sigue ocupando sitio: el nodo se queda, sin hijos.
     let centro: number;
@@ -148,9 +151,7 @@ function buildMap(repo: string, ideas: Idea[], links: Connection[]) {
       lane: lane.id,
     });
     wires.push(["root", key]);
-    for (const idea of items) {
-      if (!conPadre.has(idea.uid)) wires.push([key, idea.uid]);
-    }
+    for (const idea of raices) wires.push([key, idea.uid]);
   }
 
   // La raíz se centra sobre sus hijos: el mapa crece hacia la derecha desde ella.

@@ -53,8 +53,8 @@ function laneOf(status: Status): LaneId {
 /* ---------- geometría del mapa ----------
  *
  *  Nodos sueltos sobre un lienzo, unidos por cables. Nada de tarjetas que
- *  envuelvan tarjetas: el primer nivel son los dos carriles y de ahí cuelgan
- *  las ideas.
+ *  envuelvan tarjetas: el primer nivel es `Ideas`, el segundo los dos carriles
+ *  y de ahí cuelgan las ideas.
  *
  *  Es un **visor**: aquí no se arrastra, ni se crea, ni se borra nada. El mapa
  *  solo refleja lo que ya hay en el almacén del repo, y todo lo demás entra por
@@ -93,7 +93,7 @@ function buildMap(ideas: Idea[], links: Connection[]) {
 
   const centros = new Map<string, number>();
   let cursor = 0;
-  let columnas = 1;
+  let columnas = 2;
 
   /* Coloca una idea y su descendencia; devuelve el centro vertical de su rama.
    * Los hijos se colocan primero y el padre queda centrado sobre ellos. `camino`
@@ -133,12 +133,13 @@ function buildMap(ideas: Idea[], links: Connection[]) {
     return centro;
   };
 
+  const centrosCarril: number[] = [];
   for (const lane of LANES) {
     const items = ideas.filter((idea) => laneOf(idea.status) === lane.id);
     // Quien ya cuelga de otra idea no vuelve a nacer en el carril: se dibuja en
     // su columna, debajo de su padre. Si no, los dos acaban en la misma x.
     const raices = items.filter((idea) => !conPadre.has(idea.uid));
-    const centrosIdeas = raices.map((idea) => colocar(idea.uid, 1, new Set()));
+    const centrosIdeas = raices.map((idea) => colocar(idea.uid, 2, new Set()));
 
     // Un carril vacío sigue ocupando sitio: el nodo se queda, sin hijos.
     let centro: number;
@@ -150,17 +151,32 @@ function buildMap(ideas: Idea[], links: Connection[]) {
       centro = cursor + STEP_Y / 2;
       cursor += STEP_Y;
     }
+    centrosCarril.push(centro);
+
     const key = `lane-${lane.id}`;
     nodes.push({
       key,
-      x: 0,
+      x: STEP_X,
       y: centro - NODE_H / 2,
       title: lane.title,
       sub: `${items.length} ${items.length === 1 ? "idea" : "ideas"}`,
       lane: lane.id,
     });
+    wires.push(["root", key]);
     for (const idea of raices) wires.push([key, idea.uid]);
   }
+
+  // `Ideas` es la raíz del tablero, no el proyecto: la carpeta se lee arriba.
+  const first = centrosCarril[0];
+  const last = centrosCarril[centrosCarril.length - 1];
+  const raiz = first !== undefined && last !== undefined ? (first + last) / 2 : 0;
+  nodes.push({
+    key: "root",
+    x: 0,
+    y: raiz - NODE_H / 2,
+    title: "Ideas",
+    sub: `${ideas.length} ${ideas.length === 1 ? "idea" : "ideas"}`,
+  });
 
   // `columnas` es el índice siguiente: el ancho sale del último nodo, no de la
   // columna que aún no existe (dejaba 232px muertos a la derecha).

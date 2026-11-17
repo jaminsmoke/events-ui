@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import threading
 import uuid
 from collections.abc import Iterable
 from contextlib import closing, suppress
@@ -19,7 +20,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from .db import data_version, open_read_only
+from .db import data_version
 
 EUI_DIR = ".EUI"
 # Con extensión: un SQLite sin extensión no lo reconoce ningún editor ni visor, y
@@ -339,6 +340,30 @@ def create_connection(
     return dict(row)
 
 
+# Una conexión de solo lectura por almacén, no una por petición: `PRAGMA
+# data_version` solo sube en una conexión que **ya existía** cuando otra escribe.
+# Abierta al vuelo devuelve siempre el valor de partida, y los UPDATE —mover una
+# idea de carril— se quedaban sin despertar a la UI.
+_VIGILANTES: dict[Path, sqlite3.Connection] = {}
+_VIGILANTES_LOCK = threading.RLock()
+
+
+def _vigilante(db_file: Path) -> sqlite3.Connection:
+    """Conexión reutilizada que solo lee `data_version` y los conteos."""
+    with _VIGILANTES_LOCK:
+        conn = _VIGILANTES.get(db_file)
+        if conn is None:
+            conn = sqlite3.connect(
+                f"file:{db_file.as_posix()}?mode=ro",
+                uri=True,
+                timeout=BUSY_TIMEOUT_MS / 1000,
+                check_same_thread=False,
+            )
+            conn.row_factory = sqlite3.Row
+            _VIGILANTES[db_file] = conn
+        return conn
+
+
 def revision(repo: str) -> dict[str, Any]:
     """Firma barata del almacén para saber si hay que releer.
 
@@ -347,7 +372,8 @@ def revision(repo: str) -> dict[str, Any]:
     Los conteos van de propina: cubren el caso de un commit que no cambia la firma.
     """
     db_file = ensure_repo(repo)
-    with closing(open_read_only(db_file)) as conn:
+    with _VIGILANTES_LOCK:
+        conn = _vigilante(db_file)
         return {
             "data_version": data_version(conn),
             "ideas": conn.execute("SELECT count(*) FROM ideas").fetchone()[0],

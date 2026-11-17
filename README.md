@@ -79,6 +79,9 @@ corepack pnpm core:dev           # Swagger en http://127.0.0.1:8765/docs
 | GET | `/ideas?repo=<ruta>` (filtros `status`, `kind`, `limit`, `offset`) |
 | POST | `/ideas?repo=<ruta>` |
 | GET / PATCH / DELETE | `/ideas/{uid}?repo=<ruta>` |
+| GET | `/connections?repo=<ruta>` (filtro `parent_uid`) |
+| POST | `/connections?repo=<ruta>` |
+| GET | `/revision?repo=<ruta>` — firma barata (`PRAGMA data_version` + conteos) para el refresco en vivo |
 
 `repo` es la ruta de la carpeta (la que devuelve el selector de la UI) o un nombre
 dentro de `repoprobe/repos`. Va en query porque las rutas de Windows no son un
@@ -92,4 +95,6 @@ navegable desde `/docs`.
 
 - **F0 (hecho):** andamio, `/health`, proxy UI→core.
 - **F0.5 (hecho):** tabla `ideas`, seed de `.EUI/EUI_DATABASE.sqlite`, API CRUD por repo.
+- **F0.6 (hecho):** tabla `connections`, `/revision` y el visor en vivo: el mapa solo lee,
+  se refresca con el `data_version` y no permite editar nada.
 - **F1 (siguiente):** esquema del sobre de evento, conexión RO, tail + SSE.

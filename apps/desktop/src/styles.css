@@ -69,11 +69,6 @@ header {
   font-weight: 600;
 }
 
-.repo-name.muted {
-  color: var(--muted);
-  font-weight: 400;
-}
-
 .repo-path {
   flex: 1;
   color: var(--muted);
@@ -121,14 +116,6 @@ header {
   margin-bottom: 16px;
 }
 
-.card.good {
-  border-left-color: var(--good);
-}
-
-.card.warn {
-  border-left-color: var(--warn);
-}
-
 .card.bad {
   border-left-color: var(--bad);
 }
@@ -163,16 +150,6 @@ header {
 .manual input:focus {
   outline: 1px solid var(--accent);
   border-color: var(--accent);
-}
-
-.cmd {
-  margin: 12px 0 0;
-  padding: 10px 12px;
-  background: #0b0e13;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  overflow-x: auto;
-  font-size: 12.5px;
 }
 
 /* ---------- el nodo ----------
@@ -243,10 +220,12 @@ header {
   line-height: 1.1;
 }
 
+/* Sin `will-change: transform`: promociona el mapa a capa propia y el texto se
+ * estira desde la textura ya rasterizada, que es lo que se veía borroso con
+ * zoom alto. Sin promoción, el navegador vuelve a rasterizar a la escala real. */
 .map {
   position: relative;
   transform-origin: top left;
-  will-change: transform;
   display: flex;
   align-items: flex-start;
   gap: 56px;
@@ -579,49 +558,6 @@ header {
   animation: none;
 }
 
-.meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  margin-top: 8px;
-}
-
-.badge {
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  padding: 1px 7px;
-  border-radius: 99px;
-  border: 1px solid var(--line);
-  color: var(--muted);
-}
-
-.badge.kind-adr {
-  border-color: #7a5af8;
-  color: #b3a1ff;
-}
-
-.badge.status-accepted {
-  border-color: var(--good);
-  color: var(--good);
-}
-
-.badge.status-rejected {
-  border-color: var(--bad);
-  color: var(--bad);
-}
-
-.badge.tag {
-  text-transform: none;
-  border-style: dashed;
-}
-
-.date {
-  margin-left: auto;
-  color: var(--muted);
-}
-
 .mono,
 code {
   font-family: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
@@ -641,18 +577,3 @@ code {
   font-size: 12.5px;
 }
 
-dl {
-  display: grid;
-  grid-template-columns: 140px 1fr;
-  gap: 6px 16px;
-  margin: 0;
-}
-
-dt {
-  color: var(--muted);
-}
-
-dd {
-  margin: 0;
-  overflow-wrap: anywhere;
-}

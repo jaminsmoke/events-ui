@@ -460,7 +460,11 @@ export default function App() {
       if (!caja) return { ...v, k };
       const lx = caja.width / v.k / 2;
       const ly = caja.height / v.k / 2;
-      return { x: v.x + lx * (v.k - k), y: v.y + ly * (v.k - k), k };
+      return {
+        x: Math.round(v.x + lx * (v.k - k)),
+        y: Math.round(v.y + ly * (v.k - k)),
+        k,
+      };
     });
   }, []);
 
@@ -800,7 +804,8 @@ export default function App() {
             const dx = e.clientX - desde.x;
             const dy = e.clientY - desde.y;
             agarre.current = { x: e.clientX, y: e.clientY };
-            setVista((v) => ({ ...v, x: v.x + dx, y: v.y + dy }));
+            // Enteros: medio píxel de translate ya suaviza todo el texto.
+            setVista((v) => ({ ...v, x: Math.round(v.x + dx), y: Math.round(v.y + dy) }));
           }}
           onPointerUp={() => {
             agarre.current = null;

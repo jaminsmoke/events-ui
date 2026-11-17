@@ -38,6 +38,8 @@ BUSY_TIMEOUT_MS = 5_000
 
 # La base se versiona con el repo; los auxiliares de WAL, nunca.
 EUI_GITIGNORE = f"{DB_FILENAME}-wal\n{DB_FILENAME}-shm\n"
+# Lo que el `.gitignore` de un almacén viejo ignora y ya no existe: se retira.
+_GITIGNORE_VIEJO = {f"{LEGACY_DB_FILENAME}-wal", f"{LEGACY_DB_FILENAME}-shm"}
 
 # Columnas que la API puede modificar. Lista blanca: los nombres de columna de un
 # UPDATE no pueden venir del cliente.
@@ -117,8 +119,32 @@ def init_repo(repo: str) -> Path:
         aplicar_esquema(conn)
         conn.commit()
 
-    (db_file.parent / ".gitignore").write_text(EUI_GITIGNORE, encoding="utf-8")
+    _ignorar_auxiliares(db_file)
     return db_file
+
+
+def _ignorar_auxiliares(db_file: Path) -> None:
+    """Pone al día el `.gitignore` de `.EUI`.
+
+    Escribirlo solo al crear el almacén dejaba a los repos anteriores al cambio
+    de nombre con la lista vieja: su WAL —que crece a megas— aparecía como
+    fichero nuevo en `git status`. Aquí se añade lo que falte y se retiran las
+    líneas del nombre antiguo, sin tocar nada más que haya escrito el repo.
+    """
+    destino = db_file.parent / ".gitignore"
+    try:
+        actual = destino.read_text(encoding="utf-8")
+    except OSError:
+        actual = ""
+
+    lineas = [line for line in actual.splitlines() if line.strip() not in _GITIGNORE_VIEJO]
+    for nombre in EUI_GITIGNORE.split():
+        if nombre not in lineas:
+            lineas.append(nombre)
+
+    nuevo = "\n".join(lineas).strip("\n") + "\n"
+    if nuevo != actual:
+        destino.write_text(nuevo, encoding="utf-8")
 
 
 def aplicar_esquema(conn: sqlite3.Connection) -> None:
@@ -140,6 +166,7 @@ def ensure_repo(repo: str) -> Path:
     if not db_file.is_file():
         return init_repo(repo)
     _migrar_esquema(db_file)
+    _ignorar_auxiliares(db_file)
     return db_file
 
 

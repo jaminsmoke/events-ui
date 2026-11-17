@@ -310,6 +310,14 @@ async function getJson<T>(url: string, signal: AbortSignal): Promise<T> {
 
 const STORAGE_KEY = "eui.repo";
 
+/** Zoom del lienzo: ni una miniatura ilegible ni un nodo que no cabe. */
+const ZOOM_MIN = 0.4;
+const ZOOM_MAX = 2.5;
+const ZOOM_PASO = 1.08;
+
+const acotar = (valor: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, valor));
+
 /** En `dev:ui` (navegador) no hay Tauri, así que no hay diálogo nativo. */
 const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -347,6 +355,12 @@ export default function App() {
   const [vuelos, setVuelos] = useState<Vuelo[]>([]);
   const carrilesPrevios = useRef(new Map<string, LaneId>());
   const rects = useRef(new Map<string, Rect>());
+
+  // Vista del lienzo: solo mueve la cámara. Los nodos no se tocan.
+  const boardRef = useRef<HTMLElement | null>(null);
+  const [vista, setVista] = useState({ x: 0, y: 0, k: 1 });
+  const [arrastrando, setArrastrando] = useState(false);
+  const agarre = useRef<{ x: number; y: number } | null>(null);
 
   // Carga inicial + vigilancia del `PRAGMA data_version` del almacén del repo.
   // Los `setState` van en continuaciones async, nunca en el cuerpo del efecto;
@@ -462,19 +476,22 @@ export default function App() {
     const cajon = cajonRef.current;
     if (!map || !cajon) return;
 
+    // Todo se mide en coordenadas locales del mapa: el `scale` del lienzo no
+    // puede contarse dos veces al dibujar los cables.
+    const k = vista.k;
     const medir = () => {
       const caja = map.getBoundingClientRect();
       const a = cajon.getBoundingClientRect();
-      const x1 = a.right - caja.left;
-      const y1 = a.top - caja.top + a.height / 2;
+      const x1 = (a.right - caja.left) / k;
+      const y1 = (a.top - caja.top) / k + a.height / k / 2;
 
       const trazos: Cable[] = [];
       carrilRefs.current.forEach((el, i) => {
         const lane = LANES[i];
         if (!el || !lane) return;
         const b = el.getBoundingClientRect();
-        const x2 = b.left - caja.left;
-        const y2 = b.top - caja.top + b.height / 2;
+        const x2 = (b.left - caja.left) / k;
+        const y2 = (b.top - caja.top) / k + b.height / k / 2;
         const medio = (x1 + x2) / 2;
         trazos.push({
           lane: lane.id,
@@ -491,7 +508,7 @@ export default function App() {
     ro.observe(cajon);
     for (const el of carrilRefs.current) if (el) ro.observe(el);
     return () => ro.disconnect();
-  }, [tree, cerrados]);
+  }, [tree, cerrados, vista.k]);
 
   /* El vuelo: si una idea cambia de carril, su fila no aparece de golpe en el
    * nodo nuevo — se va volando desde donde estaba, y el destino la espera
@@ -500,6 +517,7 @@ export default function App() {
     const map = mapRef.current;
     if (!map || !ideas) return;
 
+    const k = vista.k;
     const caja = map.getBoundingClientRect();
     const ahora = new Map<string, Rect>();
     for (const fila of map.querySelectorAll<HTMLElement>(".row[data-uid]")) {
@@ -508,10 +526,10 @@ export default function App() {
       if (!uid || !nodo || nodo === "ideas") continue;
       const r = fila.getBoundingClientRect();
       ahora.set(`${nodo}:${uid}`, {
-        x: r.left - caja.left,
-        y: r.top - caja.top,
-        w: r.width,
-        h: r.height,
+        x: (r.left - caja.left) / k,
+        y: (r.top - caja.top) / k,
+        w: r.width / k,
+        h: r.height / k,
       });
     }
 
@@ -522,9 +540,9 @@ export default function App() {
       if (!el) return undefined;
       const r = el.getBoundingClientRect();
       return {
-        x: r.left - caja.left + 8,
-        y: r.top - caja.top + 6,
-        w: Math.max(80, r.width - 16),
+        x: (r.left - caja.left) / k + 8,
+        y: (r.top - caja.top) / k + 6,
+        w: Math.max(80, r.width / k - 16),
         h: 20,
       };
     };
@@ -560,7 +578,33 @@ export default function App() {
     // puede entrar en cascada con el render que acaba de pintar las filas.
     const raf = requestAnimationFrame(() => setVuelos((prev) => [...prev, ...nuevos]));
     return () => cancelAnimationFrame(raf);
-  }, [ideas]);
+  }, [ideas, vista.k]);
+
+  // Rueda: acerca y aleja sobre el punto donde está el cursor, no sobre el
+  // centro. Escucha nativa porque React registra `wheel` como pasivo y no deja
+  // cancelar el desplazamiento de la página.
+  useEffect(() => {
+    const board = boardRef.current;
+    if (!board) return;
+
+    const rueda = (e: WheelEvent) => {
+      const caja = mapRef.current?.getBoundingClientRect();
+      if (!caja || !e.deltaY) return;
+      e.preventDefault();
+
+      setVista((v) => {
+        const k = acotar(v.k * (e.deltaY < 0 ? ZOOM_PASO : 1 / ZOOM_PASO), ZOOM_MIN, ZOOM_MAX);
+        if (k === v.k) return v;
+        // El punto local bajo el cursor se queda bajo el cursor.
+        const lx = (e.clientX - caja.left) / v.k;
+        const ly = (e.clientY - caja.top) / v.k;
+        return { x: v.x + lx * (v.k - k), y: v.y + ly * (v.k - k), k };
+      });
+    };
+
+    board.addEventListener("wheel", rueda, { passive: false });
+    return () => board.removeEventListener("wheel", rueda);
+  }, []);
 
   /* El cambio en el almacén es instantáneo; la animación no. Cuando un carril
    * cambia de tamaño, una chispa recorre su cable para que se vea llegar, y si
@@ -670,13 +714,48 @@ export default function App() {
       )}
 
       {repo && !error && (
-        <section className="board">
+        <section
+          className={`board${arrastrando ? " arrastrando" : ""}`}
+          ref={boardRef}
+          onPointerDown={(e) => {
+            // Arrastrar solo desde el fondo: sobre un nodo no se mueve nada.
+            if (e.button !== 0 || (e.target as HTMLElement).closest(".node")) return;
+            agarre.current = { x: e.clientX, y: e.clientY };
+            setArrastrando(true);
+            try {
+              e.currentTarget.setPointerCapture(e.pointerId);
+            } catch {
+              // Puntero sintético (pruebas): seguimos sin capturar.
+            }
+          }}
+          onPointerMove={(e) => {
+            const desde = agarre.current;
+            if (!desde) return;
+            const dx = e.clientX - desde.x;
+            const dy = e.clientY - desde.y;
+            agarre.current = { x: e.clientX, y: e.clientY };
+            setVista((v) => ({ ...v, x: v.x + dx, y: v.y + dy }));
+          }}
+          onPointerUp={() => {
+            agarre.current = null;
+            setArrastrando(false);
+          }}
+          onPointerCancel={() => {
+            agarre.current = null;
+            setArrastrando(false);
+          }}
+          onDoubleClick={() => setVista({ x: 0, y: 0, k: 1 })}
+        >
           {busy && <p className="hint">Cargando…</p>}
           {!busy && ideas?.length === 0 && (
             <p className="hint">Todavía no hay ideas en este repo.</p>
           )}
           {!busy && tree && (
-            <div className="map" ref={mapRef}>
+            <div
+              className="map"
+              ref={mapRef}
+              style={{ transform: `translate(${vista.x}px, ${vista.y}px) scale(${vista.k})` }}
+            >
               <div className="vuelos">
                 {vuelos.map((vuelo) => (
                   <VueloFila key={vuelo.id} vuelo={vuelo} onDone={aterrizado} />

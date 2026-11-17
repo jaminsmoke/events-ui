@@ -191,10 +191,20 @@ header {
   justify-content: center;
   gap: 8px;
   padding: 8px 0 64px;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+}
+
+.board.arrastrando {
+  cursor: grabbing;
+  user-select: none;
 }
 
 .map {
   position: relative;
+  transform-origin: top left;
+  will-change: transform;
   display: flex;
   align-items: flex-start;
   gap: 56px;

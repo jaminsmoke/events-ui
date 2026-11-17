@@ -224,6 +224,15 @@ header {
   stroke: #8a4a32;
 }
 
+/* Carril cargado: el cable, además de grueso, brilla. */
+.wire.fuerte {
+  filter: drop-shadow(0 0 4px #1f6feb);
+}
+
+.wire.fuerte.descartadas {
+  filter: drop-shadow(0 0 4px #7a3b33);
+}
+
 @keyframes fluir {
   to {
     stroke-dashoffset: -22;

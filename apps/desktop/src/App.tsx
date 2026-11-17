@@ -443,6 +443,16 @@ export default function App() {
     [repo, ideas, links],
   );
 
+  // El cable engorda con su carril: más ideas dentro, más intensidad.
+  const volumen = useMemo(() => {
+    const totales = new Map<LaneId, number>();
+    for (const lane of tree?.carriles ?? []) {
+      if (lane.tone === "cola" || lane.tone === "descartadas") totales.set(lane.tone, lane.total);
+    }
+    return totales;
+  }, [tree]);
+  const maximo = Math.max(1, ...volumen.values());
+
   // Los cables se miden del DOM: los nodos crecen al desplegarse y nada es fijo.
   useLayoutEffect(() => {
     const map = mapRef.current;
@@ -655,9 +665,21 @@ export default function App() {
               </div>
 
               <svg className="cables" aria-hidden="true">
-                {cables.map((cable) => (
-                  <path key={cable.lane} d={cable.d} className={`wire ${cable.lane}`} />
-                ))}
+                {cables.map((cable) => {
+                  const t = (volumen.get(cable.lane) ?? 0) / maximo;
+                  return (
+                    <path
+                      key={cable.lane}
+                      d={cable.d}
+                      className={`wire ${cable.lane}${t >= 0.66 ? " fuerte" : ""}`}
+                      style={{
+                        strokeWidth: 1.1 + 1.9 * t,
+                        opacity: 0.45 + 0.55 * t,
+                        animationDuration: `${3.4 - 2 * t}s`,
+                      }}
+                    />
+                  );
+                })}
                 {cables[0] && (
                   <circle className="junction" cx={cables[0].x1} cy={cables[0].y1} r={4} />
                 )}

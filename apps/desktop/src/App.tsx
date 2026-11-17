@@ -137,17 +137,25 @@ function Arrow({ open }: { open: boolean }) {
 /** Un cable del cajón a un carril, ya medido en píxeles del mapa. */
 type Cable = { lane: LaneId; d: string; x1: number; y1: number };
 
+/** Rectángulo relativo al mapa: lo que un vuelo necesita para saber de dónde a dónde. */
+type Rect = { x: number; y: number; w: number; h: number };
+
+/** Una fila cruzando de un carril al otro. */
+type Vuelo = { id: number; uid: string; title: string; from: Rect; to: Rect; lane: LaneId };
+
 /** Un nodo entero: cabecera plegable y, debajo, su propia lista. */
 function NodeBox({
   node,
   cerrados,
   onToggle,
   boxRef,
+  volando,
 }: {
   node: TreeNode;
   cerrados: ReadonlySet<string>;
   onToggle: (key: string) => void;
   boxRef?: Ref<HTMLElement>;
+  volando: (uid: string, nodo: string) => boolean;
 }) {
   const tiene = node.kids.length > 0;
   const abierto = tiene && !cerrados.has(node.key);
@@ -168,11 +176,56 @@ function NodeBox({
       {abierto && (
         <div className="node-body">
           {node.kids.map((kid) => (
-            <NodeRow key={kid.key} node={kid} cerrados={cerrados} onToggle={onToggle} />
+            <NodeRow
+              key={kid.key}
+              node={kid}
+              cerrados={cerrados}
+              onToggle={onToggle}
+              nodo={node.tone ?? "ideas"}
+              volando={volando}
+            />
           ))}
         </div>
       )}
     </section>
+  );
+}
+
+/** La copia que viaja: sale del rectángulo viejo y aterriza en el nuevo. */
+function VueloFila({
+  vuelo,
+  onDone,
+}: {
+  vuelo: Vuelo;
+  onDone: (id: number) => void;
+}) {
+  const [enVuelo, setEnVuelo] = useState(false);
+
+  useLayoutEffect(() => {
+    const raf = requestAnimationFrame(() => setEnVuelo(true));
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const dx = vuelo.to.x - vuelo.from.x;
+  const dy = vuelo.to.y - vuelo.from.y;
+
+  return (
+    <div
+      className={`vuelo ${vuelo.lane}`}
+      style={{
+        left: vuelo.from.x,
+        top: vuelo.from.y,
+        width: vuelo.from.w,
+        height: vuelo.from.h,
+        transform: enVuelo ? `translate(${dx}px, ${dy}px)` : "none",
+      }}
+      onTransitionEnd={(e) => {
+        if (e.propertyName === "transform") onDone(vuelo.id);
+      }}
+    >
+      <span className="dot" />
+      <span className="vuelo-title">{vuelo.title}</span>
+    </div>
   );
 }
 
@@ -181,16 +234,27 @@ function NodeRow({
   node,
   cerrados,
   onToggle,
+  nodo,
+  volando,
 }: {
   node: TreeNode;
   cerrados: ReadonlySet<string>;
   onToggle: (key: string) => void;
+  nodo: string;
+  volando: (uid: string, nodo: string) => boolean;
 }) {
   const tiene = node.kids.length > 0;
   const abierto = tiene && !cerrados.has(node.key);
+  const uid = node.idea?.uid;
 
   return (
-    <div className={`row${node.tone ? ` lane-${node.tone}` : ""}`}>
+    <div
+      className={`row${node.tone ? ` lane-${node.tone}` : ""}${
+        uid && volando(uid, nodo) ? " volando" : ""
+      }`}
+      data-uid={uid}
+      data-nodo={nodo}
+    >
       <button
         type="button"
         className="row-head"
@@ -207,7 +271,14 @@ function NodeRow({
       {abierto && (
         <div className="row-kids">
           {node.kids.map((kid) => (
-            <NodeRow key={kid.key} node={kid} cerrados={cerrados} onToggle={onToggle} />
+            <NodeRow
+              key={kid.key}
+              node={kid}
+              cerrados={cerrados}
+              onToggle={onToggle}
+              nodo={nodo}
+              volando={volando}
+            />
           ))}
         </div>
       )}
@@ -260,6 +331,9 @@ export default function App() {
   const [cables, setCables] = useState<Cable[]>([]);
   const [chispas, setChispas] = useState<{ lane: LaneId; id: number }[]>([]);
   const totalesPrevios = useRef(new Map<LaneId, number>());
+  const [vuelos, setVuelos] = useState<Vuelo[]>([]);
+  const carrilesPrevios = useRef(new Map<string, LaneId>());
+  const rects = useRef(new Map<string, Rect>());
 
   // Carga inicial + vigilancia del `PRAGMA data_version` del almacén del repo.
   // Los `setState` van en continuaciones async, nunca en el cuerpo del efecto;
@@ -334,6 +408,16 @@ export default function App() {
     if (typeof dir === "string") abrir(dir);
   }, [abrir]);
 
+  // Solo se oculta la fila del carril de destino: la del cajón no se mueve.
+  const volando = useCallback(
+    (uid: string, nodo: string) => vuelos.some((v) => v.uid === uid && v.lane === nodo),
+    [vuelos],
+  );
+
+  const aterrizado = useCallback((id: number) => {
+    setVuelos((prev) => prev.filter((v) => v.id !== id));
+  }, []);
+
   const toggle = useCallback((key: string) => {
     setCerrados((prev) => {
       const next = new Set(prev);
@@ -385,6 +469,56 @@ export default function App() {
     for (const el of carrilRefs.current) if (el) ro.observe(el);
     return () => ro.disconnect();
   }, [tree, cerrados]);
+
+  /* El vuelo: si una idea cambia de carril, su fila no aparece de golpe en el
+   * nodo nuevo — se va volando desde donde estaba, y el destino la espera
+   * oculta hasta que aterriza. El dato llega en un instante; el viaje no. */
+  useLayoutEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ideas) return;
+
+    const caja = map.getBoundingClientRect();
+    const ahora = new Map<string, Rect>();
+    for (const fila of map.querySelectorAll<HTMLElement>(".row[data-uid]")) {
+      const uid = fila.dataset.uid;
+      const nodo = fila.dataset.nodo;
+      if (!uid || !nodo || nodo === "ideas") continue;
+      const r = fila.getBoundingClientRect();
+      ahora.set(`${nodo}:${uid}`, {
+        x: r.left - caja.left,
+        y: r.top - caja.top,
+        w: r.width,
+        h: r.height,
+      });
+    }
+
+    const carriles = new Map(ideas.map((idea) => [idea.uid, laneOf(idea.status)]));
+    const nuevos: Vuelo[] = [];
+    let n = 0;
+    for (const [uid, lane] of carriles) {
+      const antes = carrilesPrevios.current.get(uid);
+      const desde = antes ? rects.current.get(`${antes}:${uid}`) : undefined;
+      const hacia = ahora.get(`${lane}:${uid}`);
+      if (!antes || antes === lane || !desde || !hacia) continue;
+      nuevos.push({
+        id: Date.now() + n++,
+        uid,
+        title: ideas.find((idea) => idea.uid === uid)?.title ?? "",
+        from: desde,
+        to: hacia,
+        lane,
+      });
+    }
+
+    carrilesPrevios.current = carriles;
+    rects.current = ahora;
+    if (nuevos.length === 0) return;
+
+    // En un frame: este efecto solo mide y compara, y el estado del vuelo no
+    // puede entrar en cascada con el render que acaba de pintar las filas.
+    const raf = requestAnimationFrame(() => setVuelos((prev) => [...prev, ...nuevos]));
+    return () => cancelAnimationFrame(raf);
+  }, [ideas]);
 
   /* El cambio en el almacén es instantáneo; la animación no. Cuando un carril
    * cambia de tamaño, una chispa recorre su cable para que se vea llegar. */
@@ -485,6 +619,12 @@ export default function App() {
           )}
           {!busy && tree && (
             <div className="map" ref={mapRef}>
+              <div className="vuelos">
+                {vuelos.map((vuelo) => (
+                  <VueloFila key={vuelo.id} vuelo={vuelo} onDone={aterrizado} />
+                ))}
+              </div>
+
               <svg className="cables" aria-hidden="true">
                 {cables.map((cable) => (
                   <path key={cable.lane} d={cable.d} className={`wire ${cable.lane}`} />
@@ -507,6 +647,7 @@ export default function App() {
                 cerrados={cerrados}
                 onToggle={toggle}
                 boxRef={cajonRef}
+                volando={volando}
               />
 
               <div className="lanes">
@@ -519,6 +660,7 @@ export default function App() {
                     boxRef={(el) => {
                       carrilRefs.current[i] = el;
                     }}
+                    volando={volando}
                   />
                 ))}
               </div>

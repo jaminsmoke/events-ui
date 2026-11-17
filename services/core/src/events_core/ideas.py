@@ -20,14 +20,18 @@ from pathlib import Path
 from typing import Any
 
 EUI_DIR = ".EUI"
-DB_FILENAME = "EUI_DATABASE"
+# Con extensión: un SQLite sin extensión no lo reconoce ningún editor ni visor, y
+# en un repo commiteado no hay forma de saber qué es. El nombre viejo, sin
+# extensión, se migra solo la primera vez que se abre.
+DB_FILENAME = "EUI_DATABASE.sqlite"
+LEGACY_DB_FILENAME = "EUI_DATABASE"
 SCHEMA_PATH = Path(__file__).with_name("schema") / "ideas.sql"
 
 REPOS_ROOT_ENV_VAR = "EVENTSUI_REPOS_ROOT"
 BUSY_TIMEOUT_MS = 5_000
 
-# El `EUI_DATABASE` se versiona con el repo; los auxiliares de WAL, nunca.
-EUI_GITIGNORE = "EUI_DATABASE-wal\nEUI_DATABASE-shm\n"
+# La base se versiona con el repo; los auxiliares de WAL, nunca.
+EUI_GITIGNORE = f"{DB_FILENAME}-wal\n{DB_FILENAME}-shm\n"
 
 # Columnas que la API puede modificar. Lista blanca: los nombres de columna de un
 # UPDATE no pueden venir del cliente.
@@ -93,7 +97,7 @@ def connect(db_file: Path, *, create: bool = False) -> sqlite3.Connection:
 
 
 def init_repo(repo: str) -> Path:
-    """Crea `.EUI/EUI_DATABASE` con el esquema aplicado. Idempotente.
+    """Crea `.EUI/EUI_DATABASE.sqlite` con el esquema aplicado. Idempotente.
 
     No crea el repo: exige que ya exista. Un nombre mal escrito no debe dejar un
     almacén vacío suelto, igual que la app no crea la BD de eventos.
@@ -119,7 +123,45 @@ def ensure_repo(repo: str) -> Path:
     inventa nada: `init_repo` falla y la API responde 404.
     """
     db_file = db_file_for(repo)
+    _migrar_nombre_viejo(db_file)
     return db_file if db_file.is_file() else init_repo(repo)
+
+
+def _contar_ideas(db_file: Path) -> int | None:
+    """Filas de `ideas` en un fichero, o `None` si no se puede leer."""
+    try:
+        with closing(sqlite3.connect(f"file:{db_file.as_posix()}?mode=ro", uri=True)) as conn:
+            return conn.execute("SELECT count(*) FROM ideas").fetchone()[0]
+    except (sqlite3.Error, OSError):
+        return None
+
+
+def _migrar_nombre_viejo(db_file: Path) -> None:
+    """Deja un solo fichero en `.EUI`: `EUI_DATABASE.sqlite`.
+
+    - Solo el viejo (`EUI_DATABASE`, sin extensión): se renombra con sus auxiliares,
+      que si se quedaran con el nombre viejo SQLite no vería (adiós al WAL).
+    - Los dos: manda el canónico, y el viejo se retira **solo si está vacío**. Con
+      ideas dentro no se borra nada: perder datos no es tarea de una migración.
+    """
+    legacy = db_file.with_name(LEGACY_DB_FILENAME)
+    if not legacy.is_file():
+        return
+
+    sufijos = ("", "-wal", "-shm")
+    if not db_file.is_file():
+        for suffix in sufijos:
+            origen = legacy.with_name(LEGACY_DB_FILENAME + suffix)
+            if origen.is_file():
+                origen.replace(db_file.with_name(DB_FILENAME + suffix))
+        return
+
+    if _contar_ideas(legacy) == 0:
+        for suffix in sufijos:
+            try:
+                legacy.with_name(LEGACY_DB_FILENAME + suffix).unlink(missing_ok=True)
+            except OSError:
+                pass
 
 
 def list_repos() -> list[dict[str, Any]]:

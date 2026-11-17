@@ -15,7 +15,7 @@ repos que investigamos, y una forma de operarlo sin escribir scripts a mano.
    algo que observar.
 
 2. **El almacén es por repositorio, no global.** Cada repo investigado lleva dentro
-   `.EUI/EUI_DATABASE`, un SQLite con la tabla `ideas`. Las ideas sobre un repo
+   `.EUI/EUI_DATABASE.sqlite`, un SQLite con la tabla `ideas`. Las ideas sobre un repo
    viajan, se versionan y se revisan junto a su código; no hay un fichero central
    que se desincronice del código al mover un repo.
 
@@ -63,7 +63,7 @@ por qué:
 
 ## Consecuencias
 
-- **Se asume que `EUI_DATABASE` se commitea** en el repo investigado (es lo que
+- **Se asume que `EUI_DATABASE.sqlite` se commitea** en el repo investigado (es lo que
   justifica tenerlo dentro). Los auxiliares `-wal`/`-shm` se ignoran con un
   `.gitignore` que el seed escribe en `.EUI/`. Si se prefiere no versionar binarios,
   basta con ignorar `.EUI/` entero: es reversible y no afecta a la API.
@@ -91,7 +91,7 @@ GET /ideas?repo=<ruta absoluta o nombre dentro del laboratorio>
 
 `resolve_repo` acepta las dos formas: si es absoluta se respeta (el usuario eligió esa
 carpeta), si es un nombre se resuelve bajo `repoprobe/repos` y se siguen rechazando
-`..` y separadores. No se pierde la garantía: la API solo abre `<carpeta>/.EUI/EUI_DATABASE`,
+`..` y separadores. No se pierde la garantía: la API solo abre `<carpeta>/.EUI/EUI_DATABASE.sqlite`,
 nunca un fichero arbitrario.
 
 Sigue sin haber estado de sesión: el repo es parámetro de cada petición. Cuando haya
@@ -102,10 +102,22 @@ la app (conexión B de 0001), no en el servidor.
 
 La decisión 6 no aguantó la prueba de la ventana real: pedir `core:seed` antes de abrir
 una carpeta pone un paso manual justo en el momento de empezar a analizar. Ahora la
-primera petición sobre una carpeta existente crea `.EUI/EUI_DATABASE`, aplica
+primera petición sobre una carpeta existente crea `.EUI/EUI_DATABASE.sqlite`, aplica
 `schema/ideas.sql` y devuelve la lista vacía (`ensure_repo`).
 
 Siguen en pie los dos límites de la decisión 6: la carpeta tiene que existir —un nombre
-mal escrito no deja almacenes sueltos, la API responde 404— y el escritor de la BD de
-eventos sigue siendo otro proceso. El seed CLI se queda porque es idempotente y sirve
+mal escrito no deja almacenes sueltos, la API responde 404— y el escritor de la BDde eventos sigue siendo otro proceso. El seed CLI se queda porque es idempotente y sirve
 para sembrar un repo sin arrancar el core.
+
+## Enmienda — el fichero lleva extensión
+
+La decisión 3 se revierte al mirar el artefacto con ojos de repo: un binario **sin
+extensión** no lo reconoce ningún editor ni visor, y en un diff no hay forma de saber
+qué es. El almacén pasa a llamarse `.EUI/EUI_DATABASE.sqlite`.
+
+Los auxiliares `-wal`/`-shm` siguen ignorados por el `.gitignore` que escribe el seed, y
+un `EUI_DATABASE` viejo (sin extensión) se renombra solo —con sus auxiliares, para no
+perder lo que hubiera en el WAL— la primera vez que se abre (`_migrar_nombre_viejo`).
+
+Si aparecen los dos ficheros a la vez, manda el `.sqlite` y el viejo se retira solo
+cuando no tiene ideas dentro: una migración no borra datos.

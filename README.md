@@ -60,10 +60,10 @@ pnpm 11+ no ejecuta postinstall de dependencias sin permiso: la política vive e
 ## Ideas y ADR por repositorio
 
 La primera tabla no es la de eventos, es la de ideas ([`docs/0002`](docs/0002-ideas-y-repoprobe.md)).
-Cada repo investigado lleva dentro `.EUI/EUI_DATABASE`, un SQLite con esa tabla: las
+Cada repo investigado lleva dentro `.EUI/EUI_DATABASE.sqlite`, un SQLite con esa tabla: las
 ideas sobre un repo viajan con su código.
 
-La primera petición sobre una carpeta existente siembra su `.EUI/EUI_DATABASE` con
+La primera petición sobre una carpeta existente siembra su `.EUI/EUI_DATABASE.sqlite` con
 `schema/ideas.sql` si aún no está, así que abrir un repo en la UI basta. El seed sigue
 existiendo para hacerlo sin arrancar el core:
 
@@ -91,5 +91,5 @@ navegable desde `/docs`.
 ## Estado
 
 - **F0 (hecho):** andamio, `/health`, proxy UI→core.
-- **F0.5 (hecho):** tabla `ideas`, seed de `.EUI/EUI_DATABASE`, API CRUD por repo.
+- **F0.5 (hecho):** tabla `ideas`, seed de `.EUI/EUI_DATABASE.sqlite`, API CRUD por repo.
 - **F1 (siguiente):** esquema del sobre de evento, conexión RO, tail + SSE.

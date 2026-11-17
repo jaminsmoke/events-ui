@@ -7,7 +7,9 @@
 -- `python -m events_core.seed <repo>` y es idempotente.
 
 CREATE TABLE IF NOT EXISTS ideas (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    -- Rowid normal, sin AUTOINCREMENT: eso solo añade la tabla `sqlite_sequence`
+    -- sin darnos nada aquí (`uid` es la identidad).
+    id          INTEGER PRIMARY KEY,
 
     -- Identidad estable fuera de este fichero. `id` es local al repo; `uid`
     -- permite mover o comparar ideas entre repos sin colisiones.
@@ -35,6 +37,5 @@ CREATE TABLE IF NOT EXISTS ideas (
     updated_at  TEXT    NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS ideas_created_at ON ideas (created_at DESC);
-CREATE INDEX IF NOT EXISTS ideas_status     ON ideas (status);
-CREATE INDEX IF NOT EXISTS ideas_kind       ON ideas (kind);
+-- Sin índices todavía: con una tabla vacía solo añaden objetos que mantener. Se
+-- añadirán cuando haya volumen que lo justifique.

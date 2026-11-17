@@ -112,7 +112,7 @@ def health() -> dict[str, Any]:
 
 @app.get("/repos", tags=["ideas"])
 def get_repos() -> list[dict[str, Any]]:
-    """Repos investigados que ya tienen `.EUI/EUI_DATABASE`."""
+    """Repos investigados que ya tienen `.EUI/EUI_DATABASE.sqlite`."""
     return ideas.list_repos()
 
 

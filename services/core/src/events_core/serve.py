@@ -1,10 +1,16 @@
-"""Arranque en desarrollo del core, con el puerto vigilado.
+"""Arranque en desarrollo del core, sin reloader y con el puerto vigilado.
 
-Existe por un fallo real: en Windows, dos `uvicorn --reload` del mismo puerto pueden
-quedarse escuchando a la vez (asyncio activa `SO_REUSEADDR`), y el sistema reparte las
-peticiones entre procesos con código distinto. El síntoma desconcierta: se edita el
-core, "recarga", y la API sigue respondiendo lo viejo. Aquí se comprueba el puerto
-antes de escuchar y se aborta con un mensaje claro en vez de arrancar el enésimo core.
+Dos fallos reales en Windows, los dos vistos aquí:
+
+- El reloader de uvicorn (`--reload`) usa `multiprocessing` spawn; en esta máquina el
+  hijo arranca con otro intérprete, no llega a escuchar y deja el socket heredado: se
+  acumulan procesos escuchando en el mismo puerto (asyncio activa `SO_REUSEADDR`) y la
+  API sigue respondiendo código viejo tras cada edición.
+- Dos cores a la vez reparten peticiones entre procesos distintos, que es peor que un
+  error: parece que "no recarga".
+
+Por eso: se comprueba el puerto antes de escuchar y no se recarga solo. Para aplicar
+cambios, se para (Ctrl+C) y se vuelve a arrancar; son dos segundos.
 """
 
 from __future__ import annotations
@@ -40,7 +46,7 @@ def main() -> int:
         )
         return 1
 
-    uvicorn.run("events_core.main:app", host=HOST, port=PORT, reload=True)
+    uvicorn.run("events_core.main:app", host=HOST, port=PORT, reload=False)
     return 0
 
 

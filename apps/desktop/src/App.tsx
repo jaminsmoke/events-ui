@@ -135,7 +135,7 @@ export default function App() {
           )}
           <p className="hint">
             {isTauri
-              ? "Se abre la última carpeta al arrancar. La primera vez sembramos dentro .EUI/EUI_DATABASE."
+              ? "Se abre la última carpeta al arrancar. La primera vez sembramos dentro .EUI/EUI_DATABASE.sqlite."
               : "En el navegador no hay diálogo nativo: pega la ruta. La ventana de Tauri sí lo tiene."}
           </p>
         </section>

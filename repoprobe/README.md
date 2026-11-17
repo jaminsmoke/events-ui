@@ -8,9 +8,9 @@ que no hemos inventado.
 repoprobe/
   repos/            clones de repos investigados (ignorados por git)
     <repo>/
-      .EUI/         lo crea el seed, no se escribe a mano
-        EUI_DATABASE      SQLite con la tabla `ideas`
-        .gitignore        ignora los auxiliares -wal / -shm
+      .EUI/                  lo crea el seed, no se escribe a mano
+        EUI_DATABASE.sqlite  SQLite con la tabla `ideas`
+        .gitignore           ignora los auxiliares -wal / -shm
 ```
 
 ## Sembrar un repo
@@ -28,7 +28,7 @@ uv run --directory services/core python -m events_core.seed <repo>
 ```
 
 El seed es idempotente y aplica `services/core/src/events_core/schema/ideas.sql`.
-Crea `repoprobe/repos/<repo>/.EUI/EUI_DATABASE` si no existe.
+Crea `repoprobe/repos/<repo>/.EUI/EUI_DATABASE.sqlite` si no existe.
 
 ## Operar sin scripts
 
@@ -50,11 +50,14 @@ curl -X POST 'http://127.0.0.1:8765/ideas?repo=C:\ruta\a\Lab1' \
   -d '{"title":"Probar el parser con repos grandes","kind":"idea"}'
 ```
 
-## Por qué `EUI_DATABASE` sin extensión
+## Por qué `EUI_DATABASE.sqlite`
 
-Porque el fichero es un artefacto del repo, no un temporal: el nombre fijo hace
-que se encuentre siempre en el mismo sitio y evita que `*.db` lo barra de un
-`.gitignore`. SQLite no necesita extensión.
+Porque el almacén viaja con el repo que se analiza y tiene que ser reconocible: un
+binario sin extensión no lo abre ningún visor y en un diff no se sabe qué es.
+`.sqlite` lo dice de un vistazo, y los auxiliares `-wal`/`-shm` quedan al lado,
+ignorados por el `.gitignore` que escribe el seed en `.EUI/`. Un `EUI_DATABASE`
+viejo (sin extensión) se renombra solo, con sus auxiliares, la primera vez que se
+abre.
 
 El contenido de `repos/` no se commitea: es el material que se analiza, no parte
 del producto. El `.gitignore` de esa carpeta ignora todo salvo a sí mismo.

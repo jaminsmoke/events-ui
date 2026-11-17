@@ -719,7 +719,7 @@ export default function App() {
           ref={boardRef}
           onPointerDown={(e) => {
             // Arrastrar solo desde el fondo: sobre un nodo no se mueve nada.
-            if (e.button !== 0 || (e.target as HTMLElement).closest(".node")) return;
+            if (e.button !== 0 || (e.target as HTMLElement).closest(".node, .vista")) return;
             agarre.current = { x: e.clientX, y: e.clientY };
             setArrastrando(true);
             try {
@@ -816,6 +816,18 @@ export default function App() {
               </div>
             </div>
           )}
+          {/* Nivel de cámara y vuelta atrás: el lienzo se puede perder de vista. */}
+          <div className="vista">
+            <span className="vista-nivel">{Math.round(vista.k * 100)}%</span>
+            <button
+              type="button"
+              className="btn ghost"
+              title="Volver al 100% y centrar"
+              onClick={() => setVista({ x: 0, y: 0, k: 1 })}
+            >
+              100%
+            </button>
+          </div>
         </section>
       )}
     </main>

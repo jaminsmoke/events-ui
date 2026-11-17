@@ -57,9 +57,16 @@ function laneOf(status: Status): LaneId {
  *  igual que un nodo de Unreal enseña sus opciones. Nada de un nodo por item ni
  *  de tarjetas dentro de tarjetas.
  *
+ *  Tres nodos: `Ideas` es el cajón donde entran todas, y para bajar de nivel hay
+ *  que pasar por la disyuntiva de carriles. `En cola` y `Descartadas` son nodos
+ *  aparte, cada uno con su lista.
+ *
  *  Es un **visor**: plegar y desplegar cambia lo que se ve, nunca el almacén.
  *  Aquí no se mueve, ni se crea, ni se borra nada; eso entra por la API.
  */
+
+/** Lo que se pinta: el cajón con todas las ideas y la disyuntiva de carriles. */
+type Tree = { cajon: TreeNode; carriles: TreeNode[] };
 
 type TreeNode = {
   key: string;
@@ -71,7 +78,7 @@ type TreeNode = {
   tone?: "root" | LaneId;
 };
 
-function buildTree(ideas: Idea[], links: Connection[]): TreeNode {
+function buildTree(ideas: Idea[], links: Connection[]): Tree {
   const byUid = new Map(ideas.map((idea) => [idea.uid, idea]));
 
   const hijos = new Map<string, string[]>();
@@ -96,6 +103,15 @@ function buildTree(ideas: Idea[], links: Connection[]): TreeNode {
     return { key: uid, title: idea.title, total: kids.length, kids, idea };
   };
 
+  // El cajón: todas las ideas, planas. Aquí entra todo, aún sin carril.
+  const cajon: TreeNode = {
+    key: "ideas",
+    title: "Ideas",
+    total: ideas.length,
+    kids: ideas.map((idea) => ({ key: idea.uid, title: idea.title, total: 0, kids: [], idea })),
+    tone: "root",
+  };
+
   // Quien tiene padre en `connections` se dibuja dentro de él, no en el carril.
   const conPadre = new Set(links.filter((link) => link.kind === "child").map((l) => l.child_uid));
 
@@ -109,12 +125,49 @@ function buildTree(ideas: Idea[], links: Connection[]): TreeNode {
     return { key: `lane-${lane.id}`, title: lane.title, total: items.length, kids, tone: lane.id };
   });
 
-  return { key: "ideas", title: "Ideas", total: ideas.length, kids: carriles, tone: "root" };
+  return { cajon, carriles };
 }
 
 /** Flecha de plegado. Vacía si el nodo no tiene items. */
 function Arrow({ open }: { open: boolean }) {
   return <span className="arrow">{open ? "▾" : "▸"}</span>;
+}
+
+/** Un nodo entero: cabecera plegable y, debajo, su propia lista. */
+function NodeBox({
+  node,
+  cerrados,
+  onToggle,
+}: {
+  node: TreeNode;
+  cerrados: ReadonlySet<string>;
+  onToggle: (key: string) => void;
+}) {
+  const tiene = node.kids.length > 0;
+  const abierto = tiene && !cerrados.has(node.key);
+
+  return (
+    <section className={`node${node.tone ? ` lane-${node.tone}` : ""}`}>
+      <button
+        type="button"
+        className="node-head"
+        onClick={() => onToggle(node.key)}
+        aria-expanded={tiene ? abierto : undefined}
+      >
+        <span className="node-title">{node.title}</span>
+        <span className="count">{node.total}</span>
+        {tiene ? <Arrow open={abierto} /> : <span className="arrow" />}
+      </button>
+
+      {abierto && (
+        <div className="node-body">
+          {node.kids.map((kid) => (
+            <NodeRow key={kid.key} node={kid} cerrados={cerrados} onToggle={onToggle} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
 }
 
 /** Una fila del nodo: título, contador y, si tiene items, su propia flecha. */
@@ -282,7 +335,6 @@ export default function App() {
     () => (repo ? buildTree(ideas ?? [], links) : null),
     [repo, ideas, links],
   );
-  const abierto = tree !== null && !cerrados.has(tree.key);
 
   return (
     <main className="shell">
@@ -354,26 +406,12 @@ export default function App() {
           )}
           {!busy && tree && (
             <div className="map">
-              <section className={`node${abierto ? " open" : ""}`}>
-                <button
-                  type="button"
-                  className="node-head"
-                  onClick={() => toggle(tree.key)}
-                  aria-expanded={abierto}
-                >
-                  <span className="node-title">{tree.title}</span>
-                  <span className="count">{tree.total}</span>
-                  <Arrow open={abierto} />
-                </button>
-
-                {abierto && (
-                  <div className="node-body">
-                    {tree.kids.map((kid) => (
-                      <NodeRow key={kid.key} node={kid} cerrados={cerrados} onToggle={toggle} />
-                    ))}
-                  </div>
-                )}
-              </section>
+              <NodeBox node={tree.cajon} cerrados={cerrados} onToggle={toggle} />
+              <div className="lanes">
+                {tree.carriles.map((lane) => (
+                  <NodeBox key={lane.key} node={lane} cerrados={cerrados} onToggle={toggle} />
+                ))}
+              </div>
             </div>
           )}
         </section>

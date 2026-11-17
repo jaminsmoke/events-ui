@@ -182,8 +182,15 @@ header {
 .map {
   display: flex;
   align-items: flex-start;
-  gap: 14px;
+  gap: 28px;
   margin-top: 4px;
+}
+
+/* La disyuntiva cuelga en columna: del cajón se sale por uno de los dos carriles. */
+.lanes {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .node {
@@ -193,6 +200,22 @@ header {
   border: 1px solid #3c5f8f;
   border-radius: 6px;
   overflow: hidden;
+}
+
+.node.lane-cola {
+  border-color: #2e4a6b;
+}
+
+.node.lane-descartadas {
+  border-color: #5c2f2f;
+}
+
+.node.lane-cola > .node-head {
+  background: #14243a;
+}
+
+.node.lane-descartadas > .node-head {
+  background: #2a1a1d;
 }
 
 .node-head {
@@ -324,14 +347,6 @@ header {
 .dot.status-rejected,
 .dot.status-superseded {
   background: var(--bad);
-}
-
-.row.lane-cola > .row-head {
-  box-shadow: inset 2px 0 0 #2e4a6b;
-}
-
-.row.lane-descartadas > .row-head {
-  box-shadow: inset 2px 0 0 #5c2f2f;
 }
 
 .meta {

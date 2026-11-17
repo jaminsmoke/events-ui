@@ -1,0 +1,14 @@
+node_modules/
+dist/
+target/
+.venv/
+__pycache__/
+*.pyc
+data/
+*.db
+*.db-wal
+*.db-shm
+.python-version.bak
+.DS_Store
+.vite/
+*.log

@@ -1,0 +1,80 @@
+# 0002 — Ideas por repositorio, y por qué la primera tabla no es la de eventos
+
+**Estado:** aceptado · 17 nov 2026
+
+## Contexto
+
+El sistema aún no vigila nada: no hay sobre de evento pactado ni productor. Lo
+primero que hace falta es un sitio donde apuntar las ideas y decisiones sobre los
+repos que investigamos, y una forma de operarlo sin escribir scripts a mano.
+
+## Decisiones
+
+1. **La primera tabla es `ideas`, no `events`.** Antes de mirar repos conviene que
+   el sistema se explique a sí mismo. Se pospone el sobre de evento hasta que haya
+   algo que observar.
+
+2. **El almacén es por repositorio, no global.** Cada repo investigado lleva dentro
+   `.EUI/EUI_DATABASE`, un SQLite con la tabla `ideas`. Las ideas sobre un repo
+   viajan, se versionan y se revisan junto a su código; no hay un fichero central
+   que se desincronice del código al mover un repo.
+
+   Consecuencia: la app ya no lee *un* log, lee *N* almacenes y tiene que resolver
+   `repo → fichero`. Si más adelante hace falta una vista agregada, se hace con
+   `ATTACH` sobre los ficheros resueltos, no duplicando datos.
+
+3. **`EUI_DATABASE` sin extensión.** El nombre es fijo porque es un artefacto del
+   repo, no un temporal: así se encuentra siempre en el mismo sitio y `*.db` no lo
+   barre de ningún `.gitignore`. SQLite no necesita extensión.
+
+4. **La API vive en el core Python, sin ORM.** Se descarta **drizzle**: es TS, y
+   adoptarlo obliga a un segundo runtime Node para hablar con un SQLite local de
+   seis columnas, partiendo el stack en dos servicios por un CRUD. También se
+   descarta SQLAlchemy *por ahora*: con `sqlite3` + Pydantic el SQL queda a la vista
+   y el esquema es un `.sql` editable. Si crecen las tablas, un ORM entra por debajo
+   sin cambiar la superficie HTTP.
+
+5. **El contrato es OpenAPI.** FastAPI lo publica en `/openapi.json` y los enums de
+   `kind`/`status` salen del propio `Literal` de Pydantic. De ahí se generarán los
+   tipos TS (decisión 9 de `0001`). La UI nunca define a mano lo que el core ya
+   declara.
+
+6. **El seed es explícito, no automático.** Nada crea `.EUI` por su cuenta: lo hace
+   `python -m events_core.seed <repo>`, que es idempotente y solo aplica
+   `schema/ideas.sql`. La app sigue sin inventar ficheros donde no los hay.
+
+7. **`repoprobe/` como laboratorio de pruebas.** `repoprobe/repos/<repo>` es una
+   carpeta de trabajo: puede estar vacía, ser un clon o una copia. Git ignora todo su
+   contenido, así que se puede analizar y ensuciar sin tocar el producto. Se prueba
+   contra material real, no contra fixtures inventados.
+
+## Campos de `ideas`
+
+Los pedidos: `id`, `title`, `description`, `content`, `created_at`. Los añadidos, y
+por qué:
+
+| Campo | Motivo |
+| --- | --- |
+| `uid` | `id` es local al fichero; `uid` permite mover ideas entre repos sin colisión. |
+| `kind` | La tabla sirve para ideas sueltas y para ADRs formales: `idea`, `adr`, `note`. |
+| `status` | Ciclo de vida real: `draft`, `proposed`, `accepted`, `rejected`, `superseded`. |
+| `updated_at` | Sin él no se puede ordenar por actividad ni auditar un cambio. |
+| `tags` | Array JSON, para agrupar sin tabla aparte; JSON1 permite consultarlo. |
+
+## Consecuencias
+
+- **Se asume que `EUI_DATABASE` se commitea** en el repo investigado (es lo que
+  justifica tenerlo dentro). Los auxiliares `-wal`/`-shm` se ignoran con un
+  `.gitignore` que el seed escribe en `.EUI/`. Si se prefiere no versionar binarios,
+  basta con ignorar `.EUI/` entero: es reversible y no afecta a la API.
+- El nombre de repo en la URL es **un solo segmento**: se valida y se rechaza
+  cualquier separador o `..`. Sin esa comprobación la API sería un lector de ficheros
+  arbitrario.
+- `id` deja de ser la identidad pública. En la UI y en las URLs se usa `uid`.
+
+## Pendiente de pactar
+
+- ¿La tabla de eventos vivirá en el mismo `EUI_DATABASE` de cada repo, o en un log
+  central aparte? Cambia si `.EUI` es "el repo" o también "el log".
+- ¿Hace falta `repo` como columna cuando un `EUI_DATABASE` agregue varios repos? Hoy
+  sobra porque el fichero ya implica el repo.

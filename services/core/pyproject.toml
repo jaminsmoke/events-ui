@@ -1,0 +1,21 @@
+[project]
+name = "events-core"
+version = "0.0.0"
+description = "Capa de lectura sobre el log de eventos SQLite."
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.27",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/events_core"]

@@ -1,0 +1,8 @@
+packages:
+  - "apps/*"
+
+# pnpm 11+ no ejecuta postinstall de dependencias sin permiso explícito, y
+# retiró `onlyBuiltDependencies`: ahora es un mapa `allowBuilds`.
+# esbuild (motor de Vite) necesita el suyo para validar su binario nativo.
+allowBuilds:
+  esbuild: true

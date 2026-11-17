@@ -1,0 +1,15 @@
+{
+  "name": "events-ui",
+  "private": true,
+  "version": "0.0.0",
+  "description": "UI reactiva sobre un log de eventos en SQLite para monitorizar repositorios.",
+  "scripts": {
+    "dev": "pnpm --filter desktop tauri dev",
+    "dev:ui": "pnpm --filter desktop dev",
+    "build": "pnpm --filter desktop tauri build",
+    "build:ui": "pnpm --filter desktop build",
+    "core:dev": "uv run --directory services/core uvicorn events_core.main:app --reload --port 8000",
+    "core:seed": "uv run --directory services/core python -m events_core.seed",
+    "check": "pnpm --filter desktop build:check"
+  }
+}

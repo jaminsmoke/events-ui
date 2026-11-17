@@ -1,0 +1,3 @@
+# Clones ajenos: se regeneran, no se versionan.
+*
+!.gitignore

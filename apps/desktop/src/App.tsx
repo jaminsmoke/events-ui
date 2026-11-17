@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { Ref } from "react";
 import { open as openFolder } from "@tauri-apps/plugin-dialog";
 
 /** Espejo de GET /ideas del core. El contrato definitivo se generará desde
@@ -133,21 +134,26 @@ function Arrow({ open }: { open: boolean }) {
   return <span className="arrow">{open ? "▾" : "▸"}</span>;
 }
 
+/** Un cable del cajón a un carril, ya medido en píxeles del mapa. */
+type Cable = { lane: LaneId; d: string; x1: number; y1: number };
+
 /** Un nodo entero: cabecera plegable y, debajo, su propia lista. */
 function NodeBox({
   node,
   cerrados,
   onToggle,
+  boxRef,
 }: {
   node: TreeNode;
   cerrados: ReadonlySet<string>;
   onToggle: (key: string) => void;
+  boxRef?: Ref<HTMLElement>;
 }) {
   const tiene = node.kids.length > 0;
   const abierto = tiene && !cerrados.has(node.key);
 
   return (
-    <section className={`node${node.tone ? ` lane-${node.tone}` : ""}`}>
+    <section ref={boxRef} className={`node${node.tone ? ` lane-${node.tone}` : ""}`}>
       <button
         type="button"
         className="node-head"
@@ -248,6 +254,13 @@ export default function App() {
   // Lo plegado, no lo abierto: por defecto el flujo se ve entero.
   const [cerrados, setCerrados] = useState<ReadonlySet<string>>(() => new Set());
 
+  const mapRef = useRef<HTMLDivElement | null>(null);
+  const cajonRef = useRef<HTMLElement | null>(null);
+  const carrilRefs = useRef<(HTMLElement | null)[]>([]);
+  const [cables, setCables] = useState<Cable[]>([]);
+  const [chispas, setChispas] = useState<{ lane: LaneId; id: number }[]>([]);
+  const totalesPrevios = useRef(new Map<LaneId, number>());
+
   // Carga inicial + vigilancia del `PRAGMA data_version` del almacén del repo.
   // Los `setState` van en continuaciones async, nunca en el cuerpo del efecto;
   // el abort cancela lo pendiente si se cambia de repo a mitad.
@@ -336,6 +349,72 @@ export default function App() {
     [repo, ideas, links],
   );
 
+  // Los cables se miden del DOM: los nodos crecen al desplegarse y nada es fijo.
+  useLayoutEffect(() => {
+    const map = mapRef.current;
+    const cajon = cajonRef.current;
+    if (!map || !cajon) return;
+
+    const medir = () => {
+      const caja = map.getBoundingClientRect();
+      const a = cajon.getBoundingClientRect();
+      const x1 = a.right - caja.left;
+      const y1 = a.top - caja.top + a.height / 2;
+
+      const trazos: Cable[] = [];
+      carrilRefs.current.forEach((el, i) => {
+        const lane = LANES[i];
+        if (!el || !lane) return;
+        const b = el.getBoundingClientRect();
+        const x2 = b.left - caja.left;
+        const y2 = b.top - caja.top + b.height / 2;
+        const medio = (x1 + x2) / 2;
+        trazos.push({
+          lane: lane.id,
+          x1,
+          y1,
+          d: `M ${x1} ${y1} C ${medio} ${y1}, ${medio} ${y2}, ${x2} ${y2}`,
+        });
+      });
+      setCables(trazos);
+    };
+
+    medir();
+    const ro = new ResizeObserver(medir);
+    ro.observe(cajon);
+    for (const el of carrilRefs.current) if (el) ro.observe(el);
+    return () => ro.disconnect();
+  }, [tree, cerrados]);
+
+  /* El cambio en el almacén es instantáneo; la animación no. Cuando un carril
+   * cambia de tamaño, una chispa recorre su cable para que se vea llegar. */
+  useEffect(() => {
+    if (!tree) return;
+    const nuevas: { lane: LaneId; id: number }[] = [];
+    for (const lane of tree.carriles) {
+      const id = lane.tone;
+      if (id !== "cola" && id !== "descartadas") continue;
+      const antes = totalesPrevios.current.get(id);
+      if (antes !== undefined && antes !== lane.total) {
+        nuevas.push({ lane: id, id: Date.now() + Math.random() });
+      }
+      totalesPrevios.current.set(id, lane.total);
+    }
+    if (nuevas.length === 0) return;
+
+    // En un frame, no en el cuerpo del efecto: la chispa no puede entrar en
+    // cascada con el render que acaba de pintar las filas.
+    const raf = requestAnimationFrame(() => setChispas((prev) => [...prev, ...nuevas]));
+    return () => cancelAnimationFrame(raf);
+  }, [tree]);
+
+  // Cada chispa vive lo que dura su animación.
+  useEffect(() => {
+    if (chispas.length === 0) return;
+    const timer = setTimeout(() => setChispas([]), 900);
+    return () => clearTimeout(timer);
+  }, [chispas]);
+
   return (
     <main className="shell">
       <header>
@@ -405,11 +484,42 @@ export default function App() {
             <p className="hint">Todavía no hay ideas en este repo.</p>
           )}
           {!busy && tree && (
-            <div className="map">
-              <NodeBox node={tree.cajon} cerrados={cerrados} onToggle={toggle} />
+            <div className="map" ref={mapRef}>
+              <svg className="cables" aria-hidden="true">
+                {cables.map((cable) => (
+                  <path key={cable.lane} d={cable.d} className={`wire ${cable.lane}`} />
+                ))}
+                {cables[0] && (
+                  <circle className="junction" cx={cables[0].x1} cy={cables[0].y1} r={4} />
+                )}
+                {chispas.map((chispa) => {
+                  const cable = cables.find((c) => c.lane === chispa.lane);
+                  return cable ? (
+                    <circle key={chispa.id} r={3.5} className={`spark ${chispa.lane}`}>
+                      <animateMotion dur="0.6s" path={cable.d} fill="freeze" />
+                    </circle>
+                  ) : null;
+                })}
+              </svg>
+
+              <NodeBox
+                node={tree.cajon}
+                cerrados={cerrados}
+                onToggle={toggle}
+                boxRef={cajonRef}
+              />
+
               <div className="lanes">
-                {tree.carriles.map((lane) => (
-                  <NodeBox key={lane.key} node={lane} cerrados={cerrados} onToggle={toggle} />
+                {tree.carriles.map((lane, i) => (
+                  <NodeBox
+                    key={lane.key}
+                    node={lane}
+                    cerrados={cerrados}
+                    onToggle={toggle}
+                    boxRef={(el) => {
+                      carrilRefs.current[i] = el;
+                    }}
+                  />
                 ))}
               </div>
             </div>

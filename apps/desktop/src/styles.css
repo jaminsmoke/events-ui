@@ -180,9 +180,10 @@ header {
 }
 
 .map {
+  position: relative;
   display: flex;
   align-items: flex-start;
-  gap: 28px;
+  gap: 56px;
   margin-top: 4px;
 }
 
@@ -190,7 +191,76 @@ header {
 .lanes {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 28px;
+}
+
+/* ---------- cables ----------
+ *
+ *  Se miden del DOM porque los nodos crecen al desplegarse. El carril en cola
+ *  entra con línea discontinua que fluye; el de descartadas, maciza y apagada.
+ */
+
+.cables {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.wire {
+  fill: none;
+  stroke-width: 1.4;
+}
+
+.wire.cola {
+  stroke: #3f6aa8;
+  stroke-dasharray: 5 6;
+  animation: fluir 2.6s linear infinite;
+}
+
+.wire.descartadas {
+  stroke: #8a4a32;
+}
+
+@keyframes fluir {
+  to {
+    stroke-dashoffset: -22;
+  }
+}
+
+.junction {
+  fill: #58a6ff;
+  filter: drop-shadow(0 0 6px #1f6feb);
+}
+
+/* Chispa que recorre el cable: la animación dura más que el cambio en el
+ * almacén, que es instantáneo, y así se ve llegar el elemento al carril. */
+.spark {
+  fill: #9ecbff;
+  filter: drop-shadow(0 0 6px #58a6ff);
+  animation: chispa 900ms ease-out both;
+}
+
+.spark.descartadas {
+  fill: #f0883e;
+  filter: drop-shadow(0 0 6px #f0883e);
+}
+
+@keyframes chispa {
+  0% {
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
 }
 
 .node {
@@ -269,9 +339,23 @@ header {
   border-top: 1px solid #24354d;
 }
 
-/* Las filas no son tarjetas: son líneas del nodo, sin caja ni borde propio. */
+/* Las filas no son tarjetas: son líneas del nodo, sin caja ni borde propio.
+ *  Llegan deslizándose desde el cable: el cambio es instantáneo, el movimiento
+ *  no, y así se puede seguir con la vista. */
 .row {
   border-top: 1px solid #1b2534;
+  animation: llegar 420ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes llegar {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .node-body > .row:first-child {

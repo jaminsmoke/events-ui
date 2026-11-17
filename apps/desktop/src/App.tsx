@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Markdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { open as openFolder } from "@tauri-apps/plugin-dialog";
 
 /** Espejo de GET /ideas del core. El contrato definitivo se generará desde
@@ -141,84 +139,12 @@ function storedRepo(): string | null {
   }
 }
 
-function Meta({ idea }: { idea: Idea }) {
-  return (
-    <div className="meta">
-      <span className={`badge kind-${idea.kind}`}>{idea.kind}</span>
-      <span className={`badge status-${idea.status}`}>{idea.status}</span>
-      {idea.tags.map((tag) => (
-        <span key={tag} className="badge tag">
-          {tag}
-        </span>
-      ))}
-      <span className="date mono">{idea.created_at.slice(0, 10)}</span>
-    </div>
-  );
-}
-
-/** Panel de detalle: el `content` se pinta como markdown.
- *
- *  `react-markdown` no interpreta HTML crudo salvo que se lo añadas con
- *  `rehype-raw`, así que el contenido del repo no puede inyectar etiquetas.
- */
-function IdeaDetail({
-  idea,
-  onClose,
-  onMove,
-}: {
-  idea: Idea;
-  onClose: () => void;
-  onMove: (status: Status) => void;
-}) {
-  const descartada = idea.status === "rejected" || idea.status === "superseded";
-
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  return (
-    <aside className="detail" aria-label={idea.title}>
-      <div className="detail-head">
-        <h2 className="detail-title">{idea.title}</h2>
-        <button className="btn ghost" onClick={onClose}>
-          Cerrar
-        </button>
-      </div>
-      <Meta idea={idea} />
-      <div className="detail-actions">
-        <button className="btn ghost" onClick={() => onMove("proposed")} disabled={!descartada}>
-          En cola
-        </button>
-        <button className="btn ghost" onClick={() => onMove("rejected")} disabled={descartada}>
-          Descartar
-        </button>
-      </div>
-      {idea.description && <p className="detail-desc">{idea.description}</p>}
-      <div className="md">
-        {idea.content.trim() ? (
-          <Markdown remarkPlugins={[remarkGfm]}>{idea.content}</Markdown>
-        ) : (
-          <p className="hint">Esta idea todavía no tiene contenido.</p>
-        )}
-      </div>
-      <p className="hint mono">
-        uid {idea.uid} · actualizada {idea.updated_at.slice(0, 10)}
-      </p>
-    </aside>
-  );
-}
-
 export default function App() {
   const [repo, setRepo] = useState<string | null>(storedRepo);
   // `null` = todavía sin respuesta; `[]` = el repo está sembrado pero vacío.
   const [ideas, setIdeas] = useState<Idea[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [manual, setManual] = useState("");
-  const [selectedUid, setSelectedUid] = useState<string | null>(null);
 
   // Una sola ruta de carga: cambiar `repo` dispara la petición. Los `setState` van
   // en las continuaciones async, nunca en el cuerpo del efecto, para no encadenar
@@ -254,7 +180,6 @@ export default function App() {
   const abrir = useCallback((path: string) => {
     setIdeas(null);
     setError(null);
-    setSelectedUid(null);
     setRepo(path);
   }, []);
 
@@ -268,31 +193,9 @@ export default function App() {
     if (typeof dir === "string") abrir(dir);
   }, [abrir]);
 
-  /** Mover de carril es un `PATCH` del `status`: no hay tabla de columnas ni
-   *  copia del registro, así que la idea sigue siendo la misma fila. */
-  const mover = useCallback(
-    async (uid: string, status: Status) => {
-      if (!repo) return;
-      const res = await fetch(`/api/ideas/${uid}?repo=${encodeURIComponent(repo)}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ status }),
-      });
-      if (!res.ok) {
-        setError(`no se pudo mover la idea (HTTP ${res.status})`);
-        return;
-      }
-      const updated = (await res.json()) as Idea;
-      setIdeas((list) => list?.map((item) => (item.uid === uid ? updated : item)) ?? list);
-    },
-    [repo],
-  );
-
   const busy = repo !== null && ideas === null && error === null;
-  const selected = ideas?.find((idea) => idea.uid === selectedUid) ?? null;
   const map = useMemo(() => (repo ? buildMap(repo, ideas ?? []) : null), [repo, ideas]);
   const byKey = new Map<string, MapNode>((map?.nodes ?? []).map((node) => [node.key, node]));
-  const close = useCallback(() => setSelectedUid(null), []);
 
   return (
     <main className="shell">
@@ -373,43 +276,26 @@ export default function App() {
                   ) : null;
                 })}
               </svg>
-              {map.nodes.map((node) =>
-                node.idea ? (
-                  <button
-                    key={node.key}
-                    className={`node${node.key === selectedUid ? " selected" : ""}`}
-                    style={{ left: node.x, top: node.y }}
-                    onClick={() => setSelectedUid(node.key)}
-                    aria-expanded={node.key === selectedUid}
-                  >
-                    <span className="node-title">{node.title}</span>
-                    {node.sub && <span className="node-sub">{node.sub}</span>}
+              {map.nodes.map((node) => (
+                <div
+                  key={node.key}
+                  className={`node${node.idea ? "" : " hub"}${
+                    node.lane ? ` lane-${node.lane}` : ""
+                  }`}
+                  style={{ left: node.x, top: node.y }}
+                >
+                  <span className="node-title">{node.title}</span>
+                  {node.sub && <span className="node-sub">{node.sub}</span>}
+                  {node.idea && (
                     <span className="node-meta mono">
                       {node.idea.kind} · {node.idea.status}
                     </span>
-                  </button>
-                ) : (
-                  <div
-                    key={node.key}
-                    className={`node hub${node.lane ? ` lane-${node.lane}` : ""}`}
-                    style={{ left: node.x, top: node.y }}
-                  >
-                    <span className="node-title">{node.title}</span>
-                    <span className="node-sub mono">{node.sub}</span>
-                  </div>
-                ),
-              )}
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </section>
-      )}
-
-      {selected && (
-        <IdeaDetail
-          idea={selected}
-          onClose={close}
-          onMove={(status) => void mover(selected.uid, status)}
-        />
       )}
     </main>
   );

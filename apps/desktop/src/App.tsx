@@ -361,6 +361,7 @@ export default function App() {
   const [vista, setVista] = useState({ x: 0, y: 0, k: 1 });
   const [arrastrando, setArrastrando] = useState(false);
   const agarre = useRef<{ x: number; y: number } | null>(null);
+  const encuadrado = useRef<string | null>(null);
 
   // Carga inicial + vigilancia del `PRAGMA data_version` del almacén del repo.
   // Los `setState` van en continuaciones async, nunca en el cuerpo del efecto;
@@ -422,6 +423,7 @@ export default function App() {
     setIdeas(null);
     setLinks([]);
     setError(null);
+    encuadrado.current = null; // repo nuevo, encuadre nuevo
     setRepo(path);
   }, []);
 
@@ -605,6 +607,35 @@ export default function App() {
     board.addEventListener("wheel", rueda, { passive: false });
     return () => board.removeEventListener("wheel", rueda);
   }, []);
+
+  /* Encuadre de bienvenida: al abrir un repo, la cámara se ajusta para que el
+   * esquema quepa entero y centrado. Una sola vez por repo: después manda el
+   * ratón, y volver al 100% sigue estando en el mando de la esquina. */
+  useLayoutEffect(() => {
+    const board = boardRef.current;
+    const map = mapRef.current;
+    if (!board || !map || !tree || !repo || encuadrado.current === repo) return;
+
+    const ancho = map.offsetWidth;
+    const alto = map.offsetHeight;
+    if (!ancho || !alto) return;
+
+    encuadrado.current = repo;
+
+    const caja = board.getBoundingClientRect();
+    const r = map.getBoundingClientRect();
+    // El origen del transform es la esquina: el layout está en `r` menos el
+    // translate, así la medida vale con cualquier zoom.
+    const baseX = r.left - caja.left - vista.x;
+    const baseY = r.top - caja.top - vista.y;
+
+    const k = acotar(Math.min((caja.width - 64) / ancho, (caja.height - 120) / alto), ZOOM_MIN, 1);
+    const x = (caja.width - ancho * k) / 2 - baseX;
+    const y = (caja.height - alto * k) / 2 - baseY;
+
+    const raf = requestAnimationFrame(() => setVista({ x, y, k }));
+    return () => cancelAnimationFrame(raf);
+  }, [repo, tree, vista]);
 
   /* El cambio en el almacén es instantáneo; la animación no. Cuando un carril
    * cambia de tamaño, una chispa recorre su cable para que se vea llegar, y si

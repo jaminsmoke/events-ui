@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { open as openFolder } from "@tauri-apps/plugin-dialog";
 
 /** Espejo de GET /ideas del core. El contrato definitivo se generará desde
@@ -7,6 +9,7 @@ type Idea = {
   uid: string;
   title: string;
   description: string;
+  content: string;
   kind: "idea" | "adr" | "note";
   status: "draft" | "proposed" | "accepted" | "rejected" | "superseded";
   tags: string[];
@@ -33,12 +36,66 @@ function storedRepo(): string | null {
   }
 }
 
+function Meta({ idea }: { idea: Idea }) {
+  return (
+    <div className="meta">
+      <span className={`badge kind-${idea.kind}`}>{idea.kind}</span>
+      <span className={`badge status-${idea.status}`}>{idea.status}</span>
+      {idea.tags.map((tag) => (
+        <span key={tag} className="badge tag">
+          {tag}
+        </span>
+      ))}
+      <span className="date mono">{idea.created_at.slice(0, 10)}</span>
+    </div>
+  );
+}
+
+/** Panel de detalle: el `content` se pinta como markdown.
+ *
+ *  `react-markdown` no interpreta HTML crudo salvo que se lo añadas con
+ *  `rehype-raw`, así que el contenido del repo no puede inyectar etiquetas.
+ */
+function IdeaDetail({ idea, onClose }: { idea: Idea; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <aside className="detail" aria-label={idea.title}>
+      <div className="detail-head">
+        <h2 className="detail-title">{idea.title}</h2>
+        <button className="btn ghost" onClick={onClose}>
+          Cerrar
+        </button>
+      </div>
+      <Meta idea={idea} />
+      {idea.description && <p className="detail-desc">{idea.description}</p>}
+      <div className="md">
+        {idea.content.trim() ? (
+          <Markdown remarkPlugins={[remarkGfm]}>{idea.content}</Markdown>
+        ) : (
+          <p className="hint">Esta idea todavía no tiene contenido.</p>
+        )}
+      </div>
+      <p className="hint mono">
+        uid {idea.uid} · actualizada {idea.updated_at.slice(0, 10)}
+      </p>
+    </aside>
+  );
+}
+
 export default function App() {
   const [repo, setRepo] = useState<string | null>(storedRepo);
   // `null` = todavía sin respuesta; `[]` = el repo está sembrado pero vacío.
   const [ideas, setIdeas] = useState<Idea[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [manual, setManual] = useState("");
+  const [selectedUid, setSelectedUid] = useState<string | null>(null);
 
   // Una sola ruta de carga: cambiar `repo` dispara la petición. Los `setState` van
   // en las continuaciones async, nunca en el cuerpo del efecto, para no encadenar
@@ -74,6 +131,7 @@ export default function App() {
   const abrir = useCallback((path: string) => {
     setIdeas(null);
     setError(null);
+    setSelectedUid(null);
     setRepo(path);
   }, []);
 
@@ -88,6 +146,8 @@ export default function App() {
   }, [abrir]);
 
   const busy = repo !== null && ideas === null && error === null;
+  const selected = ideas?.find((idea) => idea.uid === selectedUid) ?? null;
+  const close = useCallback(() => setSelectedUid(null), []);
 
   return (
     <main className="shell">
@@ -160,24 +220,23 @@ export default function App() {
           )}
           <ul className="ideas">
             {ideas?.map((idea) => (
-              <li key={idea.uid}>
-                <div className="idea-title">{idea.title}</div>
-                {idea.description && <div className="idea-desc">{idea.description}</div>}
-                <div className="meta">
-                  <span className={`badge kind-${idea.kind}`}>{idea.kind}</span>
-                  <span className={`badge status-${idea.status}`}>{idea.status}</span>
-                  {idea.tags.map((tag) => (
-                    <span key={tag} className="badge tag">
-                      {tag}
-                    </span>
-                  ))}
-                  <span className="date mono">{idea.created_at.slice(0, 10)}</span>
-                </div>
+              <li key={idea.uid} className={idea.uid === selectedUid ? "open" : undefined}>
+                <button
+                  className="idea-row"
+                  onClick={() => setSelectedUid(idea.uid)}
+                  aria-expanded={idea.uid === selectedUid}
+                >
+                  <span className="idea-title">{idea.title}</span>
+                  {idea.description && <span className="idea-desc">{idea.description}</span>}
+                  <Meta idea={idea} />
+                </button>
               </li>
             ))}
           </ul>
         </section>
       )}
+
+      {selected && <IdeaDetail idea={selected} onClose={close} />}
     </main>
   );
 }

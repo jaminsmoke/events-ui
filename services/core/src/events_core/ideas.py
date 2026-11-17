@@ -14,7 +14,7 @@ import os
 import sqlite3
 import uuid
 from collections.abc import Iterable
-from contextlib import closing
+from contextlib import closing, suppress
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -158,10 +158,9 @@ def _migrar_nombre_viejo(db_file: Path) -> None:
 
     if _contar_ideas(legacy) == 0:
         for suffix in sufijos:
-            try:
+            # Un auxiliar bloqueado por otro proceso no debe romper la lectura.
+            with suppress(OSError):
                 legacy.with_name(LEGACY_DB_FILENAME + suffix).unlink(missing_ok=True)
-            except OSError:
-                pass
 
 
 def list_repos() -> list[dict[str, Any]]:

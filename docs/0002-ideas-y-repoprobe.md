@@ -119,5 +119,9 @@ Los auxiliares `-wal`/`-shm` siguen ignorados por el `.gitignore` que escribe el
 un `EUI_DATABASE` viejo (sin extensión) se renombra solo —con sus auxiliares, para no
 perder lo que hubiera en el WAL— la primera vez que se abre (`_migrar_nombre_viejo`).
 
+Si en `.EUI` están **los dos** ficheros, manda el canónico y el viejo solo se retira
+cuando está vacío: con ideas dentro no se borra nada. Perder datos no es tarea de una
+migración de nombre.
+
 Si aparecen los dos ficheros a la vez, manda el `.sqlite` y el viejo se retira solo
 cuando no tiene ideas dentro: una migración no borra datos.

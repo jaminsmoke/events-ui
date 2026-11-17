@@ -178,17 +178,44 @@ header {
 }
 
 .ideas li {
-  padding: 12px;
   background: #0b0e13;
   border: 1px solid var(--line);
   border-radius: 7px;
 }
 
+.ideas li.open {
+  border-color: #3d5a80;
+}
+
+/* La fila entera es el botón: se pulsa con el teclado y con el ratón. */
+.idea-row {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  background: none;
+  border: 0;
+  border-radius: 7px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.idea-row:hover {
+  background: #11161d;
+}
+
+.idea-row:focus-visible {
+  outline: 1px solid var(--accent);
+}
+
 .idea-title {
+  display: block;
   font-weight: 600;
 }
 
 .idea-desc {
+  display: block;
   margin-top: 2px;
   color: var(--muted);
   font-size: 13px;
@@ -270,4 +297,138 @@ dt {
 dd {
   margin: 0;
   overflow-wrap: anywhere;
+}
+
+/* ---------- panel de detalle ---------- */
+
+.detail {
+  position: fixed;
+  inset: 0 0 0 auto;
+  width: min(560px, 100%);
+  overflow-y: auto;
+  padding: 24px 26px 40px;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  box-shadow: -18px 0 48px rgb(0 0 0 / 45%);
+}
+
+.detail-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.detail-title {
+  flex: 1;
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--fg);
+}
+
+.detail-desc {
+  margin: 10px 0 0;
+  color: var(--muted);
+}
+
+/* Markdown: hereda el tema, sin tipografías ni márgenes de más. */
+.md {
+  margin-top: 18px;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.md > :first-child {
+  margin-top: 0;
+}
+
+.md h1,
+.md h2,
+.md h3,
+.md h4 {
+  margin: 20px 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--fg);
+}
+
+.md h1 {
+  font-size: 16px;
+}
+
+.md p {
+  margin: 8px 0;
+}
+
+.md ul,
+.md ol {
+  margin: 8px 0;
+  padding-left: 22px;
+}
+
+.md li {
+  margin: 3px 0;
+}
+
+.md a {
+  color: var(--accent);
+}
+
+.md code {
+  font-family: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+  font-size: 12.5px;
+  background: #0b0e13;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.md pre {
+  margin: 10px 0;
+  padding: 10px 12px;
+  background: #0b0e13;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow-x: auto;
+}
+
+.md pre code {
+  padding: 0;
+  background: none;
+  border: 0;
+}
+
+.md blockquote {
+  margin: 10px 0;
+  padding-left: 12px;
+  border-left: 3px solid var(--line);
+  color: var(--muted);
+}
+
+.md hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 16px 0;
+}
+
+.md table {
+  border-collapse: collapse;
+  margin: 10px 0;
+}
+
+.md th,
+.md td {
+  border: 1px solid var(--line);
+  padding: 4px 8px;
+  text-align: left;
+}
+
+.md th {
+  background: #0b0e13;
+  font-weight: 600;
 }

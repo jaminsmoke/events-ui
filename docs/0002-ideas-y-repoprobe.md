@@ -78,3 +78,34 @@ por qué:
   central aparte? Cambia si `.EUI` es "el repo" o también "el log".
 - ¿Hace falta `repo` como columna cuando un `EUI_DATABASE` agregue varios repos? Hoy
   sobra porque el fichero ya implica el repo.
+
+## Enmienda — el repo se direcciona por ruta, no por nombre
+
+El primer elemento de UI es un **selector de carpeta**, y devuelve rutas absolutas
+(`C:\Users\...`). Una ruta así no es un segmento válido de URL, así que el repo dejó
+de ir en el path (`/repos/{repo}/ideas`) y pasó a query param:
+
+```
+GET /ideas?repo=<ruta absoluta o nombre dentro del laboratorio>
+```
+
+`resolve_repo` acepta las dos formas: si es absoluta se respeta (el usuario eligió esa
+carpeta), si es un nombre se resuelve bajo `repoprobe/repos` y se siguen rechazando
+`..` y separadores. No se pierde la garantía: la API solo abre `<carpeta>/.EUI/EUI_DATABASE`,
+nunca un fichero arbitrario.
+
+Sigue sin haber estado de sesión: el repo es parámetro de cada petición. Cuando haya
+que recordar la última carpeta entre arranques, eso irá en la BD de estado propio de
+la app (conexión B de 0001), no en el servidor.
+
+## Enmienda — la primera lectura siembra el almacén
+
+La decisión 6 no aguantó la prueba de la ventana real: pedir `core:seed` antes de abrir
+una carpeta pone un paso manual justo en el momento de empezar a analizar. Ahora la
+primera petición sobre una carpeta existente crea `.EUI/EUI_DATABASE`, aplica
+`schema/ideas.sql` y devuelve la lista vacía (`ensure_repo`).
+
+Siguen en pie los dos límites de la decisión 6: la carpeta tiene que existir —un nombre
+mal escrito no deja almacenes sueltos, la API responde 404— y el escritor de la BD de
+eventos sigue siendo otro proceso. El seed CLI se queda porque es idempotente y sirve
+para sembrar un repo sin arrancar el core.

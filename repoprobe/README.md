@@ -38,13 +38,14 @@ corepack pnpm core:dev
 
 - `GET /docs` — Swagger, para probar a mano.
 - `GET /openapi.json` — el contrato del que saldrán los tipos TS.
-- `GET /repos` — repos ya sembrados.
-- `GET|POST/PATCH|DELETE /repos/{repo}/ideas` — CRUD de ideas y ADRs.
+- `GET /repos` — carpetas del laboratorio ya sembradas.
+- `GET|POST /ideas?repo=<ruta>` — listar y crear ideas/ADRs.
+- `GET|PATCH|DELETE /ideas/{uid}?repo=<ruta>` — una idea concreta.
 
 Ejemplo:
 
 ```bash
-curl -X POST http://127.0.0.1:8000/repos/<repo>/ideas \
+curl -X POST 'http://127.0.0.1:8765/ideas?repo=C:\ruta\a\Lab1' \
   -H 'content-type: application/json' \
   -d '{"title":"Probar el parser con repos grandes","kind":"idea"}'
 ```

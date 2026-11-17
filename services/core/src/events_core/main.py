@@ -76,6 +76,11 @@ def _sin_fichero(_request: Request, exc: FileNotFoundError) -> JSONResponse:
     return JSONResponse(status_code=404, content={"detail": str(exc)})
 
 
+@app.exception_handler(ideas.InvalidInput)
+def _peticion_invalida(_request: Request, exc: ideas.InvalidInput) -> JSONResponse:
+    return JSONResponse(status_code=400, content={"detail": str(exc)})
+
+
 @app.exception_handler(KeyError)
 def _sin_idea(_request: Request, exc: KeyError) -> JSONResponse:
     return JSONResponse(status_code=404, content={"detail": f"no existe la idea {exc.args[0]}"})
@@ -111,9 +116,15 @@ def get_repos() -> list[dict[str, Any]]:
     return ideas.list_repos()
 
 
-@app.get("/repos/{repo}/ideas", response_model=list[Idea], tags=["ideas"])
+# El repo viaja como query param y no como segmento de la URL: el selector de
+# carpetas devuelve rutas absolutas de Windows (`C:\...`), que no son un segmento
+# válido de ruta. Aceptan ruta absoluta o nombre dentro del laboratorio.
+RepoParam = Annotated[str, Query(description="Carpeta del repo: ruta absoluta o nombre en el lab")]
+
+
+@app.get("/ideas", response_model=list[Idea], tags=["ideas"])
 def get_ideas(
-    repo: str,
+    repo: RepoParam,
     status: Status | None = None,
     kind: Kind | None = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
@@ -122,22 +133,22 @@ def get_ideas(
     return ideas.list_ideas(repo, status=status, kind=kind, limit=limit, offset=offset)
 
 
-@app.post("/repos/{repo}/ideas", response_model=Idea, status_code=201, tags=["ideas"])
-def post_idea(repo: str, body: IdeaCreate) -> dict[str, Any]:
+@app.post("/ideas", response_model=Idea, status_code=201, tags=["ideas"])
+def post_idea(body: IdeaCreate, repo: RepoParam) -> dict[str, Any]:
     return ideas.create_idea(repo, **body.model_dump())
 
 
-@app.get("/repos/{repo}/ideas/{uid}", response_model=Idea, tags=["ideas"])
-def get_idea(repo: str, uid: str) -> dict[str, Any]:
+@app.get("/ideas/{uid}", response_model=Idea, tags=["ideas"])
+def get_idea(uid: str, repo: RepoParam) -> dict[str, Any]:
     return ideas.get_idea(repo, uid)
 
 
-@app.patch("/repos/{repo}/ideas/{uid}", response_model=Idea, tags=["ideas"])
-def patch_idea(repo: str, uid: str, body: IdeaUpdate) -> dict[str, Any]:
+@app.patch("/ideas/{uid}", response_model=Idea, tags=["ideas"])
+def patch_idea(uid: str, body: IdeaUpdate, repo: RepoParam) -> dict[str, Any]:
     return ideas.update_idea(repo, uid, body.model_dump(exclude_unset=True))
 
 
-@app.delete("/repos/{repo}/ideas/{uid}", status_code=204, tags=["ideas"])
-def remove_idea(repo: str, uid: str) -> None:
+@app.delete("/ideas/{uid}", status_code=204, tags=["ideas"])
+def remove_idea(uid: str, repo: RepoParam) -> None:
     if not ideas.delete_idea(repo, uid):
         raise KeyError(uid)

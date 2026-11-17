@@ -1,10 +1,11 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-// El core Python escucha en 127.0.0.1:8000. En dev la UI lo alcanza por el proxy
+// El core Python escucha en 127.0.0.1:8765. En dev la UI lo alcanza por el proxy
 // de Vite, así que no hay CORS ni puerto expuesto en el frontend.
 // En producción (F3) Tauri arranca el sidecar y sirve la UI desde su propio origen.
-const CORE = "http://127.0.0.1:8000";
+// 8765 y no 8000: en esta máquina el 8000 lo tiene ocupado otro proceso.
+const CORE = "http://127.0.0.1:8765";
 
 export default defineConfig({
   plugins: [react()],

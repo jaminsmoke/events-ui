@@ -4,12 +4,16 @@
   "version": "0.0.0",
   "description": "UI reactiva sobre un log de eventos en SQLite para monitorizar repositorios.",
   "scripts": {
-    "dev": "pnpm --filter desktop tauri dev",
-    "dev:ui": "pnpm --filter desktop dev",
-    "build": "pnpm --filter desktop tauri build",
-    "build:ui": "pnpm --filter desktop build",
-    "core:dev": "uv run --directory services/core uvicorn events_core.main:app --reload --port 8000",
+    "dev": "corepack pnpm --filter desktop tauri dev",
+    "dev:ui": "corepack pnpm --filter desktop dev",
+    "build": "corepack pnpm --filter desktop tauri build",
+    "build:ui": "corepack pnpm --filter desktop build",
+    "core:dev": "uv run --directory services/core python -m events_core.serve",
     "core:seed": "uv run --directory services/core python -m events_core.seed",
-    "check": "pnpm --filter desktop build:check"
+    "check": "corepack pnpm check:ui && corepack pnpm check:py && corepack pnpm check:rust",
+    "check:ui": "corepack pnpm --filter desktop check",
+    "check:py": "uv run --directory services/core ruff check . && uv run --directory services/core ruff format --check .",
+    "check:rust": "cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml",
+    "fix": "uv run --directory services/core ruff check --fix . && uv run --directory services/core ruff format . && corepack pnpm --filter desktop exec eslint . --fix"
   }
 }

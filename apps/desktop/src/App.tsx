@@ -1,77 +1,181 @@
 import { useCallback, useEffect, useState } from "react";
+import { open as openFolder } from "@tauri-apps/plugin-dialog";
 
-/** Espejo de GET /health del core. El contrato definitivo se generará desde
- *  OpenAPI en F1; esto es solo el sondeo de vida del andamio. */
-type Health = {
-  status: "ok" | "degraded";
-  db_path: string;
-  db_exists: boolean;
-  data_version?: number;
-  journal_mode?: string;
+/** Espejo de GET /ideas del core. El contrato definitivo se generará desde
+ *  OpenAPI; esto cubre solo lo que la UI consume ya. */
+type Idea = {
+  uid: string;
+  title: string;
+  description: string;
+  kind: "idea" | "adr" | "note";
+  status: "draft" | "proposed" | "accepted" | "rejected" | "superseded";
+  tags: string[];
+  created_at: string;
+  updated_at: string;
 };
 
-export default function App() {
-  const [health, setHealth] = useState<Health | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [probes, setProbes] = useState(0);
+const STORAGE_KEY = "eui.repo";
 
-  const probe = useCallback(async () => {
-    try {
-      const res = await fetch("/api/health");
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setHealth((await res.json()) as Health);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setHealth(null);
-    }
-    setProbes((n) => n + 1);
+/** En `dev:ui` (navegador) no hay Tauri, así que no hay diálogo nativo. */
+const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+
+function folderName(path: string): string {
+  const parts = path.split(/[\\/]/).filter(Boolean);
+  return parts[parts.length - 1] ?? path;
+}
+
+/** Última carpeta usada. Es solo comodidad de arranque: la verdad está en el repo. */
+function storedRepo(): string | null {
+  try {
+    return localStorage.getItem(STORAGE_KEY);
+  } catch {
+    return null; // navegador sin storage
+  }
+}
+
+export default function App() {
+  const [repo, setRepo] = useState<string | null>(storedRepo);
+  // `null` = todavía sin respuesta; `[]` = el repo está sembrado pero vacío.
+  const [ideas, setIdeas] = useState<Idea[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [manual, setManual] = useState("");
+
+  // Una sola ruta de carga: cambiar `repo` dispara la petición. Los `setState` van
+  // en las continuaciones async, nunca en el cuerpo del efecto, para no encadenar
+  // renders; el abort cancela la petición anterior si se cambia de repo rápido.
+  useEffect(() => {
+    if (!repo) return;
+    const controller = new AbortController();
+
+    fetch(`/api/ideas?repo=${encodeURIComponent(repo)}`, { signal: controller.signal })
+      .then(async (res) => {
+        if (!res.ok) {
+          // El core siembra el almacén si falta; un 404 aquí es que la carpeta no
+          // existe, y su `detail` dice cuál.
+          const body = (await res.json().catch(() => null)) as { detail?: string } | null;
+          throw new Error(body?.detail ?? `HTTP ${res.status}`);
+        }
+        return (await res.json()) as Idea[];
+      })
+      .then((list) => {
+        setIdeas(list);
+        setError(null);
+        localStorage.setItem(STORAGE_KEY, repo);
+      })
+      .catch((err: unknown) => {
+        if (controller.signal.aborted) return;
+        setIdeas([]);
+        setError(err instanceof Error ? err.message : String(err));
+      });
+
+    return () => controller.abort();
+  }, [repo]);
+
+  const abrir = useCallback((path: string) => {
+    setIdeas(null);
+    setError(null);
+    setRepo(path);
   }, []);
 
-  useEffect(() => {
-    void probe();
-    const id = setInterval(() => void probe(), 2000);
-    return () => clearInterval(id);
-  }, [probe]);
+  const pick = useCallback(async () => {
+    if (!isTauri) return;
+    const dir = await openFolder({
+      directory: true,
+      multiple: false,
+      title: "Elige la carpeta del repositorio",
+    });
+    if (typeof dir === "string") abrir(dir);
+  }, [abrir]);
+
+  const busy = repo !== null && ideas === null && error === null;
 
   return (
     <main className="shell">
       <header>
         <h1>Events UI</h1>
-        <p className="hint">
-          Andamio F0 · sondeo #{probes} cada 2 s
-        </p>
+        {/* Una sola entrada al selector: en vacío lo lleva el hero de abajo, así
+            que la barra solo aparece cuando ya hay repo elegido. */}
+        {repo && (
+          <div className="repo-bar">
+            <span className="repo-name">{folderName(repo)}</span>
+            <span className="repo-path mono">{repo}</span>
+            <button className="btn ghost" onClick={() => void pick()} disabled={busy}>
+              Cambiar
+            </button>
+          </div>
+        )}
       </header>
 
-      {error && (
-        <section className="card bad">
-          <h2>Core inalcanzable</h2>
-          <p className="mono">{error}</p>
+      {!repo && (
+        <section className="card hero">
+          {isTauri ? (
+            <button className="btn" onClick={() => void pick()}>
+              Elegir carpeta…
+            </button>
+          ) : (
+            <form
+              className="manual"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const path = manual.trim();
+                if (path) abrir(path);
+              }}
+            >
+              <input
+                className="mono"
+                value={manual}
+                onChange={(e) => setManual(e.target.value)}
+                placeholder="C:\ruta\al\repo"
+                spellCheck={false}
+              />
+              <button className="btn" type="submit">
+                Abrir
+              </button>
+            </form>
+          )}
           <p className="hint">
-            Arráncalo con <code>pnpm core:dev</code> desde la raíz.
+            {isTauri
+              ? "Se abre la última carpeta al arrancar. La primera vez sembramos dentro .EUI/EUI_DATABASE."
+              : "En el navegador no hay diálogo nativo: pega la ruta. La ventana de Tauri sí lo tiene."}
           </p>
         </section>
       )}
 
-      {health && (
-        <section className={`card ${health.status === "ok" ? "good" : "warn"}`}>
-          <h2>{health.status === "ok" ? "Core operativo" : "Core sin BD de eventos"}</h2>
-          <dl>
-            <dt>BD</dt>
-            <dd className="mono">{health.db_path}</dd>
-            <dt>¿Existe?</dt>
-            <dd className="mono">{health.db_exists ? "sí" : "no"}</dd>
-            <dt>journal_mode</dt>
-            <dd className="mono">{health.journal_mode ?? "—"}</dd>
-            <dt>data_version</dt>
-            <dd className="mono">{health.data_version ?? "—"}</dd>
-          </dl>
-          {!health.db_exists && (
-            <p className="hint">
-              La app no crea el fichero: es consumidora. Lo genera el productor
-              del log (o lo apuntas con <code>EVENTSUI_DB</code>).
-            </p>
+      {error && (
+        <section className="card bad">
+          <h2>No se pudo leer el repo</h2>
+          <p className="mono">{error}</p>
+          <p className="hint">
+            ¿Está el core en marcha? Arráncalo con <code>corepack pnpm core:dev</code>.
+          </p>
+        </section>
+      )}
+
+      {repo && !error && (
+        <section className="card">
+          <h2>Ideas · {ideas?.length ?? 0}</h2>
+          {busy && <p className="hint">Cargando…</p>}
+          {!busy && ideas?.length === 0 && (
+            <p className="hint">Todavía no hay ideas en este repo.</p>
           )}
+          <ul className="ideas">
+            {ideas?.map((idea) => (
+              <li key={idea.uid}>
+                <div className="idea-title">{idea.title}</div>
+                {idea.description && <div className="idea-desc">{idea.description}</div>}
+                <div className="meta">
+                  <span className={`badge kind-${idea.kind}`}>{idea.kind}</span>
+                  <span className={`badge status-${idea.status}`}>{idea.status}</span>
+                  {idea.tags.map((tag) => (
+                    <span key={tag} className="badge tag">
+                      {tag}
+                    </span>
+                  ))}
+                  <span className="date mono">{idea.created_at.slice(0, 10)}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
     </main>

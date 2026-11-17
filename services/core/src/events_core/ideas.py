@@ -13,10 +13,11 @@ import json
 import os
 import sqlite3
 import uuid
+from collections.abc import Iterable
 from contextlib import closing
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 EUI_DIR = ".EUI"
 DB_FILENAME = "EUI_DATABASE"
@@ -33,6 +34,10 @@ EUI_GITIGNORE = "EUI_DATABASE-wal\nEUI_DATABASE-shm\n"
 UPDATABLE = ("title", "description", "content", "kind", "status", "tags")
 
 
+class InvalidInput(ValueError):
+    """Petición inválida: no es un fallo del servidor, es un dato mal puesto."""
+
+
 def repos_root() -> Path:
     """Raíz de los repos investigados: `EVENTSUI_REPOS_ROOT` o `repoprobe/repos`."""
     env = os.environ.get(REPOS_ROOT_ENV_VAR)
@@ -42,20 +47,30 @@ def repos_root() -> Path:
     return Path(__file__).resolve().parents[4] / "repoprobe" / "repos"
 
 
-def repo_dir(repo: str) -> Path:
-    """Resuelve el nombre de un repo. Es un solo segmento: sin `..` ni separadores."""
+def resolve_repo(repo: str) -> Path:
+    """Carpeta del repo a partir de lo que manda la UI.
+
+    Dos formas, y solo dos:
+    - **ruta absoluta**: la que devuelve el selector de carpetas; se usa tal cual.
+    - **nombre**: un solo segmento dentro del laboratorio (`repoprobe/repos`).
+      Se rechazan `..` y separadores, para que un nombre no escape de la raíz.
+    """
+    candidate = Path(repo).expanduser()
+    if candidate.is_absolute():
+        return candidate.resolve()
+
     name = repo.strip()
     if not name or name in {".", ".."} or "/" in name or "\\" in name:
-        raise ValueError(f"nombre de repo inválido: {repo!r}")
-    return repos_root() / name
+        raise InvalidInput(f"nombre de repo inválido: {repo!r}")
+    return (repos_root() / name).resolve()
 
 
 def db_file_for(repo: str) -> Path:
-    return repo_dir(repo) / EUI_DIR / DB_FILENAME
+    return resolve_repo(repo) / EUI_DIR / DB_FILENAME
 
 
 def now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 def connect(db_file: Path, *, create: bool = False) -> sqlite3.Connection:
@@ -83,11 +98,9 @@ def init_repo(repo: str) -> Path:
     No crea el repo: exige que ya exista. Un nombre mal escrito no debe dejar un
     almacén vacío suelto, igual que la app no crea la BD de eventos.
     """
-    directory = repo_dir(repo)
+    directory = resolve_repo(repo)
     if not directory.is_dir():
-        raise FileNotFoundError(
-            f"no existe el repo {directory} (deja ahí su código primero)"
-        )
+        raise FileNotFoundError(f"no existe el repo {directory} (deja ahí su código primero)")
 
     db_file = directory / EUI_DIR / DB_FILENAME
     with closing(connect(db_file, create=True)) as conn:
@@ -96,6 +109,17 @@ def init_repo(repo: str) -> Path:
 
     (db_file.parent / ".gitignore").write_text(EUI_GITIGNORE, encoding="utf-8")
     return db_file
+
+
+def ensure_repo(repo: str) -> Path:
+    """Devuelve el `EUI_DATABASE` del repo, sembrándolo si aún no está.
+
+    La primera vez que se analiza una carpeta no hay `.EUI`: se crea ahí mismo en
+    vez de mandar al usuario a un comando aparte. Si la carpeta no existe no se
+    inventa nada: `init_repo` falla y la API responde 404.
+    """
+    db_file = db_file_for(repo)
+    return db_file if db_file.is_file() else init_repo(repo)
 
 
 def list_repos() -> list[dict[str, Any]]:
@@ -126,7 +150,7 @@ def list_ideas(
     limit: int = 100,
     offset: int = 0,
 ) -> list[dict[str, Any]]:
-    with closing(connect(db_file_for(repo))) as conn:
+    with closing(connect(ensure_repo(repo))) as conn:
         rows = conn.execute(
             "SELECT * FROM ideas"
             " WHERE (:status IS NULL OR status = :status)"
@@ -139,7 +163,7 @@ def list_ideas(
 
 
 def get_idea(repo: str, uid: str) -> dict[str, Any]:
-    with closing(connect(db_file_for(repo))) as conn:
+    with closing(connect(ensure_repo(repo))) as conn:
         row = conn.execute("SELECT * FROM ideas WHERE uid = ?", (uid,)).fetchone()
     if row is None:
         raise KeyError(uid)
@@ -158,7 +182,7 @@ def create_idea(
 ) -> dict[str, Any]:
     uid = uuid.uuid4().hex
     ts = now_iso()
-    with closing(connect(db_file_for(repo))) as conn:
+    with closing(connect(ensure_repo(repo))) as conn:
         conn.execute(
             "INSERT INTO ideas"
             " (uid, title, description, content, kind, status, tags, created_at, updated_at)"
@@ -173,14 +197,14 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
     """Actualiza solo los campos presentes. Los `None` no se escriben."""
     clean = {k: v for k, v in changes.items() if v is not None and k in UPDATABLE}
     if not clean:
-        raise ValueError("nada que actualizar")
+        raise InvalidInput("nada que actualizar")
 
     if "tags" in clean:
         clean["tags"] = json.dumps(list(clean["tags"]))
     clean["updated_at"] = now_iso()
 
     assignments = ", ".join(f"{column} = :{column}" for column in clean)
-    with closing(connect(db_file_for(repo))) as conn:
+    with closing(connect(ensure_repo(repo))) as conn:
         cursor = conn.execute(
             f"UPDATE ideas SET {assignments} WHERE uid = :uid",
             {**clean, "uid": uid},
@@ -192,7 +216,7 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
 
 
 def delete_idea(repo: str, uid: str) -> bool:
-    with closing(connect(db_file_for(repo))) as conn:
+    with closing(connect(ensure_repo(repo))) as conn:
         cursor = conn.execute("DELETE FROM ideas WHERE uid = ?", (uid,))
         conn.commit()
     return cursor.rowcount > 0

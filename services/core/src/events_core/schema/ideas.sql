@@ -30,12 +30,15 @@ CREATE TABLE IF NOT EXISTS ideas (
                 CHECK (status IN ('draft', 'proposed', 'accepted', 'rejected', 'superseded')),
 
     -- Array JSON de etiquetas. Se guarda como texto para no necesitar tabla
-    -- aparte; JSON1 permite consultarlo si hace falta.
-    tags        TEXT    NOT NULL DEFAULT '[]',
+    -- aparte; JSON1 permite consultarlo si hace falta. El CHECK no es adorno:
+    -- `_row` hace `json.loads` al listar, así que un `tags` a mano con texto
+    -- suelto devolvía un 500 en /ideas en vez de fallar solo en su fila.
+    tags        TEXT    NOT NULL DEFAULT '[]' CHECK (json_valid(tags)),
 
     created_at  TEXT    NOT NULL,
     updated_at  TEXT    NOT NULL
 );
 
--- Sin índices todavía: con una tabla vacía solo añaden objetos que mantener. Se
--- añadirán cuando haya volumen que lo justifique.
+-- Sin índices propios: `uid` ya trae el suyo por el UNIQUE, y con una tabla
+-- vacía cualquier otro solo añade objetos que mantener. Se añadirán cuando haya
+-- volumen que lo justifique.

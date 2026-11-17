@@ -99,6 +99,13 @@ versión anterior a la siguiente. `PRAGMA user_version` dice por cuál va cada
 primera lectura. Añadir una columna o cambiar un `CHECK` es, entonces, editar
 `schema/` **y** crear su paso, con el mismo SQL en los dos sitios.
 
+Cuando el paso cambia un `CHECK` o una columna, SQLite no tiene `ALTER` para eso y
+hay que reconstruir la tabla. Esa migración lleva `-- sin-foreign-keys` en la
+cabecera y el runner apaga las claves foráneas antes de abrir la transacción
+(dentro se ignora el `PRAGMA`): sin eso, tirar `ideas` arrastraría `connections` por
+`ON DELETE CASCADE`. El paso `0004` es el ejemplo: reconstruye `ideas` para añadir
+`CHECK (json_valid(tags))`.
+
 ## Estado
 
 - **F0 (hecho):** andamio, `/health`, proxy UI→core.

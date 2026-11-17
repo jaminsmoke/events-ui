@@ -157,3 +157,13 @@ Cada paso se aplica con `BEGIN IMMEDIATE`, el SQL, `PRAGMA user_version` y
 versión incluida, y el almacén se queda como estaba en vez de a medias. Nada de
 `executescript` (hace COMMIT de lo abierto) y nada de `;` dentro de los comentarios
 de una migración, que el troceador corta por ahí.
+
+Un paso que cambia un `CHECK` o el tipo de una columna no tiene `ALTER TABLE`: hay
+que reconstruir la tabla —crear la nueva, copiar, tirar la vieja, renombrar—. Si
+algo apunta a ella con `ON DELETE CASCADE` (`connections` → `ideas`), el `DROP` se
+lleva las conexiones por delante, y `PRAGMA foreign_keys` no se puede tocar dentro
+de una transacción. Por eso ese fichero lleva `-- sin-foreign-keys` en la cabecera:
+el runner apaga las claves antes del `BEGIN`, las vuelve a encender después y
+comprueba `foreign_key_check` antes de confirmar. `0004` es el ejemplo —reconstruye
+`ideas` para añadir `CHECK (json_valid(tags))`—, y las etiquetas que ya no eran JSON
+se quedan en `[]` en vez de bloquear la migración de todo el almacén.

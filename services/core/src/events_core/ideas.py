@@ -34,7 +34,7 @@ SCHEMA_DIR = Path(__file__).with_name("schema")
 MIGRATIONS_DIR = Path(__file__).with_name("migraciones")
 # Se aplican todos los `schema/*.sql` en orden: un fichero nuevo no obliga a tocar
 # este módulo. `PRAGMA user_version` dice cuál hay aplicado en cada almacén.
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 REPOS_ROOT_ENV_VAR = "EVENTSUI_REPOS_ROOT"
 BUSY_TIMEOUT_MS = 5_000
@@ -173,6 +173,10 @@ def ensure_repo(repo: str) -> Path:
     return db_file
 
 
+# Marca en la cabecera de una migración que reconstruye una tabla con claves
+# foráneas apuntándole (ver `_aplicar_paso`).
+SIN_FOREIGN_KEYS = "-- sin-foreign-keys"
+
 # Dos peticiones a la vez no deben migrar el mismo almacén: la segunda vería la
 # versión vieja y repetiría pasos que la primera está aplicando.
 _ESQUEMA_LOCK = threading.RLock()
@@ -256,19 +260,34 @@ def _aplicar_paso(conn: sqlite3.Connection, numero: int, script: Path) -> None:
     Un paso a medias es peor que un paso sin empezar: si algo falla se deshace
     todo, incluido el `user_version`, y el almacén sigue en la versión anterior.
     Además se comprueba que no queden conexiones huérfanas.
+
+    Un paso que reconstruye una tabla con claves foráneas apuntándole lleva
+    `-- sin-foreign-keys` en la cabecera: `PRAGMA foreign_keys` se ignora dentro
+    de una transacción, así que hay que apagarlo antes de abrirla o el `DROP` de
+    la tabla vieja arrastra las hijas por `ON DELETE CASCADE`.
     """
-    conn.execute("BEGIN IMMEDIATE")
+    sql = script.read_text(encoding="utf-8")
+    suelta_fks = SIN_FOREIGN_KEYS in sql
+    if suelta_fks:
+        conn.execute("PRAGMA foreign_keys = OFF")
     try:
-        for sentencia in _sentencias(script.read_text(encoding="utf-8")):
-            conn.execute(sentencia)
-        conn.execute(f"PRAGMA user_version = {numero}")
-        huerfanas = conn.execute("PRAGMA foreign_key_check").fetchall()
-        if huerfanas:
-            raise RuntimeError(f"la migración {numero:04d} deja {len(huerfanas)} filas huérfanas")
-        conn.execute("COMMIT")
-    except (sqlite3.Error, RuntimeError):
-        conn.execute("ROLLBACK")
-        raise
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            for sentencia in _sentencias(sql):
+                conn.execute(sentencia)
+            conn.execute(f"PRAGMA user_version = {numero}")
+            huerfanas = conn.execute("PRAGMA foreign_key_check").fetchall()
+            if huerfanas:
+                raise RuntimeError(
+                    f"la migración {numero:04d} deja {len(huerfanas)} filas huérfanas"
+                )
+            conn.execute("COMMIT")
+        except (sqlite3.Error, RuntimeError):
+            conn.execute("ROLLBACK")
+            raise
+    finally:
+        if suelta_fks:
+            conn.execute("PRAGMA foreign_keys = ON")
 
 
 def _contar_ideas(db_file: Path) -> int | None:

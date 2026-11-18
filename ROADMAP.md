@@ -72,9 +72,9 @@ Lo hecho se mueve a *Hecho* con su commit; lo que no va, va a *No se hace
 1. **Versionado único** *(hecho: `scripts/bump.mjs`, raíz en `0.1.0` como
    fuente de verdad; `pnpm bump` sin argumento es el check, con argumento
    fija la versión y sincroniza el lockfile; entra en `pnpm check`)*.
-2. **Empaquetado por app, misma versión**: desktop con `tauri build`
-   (instalador NSIS/MSI) y web con `vite build` (estático); un `pnpm release`
-   con bump + gen:api + check + ambos builds, sin empaquetar en verde sucio.
+2. **Empaquetado por app, misma versión** *(hecho: `pnpm release` —bump +
+   gen:api + check + build web + build desktop + commit + tag `vX.Y.Z`—;
+   verificado con el release `v0.1.0`: MSI 3 MB y NSIS 2 MB)*.
 3. **Retención del log** (`event`): hoy crece sin cota; pactar cuánto se
    conserva y cómo se compacta, por repo.
 

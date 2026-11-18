@@ -10,7 +10,7 @@ Lo hecho se mueve a *Hecho* con su commit; lo que no va, va a *No se hace
   si no está y lo apaga al salir; si ya va, lo reutiliza. Sin el core, Vite
   escupía `ECONNREFUSED 127.0.0.1:8765` cada 2 s.
 - **UI compartida desktop + web** (`packages/ui`): `apps/desktop` (Tauri con
-  diálogo nativo, 5173) y `apps/web` (Vite, 5174) montan el mismo visor.
+  diálogo nativo, 5175) y `apps/web` (Vite, 5174) montan el mismo visor.
   El selector de repo funciona en ambos (lista de `GET /repos` + ruta manual).
 - **Cliente generado del OpenAPI**: tipos con `openapi-typescript`, llamadas
   con `openapi-fetch` tipado por `paths`; errores 400/404 declarados en el

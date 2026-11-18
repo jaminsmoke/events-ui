@@ -85,11 +85,13 @@ CREATE TABLE IF NOT EXISTS idea_rejected (
 
 -- Los protocolos de flujo: qué carriles pueden unirse a cuáles. Una allowlist:
 -- solo las parejas listadas están permitidas; el resto se prohíbe. Las
--- descartadas y las completadas son terminales: no hay fila que salga de
--- ellas, y volver al cajón desde la cola tampoco está listado. `superseded`
--- comparte grupo con `rejected` para mover (la ficha lo distingue, el carril
--- no), así que no lleva filas propias: el grupo manda. Se siembra aquí para
--- los almacenes nuevos; a los existentes les llega por la migración 0011.
+-- descartadas son terminales: no hay fila que salga de ellas, y volver al
+-- cajón desde la cola tampoco está listado. `superseded` comparte grupo con
+-- `rejected` para mover (la ficha lo distingue, el carril no), así que no
+-- lleva filas propias: el grupo manda. Las completadas no tienen diseño aún:
+-- no hay flujo que llegue a `accepted` y `idea_completada` queda como
+-- cimiento. Se siembra aquí para los almacenes nuevos; a los existentes les
+-- llega por la migración 0011 (las filas de completadas, fuera en la 0012).
 CREATE TABLE IF NOT EXISTS protocolo_flujo (
     origen  TEXT NOT NULL CHECK (origen IN ('draft', 'proposed', 'accepted', 'rejected')),
     destino TEXT NOT NULL CHECK (destino IN ('draft', 'proposed', 'accepted', 'rejected')),
@@ -99,6 +101,4 @@ CREATE TABLE IF NOT EXISTS protocolo_flujo (
 INSERT OR IGNORE INTO protocolo_flujo (origen, destino) VALUES
     ('draft', 'proposed'),
     ('draft', 'rejected'),
-    ('draft', 'accepted'),
-    ('proposed', 'rejected'),
-    ('proposed', 'accepted');
+    ('proposed', 'rejected');

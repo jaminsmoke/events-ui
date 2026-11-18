@@ -187,17 +187,6 @@ export default function App({
     [mover],
   );
 
-  // Completar es `accepted`: el pulso verde sale solo del diff de estados.
-  const alCompletar = useCallback(
-    (uid: string) => {
-      setFalloAccion(null);
-      void mover(uid, "accepted").catch((err: unknown) => {
-        setFalloAccion(err instanceof Error ? err.message : String(err));
-      });
-    },
-    [mover],
-  );
-
   const toggle = useCallback((key: string) => {
     setCerrados((prev) => {
       const next = new Set(prev);
@@ -376,7 +365,6 @@ export default function App({
                   boxRef={cajonRef}
                   volando={volando}
                   pulso={pulsoCajon}
-                  onCompletar={alCompletar}
                   onPideEditar={(uid, titulo, descripcion) =>
                     setEditando({ uid, titulo, descripcion })
                   }
@@ -398,7 +386,6 @@ export default function App({
                       volando={volando}
                       pulso={pulsos.find((p) => p.lane === lane.tone)?.tono}
                       onMover={alMover}
-                      onCompletar={alCompletar}
                       onPideEditar={(uid, titulo, descripcion) =>
                         setEditando({ uid, titulo, descripcion })
                       }

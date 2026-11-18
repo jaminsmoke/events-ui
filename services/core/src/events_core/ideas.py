@@ -41,9 +41,10 @@ MIGRATIONS_DIR = Path(__file__).with_name("migraciones")
 # `idea_lane_log` en la 0006, la ficha del descarte a `idea_rejected` en la
 # 0007, `connections` se igualó con el esquema fresco en la 0008, la cola
 # pasó a estado real y ordenable (`idea_cola`) en la 0009, el `origen` del
-# evento se hizo explícito en la 0010 y los protocolos de flujo llegaron
-# en la 0011 (`protocolo_flujo`).
-SCHEMA_VERSION = 11
+# evento se hizo explícito en la 0010, los protocolos de flujo llegaron
+# en la 0011 (`protocolo_flujo`) y las completadas salieron del flujo en
+# la 0012 (la tabla `idea_completada` queda como cimiento).
+SCHEMA_VERSION = 12
 
 REPOS_ROOT_ENV_VAR = "EVENTSUI_REPOS_ROOT"
 BUSY_TIMEOUT_MS = 5_000

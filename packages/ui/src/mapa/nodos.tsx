@@ -45,7 +45,6 @@ function NodeRow({
   nodo,
   volando,
   onMover,
-  onCompletar,
   onPideEditar,
   onEditar,
   onBorrar,
@@ -56,7 +55,6 @@ function NodeRow({
   nodo: string;
   volando: (uid: string, nodo: string) => boolean;
   onMover?: (uid: string, lane: "cola" | "descartadas") => void;
-  onCompletar?: (uid: string) => void;
   /** Pedir edición: monta el editor en la raíz (App), no aquí —las filas
    *  van portaleadas y los clics del ratón en el portal no llegaban. */
   onPideEditar?: (uid: string, titulo: string, descripcion: string) => void;
@@ -131,17 +129,6 @@ function NodeRow({
           {nodo === "cola" ? "Descartar" : "A cola"}
         </button>
       )}
-      {node.idea && onCompletar && node.idea.status !== "accepted" &&
-        (!puedeIr || puedeIr(node.idea.status, "accepted")) && (
-        <button
-          type="button"
-          className="btn ghost mover"
-          title="Marcar como completada (accepted)"
-          onClick={() => onCompletar(uid!)}
-        >
-          Completar
-        </button>
-      )}
       {node.idea && onPideEditar && (
         <button
           type="button"
@@ -200,7 +187,6 @@ function NodeRow({
               nodo={nodo}
               volando={volando}
               onMover={onMover}
-              onCompletar={onCompletar}
               onPideEditar={onPideEditar}
               onEditar={onEditar}
               onBorrar={onBorrar}
@@ -223,7 +209,6 @@ export function NodeBox({
   volando,
   pulso,
   onMover,
-  onCompletar,
   onPideEditar,
   onEditar,
   onBorrar,
@@ -237,7 +222,6 @@ export function NodeBox({
   volando: (uid: string, nodo: string) => boolean;
   pulso?: TonoPulso;
   onMover?: (uid: string, lane: "cola" | "descartadas") => void;
-  onCompletar?: (uid: string) => void;
   onPideEditar?: (uid: string, titulo: string, descripcion: string) => void;
   onEditar?: (uid: string, cambios: IdeaUpdate) => Promise<void>;
   onBorrar?: (uid: string) => Promise<void>;
@@ -272,7 +256,6 @@ export function NodeBox({
               nodo={node.tone ?? "ideas"}
               volando={volando}
               onMover={onMover}
-              onCompletar={onCompletar}
               onPideEditar={onPideEditar}
               onEditar={onEditar}
               onBorrar={onBorrar}

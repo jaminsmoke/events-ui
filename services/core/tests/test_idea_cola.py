@@ -53,7 +53,7 @@ def test_fresco_sin_lane_log(client, repo):  # noqa: ANN001, ANN202
     db = ideas.ensure_repo(repo)
     conn = sqlite3.connect(str(db))
     tablas = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 11
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 12
     assert "idea_cola" in tablas
     assert "idea_completada" in tablas
     assert "idea_rejected" in tablas
@@ -117,18 +117,27 @@ def test_rejected_sale_de_cola(client, repo):  # noqa: ANN001, ANN202
     assert conn.execute("SELECT count(*) FROM idea_rejected").fetchone()[0] == 1
 
 
-def test_accepted_sale_de_cola_y_vive_en_completada(client, repo):  # noqa: ANN001, ANN202
+def test_accepted_no_se_alcanza_y_no_sale(client, repo):  # noqa: ANN001, ANN202
+    # Las completadas salieron del flujo (0012): solo las siembra el harness
+    # (status al crear); por API no se puede llegar a ellas ni salir.
     uid = client.post(
-        "/ideas", params={"repo": repo}, json={"title": "A", "status": "proposed"}
+        "/ideas", params={"repo": repo}, json={"title": "A", "status": "accepted"}
     ).json()["uid"]
-    r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": "accepted"})
-    assert r.json()["status"] == "accepted"
-
     r = client.get("/ideas", params={"repo": repo, "status": "accepted"})
     assert [i["uid"] for i in r.json()] == [uid]
     conn = sqlite3.connect(str(ideas.db_file_for(repo)))
     assert conn.execute("SELECT count(*) FROM idea_cola").fetchone()[0] == 0
     assert conn.execute("SELECT count(*) FROM idea_completada").fetchone()[0] == 1
+    conn.close()
+
+    uid2 = client.post("/ideas", params={"repo": repo}, json={"title": "B"}).json()["uid"]
+    r = client.patch(f"/ideas/{uid2}", params={"repo": repo}, json={"status": "accepted"})
+    assert r.status_code == 400
+    assert "protocolo" in r.json()["detail"]
+
+    r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": "proposed"})
+    assert r.status_code == 400
+    assert "protocolo" in r.json()["detail"]
 
 
 def test_reiniciar_vacia_todo(client, repo):  # noqa: ANN001, ANN202
@@ -142,7 +151,7 @@ def test_reiniciar_vacia_todo(client, repo):  # noqa: ANN001, ANN202
     conn = sqlite3.connect(str(db))
     for tabla in ("idea_entry", "idea_cola", "idea_completada", "idea_rejected", "connections"):
         assert conn.execute(f"SELECT count(*) FROM {tabla}").fetchone()[0] == 0
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 11
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 12
 
 
 def test_migracion_0009_solo_estado_final(client, repo):  # noqa: ANN001, ANN202
@@ -185,7 +194,7 @@ def test_migracion_0009_solo_estado_final(client, repo):  # noqa: ANN001, ANN202
 
     conn = sqlite3.connect(str(db))
     conn.execute("PRAGMA foreign_keys = ON")
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 11
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 12
     tablas = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert "idea_lane_log" not in tablas
     assert conn.execute("PRAGMA foreign_key_check").fetchall() == []

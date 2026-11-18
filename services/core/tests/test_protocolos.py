@@ -1,9 +1,9 @@
 """Los protocolos de flujo: qué carriles pueden unirse a cuáles.
 
 La tabla `protocolo_flujo` es una allowlist sembrada con el esquema: lo que
-no está listado se prohíbe (las descartadas y las completadas son terminales
-y la cola no se deshace al cajón). El PATCH impone; `GET /protocolos` las
-expone para que la UI no ofrezca lo prohibido.
+no está listado se prohíbe (las descartadas son terminales, la cola no se
+deshace al cajón y a completada no se puede llegar). El PATCH impone;
+`GET /protocolos` las expone para que la UI no ofrezca lo prohibido.
 """
 
 
@@ -18,26 +18,25 @@ def test_protocolos_sembrados(client, repo):  # noqa: ANN001, ANN202
     assert pares == {
         ("draft", "proposed"),
         ("draft", "rejected"),
-        ("draft", "accepted"),
         ("proposed", "rejected"),
-        ("proposed", "accepted"),
     }
     # `superseded` comparte grupo con `rejected`: no lleva filas propias.
     assert all("superseded" not in par for par in pares)
 
 
-def test_flujo_directo_del_cajon_a_completada(client, repo):  # noqa: ANN001, ANN202
-    # El botón Completar del cajón: draft → accepted está en la allowlist.
-    uid = _crear(client, repo)
-    r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": "accepted"})
-    assert r.status_code == 200
-    assert r.json()["status"] == "accepted"
+def test_a_completada_no_se_puede_llegar(client, repo):  # noqa: ANN001, ANN202
+    # Sin uniones que entren en `accepted`, ningún flujo llega a completada
+    # (0012): la tabla queda como cimiento para cuando se diseñe el flujo.
+    for origen_kw in ({}, {"status": "proposed"}):
+        uid = _crear(client, repo, **origen_kw)
+        r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": "accepted"})
+        assert r.status_code == 400
+        assert "protocolo" in r.json()["detail"]
 
 
-def test_completadas_son_terminales(client, repo):  # noqa: ANN001, ANN202
-    uid = _crear(client, repo)
-    r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": "accepted"})
-    assert r.status_code == 200
+def test_completadas_no_salen(client, repo):  # noqa: ANN001, ANN202
+    # Ni siquiera las que siembra el harness (status al crear) salen.
+    uid = _crear(client, repo, status="accepted")
     for destino in ("proposed", "rejected", "draft"):
         r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": destino})
         assert r.status_code == 400

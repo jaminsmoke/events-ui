@@ -8,7 +8,6 @@ rechazada (el cajón es no tener fila), el orden de la cola y la migración
 from __future__ import annotations
 
 import sqlite3
-from pathlib import Path
 
 from events_core import ideas
 
@@ -50,13 +49,11 @@ def _esquema_v8(conn: sqlite3.Connection) -> None:
     )
 
 
-def test_fresco_en_v9_sin_lane_log(client, repo):  # noqa: ANN001, ANN202
+def test_fresco_sin_lane_log(client, repo):  # noqa: ANN001, ANN202
     db = ideas.ensure_repo(repo)
     conn = sqlite3.connect(str(db))
-    tablas = {
-        r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
-    }
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 9
+    tablas = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 10
     assert "idea_cola" in tablas
     assert "idea_completada" in tablas
     assert "idea_rejected" in tablas
@@ -143,7 +140,7 @@ def test_reiniciar_vacia_todo(client, repo):  # noqa: ANN001, ANN202
     conn = sqlite3.connect(str(db))
     for tabla in ("idea_entry", "idea_cola", "idea_completada", "idea_rejected", "connections"):
         assert conn.execute(f"SELECT count(*) FROM {tabla}").fetchone()[0] == 0
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 9
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 10
 
 
 def test_migracion_0009_solo_estado_final(client, repo):  # noqa: ANN001, ANN202
@@ -186,10 +183,8 @@ def test_migracion_0009_solo_estado_final(client, repo):  # noqa: ANN001, ANN202
 
     conn = sqlite3.connect(str(db))
     conn.execute("PRAGMA foreign_keys = ON")
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 9
-    tablas = {
-        r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
-    }
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 10
+    tablas = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert "idea_lane_log" not in tablas
     assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
     cola = [r[0] for r in conn.execute("SELECT uid FROM idea_cola ORDER BY posicion")]

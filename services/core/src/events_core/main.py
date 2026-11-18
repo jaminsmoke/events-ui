@@ -138,6 +138,8 @@ class Evento(BaseModel):
     ts: str
     type: str
     payload: dict | str
+    # De dónde viene (0010): `idea`, `externo` o la tabla futura que lo sea.
+    origen: str = "externo"
     dedupe_key: str | None = None
 
 
@@ -374,9 +376,10 @@ def get_eventos(
     repo: RepoParam,
     desde: Annotated[int, Query(ge=0, description="Cursor: solo eventos con id mayor")] = 0,
     limite: Annotated[int, Query(ge=1, le=1000)] = eventos.LIMITE_POR_DEFECTO,
+    origen: str | None = Query(default=None, description="Solo este origen: `idea`, `externo`, …"),
 ) -> list[dict[str, Any]]:
     """Tail por cursor: backfill histórico con `id > desde`."""
-    return eventos.tail(repo, desde, limite)
+    return eventos.tail(repo, desde, limite, origen)
 
 
 @app.get("/eventos/stream", tags=["eventos"], responses=RESPUESTAS_ERROR)

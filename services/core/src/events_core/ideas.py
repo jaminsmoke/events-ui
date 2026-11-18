@@ -39,9 +39,10 @@ MIGRATIONS_DIR = Path(__file__).with_name("migraciones")
 # lo escribe otro proceso y a un almacén existente llega por migración (ver
 # `migraciones/0005_eventos.sql`). La tabla `ideas` pasó a `idea_entry` +
 # `idea_lane_log` en la 0006, la ficha del descarte a `idea_rejected` en la
-# 0007, `connections` se igualó con el esquema fresco en la 0008 y la cola
-# pasó a estado real y ordenable (`idea_cola`) en la 0009.
-SCHEMA_VERSION = 9
+# 0007, `connections` se igualó con el esquema fresco en la 0008, la cola
+# pasó a estado real y ordenable (`idea_cola`) en la 0009 y el `origen` del
+# evento se hizo explícito en la 0010.
+SCHEMA_VERSION = 10
 
 REPOS_ROOT_ENV_VAR = "EVENTSUI_REPOS_ROOT"
 BUSY_TIMEOUT_MS = 5_000
@@ -531,7 +532,7 @@ def _emitir(conn: sqlite3.Connection, tipo: str, payload: dict[str, Any]) -> Non
     # notarse, no desaparecer en silencio.
     try:
         conn.execute(
-            "INSERT INTO event (ts, type, payload) VALUES (?, ?, ?)",
+            "INSERT INTO event (ts, type, payload, origen) VALUES (?, ?, ?, 'idea')",
             (now_iso(), tipo, json.dumps(payload)),
         )
     except sqlite3.OperationalError as exc:

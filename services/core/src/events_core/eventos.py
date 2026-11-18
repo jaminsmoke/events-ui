@@ -50,20 +50,27 @@ def _parse(row: sqlite3.Row) -> dict[str, Any]:
     return evento
 
 
-def tail(repo: str, desde: int, limite: int = LIMITE_POR_DEFECTO) -> list[dict[str, Any]]:
+def tail(
+    repo: str,
+    desde: int,
+    limite: int = LIMITE_POR_DEFECTO,
+    origen: str | None = None,
+) -> list[dict[str, Any]]:
     """Eventos del repo con `id > desde`, en orden.
 
     Sin fichero de eventos no hay eventos —no se crea nada— y se devuelve
     vacío; el llamador lo distingue de «no hay novedades» porque es la
-    primera llamada. `FileNotFoundError` del repo sale tal cual.
+    primera llamada. `origen`, si viene, filtra: `idea`, `externo` o la
+    tabla futura que lo sea. `FileNotFoundError` del repo sale tal cual.
     """
     db_file = ensure_repo(repo)
     try:
         with closing(open_read_only(db_file)) as conn:
             rows = conn.execute(
-                "SELECT id, ts, type, payload, dedupe_key FROM event"
-                " WHERE id > :desde ORDER BY id LIMIT :limite",
-                {"desde": desde, "limite": limite},
+                "SELECT id, ts, type, payload, origen, dedupe_key FROM event"
+                " WHERE id > :desde AND (:origen IS NULL OR origen = :origen)"
+                " ORDER BY id LIMIT :limite",
+                {"desde": desde, "limite": limite, "origen": origen},
             ).fetchall()
     except (FileNotFoundError, sqlite3.Error):
         return []

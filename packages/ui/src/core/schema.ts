@@ -356,6 +356,11 @@ export interface components {
             payload: {
                 [key: string]: unknown;
             } | string;
+            /**
+             * Origen
+             * @default externo
+             */
+            origen: string;
             /** Dedupe Key */
             dedupe_key?: string | null;
         };
@@ -1146,6 +1151,8 @@ export interface operations {
                 /** @description Cursor: solo eventos con id mayor */
                 desde?: number;
                 limite?: number;
+                /** @description Solo este origen: `idea`, `externo`, … */
+                origen?: string | null;
             };
             header?: never;
             path?: never;

@@ -269,7 +269,9 @@ def _pasos(version: int) -> list[tuple[int, Path]]:
             f"migraciones incompletas desde la versión {version}:"
             f" hay {numeros}, se esperan {list(range(version + 1, SCHEMA_VERSION + 1))}"
         )
-    return pasos
+    # El orden manda: `glob` devuelve lo que el FS quiera, y aplicar los pasos
+    # desordenados deja `user_version` en el último que corra (no en el mayor).
+    return sorted(pasos, key=lambda paso: paso[0])
 
 
 def _sentencias(sql: str) -> Iterator[str]:

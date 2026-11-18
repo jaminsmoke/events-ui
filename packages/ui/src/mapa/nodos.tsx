@@ -177,6 +177,7 @@ function NodeRow({
   onBorrar,
   puedeIr,
   exigeFases,
+  exigeFasesListas,
   catalogo = [],
 }: {
   node: TreeNode;
@@ -195,6 +196,8 @@ function NodeRow({
   /** ¿Pide el protocolo fases para esa unión? (0021). Sin él no se apaga
    *  ningún botón: el core manda. */
   exigeFases?: PuedeIr;
+  /** ¿Exige el protocolo que no queden fases abiertas al cruzar? (0022). */
+  exigeFasesListas?: PuedeIr;
   /** Todas las ideas del repo: resuelve títulos de las dependencias y
    *  ofrece las que aún no lo son. */
   catalogo?: readonly Idea[];
@@ -209,6 +212,29 @@ function NodeRow({
   const deps = node.idea?.depende_de ?? [];
   const fases = node.idea?.fases ?? [];
   const hechas = fases.filter((fase) => fase.estado === "completada").length;
+  const abiertas = fases.filter(
+    (fase) => fase.estado === "pendiente" || fase.estado === "fallida",
+  ).length;
+
+  // Motivo por el que un traslado no se ofrece, o `null` si se puede probar.
+  const motivoBloqueo = (destino: Status): string | null => {
+    if (!estado) return null;
+    if (
+      destino === "roadmap" &&
+      fases.length === 0 &&
+      exigeFases?.(estado, "roadmap")
+    ) {
+      return "El protocolo exige al menos una fase";
+    }
+    if (
+      destino === "verificacion" &&
+      abiertas > 0 &&
+      exigeFasesListas?.(estado, "verificacion")
+    ) {
+      return `Cierra las fases pendientes o fallidas (${abiertas})`;
+    }
+    return null;
+  };
   const [descartando, setDescartando] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
   const [fallo, setFallo] = useState<string | null>(null);
@@ -315,37 +341,36 @@ function NodeRow({
         onMover &&
         ACCIONES_ESTADO[estado]
           .filter((accion) => !puedeIr || puedeIr(estado, accion.estado))
-          .map((accion) => (
-            <button
-              key={accion.estado}
-              type="button"
-              className="btn ghost mover"
-              title={
-                accion.estado === "roadmap" &&
-                exigeFases?.(estado, "roadmap") &&
-                fases.length === 0
-                  ? "El protocolo exige al menos una fase"
-                  : accion.etiqueta
-              }
-              disabled={
-                trabajando ||
-                (accion.estado === "roadmap" &&
-                  exigeFases?.(estado, "roadmap") === true &&
-                  fases.length === 0)
-              }
-              onClick={() => {
-                // Descartar pide el motivo (detalle `rejected_node`); los demás
-                // traslados van directos.
-                if (accion.descartar && onEditar) setDescartando(true);
-                else onMover(uid!, accion.estado);
-              }}
-            >
-              {accion.etiqueta}
-            </button>
-          ))}
+          .map((accion) => {
+            const bloqueo = motivoBloqueo(accion.estado);
+            return (
+              <button
+                key={accion.estado}
+                type="button"
+                className="btn ghost mover"
+                title={bloqueo ?? accion.etiqueta}
+                disabled={trabajando || bloqueo !== null}
+                onClick={() => {
+                  // Descartar pide el motivo (detalle `rejected_node`); los demás
+                  // traslados van directos.
+                  if (accion.descartar && onEditar) setDescartando(true);
+                  else onMover(uid!, accion.estado);
+                }}
+              >
+                {accion.etiqueta}
+              </button>
+            );
+          })}
       {estado === "proposed" && fases.length === 0 && exigeFases?.(estado, "roadmap") && (
         <span className="hint">Añade al menos una fase para pasar a roadmap.</span>
       )}
+      {estado === "roadmap" &&
+        abiertas > 0 &&
+        exigeFasesListas?.(estado, "verificacion") && (
+          <span className="hint">
+            Cierra las fases pendientes o fallidas para pasar a verificación.
+          </span>
+        )}
       {node.idea && onPideEditar && (
         <button
           type="button"
@@ -409,6 +434,7 @@ function NodeRow({
               onBorrar={onBorrar}
               puedeIr={puedeIr}
               exigeFases={exigeFases}
+              exigeFasesListas={exigeFasesListas}
               catalogo={catalogo}
             />
           ))}
@@ -432,6 +458,7 @@ export function NodeBox({
   onBorrar,
   puedeIr,
   exigeFases,
+  exigeFasesListas,
   catalogo = [],
 }: {
   node: TreeNode;
@@ -446,6 +473,7 @@ export function NodeBox({
   onBorrar?: (uid: string) => Promise<void>;
   puedeIr?: PuedeIr;
   exigeFases?: PuedeIr;
+  exigeFasesListas?: PuedeIr;
   catalogo?: readonly Idea[];
 }) {
   const tiene = node.kids.length > 0;
@@ -481,6 +509,7 @@ export function NodeBox({
               onBorrar={onBorrar}
               puedeIr={puedeIr}
               exigeFases={exigeFases}
+              exigeFasesListas={exigeFasesListas}
               catalogo={catalogo}
             />
           ))}

@@ -158,14 +158,17 @@ CREATE TABLE IF NOT EXISTS protocolo_flujo (
     -- ¿Exige al menos una fase al cruzar por esta unión? (0021). Es dato del
     -- protocolo, no un `if` del core: la UI lo lee y el PATCH lo impone.
     exige_fases INTEGER NOT NULL DEFAULT 0 CHECK (exige_fases IN (0, 1)),
+    -- ¿Exige que no queden fases pendientes ni fallidas? (0022). "Cerrada" es
+    -- completada o rechazada: rechazar una fase también la cierra.
+    exige_fases_listas INTEGER NOT NULL DEFAULT 0 CHECK (exige_fases_listas IN (0, 1)),
     PRIMARY KEY (origen, destino)
 );
 
-INSERT OR IGNORE INTO protocolo_flujo (origen, destino, exige_fases) VALUES
-    ('draft', 'proposed', 0),
-    ('draft', 'rejected', 0),
-    ('proposed', 'roadmap', 1),
-    ('proposed', 'rejected', 0),
-    ('roadmap', 'verificacion', 0),
-    ('verificacion', 'proposed', 0),
-    ('verificacion', 'revision_aprobada', 0);
+INSERT OR IGNORE INTO protocolo_flujo (origen, destino, exige_fases, exige_fases_listas) VALUES
+    ('draft', 'proposed', 0, 0),
+    ('draft', 'rejected', 0, 0),
+    ('proposed', 'roadmap', 1, 0),
+    ('proposed', 'rejected', 0, 0),
+    ('roadmap', 'verificacion', 0, 1),
+    ('verificacion', 'proposed', 0, 0),
+    ('verificacion', 'revision_aprobada', 0, 0);

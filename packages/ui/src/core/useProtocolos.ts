@@ -23,7 +23,12 @@ const Grupo = z.enum([
 ]);
 // `exige_fases` (0021): la unión no se cruza sin al menos una fase. Es dato
 // del protocolo, así que la fila puede avisar antes de que el core la pare.
-const Union = z.object({ origen: Grupo, destino: Grupo, exige_fases: z.boolean() });
+const Union = z.object({
+  origen: Grupo,
+  destino: Grupo,
+  exige_fases: z.boolean(),
+  exige_fases_listas: z.boolean(),
+});
 const Protocolos = z.array(Union);
 
 type Grupo = z.infer<typeof Grupo>;
@@ -47,6 +52,8 @@ export type ProtocolosFlujo = {
   puedeIr: PuedeIr;
   /** ¿Exige el protocolo una fase para cruzar esa unión? */
   exigeFases: PuedeIr;
+  /** ¿Exige el protocolo que no queden fases abiertas al cruzar? */
+  exigeFasesListas: PuedeIr;
 };
 
 export function useProtocolos(repo: string | null): ProtocolosFlujo {
@@ -56,6 +63,7 @@ export function useProtocolos(repo: string | null): ProtocolosFlujo {
     repo: string | null;
     pares: ReadonlySet<string>;
     exigen: ReadonlySet<string>;
+    exigenListas: ReadonlySet<string>;
   } | null>(null);
 
   useEffect(() => {
@@ -74,6 +82,9 @@ export function useProtocolos(repo: string | null): ProtocolosFlujo {
             pares: new Set(filas.map((f) => `${f.origen}→${f.destino}`)),
             exigen: new Set(
               filas.filter((f) => f.exige_fases).map((f) => `${f.origen}→${f.destino}`),
+            ),
+            exigenListas: new Set(
+              filas.filter((f) => f.exige_fases_listas).map((f) => `${f.origen}→${f.destino}`),
             ),
           });
         }
@@ -101,6 +112,10 @@ export function useProtocolos(repo: string | null): ProtocolosFlujo {
     exigeFases: (origen, destino) => {
       if (cargado === null) return false;
       return cargado.exigen.has(`${A_GRUPO[origen]}→${A_GRUPO[destino]}`);
+    },
+    exigeFasesListas: (origen, destino) => {
+      if (cargado === null) return false;
+      return cargado.exigenListas.has(`${A_GRUPO[origen]}→${A_GRUPO[destino]}`);
     },
   };
 }

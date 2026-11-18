@@ -129,9 +129,10 @@ con el motivo, para no reabrirlo cada semana.
   `services/core/tests/test_flujo_items.py`.
 - **Fases de la idea** (0021): `idea_fase` la descompone con su propio estado
   (`pendiente`, `completada`, `fallida`, `rechazada`); `protocolo_flujo.exige_fases`
-  marca la unión que no se cruza sin al menos una, hoy `proposed → roadmap`. La
-  lista viaja en el `PATCH` y se reemplaza en la misma transacción que el
-  traslado. Cubierto en `services/core/tests/test_fases.py`.
+  marca la unión que no se cruza sin al menos una, hoy `proposed → roadmap`, y
+  `exige_fases_listas` la que no se cruza con fases pendientes o fallidas, hoy
+  `roadmap → verificacion`. La lista viaja en el `PATCH` y se reemplaza en la
+  misma transacción que el traslado. Cubierto en `services/core/tests/test_fases.py`.
 - **Formato de etiquetas**: `tags` es una lista JSON de cadenas en el
   esquema (migración 0017, que sanea `{}` y los elementos no textuales) y en
   la API (422 con valores que no son cadenas); una fila antigua se lee como

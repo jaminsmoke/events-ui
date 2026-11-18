@@ -21,6 +21,10 @@ def _paso(client, repo, uid, status, **detalle):  # noqa: ANN001, ANN202
     # flujo, no de las fases, así que se añade una salvo que digan otra cosa.
     if status == "roadmap" and "fases" not in detalle:
         detalle["fases"] = [{"titulo": "Fase única"}]
+    # Salir de roadmap exige las fases cerradas (0022); el flujo no prueba
+    # estados intermedios, así que se cierran en el mismo paso.
+    if status == "verificacion" and "fases" not in detalle:
+        detalle["fases"] = [{"titulo": "Fase única", "estado": "completada"}]
     r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": status, **detalle})
     assert r.status_code == 200, r.json()
     return r.json()

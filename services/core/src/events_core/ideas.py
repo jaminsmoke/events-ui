@@ -55,8 +55,10 @@ MIGRATIONS_DIR = Path(__file__).with_name("migraciones")
 # (`idea_node`, una fila por idea): el estado y la posición dejan de deducirse
 # de las fichas y las fichas pasan a ser detalle de la estancia. La 0021
 # descompone la idea en fases (`idea_fase`) y hace que el protocolo pueda
-# exigirlas para cruzar una unión (`exige_fases`).
-SCHEMA_VERSION = 21
+# exigirlas para cruzar una unión (`exige_fases`). La 0022 añade el otro
+# requisito del protocolo: no salir de un carril con fases abiertas
+# (`exige_fases_listas`).
+SCHEMA_VERSION = 22
 
 REPOS_ROOT_ENV_VAR = "EVENTSUI_REPOS_ROOT"
 BUSY_TIMEOUT_MS = 5_000
@@ -1282,14 +1284,28 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
                 if fases_pedidas is not None
                 else None
             )
-            if (
-                cambiado_estado
-                and _exige_fases(conn, actual, nuevo_estado)
-                and not (fases_finales if fases_finales is not None else _fases(conn, uid))
-            ):
+            # El gate mira la lista que quedará: la que llega en este PATCH o,
+            # si no hay, la que ya tiene la idea.
+            fases_quedan = (
+                (fases_finales if fases_finales is not None else _fases(conn, uid))
+                if cambiado_estado
+                else []
+            )
+            if cambiado_estado and _exige_fases(conn, actual, nuevo_estado) and not fases_quedan:
                 raise InvalidInput(
                     f"el protocolo exige al menos una fase para pasar a {nuevo_estado}"
                 )
+            if cambiado_estado and _exige_fases_listas(conn, actual, nuevo_estado):
+                abiertas = [
+                    fase["titulo"]
+                    for fase in fases_quedan
+                    if fase["estado"] in ("pendiente", "fallida")
+                ]
+                if abiertas:
+                    raise InvalidInput(
+                        f"no puede pasar a {nuevo_estado}: quedan fases sin cerrar: "
+                        + ", ".join(abiertas)
+                    )
             cursor = conn.execute(
                 f"UPDATE idea_data SET {assignments} WHERE uid = :uid",
                 {**clean, "uid": uid},
@@ -1381,6 +1397,17 @@ def _exige_fases(conn: sqlite3.Connection, actual: str, nuevo: str) -> bool:
     return bool(fila and fila[0])
 
 
+def _exige_fases_listas(conn: sqlite3.Connection, actual: str, nuevo: str) -> bool:
+    """¿Exige el protocolo que no queden fases pendientes ni fallidas? (0022)."""
+    if _grupo(actual) == _grupo(nuevo):
+        return False
+    fila = conn.execute(
+        "SELECT exige_fases_listas FROM protocolo_flujo WHERE origen = ? AND destino = ?",
+        (_grupo(actual), _grupo(nuevo)),
+    ).fetchone()
+    return bool(fila and fila[0])
+
+
 def _protocolo_ok(conn: sqlite3.Connection, actual: str, nuevo: str) -> bool:
     """¿Permite el protocolo ir de `actual` a `nuevo`?
 
@@ -1406,9 +1433,18 @@ def listar_protocolos(repo: str) -> list[dict[str, Any]]:
     """
     with closing(connect(ensure_repo(repo))) as conn:
         filas = conn.execute(
-            "SELECT origen, destino, exige_fases FROM protocolo_flujo ORDER BY origen, destino"
+            "SELECT origen, destino, exige_fases, exige_fases_listas"
+            " FROM protocolo_flujo ORDER BY origen, destino"
         ).fetchall()
-    return [{"origen": fila[0], "destino": fila[1], "exige_fases": bool(fila[2])} for fila in filas]
+    return [
+        {
+            "origen": fila[0],
+            "destino": fila[1],
+            "exige_fases": bool(fila[2]),
+            "exige_fases_listas": bool(fila[3]),
+        }
+        for fila in filas
+    ]
 
 
 def map_snapshot(repo: str) -> dict[str, Any]:

@@ -670,6 +670,11 @@ export interface components {
              * @default false
              */
             exige_fases: boolean;
+            /**
+             * Exige Fases Listas
+             * @default false
+             */
+            exige_fases_listas: boolean;
         };
         /**
          * ProyeccionRepo

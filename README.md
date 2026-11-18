@@ -233,8 +233,9 @@ y el detalle por `ON DELETE CASCADE`. El paso `0004` es el ejemplo: reconstruye
 - **Fases de la idea (0021)**: `idea_fase` la descompone con su propio estado
   (`pendiente`, `completada`, `fallida`, `rechazada`); el protocolo puede exigir
   al menos una para cruzar una unión (`protocolo_flujo.exige_fases`, hoy al
-  entrar en roadmap). La lista viaja en el `PATCH` y se reemplaza en la misma
-  transacción que el traslado.
+  entrar en roadmap) y ninguna abierta para salir de él a verificación
+  (`exige_fases_listas`, 0022). La lista viaja en el `PATCH` y se reemplaza en
+  la misma transacción que el traslado.
 - **Flujo de ideas (0013)**. La migración incorpora roadmap, verificación y
   revisión aprobada, y traslada las fichas históricas de completadas a `revision_node`.
 - **Log con pestañas:** un solo flyout con `Eventos` (timeline del repo, por

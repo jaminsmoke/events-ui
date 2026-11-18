@@ -105,7 +105,7 @@ def _comprobar_migrado(client, repo, esperados=_ESPERADOS):  # noqa: ANN001, ANN
     db = ideas.db_file_for(repo)
     conn = sqlite3.connect(str(db))
     try:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 21
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 22
         tablas = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         assert "idea_completada" not in tablas
         assert conn.execute(

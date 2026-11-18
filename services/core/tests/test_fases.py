@@ -124,8 +124,60 @@ def test_borrar_la_idea_se_lleva_sus_fases(client, repo):  # noqa: ANN001, ANN20
         assert conn.execute("SELECT count(*) FROM idea_fase").fetchone()[0] == 0
 
 
+def test_salir_de_roadmap_exige_fases_cerradas(client, repo):  # noqa: ANN001, ANN202
+    uid = _crear(client, repo, status="proposed")
+    r = client.patch(
+        f"/ideas/{uid}",
+        params={"repo": repo},
+        json={"status": "roadmap", "fases": [{"titulo": "Una"}, {"titulo": "Dos"}]},
+    )
+    assert r.status_code == 200, r.json()
+
+    r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": "verificacion"})
+    assert r.status_code == 400
+    assert "sin cerrar" in r.json()["detail"]
+    assert "Una" in r.json()["detail"] and "Dos" in r.json()["detail"]
+    assert client.get(f"/ideas/{uid}", params={"repo": repo}).json()["status"] == "roadmap"
+
+    # Cerrar una y dejar la otra fallida tampoco basta.
+    r = client.patch(
+        f"/ideas/{uid}",
+        params={"repo": repo},
+        json={
+            "status": "verificacion",
+            "fases": [
+                {"orden": 1, "titulo": "Una", "estado": "completada"},
+                {"orden": 2, "titulo": "Dos", "estado": "fallida"},
+            ],
+        },
+    )
+    assert r.status_code == 400
+    assert "Dos" in r.json()["detail"]
+
+    # `rechazada` cuenta como cerrada: el paso entra con la lista en el PATCH.
+    r = client.patch(
+        f"/ideas/{uid}",
+        params={"repo": repo},
+        json={
+            "status": "verificacion",
+            "fases": [
+                {"orden": 1, "titulo": "Una", "estado": "completada"},
+                {"orden": 2, "titulo": "Dos", "estado": "rechazada"},
+            ],
+        },
+    )
+    assert r.status_code == 200, r.json()
+    assert r.json()["status"] == "verificacion"
+    assert r.json()["verificacion_intentos"] == 1
+
+
 def test_protocolos_publican_el_requisito(client, repo):  # noqa: ANN001, ANN202
     filas = client.get("/protocolos", params={"repo": repo}).json()
     exigidas = {(f["origen"], f["destino"]) for f in filas if f["exige_fases"]}
     assert exigidas == {("proposed", "roadmap")}
-    assert all(isinstance(f["exige_fases"], bool) for f in filas)
+    listas = {(f["origen"], f["destino"]) for f in filas if f["exige_fases_listas"]}
+    assert listas == {("roadmap", "verificacion")}
+    assert all(
+        isinstance(f["exige_fases"], bool) and isinstance(f["exige_fases_listas"], bool)
+        for f in filas
+    )

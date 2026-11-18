@@ -192,6 +192,8 @@ class Protocolo(BaseModel):
     # ¿Pide esta unión al menos una fase? (0021). La UI lo usa para no ofrecer
     # un traslado que el core va a rechazar.
     exige_fases: bool = False
+    # ¿Exige que no queden fases pendientes ni fallidas? (0022).
+    exige_fases_listas: bool = False
 
 
 class MapSnapshot(BaseModel):

@@ -102,6 +102,10 @@ con el motivo, para no reabrirlo cada semana.
   `'note'` se lee entero; el contrato conserva esos valores al devolver la
   idea y sigue sin ofrecerlos al crear o editar. Cubierto en
   `services/core/tests/test_idea_cola.py`.
+- **Borrado de una idea sustituta**: si otra ficha la referencia en
+  `superseded_by_uid`, el DELETE responde 400 con las ideas afectadas y no
+  toca ni el vínculo ni ninguna de las dos; el dato se conserva. Cubierto en
+  `services/core/tests/test_flujo_items.py`.
 - **CI**: `pnpm check` global en cada push a main y en PRs
   (`.github/workflows/ci.yml`). Batería e2e y builds de Tauri quedan fuera
   del CI a propósito (navegador y puertos; se corren en local).
@@ -120,7 +124,6 @@ las relaciones y el alcance de las comprobaciones locales.
 
 ### Historial y almacenamiento
 
-- [ ] **Borrado de una idea sustituta.** Si otra ficha la referencia mediante `superseded_by_uid`, el DELETE devuelve 500. Definir si se conserva el vínculo y se comunica el conflicto o si se permite retirarlo. Probar la respuesta y el estado de ambas ideas.
 - [ ] **Reproducción de la base versionada.** Una copia del fichero principal con WAL activo puede omitir escrituras confirmadas. Definir cómo obtener una instantánea SQLite consistente para los repos que versionan su almacén y verificarla desde una copia limpia.
 - [ ] **Límite de retención.** La comparación textual mezcla fechas ISO con `T` y el espacio de `datetime('now', …)`. Un evento anterior al corte, pero del mismo día, se conserva. Probar ambos lados del instante de corte en eventos y registro.
 

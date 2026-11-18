@@ -180,6 +180,34 @@ def test_transiciones_no_listadas_se_rechazan(client, repo):  # noqa: ANN001, AN
         assert "protocolo" in r.json()["detail"]
 
 
+def test_borrar_la_sustituta_conserva_el_vinculo(client, repo):  # noqa: ANN001, ANN202
+    """Si otra ficha la usa como sustituta, el DELETE avisa y no borra nada."""
+    sustituta = _crear(client, repo, title="Nueva")
+    vieja = _crear(client, repo, title="Vieja", status="proposed")
+    r = client.patch(
+        f"/ideas/{vieja}",
+        params={"repo": repo},
+        json={"status": "rejected", "superseded_by_uid": sustituta},
+    )
+    assert r.status_code == 200, r.json()
+    assert r.json()["superseded_by_uid"] == sustituta
+
+    r = client.delete(f"/ideas/{sustituta}", params={"repo": repo})
+    assert r.status_code == 400
+    assert sustituta in r.json()["detail"]
+    assert vieja in r.json()["detail"]
+
+    # Las dos siguen ahí y el vínculo intacto.
+    assert client.get(f"/ideas/{sustituta}", params={"repo": repo}).status_code == 200
+    vieja_leida = client.get(f"/ideas/{vieja}", params={"repo": repo}).json()
+    assert vieja_leida["status"] == "rejected"
+    assert vieja_leida["superseded_by_uid"] == sustituta
+
+    # Sin la ficha que la referencia, el borrado pasa.
+    assert client.delete(f"/ideas/{vieja}", params={"repo": repo}).status_code == 204
+    assert client.delete(f"/ideas/{sustituta}", params={"repo": repo}).status_code == 204
+
+
 def test_roadmap_solo_un_activo(client, repo):  # noqa: ANN001, ANN202
     primera = _crear(client, repo, status="proposed")
     segunda = _crear(client, repo, status="proposed")

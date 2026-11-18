@@ -1158,12 +1158,32 @@ def delete_idea(repo: str, uid: str) -> bool:
     """Borra la idea; sus conexiones se van con ella (ON DELETE CASCADE).
 
     El título se lee antes de borrar para que el evento `idea.deleted` tenga
-    qué mostrar: después no hay fila de la que sacar nada.
+    qué mostrar: después no hay fila de la que sacar nada. Si otra ficha la
+    usa como sustituta (`superseded_by_uid`), no se borra: el vínculo es
+    información y se avisa del conflicto en vez de romperlo en silencio.
     """
     with closing(connect(ensure_repo(repo))) as conn:
         titulo_row = conn.execute("SELECT title FROM idea_entry WHERE uid = ?", (uid,)).fetchone()
+        sustitutas = [
+            str(fila[0])
+            for fila in conn.execute(
+                "SELECT uid FROM idea_rejected WHERE superseded_by_uid = ? ORDER BY uid",
+                (uid,),
+            )
+        ]
+        if sustitutas:
+            raise InvalidInput(
+                f"no se puede borrar {uid}: es la sustituta de {', '.join(sustitutas)};"
+                " retira ese vínculo antes"
+            )
         # La cola, las fichas y las conexiones se borran con la entrada (ON DELETE CASCADE).
-        cursor = conn.execute("DELETE FROM idea_entry WHERE uid = ?", (uid,))
+        try:
+            cursor = conn.execute("DELETE FROM idea_entry WHERE uid = ?", (uid,))
+        except sqlite3.IntegrityError as exc:
+            # Otra conexión pudo enlazarla entre la comprobación y el borrado.
+            raise InvalidInput(
+                f"no se puede borrar {uid}: otra ficha la referencia en `superseded_by_uid`"
+            ) from exc
         if cursor.rowcount > 0:
             _emitir(conn, "idea.deleted", {"uid": uid, "title": titulo_row[0]})
         conn.commit()

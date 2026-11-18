@@ -14,10 +14,12 @@ function Arrow({ open }: { open: boolean }) {
 }
 
 /** Palabra del estado para la fila, en español: el contrato habla `draft`/
- *  `rejected` pero la fila se lee en español. */
+ *  `rejected` pero la fila se lee en español. Los nombres son los mismos
+ *  carriles: `draft` es el cajón (no tiene fila en ninguna ficha),
+ *  `proposed` vive en la cola (`idea_cola`), los demás, en sus fichas. */
 const ETIQUETA_ESTADO: Record<string, string> = {
-  draft: "En cola",
-  proposed: "Propuesta",
+  draft: "En el cajón",
+  proposed: "En cola",
   accepted: "Completada",
   rejected: "Descartada",
   superseded: "Reemplazada",

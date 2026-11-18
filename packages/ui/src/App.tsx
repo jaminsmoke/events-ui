@@ -61,6 +61,9 @@ export default function App({
     titulo: string;
     descripcion: string;
   } | null>(null);
+  // Panel inferior (al estilo VS Code): la statusbar es una barra compacta
+  // de entradas; cada entrada alterna su panel entre el viewport y ella.
+  const [panel, setPanel] = useState<null | "actividad">(null);
 
   const {
     ideas,
@@ -402,51 +405,66 @@ export default function App({
         )}
       </main>
 
-      <footer className="statusbar">
-        {/* Terse: la ruta ya se ve arriba (topbar); aquí solo el nombre,
-            la rama y el recuento que el mapa no dice. */}
-        {proyeccion && (
+      {panel === "actividad" && (
+        <section className="panel" aria-label="Panel: Actividad">
+          <div className="panel-cabecera">
+            <span className="panel-titulo">Actividad</span>
+            <button
+              type="button"
+              className="btn ghost"
+              onClick={() => setPanel(null)}
+              aria-label="Cerrar panel de actividad"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="panel-cuerpo">
+            {eventos.length === 0 ? (
+              <p className="hint">Sin eventos todavía. El log se lee, no se escribe.</p>
+            ) : (
+              <ul className="eventos-lista">
+                {eventos.map((e) => (
+                  <li key={e.id}>
+                    <strong>#{e.id}</strong> {resumenEvento(e)}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </section>
+      )}
+
+      <footer className="statusbar">        {proyeccion && (
           <div className="proyeccion" aria-label="Estado del repo">
-            <h2>Repo</h2>
-            <p className="hint">
-              <strong>{folderName(proyeccion.repo)}</strong>
-              {proyeccion.branch && (
-                <em>
-                  {' '}
-                  {proyeccion.branch}
-                  {proyeccion.commit ? ` · ${proyeccion.commit}` : ""}
-                </em>
-              )}
-              {' · '}
-              {proyeccion.ideas} ideas · {proyeccion.connections} conexiones · {proyeccion.events}{" "}
-              eventos
-              {Object.entries(proyeccion.por_estado).map(([estado, n]) => (
-                <span key={estado}>
-                  {" · "}
-                  {estado}: {n}
-                </span>
-              ))}
-              {proyeccion.ultima_actividad && <span> · última: {proyeccion.ultima_actividad}</span>}
-            </p>
+            <strong>{folderName(proyeccion.repo)}</strong>
+            {proyeccion.branch && (
+              <em>
+                {' '}
+                {proyeccion.branch}
+                {proyeccion.commit ? ` · ${proyeccion.commit}` : ""}
+              </em>
+            )}
+            {' · '}
+            {proyeccion.ideas} ideas · {proyeccion.connections} conexiones · {proyeccion.events}{" "}
+            eventos
+            {Object.entries(proyeccion.por_estado).map(([estado, n]) => (
+              <span key={estado}>
+                {" · "}
+                {estado}: {n}
+              </span>
+            ))}
           </div>
         )}
 
-        <div className="eventos" aria-label="Actividad del log">
-          <h2>
-            Actividad {conectado && <span className="dot" aria-label="en vivo" />}
-          </h2>
-          {eventos.length === 0 ? (
-            <p className="hint">Sin eventos todavía. El log se lee, no se escribe.</p>
-          ) : (
-            <ul className="eventos-lista">
-              {eventos.map((e) => (
-                <li key={e.id}>
-                  <strong>#{e.id}</strong> {resumenEvento(e)}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        <button
+          type="button"
+          className={`status-item${panel === "actividad" ? " activo" : ""}`}
+          aria-expanded={panel === "actividad"}
+          onClick={() => setPanel((p) => (p === "actividad" ? null : "actividad"))}
+        >
+          Actividad{conectado && <span className="dot" aria-label="en vivo" />}
+          {eventos.length > 0 && <span className="status-item-n">{eventos.length}</span>}
+        </button>
       </footer>
     </div>
   );

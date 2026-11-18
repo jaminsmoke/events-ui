@@ -50,28 +50,104 @@ body {
   flex-direction: column;
 }
 
-/* Bottom bar: estado del repo a la izquierda, actividad en vivo a la derecha. */
+/* Bottom bar al estilo VS Code: una sola línea (~26 px) de entradas;
+ * cada entrada alterna su panel entre el viewport y la statusbar. */
 .statusbar {
   display: flex;
-  gap: 18px;
-  align-items: flex-start;
+  gap: 6px;
+  align-items: center;
   border-top: 1px solid var(--line);
-  padding: 8px 14px;
+  padding: 3px 8px;
 }
 
 .statusbar .proyeccion {
-  flex: none;
-  min-width: 0;
-}
-
-.statusbar .eventos {
   flex: 1;
   min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.statusbar h2 {
-  margin: 0 0 6px;
+.statusbar .proyeccion strong {
+  color: var(--fg);
+}
+
+.statusbar .proyeccion em {
+  font-style: normal;
+}
+
+/* Entrada de panel: como las de VS Code, sin tarjeta ni borde. */
+.status-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.status-item:hover {
+  background: #232b3a;
+}
+
+.status-item.activo {
+  background: #1f6feb;
+}
+
+.status-item .dot {
+  margin-left: 0;
+}
+
+.status-item-n {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+/* Panel inferior: se abre entre el viewport y la statusbar. */
+.panel {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.panel-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.panel-titulo {
   font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.panel-cabecera .btn {
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+.panel-cuerpo {
+  padding: 8px 10px;
+}
+
+.panel-cuerpo .eventos-lista {
+  max-height: 220px;
 }
 
 h1 {
@@ -410,9 +486,8 @@ header > div {
   padding: 0;
   list-style: none;
   font-size: 12px;
-  /* Con scroll, el board conserva su sitio; en la statusbar bastan
-     unas 4 filas visibles para mirar el ritmo. */
-  max-height: 84px;
+  /* Con scroll, el board conserva su sitio. */
+  max-height: 168px;
   overflow-y: auto;
 }
 

@@ -19,6 +19,7 @@ import json
 import sqlite3
 from collections.abc import AsyncIterator, Callable
 from contextlib import closing
+from pathlib import Path
 from typing import Any
 
 from .db import barridos_retencion, data_version, open_read_only, vigilante
@@ -94,15 +95,19 @@ def tail(
     return [_parse(row) for row in rows]
 
 
-def ultimo_id(repo: str) -> int:
-    """El `id` más alto del log del repo (0 si no hay): partida del tail vivo."""
-    db_file = ensure_repo(repo)
+def _max_id(db_file: Path) -> int:
+    """El `id` más alto del log (0 si no hay tabla o está vacío)."""
     try:
         with closing(open_read_only(db_file)) as conn:
             fila = conn.execute("SELECT max(id) FROM event").fetchone()
     except (FileNotFoundError, sqlite3.Error):
         return 0
     return int(fila[0] or 0)
+
+
+def ultimo_id(repo: str) -> int:
+    """El `id` más alto del log del repo (0 si no hay): partida del tail vivo."""
+    return _max_id(ensure_repo(repo))
 
 
 def compactar(
@@ -185,6 +190,11 @@ async def generar_streamo(
     """
     db_file = ensure_repo(repo)
     cursor = max(desde, 0)
+    # Un vaciado del laboratorio reinicia los IDs: si el cursor quedó por
+    # delante del final del log, se empieza de cero en vez de esperar eventos
+    # que ya no existen con esos números.
+    if cursor > _max_id(db_file):
+        cursor = 0
     # Backfill: todo lo que hay hasta ahora, sin esperar.
     lote = tail(repo, cursor)
     while lote:
@@ -214,6 +224,10 @@ async def generar_streamo(
             yield ": ping\n\n"
             continue
         version = firma
+        # El vaciado también puede llegar con el cliente conectado: si el
+        # cursor ya no apunta a nada, se vuelve a empezar.
+        if cursor > _max_id(db_file):
+            cursor = 0
         # El tail va por páginas: una ráfaga mayor que `LIMITE_POR_DEFECTO` deja
         # eventos esperando y, sin otra escritura, la firma ya no cambia. Se
         # drena el log entero, no solo la primera página.

@@ -94,6 +94,10 @@ con el motivo, para no reabrirlo cada semana.
   `idea.created` queda en el log y `GET /eventos` lo devuelve. El runner de
   e2e ya no crea la tabla a mano. Cubierto en
   `services/core/tests/test_sse.py`.
+- **Cursor tras vaciar el log**: si el log se vacía y los IDs vuelven a
+  empezar, el stream reinicia el cursor cuando queda por delante del último
+  evento, tanto en la conexión viva como al reconectar con `Last-Event-ID`,
+  en vez de omitir el alta nueva. Cubierto en `services/core/tests/test_sse.py`.
 - **CI**: `pnpm check` global en cada push a main y en PRs
   (`.github/workflows/ci.yml`). Batería e2e y builds de Tauri quedan fuera
   del CI a propósito (navegador y puertos; se corren en local).
@@ -112,7 +116,6 @@ las relaciones y el alcance de las comprobaciones locales.
 
 ### Historial y almacenamiento
 
-- [ ] **Cursor tras vaciar el log.** Tras leer los eventos 1 y 2, reiniciar el laboratorio y crear otro, SQLite reutiliza el ID 1. Un cliente con cursor 2 omite el alta. Cubrir la conexión en vivo y la reconexión tras el vaciado.
 - [ ] **Compatibilidad de tipos históricos.** Una v9 con `kind='adr'` llega a v13 y se ve en el mapa, pero el listado y la ficha devuelven 500. Acordar cómo conservar los tipos históricos `adr` y `note` y comprobar ambos recorridos con sus datos originales.
 - [ ] **Borrado de una idea sustituta.** Si otra ficha la referencia mediante `superseded_by_uid`, el DELETE devuelve 500. Definir si se conserva el vínculo y se comunica el conflicto o si se permite retirarlo. Probar la respuesta y el estado de ambas ideas.
 - [ ] **Reproducción de la base versionada.** Una copia del fichero principal con WAL activo puede omitir escrituras confirmadas. Definir cómo obtener una instantánea SQLite consistente para los repos que versionan su almacén y verificarla desde una copia limpia.

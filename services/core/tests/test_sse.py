@@ -25,6 +25,10 @@ def _sembrar_rafaga(repo, cuantos: int) -> None:  # noqa: ANN001, ANN202
     conn.close()
 
 
+def _ids(frames: list[str]) -> list[int]:
+    return [int(f.split(": ", 1)[1].split("\n", 1)[0]) for f in frames if f.startswith("id: ")]
+
+
 def _recolecta(repo: str, desconectado, max_esperas: int = 0) -> list[str]:  # noqa: ANN001, ANN202
     async def _todo() -> list[str]:
         return [
@@ -66,8 +70,42 @@ def test_rafaga_mayor_que_la_pagina_llega_entera(client, repo):  # noqa: ANN001,
         return False
 
     frames = _recolecta(repo, escribir_en_vivo, max_esperas=4)
-    ids = [int(f.split(": ", 1)[1].split("\n", 1)[0]) for f in frames if f.startswith("id: ")]
-    assert ids == list(range(1, 251))
+    assert _ids(frames) == list(range(1, 251))
+
+
+def test_un_vaciado_reinicia_el_cursor_en_vivo(client, repo):  # noqa: ANN001, ANN202
+    """Con el cliente conectado, vaciar el log vuelve a empezar los IDs: se
+    reinicia el cursor en vez de esperar números que ya no existen."""
+    client.post("/ideas", params={"repo": repo}, json={"title": "A"})
+    client.post("/ideas", params={"repo": repo}, json={"title": "B"})
+    assert [e["id"] for e in client.get("/eventos", params={"repo": repo}).json()] == [1, 2]
+
+    hecho: list[bool] = []
+
+    def vaciar_en_vivo() -> bool:
+        if not hecho:
+            client.post("/reiniciar", params={"repo": repo})
+            client.post("/ideas", params={"repo": repo}, json={"title": "C"})
+            hecho.append(True)
+        return False
+
+    frames = _recolecta(repo, vaciar_en_vivo, max_esperas=4)
+    assert _ids(frames) == [1, 2, 1]
+
+
+def test_reconexion_con_cursor_viejo_tras_vaciar(client, repo):  # noqa: ANN001, ANN202
+    """Reconectar con `Last-Event-ID` 2 tras un vaciado no omite el alta."""
+    client.post("/ideas", params={"repo": repo}, json={"title": "A"})
+    client.post("/ideas", params={"repo": repo}, json={"title": "B"})
+    client.post("/reiniciar", params={"repo": repo})
+    client.post("/ideas", params={"repo": repo}, json={"title": "C"})
+
+    async def _desde_2() -> list[str]:
+        return [
+            frame async for frame in eventos.generar_streamo(repo, 2, intervalo=0.01, max_esperas=0)
+        ]
+
+    assert _ids(asyncio.run(_desde_2())) == [1]
 
 
 def test_primer_idea_created_se_consulta(client, repo):  # noqa: ANN001, ANN202

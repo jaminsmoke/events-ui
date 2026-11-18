@@ -14,13 +14,36 @@ function resumenGenerico(evento: Evento): string {
   return `${evento.type}: ${payload}`;
 }
 
-/** Lo ya registrado; se lee en cada render, así añadir un tipo es una línea. */
+/** Lo ya registrado; se lee en cada render, así añadir un tipo es una línea.
+ *
+ *  El payload es JSON libre: `payload` puede venir como objeto o como texto
+ *  crudo. El renderer accede sin cast y, si no encuentra lo que espera, cae
+ *  al fallback genérico en vez de romper. */
+function campo(evento: Evento, nombre: string): string | undefined {
+  const payload = evento.payload;
+  if (typeof payload !== "object" || payload === null) return undefined;
+  const valor = (payload as Record<string, unknown>)[nombre];
+  return typeof valor === "string" && valor ? valor : undefined;
+}
+
 export const RENDERIZADORES: Record<string, Renderizador> = {
-  // Ejemplo: aquí iría `commit: (e) => ...` cuando F2 pacte los tipos.
+  // El ciclo de vida de una idea: el título sale del payload sin tener que
+  // abrir el mapa. Sin título no hay resumen: cae al fallback genérico.
+  "idea.created": (e) => (campo(e, "title") ? `Nueva idea: ${campo(e, "title")}` : ""),
+  "idea.updated": (e) => (campo(e, "title") ? `Idea actualizada: ${campo(e, "title")}` : ""),
+  "idea.deleted": (e) => (campo(e, "title") ? `Idea borrada: ${campo(e, "title")}` : ""),
+  "idea.status": (e) => {
+    const titulo = campo(e, "title");
+    const estado = campo(e, "status");
+    return titulo && estado ? `${titulo}: ${estado}` : "";
+  },
 };
 
 export function resumenEvento(evento: Evento): string {
-  return (RENDERIZADORES[evento.type] ?? resumenGenerico)(evento);
+  const renderizador = RENDERIZADORES[evento.type];
+  // Un renderer que no tiene qué decir no inventa texto: mejor el volcado.
+  const resumen = renderizador?.(evento);
+  return resumen ? resumen : resumenGenerico(evento);
 }
 
 /** El log en vivo por SSE (`GET /eventos/stream?repo=...`), de un repo.

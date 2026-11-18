@@ -24,10 +24,18 @@ from pathlib import Path
 from typing import Any
 
 from .db import data_version, open_read_only
-from .ideas import ensure_repo
+from .ideas import connect, ensure_repo
 
 # Conteo por página del tail: bastante para el backfill sin traer el log entero.
 LIMITE_POR_DEFECTO = 200
+
+# La retención pactada (ADR 0001, enmienda F1-retenidos): como máximo estos
+# días de antigüedad y como máximo este número de eventos por repo. Los dos
+# topes se aplican a la vez; el más restrictivo manda.
+DIAS_RETENCION = 90
+MAX_EVENTOS_RETENCION = 5_000
+# A partir de cuántas filas borradas vale la pena recompactar el fichero.
+FILAS_PARA_VACUUM = 1_000
 
 
 def _parse(row: sqlite3.Row) -> dict[str, Any]:
@@ -71,6 +79,62 @@ def ultimo_id(repo: str) -> int:
     except (FileNotFoundError, sqlite3.Error):
         return 0
     return int(fila[0] or 0)
+
+
+def compactar(
+    repo: str,
+    *,
+    dias: int = DIAS_RETENCION,
+    max_eventos: int = MAX_EVENTOS_RETENCION,
+) -> dict[str, Any]:
+    """Recorta el log del repo a la política de retención y devuelve qué se fue.
+
+    Dos barridos en el orden que protege la cola: primero la antigüedad
+    (`ts` anterior a hace `dias` días) y luego el conteo (se dejan solo los
+    `max_eventos` más nuevos); el segundo nunca resucita lo ya borrado.
+
+    Después, si el hueco es bastante, se recompacta el fichero con `VACUUM`:
+    el `DELETE` solo libera páginas, no devuelve espacio al disco. El `VACUUM`
+    es exclusivo y no puede ir en transacción; si otro proceso lo bloquea
+    (el productor existe), se salta sin fallar —el recorte ya está hecho—.
+    """
+    db_file = ensure_repo(repo)
+    try:
+        with closing(connect(db_file)) as conn:
+            cursor_edad = conn.execute(
+                "DELETE FROM event WHERE ts < datetime('now', ?)", (f"-{dias} days",)
+            )
+            cursor_conteo = conn.execute(
+                "DELETE FROM event WHERE id NOT IN ("
+                " SELECT id FROM event ORDER BY id DESC LIMIT ?)",
+                (max_eventos,),
+            )
+            borrados = cursor_edad.rowcount + cursor_conteo.rowcount
+            conn.commit()
+    except (FileNotFoundError, sqlite3.Error):
+        return {
+            "repo": repo,
+            "eliminados_por_edad": 0,
+            "eliminados_por_conteo": 0,
+            "vacuum": False,
+        }
+
+    vacuum = False
+    if borrados >= FILAS_PARA_VACUUM:
+        try:
+            with closing(connect(db_file)) as conn:
+                conn.isolation_level = None  # VACUUM no admite transacción
+                conn.execute("VACUUM")
+                vacuum = True
+        except sqlite3.Error:
+            vacuum = False
+
+    return {
+        "repo": repo,
+        "eliminados_por_edad": cursor_edad.rowcount,
+        "eliminados_por_conteo": cursor_conteo.rowcount,
+        "vacuum": vacuum,
+    }
 
 
 # Una conexión vigilante reutilizada, como la de las revisiones de ideas:

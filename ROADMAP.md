@@ -75,8 +75,9 @@ Lo hecho se mueve a *Hecho* con su commit; lo que no va, va a *No se hace
 2. **Empaquetado por app, misma versión** *(hecho: `pnpm release` —bump +
    gen:api + check + build web + build desktop + commit + tag `vX.Y.Z`—;
    verificado con el release `v0.1.0`: MSI 3 MB y NSIS 2 MB)*.
-3. **Retención del log** (`event`): hoy crece sin cota; pactar cuánto se
-   conserva y cómo se compacta, por repo.
+3. **Retención del log** *(hecho: `eventos.compactar` con 90 días / 5 000
+   eventos por repo, `POST /eventos/compactar` y CLI `events_core.compact`;
+   con `VACUUM` cuando hay hueco bastante)*.
 
 ## No se hace (por ahora)
 

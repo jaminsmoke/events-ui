@@ -65,8 +65,17 @@ lo consume y lo proyecta en UI. Los detalles del productor se pactarán por sepa
 
 - Esquema exacto del sobre de evento y quién/qué escribe (proceso externo, CLI, agente).
 - Identidad de repositorio: ruta, remoto, o id propio.
-- Retención y compactación del log.
 - Cómo se empaqueta el sidecar Python (PyInstaller como `externalBin` de Tauri) — fase 3.
+
+## Enmienda — retención del log (antes de empaquetar, punto 3)
+
+El log no crece sin cota: la política es **a lo sumo 90 días de antigüedad y
+5 000 eventos por repo**, lo que llegue primero manda. El recorte lo aplica
+`eventos.compactar` (dos barridos, primero por edad y luego por conteo) y
+salta el `VACUUM` si no hubo hueco bastante (≥1.000 filas borradas) o si el
+productor lo bloquea; se dispara a mano por `POST /eventos/compactar` o por
+la CLI `python -m events_core.compact <repo>`. No hay poda automática en
+arranque: la política está pactada, el disparador sigue siendo manual.
 
 ## Fases
 

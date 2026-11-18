@@ -156,6 +156,15 @@ class ProyeccionRepo(BaseModel):
     ultima_actividad: str | None = None
 
 
+class EventosCompactados(BaseModel):
+    """Respuesta de `POST /eventos/compactar`: qué se recortó del log."""
+
+    repo: str
+    eliminados_por_edad: int
+    eliminados_por_conteo: int
+    vacuum: bool
+
+
 class ErrorDetail(BaseModel):
     """Lo que devuelven los exception handlers de abajo: `{"detail": ...}`.
 
@@ -354,6 +363,23 @@ def stream_eventos(request: Request, repo: RepoParam) -> StreamingResponse:
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@app.post(
+    "/eventos/compactar",
+    response_model=EventosCompactados,
+    tags=["eventos"],
+    responses=RESPUESTAS_ERROR,
+)
+def post_compactar(
+    repo: RepoParam,
+    dias: Annotated[int, Query(ge=1, description="Edad máxima en días")] = eventos.DIAS_RETENCION,
+    max_eventos: Annotated[
+        int, Query(ge=1, description="Máximo de eventos a conservar")
+    ] = eventos.MAX_EVENTOS_RETENCION,
+) -> dict[str, Any]:
+    """Recorta el log a la política de retención; el resto se conserva."""
+    return eventos.compactar(repo, dias=dias, max_eventos=max_eventos)
 
 
 # --- F2: proyecciones con nombre, sin SQL libre ---

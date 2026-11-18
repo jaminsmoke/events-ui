@@ -323,6 +323,19 @@ header > div {
   color: var(--muted);
 }
 
+.modal label.check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--fg);
+}
+
+.modal label.check input {
+  width: auto;
+  accent-color: var(--accent);
+}
+
 .modal input,
 .modal select {
   background: #0b0e13;

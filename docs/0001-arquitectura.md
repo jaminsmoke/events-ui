@@ -93,4 +93,7 @@ empaquetada habla directo con `http://127.0.0.1:8765` (`apps/desktop/
 - **F1 — motor:** esquema de eventos, conexión RO, `data_version` + tail, SSE, UI en vivo.
 - **F2 — repos:** primera proyección e identidad de repo.
 - **F3 — producto:** binario empaquetado *(hecho: sidecar PyInstaller como
-  `externalBin`)*; tray, notificaciones e instalador siguen pendientes.
+  `externalBin`)*, bandeja *(hecho: cerrar minimiza, «Salir» lo mata)* y
+  notificaciones *(hecho: `tauri-plugin-notification` con ajustes de
+  verbosidad)*. Pendiente: instalador firmado (cuesta dinero; en local no
+  hace falta).

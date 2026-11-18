@@ -1,5 +1,7 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { avisaErrores, avisaEventos, cargarAjustes, guardarAjustes } from "./core/avisos";
+import type { Ajustes } from "./core/avisos";
 import { storedRepo } from "./core/repo";
 import type { ElegirCarpeta } from "./core/repo";
 import { useRepo } from "./core/useRepo";
@@ -11,6 +13,7 @@ import type { LaneId } from "./mapa/carriles";
 import { NodeBox, VueloFila } from "./mapa/nodos";
 import { useVuelos } from "./mapa/vuelos";
 import { useEventos, resumenEvento } from "./core/useEventos";
+import { Ajustes as DialogoAjustes } from "./pantalla/Ajustes";
 import { AvisoError } from "./pantalla/AvisoError";
 import { BarraRepo } from "./pantalla/BarraRepo";
 import { Bienvenida } from "./pantalla/Bienvenida";
@@ -22,14 +25,24 @@ import { AvisoRecorte, Controles } from "./pantalla/Controles";
  *  la API del core (crear, mover, editar, borrar y conectar ideas).
  *
  *  `elegirCarpeta` lo inyecta el envoltorio que tenga diálogo nativo (Tauri);
- *  la web no lo pasa y el selector ofrece lista de `/repos` y ruta manual. */
-export default function App({ elegirCarpeta }: { elegirCarpeta?: ElegirCarpeta }) {
+ *  la web no lo pasa y el selector ofrece lista de `/repos` y ruta manual.
+ *  `avisar`, igual: solo lo inyecta desktop (notificaciones del sistema) y
+ *  con él aparece el botón de Ajustes; sin él no hay avisos que ajustar. */
+export default function App({
+  elegirCarpeta,
+  avisar,
+}: {
+  elegirCarpeta?: ElegirCarpeta;
+  avisar?: (titulo: string, cuerpo: string) => void;
+}) {
   const [repo, setRepo] = useState<string | null>(storedRepo);
   const [selectorAbierto, setSelectorAbierto] = useState(false);
   const [nuevaAbierta, setNuevaAbierta] = useState(false);
   const [falloAccion, setFalloAccion] = useState<string | null>(null);
   // Lo plegado, no lo abierto: por defecto el flujo se ve entero.
   const [cerrados, setCerrados] = useState<ReadonlySet<string>>(() => new Set());
+  const [ajustes, setAjustes] = useState<Ajustes>(cargarAjustes);
+  const [ajustesAbiertos, setAjustesAbiertos] = useState(false);
 
   const {
     ideas,
@@ -50,6 +63,36 @@ export default function App({ elegirCarpeta }: { elegirCarpeta?: ElegirCarpeta }
   );
   // F1: el log del repo en vivo (cada `EUI_DATABASE` lleva el suyo).
   const { eventos, conectado } = useEventos(repo);
+
+  // Avisos del sistema (F3): solo eventos *nuevos* (ids por encima del último
+  // visto) y solo si el usuario lo quiere ver; el primer lote del SSE es el
+  // historial y nunca avisa. Con `soloFondo`, mirar la ventana silencia todo.
+  const ultimoEvento = useRef<number | null>(null);
+  useEffect(() => {
+    if (!avisar || eventos.length === 0) return;
+    const ultimo = eventos[eventos.length - 1];
+    if (!ultimo) return;
+    const previo = ultimoEvento.current;
+    ultimoEvento.current = ultimo.id;
+    if (previo === null) return; // primer lote: historial
+    if (!avisaEventos(ajustes)) return;
+    if (ajustes.soloFondo && !document.hidden) return;
+    for (const e of eventos.filter((e) => e.id > previo)) {
+      avisar("Events UI", resumenEvento(e));
+    }
+  }, [eventos, avisar, ajustes]);
+
+  // Error del core: solo cuando el mapa ni carga (`!ideas`), al pasar a
+  // fallar (transición), no en cada reintento —si no, cada 2 s otro aviso.
+  const errorPrevio = useRef<string | null>(null);
+  useEffect(() => {
+    const previo = errorPrevio.current;
+    errorPrevio.current = error;
+    if (!avisar || !error || previo === error) return;
+    if (!avisaErrores(ajustes)) return;
+    if (ajustes.soloFondo && !document.hidden) return;
+    if (!ideas) avisar("Events UI", `Sin conexión con el core: ${error}`);
+  }, [error, ideas, avisar, ajustes]);
 
   const boardRef = useRef<HTMLElement | null>(null);
   const mapRef = useRef<HTMLDivElement | null>(null);
@@ -156,7 +199,24 @@ export default function App({ elegirCarpeta }: { elegirCarpeta?: ElegirCarpeta }
             Nueva idea
           </button>
         )}
+        {avisar && (
+          <button className="btn ghost" onClick={() => setAjustesAbiertos(true)}>
+            Ajustes
+          </button>
+        )}
       </header>
+
+      {ajustesAbiertos && (
+        <DialogoAjustes
+          ajustes={ajustes}
+          onGuardar={(nuevos) => {
+            setAjustes(nuevos);
+            guardarAjustes(nuevos);
+            setAjustesAbiertos(false);
+          }}
+          onCerrar={() => setAjustesAbiertos(false)}
+        />
+      )}
 
       {!repo && <Bienvenida onAbrir={abrir} elegirNativo={elegirCarpeta} />}
 

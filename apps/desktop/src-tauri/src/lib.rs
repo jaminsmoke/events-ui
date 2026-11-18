@@ -1,18 +1,42 @@
 use std::process::{Child, Command, Stdio};
-
-use tauri::Manager;
 use std::sync::Mutex;
 
+use tauri::{
+  menu::{Menu, MenuItem},
+  tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+  Manager,
+};
+
 /// El sidecar empaquetado (F3), en ejecución. Vive en el estado gestionado
-/// para poder matarlo al cerrar la ventana: sin esto, el core quedaría
-/// huérfano escuchando en 8765 tras cada cierre de la app.
+/// para poder matarlo al salir: `Salir` de la bandeja lo mata y cierra la
+/// app; cerrar la ventana solo la oculta (ver `on_window_event`).
 type Sidecar = Mutex<Option<Child>>;
+
+/// Mata el sidecar si vive. Un hijo ya muerto devuelve error y se ignora;
+/// el `take` ya lo sacó del estado, así que llamarlo dos veces es no-op.
+fn matar_sidecar(app: &tauri::AppHandle) {
+  if let Some(sidecar) = app.try_state::<Sidecar>() {
+    if let Some(mut hijo) = sidecar.lock().unwrap().take() {
+      let _ = hijo.kill();
+    }
+  }
+}
+
+/// Vuelve a mostrar la ventana principal y le da el foco (desde la bandeja).
+fn mostrar_ventana(app: &tauri::AppHandle) {
+  if let Some(ventana) = app.get_webview_window("main") {
+    let _ = ventana.show();
+    let _ = ventana.set_focus();
+  }
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
     // Diálogo nativo de carpetas: lo primero que hace la app es que elijas el repo.
     .plugin(tauri_plugin_dialog::init())
+    // Avisos del sistema (F3): la UI los pide con la verbosidad del usuario.
+    .plugin(tauri_plugin_notification::init())
     .manage(Sidecar::new(None))
     .setup(|app| {
       if cfg!(debug_assertions) {
@@ -53,17 +77,55 @@ pub fn run() {
              la UI no tendrá API hasta que el core esté en 127.0.0.1:8765"
           ),
         }
+
+        // Bandeja (F3): el icono vive siempre en release, con «Abrir» y
+        // «Salir». Clic izquierdo restaura la ventana; el menú va con el
+        // derecho (sin él, el clic izquierdo abriría el menú).
+        let abrir = MenuItem::with_id(app, "abrir", "Abrir", true, None::<&str>)?;
+        let salir = MenuItem::with_id(app, "salir", "Salir", true, None::<&str>)?;
+        let menu = Menu::with_items(app, &[&abrir, &salir])?;
+        let mut bandeja = TrayIconBuilder::with_id("bandeja");
+        if let Some(icono) = app.default_window_icon() {
+          bandeja = bandeja.icon(icono.clone());
+        }
+        bandeja
+          .menu(&menu)
+          .tooltip("Events UI — sigue en segundo plano")
+          .show_menu_on_left_click(false)
+          .on_menu_event(|app, evento| match evento.id.as_ref() {
+            "abrir" => mostrar_ventana(app),
+            // La única salida real: mata el sidecar y cierra la app.
+            "salir" => {
+              matar_sidecar(app);
+              app.exit(0);
+            }
+            _ => {}
+          })
+          .on_tray_icon_event(|tray, evento| {
+            if let TrayIconEvent::Click {
+              button: MouseButton::Left,
+              button_state: MouseButtonState::Up,
+              ..
+            } = evento
+            {
+              mostrar_ventana(tray.app_handle());
+            }
+          })
+          .build(app)?;
       }
       Ok(())
     })
-    .on_window_event(|window, event| {
-      // Al cerrar, el sidecar muere con la app. `kill` en un hijo ya muerto
-      // es un error que se ignora: el `take` ya lo sacó del estado.
-      if let tauri::WindowEvent::CloseRequested { .. } = event {
-        if let Some(sidecar) = window.try_state::<Sidecar>() {
-          if let Some(mut hijo) = sidecar.lock().unwrap().take() {
-            let _ = hijo.kill();
-          }
+    .on_window_event(|window, evento| {
+      if let tauri::WindowEvent::CloseRequested { api, .. } = evento {
+        if cfg!(debug_assertions) {
+          // En dev no hay bandeja: cerrar cierra (el sidecar en dev lo
+          // levanta dev.mjs y lo apaga él).
+          matar_sidecar(window.app_handle());
+        } else {
+          // En release cerrar minimiza a la bandeja: la app y el sidecar
+          // siguen vivos para los avisos; «Salir» es la única salida.
+          api.prevent_close();
+          let _ = window.hide();
         }
       }
     })

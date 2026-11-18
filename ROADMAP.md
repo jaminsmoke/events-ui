@@ -54,9 +54,15 @@ Lo hecho se mueve a *Hecho* con su commit; lo que no va, va a *No se hace
 - **F3 — sidecar empaquetado**: el core se congela con PyInstaller
   (`sidecar.py` + `pnpm build:sidecar`, verificado con `/health` en frío) y
   viaja como `externalBin` de Tauri; en release `lib.rs` lo arranca junto al
-  ejecutable y lo mata al cerrar, y la UI empaquetada habla directo con
+  ejecutable y lo mata al salir, y la UI empaquetada habla directo con
   `127.0.0.1:8765` (`.env.production`). `pnpm release` construye el sidecar
   antes del bundle desktop.
+- **F3 — bandeja y avisos**: cerrar la ventana minimiza a la bandeja (el
+  sidecar sigue vivo para los avisos); «Salir» del menú es la única salida
+  y lo mata. Notificaciones del sistema con ajustes de verbosidad
+  (apagado / errores / eventos / todo) y «solo cuando no estoy mirando»,
+  guardados en `localStorage`. El instalador firmado queda fuera (cuesta
+  dinero).
 
 ## Ahora
 

@@ -16,6 +16,9 @@ importers:
       '@tauri-apps/plugin-dialog':
         specifier: ^2.8.4
         version: 2.8.4
+      '@tauri-apps/plugin-notification':
+        specifier: ^2.8.1
+        version: 2.8.1
       react:
         specifier: ^19
         version: 19.3.1
@@ -25,7 +28,7 @@ importers:
     devDependencies:
       '@eslint/js':
         specifier: ^10.0.1
-        version: 10.0.1(eslint@10.15.0)
+        version: 10.0.1(eslint@10.15.0(supports-color@10.2.2))
       '@tauri-apps/cli':
         specifier: ^2
         version: 2.12.5
@@ -37,16 +40,16 @@ importers:
         version: 19.3.0(@types/react@19.3.0)
       '@vitejs/plugin-react':
         specifier: ^5
-        version: 5.2.0(vite@7.3.8)
+        version: 5.2.0(supports-color@10.2.2)(vite@7.3.8)
       eslint:
         specifier: ^10.15.0
-        version: 10.15.0
+        version: 10.15.0(supports-color@10.2.2)
       eslint-plugin-react-hooks:
         specifier: ^7.1.1
-        version: 7.1.1(eslint@10.15.0)
+        version: 7.1.1(eslint@10.15.0(supports-color@10.2.2))(supports-color@10.2.2)
       eslint-plugin-react-refresh:
         specifier: ^0.5.8
-        version: 0.5.8(eslint@10.15.0)
+        version: 0.5.8(eslint@10.15.0(supports-color@10.2.2))
       globals:
         specifier: ^17.14.0
         version: 17.14.0
@@ -55,7 +58,7 @@ importers:
         version: 5.9.3
       typescript-eslint:
         specifier: ^8.73.0
-        version: 8.73.0(eslint@10.15.0)(typescript@5.9.3)
+        version: 8.73.0(eslint@10.15.0(supports-color@10.2.2))(supports-color@10.2.2)(typescript@5.9.3)
       vite:
         specifier: ^7
         version: 7.3.8
@@ -723,6 +726,9 @@ packages:
 
   '@tauri-apps/plugin-dialog@2.8.4':
     resolution: {integrity: sha512-+6ZOiXenOaxXwb8qCbBPdT2jX2cFPaVVHGIskrpmJLpmWj+qKRTD6X/z9x7hTdSQn7NedcoXCkWGej4a7dC4lw==}
+
+  '@tauri-apps/plugin-notification@2.8.1':
+    resolution: {integrity: sha512-B+OCJv17XCFQxAhe2+fn2bHqQ1fz/hGnYHeT++yv8+q0daOH5o1ghX7MmxWgoGFp7POaNn4UMONclHeZn65mJA==}
 
   '@types/babel__core@7.20.5':
     resolution: {integrity: sha512-qoQprZvz5wQFJwMDqeseRXWv3rqMvhgpbXFfVyWhbx9X47POIA6i/+dXefEmZKoAgOaTdaIgNSMqMIU61yRyzA==}
@@ -1479,9 +1485,19 @@ snapshots:
     dependencies:
       '@babel/types': 7.29.14
 
+  '@babel/plugin-transform-react-jsx-self@7.29.7(@babel/core@7.29.13(supports-color@10.2.2))':
+    dependencies:
+      '@babel/core': 7.29.13(supports-color@10.2.2)
+      '@babel/helper-plugin-utils': 7.29.7
+
   '@babel/plugin-transform-react-jsx-self@7.29.7(@babel/core@7.29.13)':
     dependencies:
       '@babel/core': 7.29.13
+      '@babel/helper-plugin-utils': 7.29.7
+
+  '@babel/plugin-transform-react-jsx-source@7.29.7(@babel/core@7.29.13(supports-color@10.2.2))':
+    dependencies:
+      '@babel/core': 7.29.13(supports-color@10.2.2)
       '@babel/helper-plugin-utils': 7.29.7
 
   '@babel/plugin-transform-react-jsx-source@7.29.7(@babel/core@7.29.13)':
@@ -1866,6 +1882,10 @@ snapshots:
     dependencies:
       '@tauri-apps/api': 2.12.5
 
+  '@tauri-apps/plugin-notification@2.8.1':
+    dependencies:
+      '@tauri-apps/api': 2.12.5
+
   '@types/babel__core@7.20.5':
     dependencies:
       '@babel/parser': 7.29.14
@@ -2074,6 +2094,18 @@ snapshots:
     dependencies:
       '@typescript-eslint/types': 8.73.0
       eslint-visitor-keys: 5.0.1
+
+  '@vitejs/plugin-react@5.2.0(supports-color@10.2.2)(vite@7.3.8)':
+    dependencies:
+      '@babel/core': 7.29.13(supports-color@10.2.2)
+      '@babel/plugin-transform-react-jsx-self': 7.29.7(@babel/core@7.29.13(supports-color@10.2.2))
+      '@babel/plugin-transform-react-jsx-source': 7.29.7(@babel/core@7.29.13(supports-color@10.2.2))
+      '@rolldown/pluginutils': 1.0.0-rc.3
+      '@types/babel__core': 7.20.5
+      react-refresh: 0.18.0
+      vite: 7.3.8
+    transitivePeerDependencies:
+      - supports-color
 
   '@vitejs/plugin-react@5.2.0(vite@7.3.8)':
     dependencies:

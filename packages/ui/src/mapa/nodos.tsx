@@ -11,14 +11,13 @@ function Arrow({ open }: { open: boolean }) {
   return <span className="arrow">{open ? "▾" : "▸"}</span>;
 }
 
-/** Una fila del nodo: título, contador y, si tiene items, su propia flecha.
- *  Si es una idea, ofrece moverla de carril (`onMover`), editarla y borrarla;
- *  en el cajón (`root`), además, conectarla como padre de otra idea. Todo por
- *  la API tipada y con el formulario en línea, sin salir de la fila. */
+/** Una fila del nodo: solo título, contador y su botón de expandir.
+ *  Al expandirla aparece un panel con los detalles (descripción, estado) y
+ *  los botones de la idea —mover, completar, editar, borrar y, en el cajón
+ *  (`root`), conectar como padre—, más sus hijos, si los tiene. Los botones
+ *  nunca se ven en la fila cerrada. */
 function NodeRow({
   node,
-  cerrados,
-  onToggle,
   nodo,
   volando,
   onMover,
@@ -32,8 +31,6 @@ function NodeRow({
   enlacesNuevos = [],
 }: {
   node: TreeNode;
-  cerrados: ReadonlySet<string>;
-  onToggle: (key: string) => void;
   nodo: string;
   volando: (uid: string, nodo: string) => boolean;
   onMover?: (uid: string, lane: "cola" | "descartadas") => void;
@@ -47,7 +44,9 @@ function NodeRow({
   enlacesNuevos?: { parentUid: string; childUid: string }[];
 }) {
   const tiene = node.kids.length > 0;
-  const abierto = tiene && !cerrados.has(node.key);
+  // Una sola expansión por fila: detalles, botones e hijos. Las filas con
+  // hijos arrancan abiertas para que se vea la rama; las hoja, cerradas.
+  const [expandido, setExpandido] = useState(tiene);
   const uid = node.idea?.uid;
   const [editando, setEditando] = useState(false);
   const [titulo, setTitulo] = useState(node.title);
@@ -82,15 +81,18 @@ function NodeRow({
       <button
         type="button"
         className="row-head"
-        onClick={() => tiene && onToggle(node.key)}
-        aria-expanded={tiene ? abierto : undefined}
-        title={node.idea?.description || undefined}
+        onClick={() => setExpandido((v) => !v)}
+        aria-expanded={expandido}
       >
         {node.idea && <span className="dot" />}
         <span className="row-title">{node.title}</span>
         {node.total > 0 && <span className="count">{node.total}</span>}
-        {tiene && <Arrow open={abierto} />}
+        <Arrow open={expandido} />
       </button>
+      {expandido && node.idea && (
+        <div className="fila-detalle">
+          <p className="fila-descripcion">{node.idea.description || "Sin descripción"}</p>
+          <span className="fila-estado">{node.idea.status}</span>
       {node.idea && onMover && (nodo === "cola" || nodo === "descartadas") && (
         <button
           type="button"
@@ -252,15 +254,15 @@ function NodeRow({
       )}
 
       {fallo && <span className="hint error fila-fallo">{fallo}</span>}
+        </div>
+      )}
 
-      {abierto && (
+      {expandido && tiene && (
         <div className="row-kids">
           {node.kids.map((kid) => (
             <NodeRow
               key={kid.key}
               node={kid}
-              cerrados={cerrados}
-              onToggle={onToggle}
               nodo={nodo}
               volando={volando}
               onMover={onMover}
@@ -339,8 +341,6 @@ export function NodeBox({
             <NodeRow
               key={kid.key}
               node={kid}
-              cerrados={cerrados}
-              onToggle={onToggle}
               nodo={node.tone ?? "ideas"}
               volando={volando}
               onMover={onMover}

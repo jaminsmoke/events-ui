@@ -33,6 +33,9 @@ Lo hecho se mueve a *Hecho* con su commit; lo que no va, va a *No se hace
   (púrpura) unen filas sin anidarlas, con pulso azul en ambos extremos al
   crearlos. **Editar completo** en la fila: `kind` y `tags` además de título
   y descripción.
+- **Fila solo-expandir**: la fila cerrada es solo título y contador; al
+  expandirla aparecen descripción, estado, botones e hijos. Nada de botones
+  junto al título.
 
 ## Ahora
 

@@ -205,8 +205,8 @@ header > div {
 /* Mover una idea al otro carril: fantasma, a la derecha de la fila. */
 .row {
   display: flex;
-  align-items: center;
-  gap: 4px;
+  flex-direction: column;
+  align-items: stretch;
 }
 
 .row .row-head {
@@ -248,6 +248,32 @@ header > div {
 
 .fila-fallo {
   padding: 0 9px 6px;
+}
+
+/* Panel de la fila expandida: descripción, estado y botones. La fila cerrada
+ * solo enseña la cabecera; nada de botones flotando junto al título. */
+.fila-detalle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  padding: 6px 9px 8px;
+  border-top: 1px dashed #1f2a3a;
+}
+
+.fila-descripcion {
+  flex: 1 1 100%;
+  margin: 0;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.fila-estado {
+  padding: 0 7px;
+  border: 1px solid #33465e;
+  border-radius: 99px;
+  color: var(--muted);
+  font-size: 10.5px;
 }
 
 .manual {

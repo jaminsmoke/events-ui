@@ -140,10 +140,19 @@ export function useCamara({
   }, [encuadrar]);
 
   /* Teclado: + y − acercan y alejan, 0 vuelve al 100% y F reencuadra. Nada de
-   * atajos sobre el input de ruta. */
+   * atajos sobre un campo de formulario (input, select o textarea): a "f" en
+   * el diálogo de descartar no le sigue un encuadre de regalo. */
   useEffect(() => {
     const teclas = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLSelectElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.ctrlKey ||
+        e.metaKey ||
+        e.altKey
+      )
+        return;
       if (e.key === "+" || e.key === "=") {
         e.preventDefault();
         zoom(ZOOM_PASO);

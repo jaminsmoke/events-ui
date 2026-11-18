@@ -13,8 +13,8 @@ import type { LaneId } from "./carriles";
  *  que pasar por la disyuntiva de carriles. `En cola` y `Descartadas` son nodos
  *  aparte, cada uno con su lista.
  *
- *  Es un **visor**: plegar y desplegar cambia lo que se ve, nunca el almacén.
- *  Aquí no se mueve, ni se crea, ni se borra nada; eso entra por la API.
+ *  Plegar y desplegar cambia solo lo que se ve; mover, crear, editar y
+ *  borrar ideas entra por la API, nunca tocando el árbol a mano.
  */
 
 /** Lo que se pinta: el cajón con todas las ideas y la disyuntiva de carriles. */

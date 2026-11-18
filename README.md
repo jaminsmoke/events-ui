@@ -13,7 +13,7 @@ y hace tail por cursor. No hay watcher de ficheros ni poller de git.
 ```
 apps/desktop      Envoltorio Tauri 2 (diálogo nativo) sobre la UI compartida
 apps/web          Envoltorio web (Vite, 5174) sobre la misma UI compartida
-packages/ui       UI compartida: visor del mapa, selector de repo y API, sin
+packages/ui       UI compartida: mapa de ideas, selector de repo y API, sin
                   envoltorio. Desktop inyecta el diálogo nativo; la web ofrece
                   la lista de `GET /repos` y pegar la ruta.
 services/core     FastAPI + SQLite WAL          (uv)
@@ -21,7 +21,7 @@ docs/             ADRs
 repoprobe/        laboratorio: material analizado y su .EUI
 ```
 
-Las dos apps montan `@events-ui/ui`: cambiar el visor se hace una sola vez.
+Las dos apps montan `@events-ui/ui`: cambiar el mapa se hace una sola vez.
 Lo que difiere es el envoltorio (Tauri frente a navegador) y el puerto.
 
 ## Requisitos
@@ -120,7 +120,7 @@ corepack pnpm core:dev           # Swagger en http://127.0.0.1:8765/docs
 | GET | `/connections?repo=<ruta>` (filtro `parent_uid`) |
 | POST | `/connections?repo=<ruta>` |
 | DELETE | `/connections/{id}?repo=<ruta>` |
-| GET | `/mapa?repo=<ruta>` — todas las ideas del visor y sus conexiones en una sola lectura |
+| GET | `/mapa?repo=<ruta>` — todas las ideas del mapa y sus conexiones en una sola lectura |
 | GET | `/revision?repo=<ruta>` — firma barata (`PRAGMA data_version` + conteos) para el refresco en vivo |
 
 `repo` es la ruta de la carpeta (la que devuelve el selector de la UI) o un nombre

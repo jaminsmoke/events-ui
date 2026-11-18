@@ -2,7 +2,7 @@
   "name": "@events-ui/ui",
   "private": true,
   "version": "0.0.0",
-  "description": "UI compartida de Events UI: el visor del mapa, sin envoltorio (ni Tauri ni web).",
+  "description": "UI compartida de Events UI: el mapa de ideas, sin envoltorio (ni Tauri ni web).",
   "type": "module",
   "exports": {
     ".": "./src/index.tsx",

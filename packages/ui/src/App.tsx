@@ -17,8 +17,8 @@ import { NuevaIdea } from "./pantalla/NuevaIdea";
 import { SelectorRepo } from "./pantalla/SelectorRepo";
 import { AvisoRecorte, Controles } from "./pantalla/Controles";
 
-/** El mapa: un visor. Se pliega, se encuadra y se mueve; el almacén solo se
- *  toca por la API del core.
+/** El mapa: se pliega, se encuadra y se mueve; el almacén se toca solo por
+ *  la API del core (crear, mover, editar, borrar y conectar ideas).
  *
  *  `elegirCarpeta` lo inyecta el envoltorio que tenga diálogo nativo (Tauri);
  *  la web no lo pasa y el selector ofrece lista de `/repos` y ruta manual. */

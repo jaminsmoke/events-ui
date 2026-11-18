@@ -23,14 +23,13 @@ Lo hecho se mueve a *Hecho* con su commit; lo que no va, va a *No se hace
 - **Commit** `25104f7` con todo lo anterior.
 - **Quitar conexión desde la UI** (`DELETE /connections/{id}` + botón
   «Desconectar» en la fila hija): la idea queda, solo deja de anidarse.
+- **Copy al día**: fuera «visor de solo lectura» de `App`, `arbol`, `api`,
+  `styles.css` y descripciones; el aviso de error ya no manda a `core:dev`
+  cuando en dev el core se levanta solo.
 
 ## Ahora
 
-1. **Copy que ya no cuadra** — textos que aún hablan de «visor de solo
-   lectura»: cabecera de `App.tsx`, aviso de error que manda a `core:dev`
-   cuando en dev el core ya se levanta solo, y README sin mención a
-   editar/borrar/conectar ni a los pulsos.
-2. **Pulso también en el cajón** — hoy solo pulsan los carriles; el cajón
+1. **Pulso también en el cajón** — hoy solo pulsan los carriles; el cajón
    «Ideas» también debería marcar entradas/salidas.
 
 ## Backlog

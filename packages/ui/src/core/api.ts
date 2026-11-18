@@ -9,14 +9,14 @@ type Schemas = components["schemas"];
  *  campo o un enum, aquí se ve en el siguiente `check`, no en producción.
  *
  *  La UI lee el mapa (`MapSnapshot`), así que su idea es `MapIdea` —los mismos
- *  campos que consume el visor: `uid`, `title`, `description`, `status`— y no
+ *  campos que consume la fila: `uid`, `title`, `description`, `status`— y no
  *  la `Idea` completa del CRUD. */
 export type Idea = Schemas["MapIdea"];
 
 /** Espejo de GET /connections: qué idea cuelga de cuál. */
 export type Connection = Schemas["Connection"];
 
-/** Espejo de GET /mapa: todas las ideas del visor y sus conexiones. */
+/** Espejo de GET /mapa: todas las ideas del mapa y sus conexiones. */
 export type Mapa = Schemas["MapSnapshot"];
 
 /** Espejo de GET /revision: firma del almacén para el refresco en vivo. */

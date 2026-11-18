@@ -5,7 +5,8 @@ export function AvisoError({ mensaje }: { mensaje: string }) {
       <h2>No se pudo leer el repo</h2>
       <p className="mono">{mensaje}</p>
       <p className="hint">
-        ¿Está el core en marcha? Arráncalo con <code>corepack pnpm core:dev</code>.
+        ¿Está el core en marcha? En dev lo levanta solo <code>pnpm dev</code> /{" "}
+        <code>pnpm dev:web</code>; suelto, <code>corepack pnpm core:dev</code>.
       </p>
     </section>
   );

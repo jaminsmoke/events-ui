@@ -274,7 +274,7 @@ header > div {
  *
  *  Compacto y plegable, como un nodo de Unreal: la cabecera es el nodo entero
  *  cuando está cerrado; al abrirse aparecen sus items como filas dentro.
- *  Puro visor: aquí no hay arrastre ni cajas editables.
+ *  Las filas se editan en línea y los nodos se arrastran para encuadrar.
  */
 
 /* El lienzo se queda con el alto que sobra y centra el esquema en la ventana,

@@ -833,9 +833,9 @@ header > div {
 /* ---------- cables ----------
  *
  *  Se miden del DOM porque los nodos crecen al desplegarse. Cada cable une
- *  una etapa con la siguiente de la línea; el de descartadas baja por el lateral
- *  desde En cola. El carril en cola entra con línea discontinua que fluye;
- *  el de descartadas, maciza y apagada.
+ *  una etapa con la siguiente de la línea; Descartadas no cuelga de un nodo:
+ *  su rama sale de un nudo en medio del cable Entrada↔En cola. El carril en
+ *  cola entra con línea discontinua que fluye; el de descartadas, macizo y apagado.
  */
 
 .cables {
@@ -929,6 +929,14 @@ header > div {
 
 /* Chispa que recorre el cable: la animación dura más que el cambio en el
  * almacén, que es instantáneo, y así se ve llegar el elemento al carril. */
+/* Nudo del cable Entrada↔En cola: de ahí sale la rama de Descartadas, porque
+ * una idea se descarta tanto antes como después de entrar en la cola. */
+.nudo {
+  fill: #0d1117;
+  stroke: #7d8590;
+  stroke-width: 1.4;
+}
+
 .spark {
   fill: #9ecbff;
   filter: drop-shadow(0 0 6px #58a6ff);

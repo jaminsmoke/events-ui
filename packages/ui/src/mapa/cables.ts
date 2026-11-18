@@ -42,6 +42,8 @@ export function useCables({
   const [cables, setCables] = useState<Cable[]>([]);
   const [trazosEnlace, setTrazosEnlace] = useState<Enlace[]>([]);
   const [recortado, setRecortado] = useState(false);
+  // Punto medio del cable Entrada↔En cola, donde nace la rama de Descartadas.
+  const [nudo, setNudo] = useState<{ x: number; y: number } | null>(null);
 
   useLayoutEffect(() => {
     const map = mapRef.current;
@@ -74,21 +76,15 @@ export function useCables({
         lane: LaneId,
         desde: ReturnType<typeof rectLocal>,
         hasta: ReturnType<typeof rectLocal>,
-        vertical = false,
       ): Cable => {
         const y1 = desde.y + desde.h / 2;
         const y2 = hasta.y + hasta.h / 2;
-        if (vertical) {
-          // El canto izquierdo de las dos cabeceras deja libre el cuerpo de la cola.
-          const x1 = desde.x - 1;
-          return { lane, x1, y1, d: `M ${x1} ${y1} V ${y2}` };
-        }
         const x1 = desde.x + desde.w;
         return { lane, x1, y1, d: `M ${x1} ${y1} L ${hasta.x} ${y2}` };
       };
 
-      // La línea de producción, etapa a etapa. Descartadas es la salida
-      // lateral desde En cola, no una etapa más de la línea.
+      // La línea de producción, etapa a etapa. Descartadas no es una etapa:
+      // su rama nace de un nudo en medio del cable Entrada↔En cola.
       const trazos: Cable[] = [];
       const secuencia: [LaneId | "root", LaneId][] = [
         ["root", "cola"],
@@ -103,7 +99,28 @@ export function useCables({
       }
       const cola = cajas.get("cola");
       const descartadas = cajas.get("descartadas");
-      if (cola && descartadas) trazos.push(trazar("descartadas", cola, descartadas, true));
+      /* Una idea se descarta lo mismo desde la entrada que desde la cola: el
+       * cable Entrada↔En cola va en los dos sentidos, así que la rama no sale
+       * del canto de un nodo sino de un nudo en su punto medio. */
+      const entrada = cajas.get("root");
+      const medio =
+        entrada && cola
+          ? {
+              x: (entrada.x + entrada.w + cola.x) / 2,
+              y: (entrada.y + entrada.h / 2 + cola.y + cola.h / 2) / 2,
+            }
+          : null;
+      if (medio && descartadas) {
+        const y2 = descartadas.y + descartadas.h / 2;
+        const x2 = descartadas.x - 1;
+        trazos.push({
+          lane: "descartadas",
+          x1: medio.x,
+          y1: medio.y,
+          d: `M ${medio.x} ${medio.y} V ${y2 - 8} Q ${medio.x} ${y2} ${medio.x + 8} ${y2} H ${x2}`,
+        });
+      }
+      setNudo(medio);
       setCables(trazos);
 
       // Enlaces laterales: de la fila del padre a la del hijo, donde estén
@@ -172,5 +189,5 @@ export function useCables({
     };
   }, [tree, cerrados, vista, boardRef, mapRef, cajonRef, carrilRefs, enlaces]);
 
-  return { cables, recortado, enlaces: trazosEnlace };
+  return { cables, nudo, recortado, enlaces: trazosEnlace };
 }

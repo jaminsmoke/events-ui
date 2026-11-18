@@ -184,7 +184,7 @@ export default function App({
         })),
     [links],
   );
-  const { cables, recortado, enlaces: trazosEnlace } = useCables({
+  const { cables, nudo, recortado, enlaces: trazosEnlace } = useCables({
     tree,
     cerrados,
     vista,
@@ -387,6 +387,7 @@ export default function App({
                   {cables[0] && (
                     <circle className="junction" cx={cables[0].x1} cy={cables[0].y1} r={4} />
                   )}
+                  {nudo && <circle className="nudo" cx={nudo.x} cy={nudo.y} r={3.4} />}
                   {trazosEnlace.map((t) => (
                     <path key={t.id} d={t.d} className={`enlace ${t.kind}`} />
                   ))}

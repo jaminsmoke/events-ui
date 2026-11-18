@@ -21,8 +21,8 @@ import { NuevaIdea } from "./pantalla/NuevaIdea";
 import { SelectorRepo } from "./pantalla/SelectorRepo";
 import { AvisoRecorte, Controles } from "./pantalla/Controles";
 import { EditorIdea } from "./pantalla/EditorIdea";
+import { PanelLog } from "./pantalla/PanelLog";
 import { Pruebas } from "./pantalla/Pruebas";
-import { Registro } from "./pantalla/Registro";
 
 /* *  El mapa: se pliega, se encuadra y se mueve; el almacén se toca solo por
  *  la API del core (crear, mover, editar y borrar ideas). Las conexiones
@@ -52,7 +52,6 @@ export default function App({
   const [ajustes, setAjustes] = useState<Ajustes>(cargarAjustes);
   const [ajustesAbiertos, setAjustesAbiertos] = useState(false);
   const [pruebasAbiertas, setPruebasAbiertas] = useState(false);
-  const [registroAbierto, setRegistroAbierto] = useState(false);
   // El editor de la fila vive aquí, no dentro de la fila: la fila le monta
   // un `createPortal` a body y con el ratón sus clics no llegaban (Guardar/
   // Cancelar morían). En la raíz, como Registro/Pruebas, todo funciona.
@@ -61,9 +60,9 @@ export default function App({
     titulo: string;
     descripcion: string;
   } | null>(null);
-  // Panel inferior (al estilo VS Code): la statusbar es una barra compacta
-  // de entradas; cada entrada alterna su flyout por encima.
-  const [panel, setPanel] = useState<null | "actividad">(null);
+  // Flyout del log (al estilo VS Code): la statusbar es una barra compacta
+  // de entradas; cada entrada alterna su pestaña del flyout por encima.
+  const [panel, setPanel] = useState<null | "actividad" | "registro">(null);
 
   // Escape cierra el panel (no es modal: no captura, no atrapa el foco).
   useEffect(() => {
@@ -242,9 +241,6 @@ export default function App({
             Ajustes
           </button>
         )}
-        <button className="btn ghost" onClick={() => setRegistroAbierto(true)}>
-          Registro
-        </button>
         {repo && puedeProbar && (
           <button className="btn ghost" onClick={() => setPruebasAbiertas(true)}>
             Pruebas
@@ -282,8 +278,6 @@ export default function App({
           <NuevaIdea onCrear={crear} onCerrar={() => setNuevaAbierta(false)} />
         </section>
       )}
-
-      {registroAbierto && <Registro onCerrar={() => setRegistroAbierto(false)} />}
 
       {editando && (
         <EditorIdea
@@ -417,33 +411,14 @@ export default function App({
       <footer className="statusbar">
         {/* Flyout: no empuja el viewport. Sale por encima, anclado a su
             entrada (derecha, sobre la statusbar) y del ancho de su menú. */}
-        {panel === "actividad" && (
-          <section className="panel" aria-label="Panel: Actividad">
-            <div className="panel-cabecera">
-              <span className="panel-titulo">Actividad</span>
-              <button
-                type="button"
-                className="btn ghost"
-                onClick={() => setPanel(null)}
-                aria-label="Cerrar panel de actividad"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="panel-cuerpo">
-              {eventos.length === 0 ? (
-                <p className="hint">Sin eventos todavía. El log se lee, no se escribe.</p>
-              ) : (
-                <ul className="eventos-lista">
-                  {eventos.map((e) => (
-                    <li key={e.id}>
-                      <strong>#{e.id}</strong> {resumenEvento(e)}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </section>
+        {panel && (
+          <PanelLog
+            tab={panel}
+            onTab={setPanel}
+            onClose={() => setPanel(null)}
+            eventos={eventos}
+            conectado={conectado}
+          />
         )}
 
         {proyeccion && (
@@ -467,6 +442,15 @@ export default function App({
             ))}
           </div>
         )}
+
+        <button
+          type="button"
+          className={`status-item${panel === "registro" ? " activo" : ""}`}
+          aria-expanded={panel === "registro"}
+          onClick={() => setPanel((p) => (p === "registro" ? null : "registro"))}
+        >
+          Registro
+        </button>
 
         <button
           type="button"

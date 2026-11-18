@@ -143,6 +143,8 @@ class Evento(BaseModel):
     payload: dict | str
     # De dónde viene (0010): `idea`, `externo` o la tabla futura que lo sea.
     origen: str = "externo"
+    # Derivado del tipo (o del `payload.nivel`): colorear igual que el registro.
+    nivel: Literal["info", "aviso", "error"] = "info"
     dedupe_key: str | None = None
 
 
@@ -337,6 +339,7 @@ def post_reiniciar(repo: RepoParam) -> dict[str, Any]:
         f"Reinicio de laboratorio en {repo}: {resultado['ideas_eliminadas']} ideas, "
         f"{resultado['conexiones_eliminadas']} conexiones, "
         f"{resultado['eventos_eliminados']} eventos",
+        origen="reiniciar",
     )
     return resultado
 
@@ -420,6 +423,7 @@ def post_compactar(
         "info",
         f"Compactación del log de {repo}: {resultado['eliminados_por_edad']} por edad, "
         f"{resultado['eliminados_por_conteo']} por conteo",
+        origen="compactar",
     )
     return resultado
 
@@ -431,9 +435,11 @@ def post_compactar(
 def get_log(
     limite: Annotated[int, Query(ge=1, le=1000)] = 200,
     nivel: Literal["info", "aviso", "error"] | None = None,
+    origen: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Las últimas entradas del registro de la app (la más nueva primero)."""
-    return registro.listar(limite, nivel)
+    """Las últimas entradas del registro de la app (la más nueva primero),
+    opcionalmente por nivel y por etiqueta (`origen`: `core`, `seed`, …)."""
+    return registro.listar(limite, nivel, origen)
 
 
 @app.post("/log/purgar", response_model=RegistroPurgado, tags=["log"])

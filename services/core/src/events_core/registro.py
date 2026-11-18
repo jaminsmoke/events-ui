@@ -115,15 +115,21 @@ def purgar(dias: int = DIAS_RETENCION, max_entradas: int = MAX_ENTRADAS) -> dict
     }
 
 
-def listar(limite: int = 200, nivel: str | None = None) -> list[dict[str, Any]]:
-    """Las últimas entradas (la más nueva primero), opcionalmente por nivel."""
+def listar(
+    limite: int = 200,
+    nivel: str | None = None,
+    origen: str | None = None,
+) -> list[dict[str, Any]]:
+    """Las últimas entradas (la más nueva primero), opcionalmente por nivel y
+    por etiqueta (`origen`: `core`, `seed`, `reiniciar`, `compactar`…)."""
     try:
         with closing(conectar()) as conn:
             filas = conn.execute(
                 "SELECT id, ts, nivel, origen, mensaje FROM registro"
                 " WHERE (:nivel IS NULL OR nivel = :nivel)"
+                " AND (:origen IS NULL OR origen = :origen)"
                 " ORDER BY id DESC LIMIT :limite",
-                {"nivel": nivel, "limite": limite},
+                {"nivel": nivel, "origen": origen, "limite": limite},
             ).fetchall()
     except sqlite3.Error:
         return []

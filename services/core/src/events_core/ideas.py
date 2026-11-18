@@ -143,7 +143,7 @@ def init_repo(repo: str) -> Path:
         aplicar_esquema(conn)
         conn.commit()
 
-    registro.escribir("info", f"Almacén sembrado en {directory}")
+    registro.escribir("info", f"Almacén sembrado en {directory}", origen="seed")
     _ignorar_auxiliares(db_file)
     return db_file
 

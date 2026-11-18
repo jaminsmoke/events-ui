@@ -233,7 +233,8 @@ export interface paths {
         };
         /**
          * Get Log
-         * @description Las últimas entradas del registro de la app (la más nueva primero).
+         * @description Las últimas entradas del registro de la app (la más nueva primero),
+         *     opcionalmente por nivel y por etiqueta (`origen`: `core`, `seed`, …).
          */
         get: operations["get_log_log_get"];
         put?: never;
@@ -361,6 +362,12 @@ export interface components {
              * @default externo
              */
             origen: string;
+            /**
+             * Nivel
+             * @default info
+             * @enum {string}
+             */
+            nivel: "info" | "aviso" | "error";
             /** Dedupe Key */
             dedupe_key?: string | null;
         };
@@ -1307,6 +1314,7 @@ export interface operations {
             query?: {
                 limite?: number;
                 nivel?: ("info" | "aviso" | "error") | null;
+                origen?: string | null;
             };
             header?: never;
             path?: never;

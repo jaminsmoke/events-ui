@@ -30,6 +30,14 @@ from .ideas import connect, ensure_repo
 # Conteo por página del tail: bastante para el backfill sin traer el log entero.
 LIMITE_POR_DEFECTO = 200
 
+# Nivel del evento por tipo, para colorear el log igual que el registro
+# (`nivel` ya viene en `EntradaLog`). El `payload` puede imponerlo (nivel
+# explícito manda); sin él, todos los tipos son `info` menos este aviso.
+NIVELES_POR_TIPO = {
+    "idea.deleted": "aviso",
+}
+NIVELES = ("info", "aviso", "error")
+
 # La retención pactada (ADR 0001, enmienda F1-retenidos): como máximo estos
 # días de antigüedad y como máximo este número de eventos por repo. Los dos
 # topes se aplican a la vez; el más restrictivo manda.
@@ -37,6 +45,16 @@ DIAS_RETENCION = 90
 MAX_EVENTOS_RETENCION = 5_000
 # A partir de cuántas filas borradas vale la pena recompactar el fichero.
 FILAS_PARA_VACUUM = 1_000
+
+
+def _nivel(evento: dict[str, Any]) -> str:
+    """El nivel del evento: el que diga el payload o el del tipo."""
+    payload = evento.get("payload")
+    if isinstance(payload, dict):
+        declarado = payload.get("nivel")
+        if declarado in NIVELES:
+            return str(declarado)
+    return NIVELES_POR_TIPO.get(str(evento.get("type", "")), "info")
 
 
 def _parse(row: sqlite3.Row) -> dict[str, Any]:
@@ -48,6 +66,7 @@ def _parse(row: sqlite3.Row) -> dict[str, Any]:
         except json.JSONDecodeError:
             # Payload roto en origen: se deja el texto, no se pierde el evento.
             evento["payload"] = payload
+    evento["nivel"] = _nivel(evento)
     return evento
 
 

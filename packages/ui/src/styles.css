@@ -465,6 +465,78 @@ header > div {
   border-color: var(--accent);
 }
 
+/* Tabs y chips del flyout de log: activar filtra, no pulsa. */
+.panel-pestanas {
+  display: flex;
+  gap: 4px;
+}
+
+.panel-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.chip-titulo {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-right: 2px;
+}
+
+.chip {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.chip:hover {
+  border-color: var(--accent);
+}
+
+.chip.activo {
+  background: #1f6feb;
+  border-color: #1f6feb;
+  color: #fff;
+}
+
+.panel-acciones {
+  display: inline-flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+/* El punto de color por nivel, igual en las dos pestañas. */
+.punto {
+  display: inline-block;
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: 1px;
+}
+
+.punto.info {
+  background: var(--accent);
+}
+
+.punto.aviso {
+  background: var(--warn);
+}
+
+.punto.error {
+  background: var(--bad);
+}
+
 /* Diálogo de pruebas: los pasos con su marca de hecho. */
 .prueba-pasos {
   margin: 12px 0;

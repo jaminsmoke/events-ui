@@ -1,8 +1,10 @@
--- Conexiones del mapa: qué idea cuelga de cuál.
+-- Conexiones del mapa: qué idea cuelga de cuál y de qué tipo.
 --
--- No es una columna `parent_uid` dentro de `ideas` porque una idea puede colgar
--- de dos sitios (dos roadmaps) y porque mover de rama debe ser cambiar una línea,
--- no reescribir la idea. `kind` deja sitio a enlaces laterales sin tocar nada.
+-- Son arquitectura, no edición manual (ADR 0002): ni la UI ni la API las crean
+-- o las borran; solo se leen. No es una columna `parent_uid` dentro de `ideas`
+-- porque una idea puede colgar de dos sitios (dos roadmaps). `kind` dice cómo
+-- se pinta el enlace: `child` anida en el árbol, `related`/`supersedes` son
+-- enlaces laterales. Las escribe el tooling con SQL.
 
 CREATE TABLE IF NOT EXISTS connections (
     id          INTEGER PRIMARY KEY,
@@ -27,10 +29,9 @@ CREATE TABLE IF NOT EXISTS connections (
     CHECK (parent_uid <> child_uid)
 );
 
--- Dos índices, uno por cada sentido de lectura: el chequeo de ciclos de
--- `create_connection` sube por el árbol buscando por `child_uid`, y el panel
--- del carril y el mapa leen por `parent_uid`. Un almacén nuevo nace con los
--- dos; uno viejo los recibe de `migraciones/0008` (que además iguala el
--- `CHECK parent_uid <> child_uid`, que la reconstrucción de la 0006 olvidó).
+-- Dos índices, uno por cada sentido de lectura por `child_uid` y por
+-- `parent_uid`. Un almacén nuevo nace con los dos; uno viejo los recibe de
+-- `migraciones/0008` (que además iguala el `CHECK parent_uid <> child_uid`,
+-- que la reconstrucción de la 0006 olvidó).
 CREATE INDEX IF NOT EXISTS idx_connections_child_uid ON connections (child_uid);
 CREATE INDEX IF NOT EXISTS idx_connections_parent ON connections (parent_uid);

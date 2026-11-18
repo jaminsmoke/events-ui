@@ -113,33 +113,8 @@ export function useRepo(repo: string | null) {
     [repo],
   );
 
-  // Cuelga `child` de `parent` (`kind: "child"`): el core rechaza ciclos y
-  // duplicados con 400, que `unwrap` convierte en el `detail` del core.
-  const conectar = useCallback(
-    async (parentUid: string, childUid: string) => {
-      if (!repo) return;
-      await unwrap(
-        api.POST("/connections", {
-          params: { query: { repo } },
-          body: { parent_uid: parentUid, child_uid: childUid, kind: "child" },
-        }),
-      );
-    },
-    [repo],
-  );
-
-  // Quita la conexión por su `id`: la idea queda, solo deja de anidarse.
-  const desconectar = useCallback(
-    async (id: number) => {
-      if (!repo) return;
-      await unwrap(
-        api.DELETE("/connections/{connection_id}", {
-          params: { path: { connection_id: id }, query: { repo } },
-        }),
-      );
-    },
-    [repo],
-  );
+  // Las conexiones son de la arquitectura (ADR 0002): inmutables desde la
+  // UI y la API. Solo se leen, dentro del mapa.
 
   // F2: la proyección del repo (identidad + conteos), refrescada con el mapa.
   // Se resetea al cambiar de repo verificando el repo en el render.
@@ -189,8 +164,6 @@ export function useRepo(repo: string | null) {
     mover,
     editar,
     borrar,
-    conectar,
-    desconectar,
     cargarIdea,
   };
 }

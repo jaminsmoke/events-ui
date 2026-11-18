@@ -86,14 +86,17 @@ class Idea(IdeaCreate):
     superseded_by_uid: str | None = None
 
 
-class ConnectionCreate(BaseModel):
-    parent_uid: str = Field(min_length=1)
-    child_uid: str = Field(min_length=1)
-    kind: Literal["child", "related", "supersedes"] = "child"
+class Connection(BaseModel):
+    """Un enlace entre dos ideas, tal como lo define la arquitectura.
 
+    Las conexiones son inmutables (ADR 0002): no hay POST ni DELETE —ni la UI
+    ni la API las crean o las borran—. Solo se leen (`GET /connections`).
+    """
 
-class Connection(ConnectionCreate):
     id: int
+    parent_uid: str
+    child_uid: str
+    kind: Literal["child", "related", "supersedes"]
     created_at: str
 
 
@@ -294,31 +297,6 @@ def get_connections(
     ] = None,
 ) -> list[dict[str, Any]]:
     return ideas.list_connections(repo, parent_uid=parent_uid)
-
-
-@app.post(
-    "/connections",
-    response_model=Connection,
-    status_code=201,
-    tags=["connections"],
-    responses=RESPUESTAS_ERROR,
-)
-def post_connection(body: ConnectionCreate, repo: RepoParam) -> dict[str, Any]:
-    return ideas.create_connection(repo, **body.model_dump())
-
-
-@app.delete(
-    "/connections/{connection_id}",
-    status_code=204,
-    tags=["connections"],
-    responses={
-        **RESPUESTAS_ERROR,
-        404: {"model": ErrorDetail, "description": "No existe la conexión"},
-    },
-)
-def remove_connection(connection_id: int, repo: RepoParam) -> None:
-    if not ideas.delete_connection(repo, connection_id):
-        raise KeyError(connection_id)
 
 
 @app.get("/mapa", response_model=MapSnapshot, tags=["connections"], responses=RESPUESTAS_ERROR)

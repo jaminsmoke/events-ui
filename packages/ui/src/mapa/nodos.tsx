@@ -2,7 +2,7 @@ import { useLayoutEffect, useState } from "react";
 import type { Ref } from "react";
 import { createPortal } from "react-dom";
 
-import type { Idea, IdeaUpdate } from "../core/api";
+import type { IdeaUpdate } from "../core/api";
 import { DescartaIdea } from "../pantalla/DescartaIdea";
 import { EditorIdea } from "../pantalla/EditorIdea";
 import type { TreeNode } from "./arbol";
@@ -34,9 +34,10 @@ function fechaCorta(iso: string): string {
 
 /** Una fila del nodo: solo título, contador y su botón de expandir.
  *  Al expandirla aparece un panel con los detalles (descripción, estado) y
- *  los botones de la idea —mover, completar, editar, borrar y, en el cajón
- *  (`root`), conectar como padre—, más sus hijos, si los tiene. Los botones
- *  nunca se ven en la fila cerrada. */
+ *  los botones de la idea —mover, completar, editar, borrar—, más sus hijos,
+ *  si los tiene. Las conexiones no se gestionan aquí: son de la arquitectura
+ *  (ADR 0002), inmutables, y la fila solo las pinta. Los botones nunca se ven
+ *  en la fila cerrada. */
 function NodeRow({
   node,
   nodo,
@@ -45,10 +46,7 @@ function NodeRow({
   onCompletar,
   onEditar,
   onBorrar,
-  onConectar,
-  onDesconectar,
   onCargarIdea,
-  ideas,
   enlacesNuevos = [],
 }: {
   node: TreeNode;
@@ -58,9 +56,7 @@ function NodeRow({
   onCompletar?: (uid: string) => void;
   onEditar?: (uid: string, cambios: IdeaUpdate) => Promise<void>;
   onBorrar?: (uid: string) => Promise<void>;
-  onConectar?: (parentUid: string, childUid: string) => Promise<void>;
-  onDesconectar?: (id: number) => Promise<void>;    onCargarIdea?: (uid: string) => Promise<{ kind?: string; tags?: string[] | null } | null>;
-  ideas?: Idea[];
+  onCargarIdea?: (uid: string) => Promise<{ kind?: string; tags?: string[] | null } | null>;
   enlacesNuevos?: { parentUid: string; childUid: string }[];
 }) {
   const tiene = node.kids.length > 0;
@@ -71,8 +67,6 @@ function NodeRow({
   const [editando, setEditando] = useState(false);
   const [descartando, setDescartando] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
-  const [conectando, setConectando] = useState(false);
-  const [hijo, setHijo] = useState("");
   const [fallo, setFallo] = useState<string | null>(null);
   const [trabajando, setTrabajando] = useState(false);
 
@@ -147,21 +141,6 @@ function NodeRow({
           Borrar
         </button>
       )}
-      {node.idea && onConectar && nodo === "root" && (
-        <button type="button" className="btn ghost mover" onClick={() => setConectando((v) => !v)}>
-          Conectar
-        </button>
-      )}
-      {node.idea && node.linkId !== undefined && onDesconectar && (
-        <button
-          type="button"
-          className="btn ghost mover"
-          title="Quitar esta idea de su padre (la idea queda)"
-          onClick={() => hacer(() => onDesconectar(node.linkId!))}
-        >
-          Desconectar
-        </button>
-      )}
 
       {node.idea && descartando && onEditar &&
         createPortal(
@@ -206,36 +185,6 @@ function NodeRow({
         </span>
       )}
 
-      {node.idea && conectando && onConectar && (
-        <form
-          className="fila-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!hijo) return;
-            hacer(() => onConectar(uid!, hijo), () => setConectando(false));
-          }}
-        >
-          <select value={hijo} onChange={(e) => setHijo(e.target.value)} aria-label="Idea hija">
-            <option value="">Elige la idea hija…</option>
-            {(ideas ?? [])
-              .filter((i) => i.uid !== uid)
-              .map((i) => (
-                <option key={i.uid} value={i.uid}>
-                  {i.title}
-                </option>
-              ))}
-          </select>
-          <span className="fila-acciones">
-            <button className="btn ghost mover" type="submit" disabled={trabajando || !hijo}>
-              Conectar
-            </button>
-            <button className="btn ghost mover" type="button" onClick={() => setConectando(false)}>
-              Cancelar
-            </button>
-          </span>
-        </form>
-      )}
-
       {fallo && <span className="hint error fila-fallo">{fallo}</span>}
         </div>
       )}
@@ -252,10 +201,7 @@ function NodeRow({
               onCompletar={onCompletar}
               onEditar={onEditar}
               onBorrar={onBorrar}
-              onConectar={onConectar}
-              onDesconectar={onDesconectar}
               onCargarIdea={onCargarIdea}
-              ideas={ideas}
               enlacesNuevos={enlacesNuevos}
             />
           ))}
@@ -277,10 +223,7 @@ export function NodeBox({
   onCompletar,
   onEditar,
   onBorrar,
-  onConectar,
-  onDesconectar,
   onCargarIdea,
-  ideas,
   enlacesNuevos = [],
 }: {
   node: TreeNode;
@@ -293,9 +236,7 @@ export function NodeBox({
   onCompletar?: (uid: string) => void;
   onEditar?: (uid: string, cambios: IdeaUpdate) => Promise<void>;
   onBorrar?: (uid: string) => Promise<void>;
-  onConectar?: (parentUid: string, childUid: string) => Promise<void>;
-  onDesconectar?: (id: number) => Promise<void>;    onCargarIdea?: (uid: string) => Promise<{ kind?: string; tags?: string[] | null } | null>;
-  ideas?: Idea[];
+  onCargarIdea?: (uid: string) => Promise<{ kind?: string; tags?: string[] | null } | null>;
   enlacesNuevos?: { parentUid: string; childUid: string }[];
 }) {
   const tiene = node.kids.length > 0;
@@ -329,10 +270,7 @@ export function NodeBox({
               onCompletar={onCompletar}
               onEditar={onEditar}
               onBorrar={onBorrar}
-              onConectar={onConectar}
-              onDesconectar={onDesconectar}
               onCargarIdea={onCargarIdea}
-              ideas={ideas}
               enlacesNuevos={enlacesNuevos}
             />
           ))}

@@ -92,26 +92,8 @@ export interface paths {
         /** Get Connections */
         get: operations["get_connections_connections_get"];
         put?: never;
-        /** Post Connection */
-        post: operations["post_connection_connections_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/connections/{connection_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
         post?: never;
-        /** Remove Connection */
-        delete: operations["remove_connection_connections__connection_id__delete"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -244,35 +226,27 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** Connection */
+        /**
+         * Connection
+         * @description Un enlace entre dos ideas, tal como lo define la arquitectura.
+         *
+         *     Las conexiones son inmutables (ADR 0002): no hay POST ni DELETE —ni la UI
+         *     ni la API las crean o las borran—. Solo se leen (`GET /connections`).
+         */
         Connection: {
-            /** Parent Uid */
-            parent_uid: string;
-            /** Child Uid */
-            child_uid: string;
-            /**
-             * Kind
-             * @default child
-             * @enum {string}
-             */
-            kind: "child" | "related" | "supersedes";
             /** Id */
             id: number;
-            /** Created At */
-            created_at: string;
-        };
-        /** ConnectionCreate */
-        ConnectionCreate: {
             /** Parent Uid */
             parent_uid: string;
             /** Child Uid */
             child_uid: string;
             /**
              * Kind
-             * @default child
              * @enum {string}
              */
             kind: "child" | "related" | "supersedes";
+            /** Created At */
+            created_at: string;
         };
         /**
          * ErrorDetail
@@ -890,110 +864,6 @@ export interface operations {
                 };
             };
             /** @description No existe el repo o la idea */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorDetail"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    post_connection_connections_post: {
-        parameters: {
-            query: {
-                /** @description Carpeta del repo: ruta absoluta o nombre en el lab */
-                repo: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ConnectionCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Connection"];
-                };
-            };
-            /** @description Petición inválida */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorDetail"];
-                };
-            };
-            /** @description No existe el repo o la idea */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorDetail"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    remove_connection_connections__connection_id__delete: {
-        parameters: {
-            query: {
-                /** @description Carpeta del repo: ruta absoluta o nombre en el lab */
-                repo: string;
-            };
-            header?: never;
-            path: {
-                connection_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Petición inválida */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorDetail"];
-                };
-            };
-            /** @description No existe la conexión */
             404: {
                 headers: {
                     [name: string]: unknown;

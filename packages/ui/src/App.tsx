@@ -21,8 +21,9 @@ import { NuevaIdea } from "./pantalla/NuevaIdea";
 import { SelectorRepo } from "./pantalla/SelectorRepo";
 import { AvisoRecorte, Controles } from "./pantalla/Controles";
 
-/** El mapa: se pliega, se encuadra y se mueve; el almacén se toca solo por
- *  la API del core (crear, mover, editar, borrar y conectar ideas).
+/* *  El mapa: se pliega, se encuadra y se mueve; el almacén se toca solo por
+ *  la API del core (crear, mover, editar y borrar ideas). Las conexiones
+ *  son de la arquitectura: la UI las pinta, no las gestiona (ADR 0002).
  *
  *  `elegirCarpeta` lo inyecta el envoltorio que tenga diálogo nativo (Tauri);
  *  la web no lo pasa y el selector ofrece lista de `/repos` y ruta manual.
@@ -53,8 +54,6 @@ export default function App({
     mover,
     editar,
     borrar,
-    conectar,
-    desconectar,
     cargarIdea,
   } = useRepo(repo);
   const tree = useMemo(
@@ -359,10 +358,7 @@ export default function App({
                 onCompletar={alCompletar}
                 onEditar={editar}
                 onBorrar={borrar}
-                onConectar={conectar}
-                onDesconectar={desconectar}
                 onCargarIdea={cargarIdea}
-                ideas={ideas ?? []}
                 enlacesNuevos={enlacesNuevos}
               />
 
@@ -382,7 +378,6 @@ export default function App({
                     onCompletar={alCompletar}
                     onEditar={editar}
                     onBorrar={borrar}
-                    onDesconectar={desconectar}
                     onCargarIdea={cargarIdea}
                     enlacesNuevos={enlacesNuevos}
                   />

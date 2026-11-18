@@ -219,26 +219,7 @@ header > div {
   padding: 2px 8px;
 }
 
-/* Formulario en línea dentro de la fila (editar / conectar). */
-.fila-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 6px 9px;
-}
-
-.fila-form input,
-.fila-form select {
-  flex: 1;
-  min-width: 120px;
-  background: #0b0e13;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  color: var(--fg);
-  font-size: 12px;
-  padding: 4px 8px;
-}
-
+/* Acciones dentro de la fila expandida (confirmación de borrado). */
 .fila-acciones {
   display: inline-flex;
   align-items: center;

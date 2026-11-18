@@ -653,19 +653,6 @@ def _list_connections(
     return [dict(row) for row in rows]
 
 
-def delete_connection(repo: str, connection_id: int) -> bool:
-    """Quita una conexión por su `id` (el que devuelve el POST).
-
-    No borra ideas: descolgar una hija no la borra, solo deja de anidarse.
-    El id viaja en la ruta (`/connections/{id}`), igual que el `uid` en
-    `/ideas/{uid}`, porque dos ideas pueden estar unidas de varios modos.
-    """
-    with closing(connect(ensure_repo(repo))) as conn:
-        cursor = conn.execute("DELETE FROM connections WHERE id = ?", (connection_id,))
-        conn.commit()
-    return cursor.rowcount > 0
-
-
 def map_snapshot(repo: str) -> dict[str, Any]:
     """Lee el mapa entero en una sola transacción de lectura."""
     with closing(open_read_only(ensure_repo(repo))) as conn:
@@ -687,44 +674,6 @@ def map_snapshot(repo: str) -> dict[str, Any]:
             for row in rows
         ]
         return {"ideas": ideas, "connections": _list_connections(conn)}
-
-
-def create_connection(
-    repo: str,
-    *,
-    parent_uid: str,
-    child_uid: str,
-    kind: str = "child",
-) -> dict[str, Any]:
-    """Cuelga una idea de otra.
-
-    La FK avisa si alguna de las dos no existe y el `UNIQUE` si ya estaban
-    unidas. Antes de insertar se comprueba el ciclo: `A -> B -> A` colgaría el
-    mapa para siempre en cuanto se recorra.
-    """
-    if parent_uid == child_uid:
-        raise InvalidInput("una idea no se conecta consigo misma")
-
-    with closing(connect(ensure_repo(repo))) as conn:
-        # Cierra ciclo si el hijo ya está por encima del padre: al colgar
-        # `parent -> child`, el hijo se convertiría en su propio antepasado.
-        if _alcanza(conn, objetivo=child_uid, desde=parent_uid):
-            raise InvalidInput("esa conexión crearía un ciclo")
-        try:
-            cursor = conn.execute(
-                "INSERT INTO connections (parent_uid, child_uid, kind, created_at)"
-                " VALUES (?, ?, ?, ?)",
-                (parent_uid, child_uid, kind, now_iso()),
-            )
-            conn.commit()
-        except sqlite3.IntegrityError as exc:
-            # La FK dice que una de las dos ideas no está; el resto (duplicado
-            # y `UNIQUE`) se deja como lo dice SQLite.
-            if "FOREIGN KEY" in str(exc):
-                raise InvalidInput("una de las dos ideas no existe") from exc
-            raise InvalidInput(str(exc)) from exc
-        row = conn.execute("SELECT * FROM connections WHERE id = ?", (cursor.lastrowid,)).fetchone()
-    return dict(row)
 
 
 # Una conexión de solo lectura por almacén, no una por petición: `PRAGMA
@@ -781,19 +730,6 @@ def revision(repo: str) -> dict[str, Any]:
         }
 
 
-def _alcanza(conn: sqlite3.Connection, objetivo: str, desde: str) -> bool:
-    """¿`objetivo` está por encima de `desde`? Entonces la arista cierra un ciclo."""
-    vistos: set[str] = set()
-    pila = [desde]
-    while pila:
-        actual = pila.pop()
-        if actual in vistos:
-            continue
-        vistos.add(actual)
-        for (padre,) in conn.execute(
-            "SELECT parent_uid FROM connections WHERE child_uid = ?", (actual,)
-        ):
-            if padre == objetivo:
-                return True
-            pila.append(padre)
-    return False
+# Las conexiones se leen (`list_connections`) pero no se escriben por aquí:
+# son arquitectura, inmutables desde la API (ADR 0002). Las escribe el
+# tooling con SQL directo.

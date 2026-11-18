@@ -145,6 +145,22 @@ divergido. Lo que había, con el síntoma:
   (el upsert solo entraba al cambiar de carril); ahora también entra cuando
   vienen campos de rechazo.
 
+## Enmienda — las conexiones son arquitectura, no edición manual
+
+Las conexiones no se hacen a mano: ni la UI ni la API las crean o las borran.
+Definen caminos y protocolos entre nodos —son parte de la arquitectura— y se
+escriben con SQL/tooling, fuera del producto. La tabla `connections` es solo
+su *definición*: qué idea cuelga de cuál y de qué tipo (`child` = árbol,
+`related`/`supersedes` = enlaces laterales con su estilo en la UI).
+
+Quedan fuera de la API los endpoints POST/DELETE de connections y de la UI
+los botones Conectar/Desconectar (y el `linkId` que los alimentaba). Solo se
+leen: `GET /connections` y el mapa. El árbol se sigue dibujando desde ahí.
+
+Pendiente (no bloquea): una lista fija de conexiones en el core necesita uids
+de idea estables —hoy son aleatorios al crear—, así que de momento las
+escribe quien prepara el repo (SQL directo, con el chequeo de ciclos a mano).
+
 ## Enmienda — el repo se direcciona por ruta, no por nombre
 
 El primer elemento de UI es un **selector de carpeta**, y devuelve rutas absolutas

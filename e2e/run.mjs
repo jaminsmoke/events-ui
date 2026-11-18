@@ -5,10 +5,10 @@
 //  node e2e/run.mjs prueba-1    solo los que matcheen ese nombre de fichero
 //  node e2e/run.mjs --ayuda
 //
-// El runner levanta su propio core en :18765 (con su temporal propio de repos
-// y de registro) y su Vite de desktop en :15175. Los puertos deben estar
-// libres: si algo ya escucha (el `pnpm dev` de alguien), el runner se niega
-// a arrancar en vez de matar ese proceso —nunca se toca lo ajeno.
+// El runner levanta su propio core (con su temporal propio de repos y de
+// registro) y su Vite de desktop. Por defecto usa :18765 y :15175; si están
+// ocupados —la app abierta, por ejemplo— elige otros libres y lo dice, sin
+// matar nunca lo ajeno. `--core-port` y `--ui-port` fijan los puertos.
 // Al terminar (pase, falle o se interrumpa con Ctrl+C) se cierra lo que el
 // runner levantó y se comprueba que los puertos quedan libres: si algo
 // nuestro sobrevivió, se remata y se avisa. Si algo falla, el resumen sale
@@ -16,6 +16,7 @@
 
 import { spawn, spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, readdir } from "node:fs/promises";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -27,8 +28,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ESCENARIOS_DIR = path.join(ROOT, "e2e", "escenarios");
 const RESULTADOS_DIR = path.join(ROOT, "e2e", "resultados");
 
-const CORE = "http://127.0.0.1:18765";
-const UI = "http://localhost:15175";
+const PUERTO_CORE = 18765;
+const PUERTO_UI = 15175;
 const TIMEOUT_MS = 45_000;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -66,11 +67,11 @@ async function esperarUrl(url, timeoutMs = TIMEOUT_MS) {
   return false;
 }
 
-function arrancarCore(tmp) {
+function arrancarCore(tmp, puerto) {
   // Uvicorn directo (no events_core.serve): así el runner controla su puerto
   // sin colisionar con la comprobación de puerto del arranque en dev.
   return spawn(
-    "uv run --directory services/core python -m uvicorn events_core.main:app --host 127.0.0.1 --port 18765",
+    `uv run --directory services/core python -m uvicorn events_core.main:app --host 127.0.0.1 --port ${puerto}`,
     {
       cwd: ROOT,
       shell: true,
@@ -86,12 +87,80 @@ function arrancarCore(tmp) {
   );
 }
 
-function arrancarVite() {
-  return spawn("corepack pnpm --filter desktop dev", {
+function arrancarVite(puertoUi, puertoCore) {
+  // El puerto va por la CLI de Vite (pisa `server.port`) y el destino del
+  // proxy por entorno, que `vite.config.ts` lee con `loadEnv`.
+  // pnpm reenvía lo que sigue al script tal cual: con `--` Vite lo recibía
+  // como argumento propio y arrancaba en su puerto por defecto.
+  return spawn(`corepack pnpm --filter desktop dev --port ${puertoUi}`, {
     cwd: ROOT,
     shell: true,
     detached: process.platform !== "win32",
+    env: { ...process.env, EVENTSUI_CORE_URL: `http://127.0.0.1:${puertoCore}` },
   });
+}
+
+/** Un puerto que además se puede enlazar: en Windows hay rangos excluidos que
+ *  `listen(0)` devuelve igualmente y luego Vite no arranca. Se prueba desde
+ *  `desde` hacia arriba, saltando lo que ya escucha alguien. */
+async function puertoLibre(desde) {
+  for (let puerto = desde; puerto <= desde + 100; puerto++) {
+    if (pidsEnPuerto(puerto).length > 0) continue;
+    try {
+      await new Promise((resolve, reject) => {
+        const servidor = net.createServer();
+        servidor.once("error", reject);
+        servidor.listen(puerto, "127.0.0.1", () => servidor.close(resolve));
+      });
+      return puerto;
+    } catch {
+      // Ocupado o excluido por el sistema: se prueba el siguiente.
+    }
+  }
+  throw new Error(`sin puertos libres a partir de ${desde}`);
+}
+
+/** El puerto pedido si está libre. Si lo pidió el usuario, se respeta y se
+ *  avisa; si era el de por defecto, se busca otro. */
+async function elegirPuerto(pedido, explicito, etiqueta) {
+  if (pidsEnPuerto(pedido).length === 0) return pedido;
+  if (explicito) {
+    console.error(
+      `El puerto ${etiqueta} ${pedido} ya está ocupado (PID ${pidsEnPuerto(pedido).join(", ")}). ` +
+        "Elige otro con --core-port/--ui-port o libéralo.",
+    );
+    process.exit(1);
+  }
+  const libre = await puertoLibre(pedido + 1);
+  console.log(`Puerto ${etiqueta} ${pedido} ocupado: el runner usa ${libre}.`);
+  return libre;
+}
+
+/** `--core-port N`, `--ui-port N` y el nombre del escenario, en cualquier orden. */
+function leerOpciones(argv) {
+  const opciones = { filtro: null, core: null, ui: null, ayuda: false };
+  const args = argv.slice(2).filter((a) => a !== "--");
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--ayuda" || arg === "-h") opciones.ayuda = true;
+    else if (arg === "--core-port") opciones.core = Number(args[++i]);
+    else if (arg === "--ui-port") opciones.ui = Number(args[++i]);
+    else if (!arg.startsWith("--")) opciones.filtro ??= arg;
+    else {
+      console.error(`Opción desconocida: ${arg}`);
+      process.exit(1);
+    }
+  }
+  for (const [nombre, valor] of [
+    ["core", opciones.core],
+    ["ui", opciones.ui],
+  ]) {
+    if (valor !== null && !(Number.isInteger(valor) && valor >= 1 && valor <= 65535)) {
+      console.error(`--${nombre}-port espera un puerto entre 1 y 65535.`);
+      process.exit(1);
+    }
+  }
+  return opciones;
 }
 
 /** Descubre los escenarios y filtra por el nombre dado (si lo hay). */
@@ -112,17 +181,21 @@ async function escenarios(filtro) {
 
 async function main() {
   // `pnpm e2e -- prueba-1` deja un `--` propio: se ignora y vale el resto.
-  const arg = process.argv.slice(2).find((a) => a !== "--");
-  if (arg === "--ayuda" || arg === "-h") {
+  const opciones = leerOpciones(process.argv);
+  if (opciones.ayuda) {
     const todos = await escenarios();
-    console.log("Uso: node e2e/run.mjs [nombre-de-escenario]\n");
+    console.log("Uso: node e2e/run.mjs [escenario] [--core-port N] [--ui-port N]\n");
     for (const e of todos) console.log(`  ${e.nombre}  — ${e.descripcion ?? ""}`);
+    console.log(
+      "\nLos puertos por defecto (18765 y 15175) se cambian solos si están ocupados," +
+        " así que la batería corre con la app abierta.",
+    );
     return;
   }
 
-  const lista = await escenarios(arg);
+  const lista = await escenarios(opciones.filtro);
   if (lista.length === 0) {
-    console.error(`Ningún escenario matchea${arg ? ` ${arg}` : ""}.`);
+    console.error(`Ningún escenario matchea${opciones.filtro ? ` ${opciones.filtro}` : ""}.`);
     process.exit(1);
   }
 
@@ -133,23 +206,18 @@ async function main() {
   await mkdir(path.join(tmp, "repos", "lab"), { recursive: true });
   await mkdir(RESULTADOS_DIR, { recursive: true });
 
-  // Los puertos deben estar libres y el runner NUNCA mata a quien los ocupe:
-  // si hay un `pnpm dev` en marcha, se avisa y se sale. Matar a ciegas aquí
-  // era tirar la sesión de dev de quien estuviera probando.
-  for (const puerto of [18765, 15175]) {
-    const ocupantes = pidsEnPuerto(puerto);
-    if (ocupantes.length > 0) {
-      console.error(
-        `El puerto ${puerto} ya está ocupado (PID ${ocupantes.join(", ")}). ` +
-          "Para el e2e hay que parar antes esa instancia (p. ej. tu `pnpm dev`): " +
-          "el runner no mata procesos ajenos.",
-      );
-      process.exit(1);
-    }
-  }
+  // El runner NUNCA mata a quien ocupe un puerto: si los de por defecto están
+  // tomados (la app abierta, por ejemplo) usa otros libres. Los explícitos se
+  // respetan: si están ocupados, se avisa y se sale.
+  const puertoCore = await elegirPuerto(PUERTO_CORE, opciones.core !== null, "del core");
+  const puertoUi = await elegirPuerto(PUERTO_UI, opciones.ui !== null, "de la UI");
+  const CORE = `http://127.0.0.1:${puertoCore}`;
+  const UI = `http://localhost:${puertoUi}`;
+  const puertos = [puertoCore, puertoUi];
+  console.log(`Core en ${CORE}, UI en ${UI}.`);
 
-  const core = arrancarCore(tmp);
-  const vite = arrancarVite();
+  const core = arrancarCore(tmp, puertoCore);
+  const vite = arrancarVite(puertoUi, puertoCore);
   let browser = null;
   const resultados = [];
 
@@ -164,7 +232,7 @@ async function main() {
     await browser?.close().catch(() => {});
     matar(core);
     matar(vite);
-    for (const puerto of [18765, 15175]) {
+    for (const puerto of puertos) {
       if (await esperarPuertoLibre(puerto, 5_000)) continue;
       const restos = matarEnPuerto(puerto);
       console.warn(
@@ -205,7 +273,7 @@ async function main() {
     // el botón exista desde el primer fotograma. El log lo siembra el core
     // con el almacén: el runner no crea tablas a mano.
     await fetch(`${CORE}/mapa?repo=lab`).catch(() => {});
-    if (!(await esperarUrl(`${UI}/`))) throw new Error("Vite no respondió en 15175");
+    if (!(await esperarUrl(`${UI}/`))) throw new Error(`Vite no respondió en ${UI}`);
 
     browser = await chromium.launch();
     const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });

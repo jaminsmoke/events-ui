@@ -15,6 +15,13 @@ export default defineConfig({
   server: {
     port: 5175,
     strictPort: true,
+    // La recompilación de Rust escribe binarios en src-tauri/target mientras
+    // Vite los vigila: en Windows el watcher los abre en mitad de la escritura
+    // y revienta con EBUSY (la página no necesita recargarse por cambios en
+    // Rust: eso lo reinicia la propia CLI de Tauri).
+    watch: {
+      ignored: ["**/src-tauri/target/**"],
+    },
     proxy: {
       "/api": {
         target: CORE,

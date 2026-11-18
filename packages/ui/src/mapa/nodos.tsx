@@ -195,7 +195,14 @@ function FichaFases({
 }) {
   const hechas = fases.filter((fase) => fase.estado === "completada").length;
   return createPortal(
-    <div className="modal-fondo" role="presentation" onClick={onCerrar}>
+    <div
+      className="modal-fondo"
+      role="presentation"
+      // El tablero captura el puntero al arrastrar: sin cortarlo aquí, el
+      // `mouseup` se va al mapa y el botón Cerrar no recibe el clic.
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={onCerrar}
+    >
       <div
         className="modal"
         role="dialog"
@@ -291,11 +298,7 @@ function NodeRow({
   // Motivo por el que un traslado no se ofrece, o `null` si se puede probar.
   const motivoBloqueo = (destino: Status): string | null => {
     if (!estado) return null;
-    if (
-      destino === "roadmap" &&
-      fases.length === 0 &&
-      exigeFases?.(estado, "roadmap")
-    ) {
+    if (fases.length === 0 && exigeFases?.(estado, destino)) {
       return "El protocolo exige al menos una fase";
     }
     if (
@@ -450,6 +453,11 @@ function NodeRow({
           <span className="hint">
             Cierra las fases pendientes o fallidas para pasar a verificación.
           </span>
+        )}
+      {estado === "verificacion" &&
+        fases.length === 0 &&
+        exigeFases?.(estado, "revision_aprobada") && (
+          <span className="hint">Añade al menos una fase para aprobar la revisión.</span>
         )}
       {estado === "verificacion" &&
         !fases.every((fase) => fase.estado === "completada") &&

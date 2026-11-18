@@ -109,5 +109,22 @@ export default {
     );
     expect(texto.includes("2 de 2 completadas"), "la ficha no resume el avance");
     await ficha.getByRole("button", { name: "Cerrar", exact: true }).click();
+    await ficha.waitFor({ state: "detached" });
+
+    // Sin ninguna fase, «todas completadas» se cumpliría por vacuidad: aprobar
+    // exige además al menos una.
+    for (const cuantas of [1, 0]) {
+      await actual.locator(".fase .chip-quitar").nth(0).click();
+      await esperar(async () => (await idea()).fases.length === cuantas, `${cuantas} fases`);
+      await esperar(
+        () => actual.locator(".fase").count().then((n) => n === cuantas),
+        `la fila con ${cuantas} fases`,
+      );
+    }
+    const aprobar = actual.getByRole("button", { name: "Aprobar revisión", exact: true });
+    await esperar(() => aprobar.isDisabled(), "Aprobar revisión bloqueado sin fases");
+    await actual
+      .getByText("Añade al menos una fase para aprobar la revisión.")
+      .waitFor();
   },
 };

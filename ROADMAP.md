@@ -129,7 +129,8 @@ con el motivo, para no reabrirlo cada semana.
   `services/core/tests/test_flujo_items.py`.
 - **Fases de la idea** (0021): `idea_fase` la descompone con su propio estado
   (`pendiente`, `completada`, `fallida`, `rechazada`); `protocolo_flujo.exige_fases`
-  marca la unión que no se cruza sin al menos una, hoy `proposed → roadmap`, y
+  marca la unión que no se cruza sin al menos una, hoy `proposed → roadmap` y
+  `verificacion → revision_aprobada` (0024, para que cero fases no cuele), y
   `exige_fases_listas` la que no se cruza con fases pendientes o fallidas, hoy
   `roadmap → verificacion`, y `exige_fases_completas` la que pide todas en
   `completada`, hoy `verificacion → revision_aprobada`. La lista viaja en el

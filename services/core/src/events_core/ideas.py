@@ -58,8 +58,8 @@ MIGRATIONS_DIR = Path(__file__).with_name("migraciones")
 # exigirlas para cruzar una unión (`exige_fases`). La 0022 añade el otro
 # requisito del protocolo: no salir de un carril con fases abiertas
 # (`exige_fases_listas`) y la 0023 exige todas completadas para aprobar
-# (`exige_fases_completas`).
-SCHEMA_VERSION = 23
+# (`exige_fases_completas`); la 0024 reutiliza `exige_fases` para que aprobar exija al menos una.
+SCHEMA_VERSION = 24
 
 REPOS_ROOT_ENV_VAR = "EVENTSUI_REPOS_ROOT"
 BUSY_TIMEOUT_MS = 5_000

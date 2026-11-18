@@ -176,4 +176,4 @@ INSERT OR IGNORE INTO protocolo_flujo
     ('proposed', 'rejected', 0, 0, 0),
     ('roadmap', 'verificacion', 0, 1, 0),
     ('verificacion', 'proposed', 0, 0, 0),
-    ('verificacion', 'revision_aprobada', 0, 0, 1);
+    ('verificacion', 'revision_aprobada', 1, 0, 1);

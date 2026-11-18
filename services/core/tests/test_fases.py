@@ -216,10 +216,50 @@ def test_aprobar_revision_exige_todas_completadas(client, repo):  # noqa: ANN001
     assert r.json()["status"] == "revision_aprobada"
 
 
+def test_aprobar_revision_exige_al_menos_una_fase(client, repo):  # noqa: ANN001, ANN202
+    uid = _crear(client, repo, status="proposed")
+    r = client.patch(
+        f"/ideas/{uid}",
+        params={"repo": repo},
+        json={"status": "roadmap", "fases": [{"titulo": "Una"}]},
+    )
+    assert r.status_code == 200, r.json()
+    r = client.patch(
+        f"/ideas/{uid}",
+        params={"repo": repo},
+        json={
+            "status": "verificacion",
+            "fases": [{"orden": 1, "titulo": "Una", "estado": "completada"}],
+        },
+    )
+    assert r.status_code == 200, r.json()
+
+    # Sin fases, «todas completadas» se cumpliría por vacuidad: el protocolo
+    # pide además al menos una para aprobar.
+    r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"fases": []})
+    assert r.status_code == 200, r.json()
+    r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": "revision_aprobada"})
+    assert r.status_code == 400
+    assert "al menos una fase" in r.json()["detail"]
+    assert client.get(f"/ideas/{uid}", params={"repo": repo}).json()["status"] == "verificacion"
+
+    # Añadirla completada en el mismo PATCH sí deja aprobar.
+    r = client.patch(
+        f"/ideas/{uid}",
+        params={"repo": repo},
+        json={
+            "status": "revision_aprobada",
+            "fases": [{"titulo": "Una", "estado": "completada"}],
+        },
+    )
+    assert r.status_code == 200, r.json()
+    assert r.json()["status"] == "revision_aprobada"
+
+
 def test_protocolos_publican_el_requisito(client, repo):  # noqa: ANN001, ANN202
     filas = client.get("/protocolos", params={"repo": repo}).json()
     exigidas = {(f["origen"], f["destino"]) for f in filas if f["exige_fases"]}
-    assert exigidas == {("proposed", "roadmap")}
+    assert exigidas == {("proposed", "roadmap"), ("verificacion", "revision_aprobada")}
     listas = {(f["origen"], f["destino"]) for f in filas if f["exige_fases_listas"]}
     assert listas == {("roadmap", "verificacion")}
     completas = {(f["origen"], f["destino"]) for f in filas if f["exige_fases_completas"]}

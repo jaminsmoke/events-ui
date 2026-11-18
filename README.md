@@ -1,5 +1,8 @@
 # Events UI
 
+[![CI](https://github.com/jaminsmoke/events-ui/actions/workflows/ci.yml/badge.svg)](https://github.com/jaminsmoke/events-ui/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 UI reactiva sobre un log de eventos en SQLite, para monitorizar repositorios en
 tiempo real. Las decisiones de arquitectura viven en los comentarios del código.
 Plan vivo en [`ROADMAP.md`](ROADMAP.md): qué hay hecho, qué va ahora y qué no se hace.
@@ -132,6 +135,25 @@ corepack pnpm core:dev           # Swagger en http://127.0.0.1:8765/docs
 | GET | `/connections?repo=<ruta>` (filtro `parent_uid`) — solo lectura: las conexiones son de la arquitectura, inmutables |
 | GET | `/mapa?repo=<ruta>` — todas las ideas del mapa y sus conexiones en una sola lectura |
 | GET | `/revision?repo=<ruta>` — firma barata (`PRAGMA data_version` + conteos) para el refresco en vivo |
+| GET | `/protocolos?repo=<ruta>` — uniones permitidas entre carriles (allowlist) |
+| GET | `/eventos?repo=<ruta>` — tail del log (`desde`, `limite`, `origen`) |
+| GET | `/eventos/stream?repo=<ruta>` — SSE en vivo con backfill |
+| POST | `/eventos/compactar?repo=<ruta>` — aplica la retención del log (90 días / 5 000) |
+| GET | `/proyecciones/repo?repo=<ruta>` — identidad (ruta, rama/commit git) y conteos del repo |
+| GET | `/log` — registro operativo de la app (filtros `nivel`, `origen`) |
+| POST | `/log/purgar` — purga del registro forzada (también pasa sola al escribir) |
+| POST | `/reiniciar?repo=<ruta>` — vacía el almacén entero (LAB, solo el lanzador de Pruebas) |
+
+### Flujo de carriles
+
+La idea nace en el cajón (`draft`); de ahí puede ir a la cola (`proposed`) o a
+descartadas (`rejected`), y de la cola a descartadas. `accepted` (completada)
+**no tiene flujo todavía**: no hay uniones que entren allí hasta que se diseñe.
+Qué traslados están permitidos lo decide la allowlist `protocolo_flujo`
+(visible con `GET /protocolos`): lo que no está listado, el core lo rechaza con
+400 ("el protocolo no permite el flujo X → Y"). Las conexiones entre ideas no
+se crean desde la UI ni la API: son parte de la arquitectura y solo se
+escriben con SQL/tooling.
 
 `repo` es la ruta de la carpeta (la que devuelve el selector de la UI) o un nombre
 dentro de `repoprobe/repos`. Va en query porque las rutas de Windows no son un
@@ -159,15 +181,23 @@ cabecera y el runner apaga las claves foráneas antes de abrir la transacción
 ## Estado
 
 - **F0 (hecho):** andamio, `/health`, proxy UI→core.
-- **F0.5 (hecho):** tabla `ideas`, seed de `.EUI/EUI_DATABASE.sqlite`, API CRUD por repo.
-- **F0.6 (hecho):** tabla `connections`, `/revision` y visor en vivo. Cada dos segundos
-  se comprueba la revisión y, si cambia, se lee `/mapa`. Una idea se anima al pasar entre
-  «En cola» y «Descartadas». Las conexiones `child` se muestran anidadas cuando ambos
-  extremos están en el mismo carril. El visor compara el estado entre lecturas.
+- **F0.5 (hecho):** tablas de ideas, seed de `.EUI/EUI_DATABASE.sqlite`, API CRUD por repo.
+- **F0.6 (hecho):** tabla `connections` (solo lectura, inmutable), `/revision` y visor
+  en vivo: cada dos segundos se comprueba la revisión y, si cambia, se lee `/mapa`.
+  Una idea se anima al pasar entre carriles.
 - **F0.7 (hecho):** la UI escribe, no solo mira: crear ideas («Nueva idea»), editar
-  título/descripción y borrar desde la fila, mover entre carriles y conectar ideas
-  del cajón como padre (`POST /connections`). Todo por `openapi-fetch` tipado por
-  el OpenAPI generado, con los errores 400/404 declarados en el contrato.
-- **F1–F3 (hecho):** sobre de evento + SSE en vivo (F1), proyección de repo (F2) y
-  empaquetado con sidecar Python en la desktop, bandeja y avisos (F3).
-  El instalador firmado queda fuera (cuesta dinero). Ver `ROADMAP.md`.
+  título/descripción/tags y borrar desde la fila, y moverlas entre carriles. Todo por
+  `openapi-fetch` tipado por el OpenAPI generado, con los errores 400/404 declarados
+  en el contrato. Las conexiones **no** se gestionan desde la UI: son arquitectura.
+- **F1–F3 (hecho):** sobre de evento + SSE en vivo por repo (F1), proyección de repo
+  con identidad git (F2) y empaquetado con sidecar Python en la desktop, bandeja y
+  avisos (F3). El instalador firmado queda fuera (cuesta dinero).
+- **Protocolos de flujo (0011) y completadas fuera (0012):** la allowlist
+  `protocolo_flujo` decide qué traslados están permitidos; `accepted` no tiene flujo
+  hasta que se diseñe.
+- **Log con pestañas:** un solo flyout con `Eventos` (timeline del repo, por
+  origen y nivel) y `Registro` (operativo de la app, por etiqueta y nivel).
+
+## Licencia
+
+MIT — ver [`LICENSE`](LICENSE).

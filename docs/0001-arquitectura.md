@@ -77,9 +77,20 @@ productor lo bloquea; se dispara a mano por `POST /eventos/compactar` o por
 la CLI `python -m events_core.compact <repo>`. No hay poda automática en
 arranque: la política está pactada, el disparador sigue siendo manual.
 
+## Enmienda — F3: sidecar empaquetado
+
+El core viaja congelado con PyInstaller como `externalBin` de Tauri (`pnpm
+build:sidecar` lo deja en `src-tauri/binaries/events-core-<triple>[.exe]` y
+comprueba que arranca y responde a `/health` antes de darlo por bueno). En
+release, `lib.rs` lo arranca junto al ejecutable y lo mata al cerrar la
+ventana; en dev no se arranca (lo levanta `scripts/dev.mjs`). La UI
+empaquetada habla directo con `http://127.0.0.1:8765` (`apps/desktop/
+.env.production`, sin proxy Vite).
+
 ## Fases
 
 - **F0 — andamio:** git, workspaces pnpm + uv, Tauri 2 + React + FastAPI con `/health`.
 - **F1 — motor:** esquema de eventos, conexión RO, `data_version` + tail, SSE, UI en vivo.
 - **F2 — repos:** primera proyección e identidad de repo.
-- **F3 — producto:** tray, notificaciones, binario empaquetado, instalador.
+- **F3 — producto:** binario empaquetado *(hecho: sidecar PyInstaller como
+  `externalBin`)*; tray, notificaciones e instalador siguen pendientes.

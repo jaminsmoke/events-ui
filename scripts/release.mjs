@@ -7,6 +7,8 @@
 //      el cliente generado se regenera (si falla, el contrato cambió).
 //   3. `check` completo —contract, versiones, UI, py, rust— en verde.
 //   4. Build de ambas apps: la web (estático) y la desktop (bundle Tauri).
+//      Antes de la desktop va el sidecar: `tauri build` falla si falta el
+//      `externalBin` (scripts/build-sidecar.mjs, F3).
 //   5. Commit del bump + contrato y tag `vX.Y.Z`, si no lo hay aún.
 //
 // Nada se commitea si algo falla antes: el árbol queda como estaba.
@@ -42,6 +44,7 @@ paso(`bump a ${version}`, `node scripts/bump.mjs ${version}`);
 paso("regenerar el cliente del contrato", "corepack pnpm gen:api");
 paso("check completo", "corepack pnpm check");
 paso("build de la web (estático)", "corepack pnpm build:web");
+paso("build del sidecar (PyInstaller, externalBin)", "corepack pnpm build:sidecar");
 paso("build de la desktop (bundle Tauri)", "corepack pnpm build");
 
 // Se commitea solo lo del bump y el contrato que generó, no lo que haya en el

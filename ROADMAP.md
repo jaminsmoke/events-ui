@@ -51,6 +51,12 @@ Lo hecho se mueve a *Hecho* con su commit; lo que no va, va a *No se hace
   para `idea.created`/`updated`/`deleted`/`status`.
 - **Editar en diálogo modal**: el formulario inline de la fila pasa a un
   diálogo centrado (portal al body), con precarga de `kind`/`tags`.
+- **F3 — sidecar empaquetado**: el core se congela con PyInstaller
+  (`sidecar.py` + `pnpm build:sidecar`, verificado con `/health` en frío) y
+  viaja como `externalBin` de Tauri; en release `lib.rs` lo arranca junto al
+  ejecutable y lo mata al cerrar, y la UI empaquetada habla directo con
+  `127.0.0.1:8765` (`.env.production`). `pnpm release` construye el sidecar
+  antes del bundle desktop.
 
 ## Ahora
 

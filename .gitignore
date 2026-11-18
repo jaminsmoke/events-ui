@@ -1,6 +1,8 @@
 node_modules/
 dist/
 target/
+# Sidecar congelado: se regenera con `pnpm build:sidecar`, no se commitea
+binaries/
 .venv/
 __pycache__/
 *.pyc

@@ -62,8 +62,18 @@ export default function App({
     descripcion: string;
   } | null>(null);
   // Panel inferior (al estilo VS Code): la statusbar es una barra compacta
-  // de entradas; cada entrada alterna su panel entre el viewport y ella.
+  // de entradas; cada entrada alterna su flyout por encima.
   const [panel, setPanel] = useState<null | "actividad">(null);
+
+  // Escape cierra el panel (no es modal: no captura, no atrapa el foco).
+  useEffect(() => {
+    if (!panel) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPanel(null);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [panel]);
 
   const {
     ideas,
@@ -402,39 +412,41 @@ export default function App({
             {recortado && <AvisoRecorte onEncuadrar={encuadrar} />}
             <Controles vista={vista} onZoom={zoom} onReset={reset} />
           </section>
+        )}      </main>
+
+      <footer className="statusbar">
+        {/* Flyout: no empuja el viewport. Sale por encima, anclado a su
+            entrada (derecha, sobre la statusbar) y del ancho de su menú. */}
+        {panel === "actividad" && (
+          <section className="panel" aria-label="Panel: Actividad">
+            <div className="panel-cabecera">
+              <span className="panel-titulo">Actividad</span>
+              <button
+                type="button"
+                className="btn ghost"
+                onClick={() => setPanel(null)}
+                aria-label="Cerrar panel de actividad"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="panel-cuerpo">
+              {eventos.length === 0 ? (
+                <p className="hint">Sin eventos todavía. El log se lee, no se escribe.</p>
+              ) : (
+                <ul className="eventos-lista">
+                  {eventos.map((e) => (
+                    <li key={e.id}>
+                      <strong>#{e.id}</strong> {resumenEvento(e)}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </section>
         )}
-      </main>
 
-      {panel === "actividad" && (
-        <section className="panel" aria-label="Panel: Actividad">
-          <div className="panel-cabecera">
-            <span className="panel-titulo">Actividad</span>
-            <button
-              type="button"
-              className="btn ghost"
-              onClick={() => setPanel(null)}
-              aria-label="Cerrar panel de actividad"
-            >
-              ✕
-            </button>
-          </div>
-          <div className="panel-cuerpo">
-            {eventos.length === 0 ? (
-              <p className="hint">Sin eventos todavía. El log se lee, no se escribe.</p>
-            ) : (
-              <ul className="eventos-lista">
-                {eventos.map((e) => (
-                  <li key={e.id}>
-                    <strong>#{e.id}</strong> {resumenEvento(e)}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </section>
-      )}
-
-      <footer className="statusbar">        {proyeccion && (
+        {proyeccion && (
           <div className="proyeccion" aria-label="Estado del repo">
             <strong>{folderName(proyeccion.repo)}</strong>
             {proyeccion.branch && (

@@ -67,6 +67,19 @@ Lo hecho se mueve a *Hecho* con su commit; lo que no va, va a *No se hace
 - *(Hecho: F2 — `GET /proyecciones/repo` con identidad (ruta + rama/commit git);
   el core emite `idea.*` al escribir.)*
 
+## Antes de empaquetar (en este orden)
+
+1. **Versionado único**: hoy los `package.json` y el core están en `0.0.0` y
+   Tauri en `0.1.0`. Una sola versión para todo el producto (raíz como fuente
+   de verdad), un script `pnpm bump <versión>` que la propaga a los 4
+   `package.json`, `tauri.conf.json`, `Cargo.toml` y el `version=` del
+   FastAPI, y tags git `vX.Y.Z`.
+2. **Empaquetado por app, misma versión**: desktop con `tauri build`
+   (instalador NSIS/MSI) y web con `vite build` (estático); un `pnpm release`
+   con bump + gen:api + check + ambos builds, sin empaquetar en verde sucio.
+3. **Retención del log** (`event`): hoy crece sin cota; pactar cuánto se
+   conserva y cómo se compacta, por repo.
+
 ## No se hace (por ahora)
 
 - **Extensión de VS Code**: empaquetado y webview grandes; rinde más con el

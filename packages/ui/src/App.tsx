@@ -60,9 +60,11 @@ export default function App({
     titulo: string;
     descripcion: string;
   } | null>(null);
-  // Flyout del log (al estilo VS Code): la statusbar es una barra compacta
-  // de entradas; cada entrada alterna su pestaña del flyout por encima.
+  // Flyout del log (al estilo VS Code): la statusbar tiene una sola
+  // entrada, **Log**, que abre el flyout en la pestaña usada en último
+  // lugar (Eventos por defecto); las pestañas de dentro alternan.
   const [panel, setPanel] = useState<null | "actividad" | "registro">(null);
+  const [ultimaPestana, setUltimaPestana] = useState<"actividad" | "registro">("actividad");
 
   // Escape cierra el panel (no es modal: no captura, no atrapa el foco).
   useEffect(() => {
@@ -414,7 +416,10 @@ export default function App({
         {panel && (
           <PanelLog
             tab={panel}
-            onTab={setPanel}
+            onTab={(t) => {
+              setUltimaPestana(t);
+              setPanel(t);
+            }}
             onClose={() => setPanel(null)}
             eventos={eventos}
             conectado={conectado}
@@ -445,20 +450,11 @@ export default function App({
 
         <button
           type="button"
-          className={`status-item${panel === "registro" ? " activo" : ""}`}
-          aria-expanded={panel === "registro"}
-          onClick={() => setPanel((p) => (p === "registro" ? null : "registro"))}
+          className={`status-item${panel !== null ? " activo" : ""}`}
+          aria-expanded={panel !== null}
+          onClick={() => setPanel((p) => (p === null ? ultimaPestana : null))}
         >
-          Registro
-        </button>
-
-        <button
-          type="button"
-          className={`status-item${panel === "actividad" ? " activo" : ""}`}
-          aria-expanded={panel === "actividad"}
-          onClick={() => setPanel((p) => (p === "actividad" ? null : "actividad"))}
-        >
-          Actividad{conectado && <span className="dot" aria-label="en vivo" />}
+          Log{conectado && <span className="dot" aria-label="en vivo" />}
           {eventos.length > 0 && <span className="status-item-n">{eventos.length}</span>}
         </button>
       </footer>

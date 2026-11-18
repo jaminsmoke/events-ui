@@ -4,9 +4,12 @@
 // 127.0.0.1:8765. Si el core no está, Vite escupe
 // `http proxy error: connect ECONNREFUSED 127.0.0.1:8765` cada dos segundos
 // (lo que pide `useRepo`) y la ventana se queda en "Cargando…".
-// Por eso este script se asegura de que el core esté antes de lanzar la UI:
-// si ya responde en /health se reutiliza (p. ej. porque se arrancó aparte con
-// `pnpm core:dev`); si no, se levanta aquí y se apaga al salir la UI.
+//
+// Siempre en limpio: antes de arrancar, quien escuchaba en 8765 y en el
+// puerto de la UI es un resto de una sesión anterior (core o Vite, incluso un
+// zombie) y muere; el core se levanta siempre de nuevo con el código de hoy.
+// Reutilizarlo a ciegas ya costó una mañana: ayer atendía el código de
+// antes de ayer sin que nada lo notara. Al salir la UI, el core también cae.
 //
 // Uso: `node scripts/dev.mjs` (Tauri) o `node scripts/dev.mjs web` (solo web,
 // en 5174; `ui` es un alias histórico). Ambas montan la UI de `@events-ui/ui`.
@@ -15,6 +18,8 @@ import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import process from "node:process";
+
+import { esperarPuertoLibre, matarEnPuerto } from "./puertos.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CORE = "http://127.0.0.1:8765";
@@ -63,27 +68,34 @@ function matar(child) {
 async function main() {
   const modo = process.argv[2] === "web" || process.argv[2] === "ui" ? "web" : "tauri";
 
-  let core = null;
-  if (await coreVivo()) {
-    console.log("Core ya en marcha en 127.0.0.1:8765, se reutiliza.");
-  } else {
-    console.log("Core no responde: levantándolo en 127.0.0.1:8765…");
-    core = arrancarCore();
-    core.on("error", (err) => {
-      console.error(`No se pudo arrancar el core: ${err.message}`);
-      console.error("¿Está `uv` en el PATH? Prueba aparte: corepack pnpm core:dev");
-      process.exit(1);
-    });
-    if (!(await esperarCore())) {
-      console.error(
-        `El core no respondió en ${CORE}/health en ${TIMEOUT_MS / 1000} s. ` +
-          "Mira el mensaje de arriba o prueba aparte: corepack pnpm core:dev",
+  // En limpio: los restos de sesiones anteriores no estorban ni reutilizan.
+  const puertoUi = modo === "web" ? 5174 : 5175;
+  for (const puerto of [8765, puertoUi]) {
+    const muertos = matarEnPuerto(puerto);
+    if (muertos.length > 0) {
+      console.log(
+        `Puerto ${puerto}: terminados ${muertos.join(", ")} (restos de sesiones anteriores).`,
       );
-      matar(core);
-      process.exit(1);
     }
-    console.log("Core listo.");
+    await esperarPuertoLibre(puerto);
   }
+
+  console.log("Levantando el core en 127.0.0.1:8765…");
+  const core = arrancarCore();
+  core.on("error", (err) => {
+    console.error(`No se pudo arrancar el core: ${err.message}`);
+    console.error("¿Está `uv` en el PATH? Prueba aparte: corepack pnpm core:dev");
+    process.exit(1);
+  });
+  if (!(await esperarCore())) {
+    console.error(
+      `El core no respondió en ${CORE}/health en ${TIMEOUT_MS / 1000} s. ` +
+        "Mira el mensaje de arriba o prueba aparte: corepack pnpm core:dev",
+    );
+    matar(core);
+    process.exit(1);
+  }
+  console.log("Core listo.");
 
   const comando =
     modo === "web"

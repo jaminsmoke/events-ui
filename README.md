@@ -44,11 +44,12 @@ corepack pnpm dev:web      # solo web en localhost:5174, también con core
 corepack pnpm core:dev     # core solo, en 127.0.0.1:8765 (si ya va, se reutiliza)
 ```
 
-`dev` y `dev:web` pasan por `scripts/dev.mjs`, que comprueba `127.0.0.1:8765/health`
-y levanta el core si nadie responde: sin él, Vite no puede proxyficar `/api` y la
-UI se queda esperando (`connect ECONNREFUSED 127.0.0.1:8765` en la terminal de
-Vite). Si el core ya está en marcha (porque se arrancó aparte), se reutiliza y
-no se apaga al cerrar la UI.
+`dev` y `dev:web` pasan por `scripts/dev.mjs`, que arranca en limpio: quien
+escuchara en `127.0.0.1:8765` y en el puerto de la UI (5175 desktop, 5174 web)
+se termina antes de levantar el core —sin él, Vite no puede proxyficar `/api` y
+la UI se queda esperando (`connect ECONNREFUSED 127.0.0.1:8765` en la terminal de
+Vite)—. Al cerrar la UI el core también cae. Nada de reutilizar de sesiones
+anteriores: es como ayer se quedó el código viejo atendiendo.
 
 El prefijo `corepack` es necesario aquí: sin él, `pnpm` no existe en el PATH.
 Ojo: `corepack pnpm` **no** deja un `pnpm` en el PATH, así que dentro de un script
@@ -70,6 +71,12 @@ compartida), `check:py` (`ruff check` y `ruff format --check`, config en
 `services/core/pyproject.toml`), `check:test` (`pytest` en `services/core/tests`,
 semántica de cola y migración 0009) y `check:rust` (`cargo check`). Para compilar de
 verdad están `build:web` (Vite) y `build` (bundle Tauri).
+
+Los **e2e** van aparte porque levantan procesos (no entran en `check`):
+`pnpm e2e` corre todos los escenarios de `e2e/escenarios/` y
+`pnpm e2e -- <nombre>` solo uno. Cada escenario usa su core y su Vite
+temporales en 8765/5175 (mata cualquier resto antes), así que no se toca el
+dev de nadie. Las capturas de cada corrida quedan en `e2e/resultados/`.
 
 El core apunta a `data/events.db` por defecto; cámbialo con `EVENTSUI_DB=/ruta/al/log.db`.
 

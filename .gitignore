@@ -14,3 +14,6 @@ data/
 .DS_Store
 .vite/
 *.log
+
+# Capturas de las corridas e2e (se generan al correr la batería)
+e2e/resultados/

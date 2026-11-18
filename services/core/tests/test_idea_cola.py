@@ -107,9 +107,9 @@ def _comprobar_historico(client, repo):  # noqa: ANN001, ANN202
         tablas = {
             row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 19
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 20
         assert "ideas" not in tablas
-        assert conn.execute("SELECT count(*) FROM idea_entry").fetchone()[0] == 4
+        assert conn.execute("SELECT count(*) FROM idea_data").fetchone()[0] == 4
         assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
     finally:
         conn.close()
@@ -153,13 +153,15 @@ def test_fresco_sin_lane_log(client, repo):  # noqa: ANN001, ANN202
     db = ideas.ensure_repo(repo)
     conn = sqlite3.connect(str(db))
     tablas = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 19
-    assert "idea_cola" in tablas
-    assert "idea_roadmap" in tablas
-    assert "idea_verificacion" in tablas
-    assert "idea_revision" in tablas
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 20
+    assert "idea_data" in tablas
+    assert "idea_node" in tablas
+    assert "roadmap_node" in tablas
+    assert "verificacion_node" in tablas
+    assert "revision_node" in tablas
+    assert "rejected_node" in tablas
+    assert "idea_cola" not in tablas
     assert "idea_completada" not in tablas
-    assert "idea_rejected" in tablas
     assert "idea_lane_log" not in tablas
 
 
@@ -175,7 +177,9 @@ def test_proposed_entra_en_cola_y_no_vuelve_al_cajon(client, repo):  # noqa: ANN
     assert r.json()["status"] == "proposed"
 
     conn = sqlite3.connect(str(ideas.db_file_for(repo)))
-    assert conn.execute("SELECT count(*) FROM idea_cola").fetchone()[0] == 1
+    assert (
+        conn.execute("SELECT count(*) FROM idea_node WHERE estado = 'proposed'").fetchone()[0] == 1
+    )
     conn.close()
 
     # El protocolo prohíbe volver al cajón: la cola no se deshace a mano.
@@ -183,7 +187,9 @@ def test_proposed_entra_en_cola_y_no_vuelve_al_cajon(client, repo):  # noqa: ANN
     assert r.status_code == 400
     assert "protocolo" in r.json()["detail"]
     conn = sqlite3.connect(str(ideas.db_file_for(repo)))
-    assert conn.execute("SELECT count(*) FROM idea_cola").fetchone()[0] == 1
+    assert (
+        conn.execute("SELECT count(*) FROM idea_node WHERE estado = 'proposed'").fetchone()[0] == 1
+    )
     conn.close()
 
 
@@ -200,7 +206,12 @@ def test_cola_ordenada_por_posicion(client, repo):  # noqa: ANN001, ANN202
     assert [i["uid"] for i in r.json()] == uids
 
     conn = sqlite3.connect(str(ideas.db_file_for(repo)))
-    posiciones = [r_[0] for r_ in conn.execute("SELECT posicion FROM idea_cola ORDER BY posicion")]
+    posiciones = [
+        r_[0]
+        for r_ in conn.execute(
+            "SELECT posicion FROM idea_node WHERE estado = 'proposed' ORDER BY posicion"
+        )
+    ]
     assert posiciones == [1, 2, 3]
 
 
@@ -216,8 +227,10 @@ def test_rejected_sale_de_cola(client, repo):  # noqa: ANN001, ANN202
     assert r.json()["status"] == "rejected"
     assert r.json()["rejected_description"] == "ruido"
     conn = sqlite3.connect(str(ideas.db_file_for(repo)))
-    assert conn.execute("SELECT count(*) FROM idea_cola").fetchone()[0] == 0
-    assert conn.execute("SELECT count(*) FROM idea_rejected").fetchone()[0] == 1
+    assert (
+        conn.execute("SELECT count(*) FROM idea_node WHERE estado = 'proposed'").fetchone()[0] == 0
+    )
+    assert conn.execute("SELECT count(*) FROM rejected_node").fetchone()[0] == 1
 
 
 def test_revision_aprobada_es_terminal(client, repo):  # noqa: ANN001, ANN202
@@ -229,8 +242,10 @@ def test_revision_aprobada_es_terminal(client, repo):  # noqa: ANN001, ANN202
     r = client.get("/ideas", params={"repo": repo, "status": "revision_aprobada"})
     assert [i["uid"] for i in r.json()] == [uid]
     conn = sqlite3.connect(str(ideas.db_file_for(repo)))
-    assert conn.execute("SELECT count(*) FROM idea_cola").fetchone()[0] == 0
-    assert conn.execute("SELECT count(*) FROM idea_revision").fetchone()[0] == 1
+    assert (
+        conn.execute("SELECT count(*) FROM idea_node WHERE estado = 'proposed'").fetchone()[0] == 0
+    )
+    assert conn.execute("SELECT count(*) FROM revision_node").fetchone()[0] == 1
     conn.close()
 
     uid2 = client.post("/ideas", params={"repo": repo}, json={"title": "B"}).json()["uid"]
@@ -263,12 +278,12 @@ def test_reiniciar_vacia_todo(client, repo):  # noqa: ANN001, ANN202
             "eventos_eliminados": 6,
         }
         for tabla in (
-            "idea_entry",
-            "idea_cola",
-            "idea_roadmap",
-            "idea_verificacion",
-            "idea_revision",
-            "idea_rejected",
+            "idea_data",
+            "idea_node",
+            "roadmap_node",
+            "verificacion_node",
+            "revision_node",
+            "rejected_node",
             "event",
         ):
             assert conn.execute(f"SELECT count(*) FROM {tabla}").fetchone()[0] == 0
@@ -324,15 +339,20 @@ def test_migracion_0009_solo_estado_final(client, repo):  # noqa: ANN001, ANN202
 
     conn = sqlite3.connect(str(db))
     conn.execute("PRAGMA foreign_keys = ON")
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 19
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 20
     tablas = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert "idea_lane_log" not in tablas
     assert "idea_completada" not in tablas
-    assert "idea_revision" in tablas
+    assert "revision_node" in tablas
     assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
-    cola = [r[0] for r in conn.execute("SELECT uid FROM idea_cola ORDER BY posicion")]
+    cola = [
+        r[0]
+        for r in conn.execute(
+            "SELECT uid FROM idea_node WHERE estado = 'proposed' ORDER BY posicion"
+        )
+    ]
     assert cola == ["b", "d"]
-    revisiones = [r[0] for r in conn.execute("SELECT uid FROM idea_revision")]
+    revisiones = [r[0] for r in conn.execute("SELECT uid FROM revision_node")]
     assert revisiones == ["c"]
 
     r = client.get("/mapa", params={"repo": repo})
@@ -371,8 +391,8 @@ def test_historico_ya_marcado_se_recupera(client, repo):  # noqa: ANN001, ANN202
     _esquema_inicial(conn)
     ideas.aplicar_esquema(conn)  # lo que hacía el código anterior
     conn.commit()
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 19
-    assert conn.execute("SELECT count(*) FROM idea_entry").fetchone()[0] == 0
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 20
+    assert conn.execute("SELECT count(*) FROM idea_data").fetchone()[0] == 0
     assert conn.execute("SELECT count(*) FROM ideas").fetchone()[0] == 4
     conn.close()
 

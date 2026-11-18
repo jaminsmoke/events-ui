@@ -33,7 +33,7 @@ SCHEMA_DIR = Path(__file__).with_name("schema")
 # Los pasos que llevan un almacén viejo hasta aquí. `schema/` es el estado final:
 # un almacén que nace hoy se crea con él y no ejecuta ninguna migración.
 MIGRATIONS_DIR = Path(__file__).with_name("migraciones")
-# Se aplican los `schema/*.sql` de ideas, conexiones y log en orden: un fichero
+# Se aplican los `schema/*.sql` de ideas y log en orden: un fichero
 # nuevo no obliga a tocar este módulo. `PRAGMA user_version` dice cuál hay
 # aplicado en cada almacén. La tabla `event` del repo se siembra con él porque
 # el core emite ahí sus `idea.*`; a los almacenes anteriores les llegó por la
@@ -51,8 +51,10 @@ MIGRATIONS_DIR = Path(__file__).with_name("migraciones")
 # `tags` a lista JSON de cadenas, la 0018 añadió `depende_de` (las ideas que
 # tienen que estar aprobadas para que esta avance de carril) y la 0019 retiró
 # `connections`: la dependencia vive en la entrada y la jerarquía del mapa es
-# el propio flujo.
-SCHEMA_VERSION = 19
+# el propio flujo. La 0020 separa la idea (`idea_data`) de su sitio
+# (`idea_node`, una fila por idea): el estado y la posición dejan de deducirse
+# de las fichas y las fichas pasan a ser detalle de la estancia.
+SCHEMA_VERSION = 20
 
 REPOS_ROOT_ENV_VAR = "EVENTSUI_REPOS_ROOT"
 BUSY_TIMEOUT_MS = 5_000
@@ -64,9 +66,10 @@ _GITIGNORE_VIEJO = {f"{LEGACY_DB_FILENAME}-wal", f"{LEGACY_DB_FILENAME}-shm"}
 
 # Columnas que la API puede modificar. Lista blanca: los nombres de columna de un
 # UPDATE no pueden venir del cliente. `status` no está: un cambio de estado no
-# es un UPDATE de la entrada, es añadir o quitar filas de `idea_cola`,
-# `idea_roadmap`, `idea_verificacion`, `idea_revision` o `idea_rejected`.
-# Los campos del descarte tampoco: los gestiona la transición del propio `status`.
+# es un UPDATE de la idea, es mover la fila de `idea_node` y escribir el detalle
+# del nodo (`roadmap_node`, `verificacion_node`, `revision_node` o
+# `rejected_node`). Los campos del descarte tampoco: los gestiona la transición
+# del propio `status`.
 UPDATABLE = ("title", "description", "content", "kind", "tags", "depende_de")
 
 # Campos del descarte que el PATCH acepta junto al `status` (ver `update_idea`).
@@ -91,13 +94,6 @@ CAMPOS_FICHA = {
     "verificacion": {"verificacion_resultado", "verificacion_comentario"},
     "revision_aprobada": {"approved_by", "revision_nota"},
 }
-
-# El estado que enseña la fila (`status` en el contrato) se calcula a partir
-# de en cuál de las cinco fichas vive la idea: descarte, revisión aprobada,
-# verificación, roadmap o cola, y en ese orden. Si no vive en ninguna, está
-# en la entrada (`draft`, recién creada). La traducción vive aquí, no en la UI,
-# porque es el significado del dato: la ficha del descarte puede ser
-# `rejected` o `superseded` y la UI no tiene cómo saber cuál.
 
 
 class InvalidInput(ValueError):
@@ -209,7 +205,7 @@ def _ignorar_auxiliares(db_file: Path) -> None:
 
 
 def aplicar_esquema(conn: sqlite3.Connection) -> None:
-    """Aplica los `schema/*.sql` de ideas, conexiones y log, y marca la versión.
+    """Aplica los `schema/*.sql` de ideas y log, y marca la versión.
 
     El log entra aquí porque el core emite sus `idea.*` en él: un almacén
     recién sembrado que naciera sin `event` perdería justo los primeros.
@@ -353,7 +349,7 @@ def _copiar_ideas_historicas(conn: sqlite3.Connection) -> None:
         try:
             conn.execute(
                 """
-                INSERT OR IGNORE INTO idea_entry
+                INSERT OR IGNORE INTO idea_data
                     (id, uid, title, description, content, kind, tags, created_at, updated_at)
                 SELECT id, uid, title, description, content, kind,
                        CASE WHEN json_valid(tags) AND json_type(tags) = 'array'
@@ -365,7 +361,7 @@ def _copiar_ideas_historicas(conn: sqlite3.Connection) -> None:
             # Una fila histórica que no entra (p. ej. un `kind` que el
             # esquema actual ya no admite) no puede perderse en silencio.
             faltan = conn.execute(
-                "SELECT uid FROM ideas WHERE uid NOT IN (SELECT uid FROM idea_entry)"
+                "SELECT uid FROM ideas WHERE uid NOT IN (SELECT uid FROM idea_data)"
             ).fetchall()
             if faltan:
                 raise RuntimeError(
@@ -373,29 +369,38 @@ def _copiar_ideas_historicas(conn: sqlite3.Connection) -> None:
                     f"{', '.join(str(f[0]) for f in faltan)}"
                 )
 
+            # El nodo de cada idea vieja: la cola conserva su orden y el resto
+            # entra donde su estado decía. `entered_at` es su `updated_at`, que
+            # es la fecha de entrada más cercana que hay en la tabla histórica.
             conn.execute(
                 """
-                INSERT OR IGNORE INTO idea_cola (uid, posicion, entered_at)
+                INSERT OR IGNORE INTO idea_node (uid, estado, posicion, entered_at)
                 SELECT uid,
-                       (SELECT COALESCE(MAX(posicion), 0) FROM idea_cola)
-                           + ROW_NUMBER() OVER (ORDER BY created_at, id),
+                       CASE
+                           WHEN status = 'accepted' THEN 'revision_aprobada'
+                           WHEN status IN ('rejected', 'superseded') THEN 'rejected'
+                           WHEN status = 'proposed' THEN 'proposed'
+                           ELSE 'draft'
+                       END,
+                       CASE WHEN status = 'proposed'
+                            THEN (SELECT COALESCE(MAX(posicion), 0) FROM idea_node)
+                                 + ROW_NUMBER() OVER (ORDER BY created_at, id)
+                            ELSE NULL END,
                        updated_at
                 FROM ideas
-                WHERE status = 'proposed'
-                  AND uid IN (SELECT uid FROM idea_entry)
-                  AND uid NOT IN (SELECT uid FROM idea_cola)
+                WHERE uid IN (SELECT uid FROM idea_data)
                 """
             )
             conn.execute(
                 """
-                INSERT OR IGNORE INTO idea_revision (uid, approved_at)
-                SELECT uid, updated_at FROM ideas WHERE status = 'accepted'
+                INSERT OR IGNORE INTO revision_node (uid)
+                SELECT uid FROM ideas WHERE status = 'accepted'
                 """
             )
             conn.execute(
                 """
-                INSERT OR IGNORE INTO idea_rejected (uid, rejected_at)
-                SELECT uid, updated_at FROM ideas
+                INSERT OR IGNORE INTO rejected_node (uid)
+                SELECT uid FROM ideas
                 WHERE status IN ('rejected', 'superseded')
                 """
             )
@@ -503,10 +508,11 @@ def _aplicar_paso(conn: sqlite3.Connection, numero: int, script: Path) -> None:
 def _contar_ideas(db_file: Path) -> int | None:
     """Filas de la entrada en un fichero, o `None` si no se puede leer.
 
-    La tabla se llama `idea_entry` desde la 0006; un almacén de la 0004 aún
-    lleva `ideas`, así que se mira en los dos sitios (lo viejo se migra solo).
+    La tabla se llama `idea_data` desde la 0020 (`idea_entry` antes); un
+    almacén de la 0004 aún lleva `ideas`, así que se mira en los dos sitios
+    (lo viejo se migra solo).
     """
-    for tabla in ("idea_entry", "ideas"):
+    for tabla in ("idea_data", "ideas"):
         try:
             with closing(sqlite3.connect(uri_lectura(db_file), uri=True)) as conn:
                 fila = conn.execute(
@@ -560,75 +566,42 @@ def list_repos() -> list[dict[str, Any]]:
     return found
 
 
-def _estado_de(
-    rechazada: bool,
-    en_roadmap: bool,
-    en_verificacion: bool,
-    revision: bool,
-    en_cola: bool,
-) -> str:
-    """El estado de una idea a partir de en qué ficha vive (ver el comentario
-    de arriba). `superseded` se lee como `rejected`, igual que antes: la
-    diferencia sigue viviendo en `idea_rejected.superseded_by_uid`."""
-    if rechazada:
-        return "rejected"
-    if revision:
-        return "revision_aprobada"
-    if en_verificacion:
-        return "verificacion"
-    if en_roadmap:
-        return "roadmap"
-    if en_cola:
-        return "proposed"
-    return "draft"
-
-
-def _en_cola(conn: sqlite3.Connection, uid: str) -> bool:
-    return conn.execute("SELECT 1 FROM idea_cola WHERE uid = ?", (uid,)).fetchone() is not None
-
-
 def _roadmap(conn: sqlite3.Connection, uid: str) -> sqlite3.Row | None:
-    """La ficha de roadmap (0013) de una idea, si la tiene."""
+    """El detalle de la estancia en roadmap, si la idea está ahí."""
     return conn.execute(
-        "SELECT started_at, completed_at, resultado, referencia FROM idea_roadmap WHERE uid = ?",
-        (uid,),
+        "SELECT resultado, referencia FROM roadmap_node WHERE uid = ?", (uid,)
     ).fetchone()
 
 
 def _verificacion(conn: sqlite3.Connection, uid: str) -> sqlite3.Row | None:
-    """La ficha de verificación (0013) de una idea, si la tiene."""
+    """El detalle de la estancia en verificación, si la idea está ahí."""
     return conn.execute(
-        "SELECT started_at, intentos, ultimo_resultado, comentario, roadmap_completed_at"
-        " FROM idea_verificacion WHERE uid = ?",
+        "SELECT intentos, ultimo_resultado, comentario, roadmap_completed_at"
+        " FROM verificacion_node WHERE uid = ?",
         (uid,),
     ).fetchone()
 
 
 def _revision(conn: sqlite3.Connection, uid: str) -> sqlite3.Row | None:
-    """La ficha de revisión aprobada (0013) de una idea, si la tiene."""
+    """El detalle de la revisión aprobada, si la idea está ahí."""
     return conn.execute(
-        "SELECT approved_at, approved_by, nota FROM idea_revision WHERE uid = ?",
+        "SELECT approved_by, nota FROM revision_node WHERE uid = ?", (uid,)
+    ).fetchone()
+
+
+def _rechazo(conn: sqlite3.Connection, uid: str) -> sqlite3.Row | None:
+    """El detalle del descarte, si la idea está ahí."""
+    return conn.execute(
+        "SELECT rejected_description, rejected_by, superseded_by_uid"
+        " FROM rejected_node WHERE uid = ?",
         (uid,),
     ).fetchone()
 
 
 def _estado(conn: sqlite3.Connection, uid: str) -> str:
-    return _estado_de(
-        _rechazo(conn, uid) is not None,
-        _roadmap(conn, uid) is not None,
-        _verificacion(conn, uid) is not None,
-        _revision(conn, uid) is not None,
-        _en_cola(conn, uid),
-    )
-
-
-def _rechazo(conn: sqlite3.Connection, uid: str) -> sqlite3.Row | None:
-    """La ficha del descarte (0007) de una idea, si la tiene."""
-    return conn.execute(
-        "SELECT rejected_at, rejected_description, rejected_by, superseded_by_uid"
-        " FROM idea_rejected WHERE uid = ?",
-        (uid,),
-    ).fetchone()
+    """El estado que manda: el de la fila de nodo de la idea."""
+    fila = conn.execute("SELECT estado FROM idea_node WHERE uid = ?", (uid,)).fetchone()
+    return str(fila[0]) if fila else "draft"
 
 
 def _tags_json(texto: str | None) -> list[str]:
@@ -652,10 +625,14 @@ def _tags_json(texto: str | None) -> list[str]:
 # una idea bloqueada no tendría salida.
 AVANCE = ("roadmap", "verificacion", "revision_aprobada")
 
+# Columnas con las que se lee una idea: su composición y su nodo. Listar, leer
+# una ficha y devolver el resultado de un PATCH usan siempre esta forma.
+_COLUMNAS = "idea_data.*, idea_node.estado, idea_node.entered_at"
+
 
 def _depende_de(conn: sqlite3.Connection, uid: str) -> list[str]:
     """Los uids que bloquean a esta idea (`depende_de`, 0018)."""
-    fila = conn.execute("SELECT depende_de FROM idea_entry WHERE uid = ?", (uid,)).fetchone()
+    fila = conn.execute("SELECT depende_de FROM idea_data WHERE uid = ?", (uid,)).fetchone()
     return _tags_json(fila[0]) if fila else []
 
 
@@ -676,7 +653,7 @@ def _validar_dependencias(conn: sqlite3.Connection, uid: str, deps: list[str]) -
         marcas = ",".join("?" for _ in limpias)
         existentes = {
             str(fila[0])
-            for fila in conn.execute(f"SELECT uid FROM idea_entry WHERE uid IN ({marcas})", limpias)
+            for fila in conn.execute(f"SELECT uid FROM idea_data WHERE uid IN ({marcas})", limpias)
         }
         faltan = [dep for dep in limpias if dep not in existentes]
         if faltan:
@@ -699,7 +676,7 @@ def _sin_aprobar(conn: sqlite3.Connection, deps: list[str]) -> list[str]:
     """Títulos de las dependencias que aún no están en `revision_aprobada`."""
     pendientes: list[str] = []
     for dep in deps:
-        fila = conn.execute("SELECT title FROM idea_entry WHERE uid = ?", (dep,)).fetchone()
+        fila = conn.execute("SELECT title FROM idea_data WHERE uid = ?", (dep,)).fetchone()
         if _estado(conn, dep) != "revision_aprobada":
             pendientes.append(str(fila[0]) if fila else dep)
     return pendientes
@@ -724,43 +701,40 @@ def _comprobar_dependencias(
 
 def _fila(
     row: sqlite3.Row,
-    en_cola: bool,
     roadmap: sqlite3.Row | None,
     verificacion: sqlite3.Row | None,
     revision: sqlite3.Row | None,
     rechazo: sqlite3.Row | None,
 ) -> dict[str, Any]:
-    """Arma el dict de una idea con sus fichas de estado ya resueltas.
+    """Arma el dict de una idea con su nodo y el detalle ya resueltos.
 
-    Quien lista muchas ideas no lee cada ficha por fila (eso era un N+1),
-    sino que las trae en lote con `_en_lote` y ensambla aquí.
+    `row` trae la idea y su nodo (`idea_data.*` + `estado`, `entered_at`).
+    Quien lista muchas ideas no lee cada detalle por fila (eso era un N+1),
+    sino que los trae en lote con `_en_lote` y ensambla aquí.
     """
     idea = dict(row)
+    estado = str(idea.pop("estado"))
+    entrada = idea.pop("entered_at")
+    idea.pop("posicion", None)
+    idea["status"] = estado
     idea["tags"] = _tags_json(idea["tags"])
     idea["depende_de"] = _tags_json(idea["depende_de"])
-    idea["status"] = _estado_de(
-        rechazo is not None,
-        roadmap is not None,
-        verificacion is not None,
-        revision is not None,
-        en_cola,
-    )
-    idea["roadmap_started_at"] = roadmap["started_at"] if roadmap else None
-    idea["roadmap_completed_at"] = roadmap["completed_at"] if roadmap else None
+    # `entered_at` es la fecha de la estancia actual, con el nombre que el
+    # contrato le daba a cada carril: roadmap, verificación, aprobación o descarte.
+    idea["roadmap_started_at"] = entrada if estado == "roadmap" else None
+    idea["roadmap_completed_at"] = verificacion["roadmap_completed_at"] if verificacion else None
     idea["roadmap_resultado"] = roadmap["resultado"] if roadmap else ""
     idea["roadmap_referencia"] = roadmap["referencia"] if roadmap else ""
-    idea["verificacion_started_at"] = verificacion["started_at"] if verificacion else None
-    # Los intentos acumulados viven en la entrada (0014): la ficha solo existe
+    idea["verificacion_started_at"] = entrada if estado == "verificacion" else None
+    # Los intentos acumulados viven en la idea (0014): el detalle solo existe
     # mientras dura la estancia.
     idea["verificacion_intentos"] = int(row["verificacion_intentos"]) if verificacion else 0
     idea["verificacion_ultimo_resultado"] = verificacion["ultimo_resultado"] if verificacion else ""
     idea["verificacion_comentario"] = verificacion["comentario"] if verificacion else ""
-    if roadmap is None and verificacion is not None:
-        idea["roadmap_completed_at"] = verificacion["roadmap_completed_at"]
-    idea["revision_approved_at"] = revision["approved_at"] if revision else None
+    idea["revision_approved_at"] = entrada if estado == "revision_aprobada" else None
     idea["revision_approved_by"] = revision["approved_by"] if revision else "usuario"
     idea["revision_nota"] = revision["nota"] if revision else ""
-    idea["rejected_at"] = rechazo["rejected_at"] if rechazo else None
+    idea["rejected_at"] = entrada if estado == "rejected" else None
     idea["rejected_description"] = rechazo["rejected_description"] if rechazo else ""
     idea["rejected_by"] = rechazo["rejected_by"] if rechazo else "usuario"
     idea["superseded_by_uid"] = rechazo["superseded_by_uid"] if rechazo else None
@@ -772,7 +746,6 @@ def _row(conn: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
     uid = str(row["uid"])
     return _fila(
         row,
-        _en_cola(conn, uid),
         _roadmap(conn, uid),
         _verificacion(conn, uid),
         _revision(conn, uid),
@@ -783,53 +756,46 @@ def _row(conn: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
 def _en_lote(
     conn: sqlite3.Connection, uids: list[str]
 ) -> tuple[
-    set[str],
     dict[str, sqlite3.Row],
     dict[str, sqlite3.Row],
     dict[str, sqlite3.Row],
     dict[str, sqlite3.Row],
 ]:
-    """Cola y fichas de roadmap, verificación, revisión y descarte en lote"""
+    """Detalle de roadmap, verificación, revisión y descarte, en lote."""
     if not uids:
-        return set(), {}, {}, {}, {}
+        return {}, {}, {}, {}
     marcas = ",".join("?" for _ in uids)
-    colas = {
-        str(row[0])
-        for row in conn.execute(f"SELECT uid FROM idea_cola WHERE uid IN ({marcas})", uids)
-    }
     roadmaps = {
         str(row["uid"]): row
         for row in conn.execute(
-            "SELECT uid, started_at, completed_at, resultado, referencia"
-            f" FROM idea_roadmap WHERE uid IN ({marcas})",
+            f"SELECT uid, resultado, referencia FROM roadmap_node WHERE uid IN ({marcas})",
             uids,
         )
     }
     verificaciones = {
         str(row["uid"]): row
         for row in conn.execute(
-            "SELECT uid, started_at, intentos, ultimo_resultado, comentario,"
-            f" roadmap_completed_at FROM idea_verificacion WHERE uid IN ({marcas})",
+            "SELECT uid, intentos, ultimo_resultado, comentario,"
+            f" roadmap_completed_at FROM verificacion_node WHERE uid IN ({marcas})",
             uids,
         )
     }
     revisiones = {
         str(row["uid"]): row
         for row in conn.execute(
-            "SELECT uid, approved_at, approved_by, nota"
-            f" FROM idea_revision WHERE uid IN ({marcas})",
+            f"SELECT uid, approved_by, nota FROM revision_node WHERE uid IN ({marcas})",
             uids,
         )
     }
     rechazos = {
         str(row["uid"]): row
         for row in conn.execute(
-            "SELECT uid, rejected_at, rejected_description, rejected_by, superseded_by_uid"
-            f" FROM idea_rejected WHERE uid IN ({marcas})",
+            "SELECT uid, rejected_description, rejected_by, superseded_by_uid"
+            f" FROM rejected_node WHERE uid IN ({marcas})",
             uids,
         )
     }
-    return colas, roadmaps, verificaciones, revisiones, rechazos
+    return roadmaps, verificaciones, revisiones, rechazos
 
 
 def _grupo(estado: str) -> str:
@@ -841,13 +807,13 @@ def _grupo(estado: str) -> str:
 def _escribir_estado(
     conn: sqlite3.Connection, uid: str, estado: str, detalle: dict[str, Any]
 ) -> None:
-    """Escribe el estado nuevo de una idea en las tablas que lo guardan.
+    """Mueve el nodo de una idea y escribe el detalle de la estancia.
 
-    Un cambio de estado no es un UPDATE de la entrada: es añadir o quitar
-    filas de `idea_cola` (con su posición, al final de la cola), `idea_roadmap`,
-    `idea_verificacion`, `idea_revision` o `idea_rejected`. Mover a donde ya
-    está no escribe nada; re-descartar con detalle nuevo sí: la ficha se
-    actualiza (upsert de `_escribir_rechazo`).
+    Un cambio de estado es un UPDATE de `idea_node` (estado, posición y
+    `entered_at`) más la fila de detalle que toque. La entrada (`draft`) es un
+    nodo más: llegar a ella también deja fila, no es una ausencia. Mover a
+    donde ya está no escribe nada; re-descartar con detalle nuevo sí actualiza
+    el descarte (upsert de `_escribir_rechazo`).
     """
     anterior = _estado(conn, uid)
     if _grupo(estado) == _grupo(anterior) and not (
@@ -856,78 +822,69 @@ def _escribir_estado(
         return
     if estado == "roadmap":
         activo = conn.execute(
-            "SELECT count(*) FROM idea_roadmap WHERE uid <> ?", (uid,)
+            "SELECT count(*) FROM idea_node WHERE estado = 'roadmap' AND uid <> ?", (uid,)
         ).fetchone()[0]
         if activo:
             raise InvalidInput("roadmap solo admite un item activo: ya hay uno en curso")
     roadmap_previo = _roadmap(conn, uid)
-    conn.execute("DELETE FROM idea_cola WHERE uid = ?", (uid,))
-    conn.execute("DELETE FROM idea_roadmap WHERE uid = ?", (uid,))
-    conn.execute("DELETE FROM idea_verificacion WHERE uid = ?", (uid,))
-    conn.execute("DELETE FROM idea_revision WHERE uid = ?", (uid,))
-    if estado not in ("rejected", "superseded"):
-        conn.execute("DELETE FROM idea_rejected WHERE uid = ?", (uid,))
+    ts = now_iso()
+    posicion = None
     if estado == "proposed":
-        posicion = conn.execute("SELECT coalesce(max(posicion), 0) + 1 FROM idea_cola").fetchone()[
-            0
-        ]
+        posicion = conn.execute(
+            "SELECT coalesce(max(posicion), 0) + 1 FROM idea_node WHERE estado = 'proposed'"
+        ).fetchone()[0]
+    conn.execute(
+        "UPDATE idea_node SET estado = ?, posicion = ?, entered_at = ? WHERE uid = ?",
+        (_grupo(estado), posicion, ts, uid),
+    )
+    conn.execute("DELETE FROM roadmap_node WHERE uid = ?", (uid,))
+    conn.execute("DELETE FROM verificacion_node WHERE uid = ?", (uid,))
+    conn.execute("DELETE FROM revision_node WHERE uid = ?", (uid,))
+    if estado not in ("rejected", "superseded"):
+        conn.execute("DELETE FROM rejected_node WHERE uid = ?", (uid,))
+    if estado == "roadmap":
         conn.execute(
-            "INSERT INTO idea_cola (uid, posicion, entered_at) VALUES (?, ?, ?)",
-            (uid, posicion, now_iso()),
-        )
-    elif estado == "roadmap":
-        conn.execute(
-            "INSERT INTO idea_roadmap (uid, started_at, completed_at, resultado, referencia)"
-            " VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO roadmap_node (uid, resultado, referencia) VALUES (?, ?, ?)",
             (
                 uid,
-                now_iso(),
-                None,
                 detalle.get("roadmap_resultado") or "",
                 detalle.get("roadmap_referencia") or "",
             ),
         )
     elif estado == "verificacion":
-        # Los intentos son del ítem, no de la estancia: la ficha se retira al
-        # volver a la cola, así que el contador vive en `idea_entry` (0014) y
+        # Los intentos son del ítem, no de la estancia: el detalle se retira al
+        # volver a la cola, así que el contador vive en `idea_data` (0014) y
         # cada entrada en verificación suma una vuelta.
         intentos = (
             int(
                 conn.execute(
-                    "SELECT verificacion_intentos FROM idea_entry WHERE uid = ?", (uid,)
+                    "SELECT verificacion_intentos FROM idea_data WHERE uid = ?", (uid,)
                 ).fetchone()[0]
             )
             + 1
         )
         conn.execute(
-            "UPDATE idea_entry SET verificacion_intentos = ? WHERE uid = ?", (intentos, uid)
+            "UPDATE idea_data SET verificacion_intentos = ? WHERE uid = ?", (intentos, uid)
         )
         conn.execute(
-            "INSERT INTO idea_verificacion"
-            " (uid, started_at, intentos, ultimo_resultado, comentario, roadmap_completed_at)"
-            " VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO verificacion_node"
+            " (uid, intentos, ultimo_resultado, comentario, roadmap_completed_at)"
+            " VALUES (?, ?, ?, ?, ?)",
             (
                 uid,
-                now_iso(),
                 intentos,
                 detalle.get("verificacion_resultado") or "",
                 detalle.get("verificacion_comentario") or "",
-                now_iso() if roadmap_previo is not None else None,
+                ts if roadmap_previo is not None else None,
             ),
         )
     elif estado == "revision_aprobada":
         conn.execute(
-            "INSERT INTO idea_revision (uid, approved_at, approved_by, nota) VALUES (?, ?, ?, ?)",
-            (
-                uid,
-                now_iso(),
-                detalle.get("approved_by") or "usuario",
-                detalle.get("revision_nota") or "",
-            ),
+            "INSERT INTO revision_node (uid, approved_by, nota) VALUES (?, ?, ?)",
+            (uid, detalle.get("approved_by") or "usuario", detalle.get("revision_nota") or ""),
         )
     elif estado in ("rejected", "superseded"):
         _escribir_rechazo(conn, uid, detalle)
-    # Con `draft` basta el borrado de arriba: la idea queda en la entrada.
 
 
 def _emitir(conn: sqlite3.Connection, tipo: str, payload: dict[str, Any]) -> None:
@@ -960,66 +917,33 @@ def list_ideas(
     offset: int = 0,
 ) -> list[dict[str, Any]]:
     with closing(connect(ensure_repo(repo))) as conn:
-        filtro = ""
-        if status == "draft":
-            filtro = (
-                " AND NOT EXISTS (SELECT 1 FROM idea_cola WHERE idea_cola.uid = idea_entry.uid)"
-                " AND NOT EXISTS (SELECT 1 FROM idea_roadmap"
-                " WHERE idea_roadmap.uid = idea_entry.uid)"
-                " AND NOT EXISTS (SELECT 1 FROM idea_verificacion"
-                " WHERE idea_verificacion.uid = idea_entry.uid)"
-                " AND NOT EXISTS (SELECT 1 FROM idea_revision"
-                " WHERE idea_revision.uid = idea_entry.uid)"
-                " AND NOT EXISTS (SELECT 1 FROM idea_rejected"
-                " WHERE idea_rejected.uid = idea_entry.uid)"
-            )
-        elif status == "proposed":
-            filtro = " AND EXISTS (SELECT 1 FROM idea_cola WHERE idea_cola.uid = idea_entry.uid)"
-        elif status == "roadmap":
-            filtro = (
-                " AND EXISTS (SELECT 1 FROM idea_roadmap WHERE idea_roadmap.uid = idea_entry.uid)"
-            )
-        elif status == "verificacion":
-            filtro = (
-                " AND EXISTS (SELECT 1 FROM idea_verificacion"
-                " WHERE idea_verificacion.uid = idea_entry.uid)"
-            )
-        elif status == "revision_aprobada":
-            filtro = (
-                " AND EXISTS (SELECT 1 FROM idea_revision WHERE idea_revision.uid = idea_entry.uid)"
-            )
-        elif status in ("rejected", "superseded"):
-            filtro = (
-                " AND EXISTS (SELECT 1 FROM idea_rejected WHERE idea_rejected.uid = idea_entry.uid)"
-            )
-        # En cola, el orden es el de la cola; en roadmap y verificación, el de
-        # entrada en ese estado; el resto, por fecha de creación.
-        if status == "proposed":
-            orden = "idea_cola.posicion ASC, idea_entry.created_at ASC"
-        elif status == "roadmap":
-            orden = "idea_roadmap.started_at ASC, idea_entry.created_at ASC"
-        elif status == "verificacion":
-            orden = "idea_verificacion.started_at ASC, idea_entry.created_at ASC"
+        # El estado es una columna del nodo, no la presencia en una ficha: el
+        # filtro es el mismo para los seis carriles y `superseded` sigue
+        # leyéndose como el descarte que es.
+        filtro = _grupo(status) if status else None
+        # En cola, el orden es la posición; roadmap y verificación, la entrada
+        # en el nodo; el resto, por fecha de creación.
+        if filtro == "proposed":
+            orden = "idea_node.posicion ASC, idea_data.created_at ASC"
+        elif filtro in ("roadmap", "verificacion"):
+            orden = "idea_node.entered_at ASC, idea_data.created_at ASC"
         else:
-            orden = "idea_entry.created_at DESC, idea_entry.id DESC"
+            orden = "idea_data.created_at DESC, idea_data.id DESC"
         rows = conn.execute(
-            "SELECT idea_entry.* FROM idea_entry"
-            " LEFT JOIN idea_cola ON idea_cola.uid = idea_entry.uid"
-            " LEFT JOIN idea_roadmap ON idea_roadmap.uid = idea_entry.uid"
-            " LEFT JOIN idea_verificacion ON idea_verificacion.uid = idea_entry.uid"
-            " LEFT JOIN idea_revision ON idea_revision.uid = idea_entry.uid"
-            f" WHERE (:kind IS NULL OR kind = :kind){filtro}"
+            f"SELECT {_COLUMNAS} FROM idea_data"
+            " JOIN idea_node ON idea_node.uid = idea_data.uid"
+            " WHERE (:kind IS NULL OR kind = :kind)"
+            " AND (:estado IS NULL OR idea_node.estado = :estado)"
             f" ORDER BY {orden}"
             " LIMIT :limit OFFSET :offset",
-            {"kind": kind, "limit": limit, "offset": offset},
+            {"kind": kind, "estado": filtro, "limit": limit, "offset": offset},
         ).fetchall()
-        colas, roadmaps, verificaciones, revisiones, rechazos = _en_lote(
+        roadmaps, verificaciones, revisiones, rechazos = _en_lote(
             conn, [str(r["uid"]) for r in rows]
         )
         return [
             _fila(
                 r,
-                str(r["uid"]) in colas,
                 roadmaps.get(str(r["uid"])),
                 verificaciones.get(str(r["uid"])),
                 revisiones.get(str(r["uid"])),
@@ -1031,7 +955,12 @@ def list_ideas(
 
 def get_idea(repo: str, uid: str) -> dict[str, Any]:
     with closing(connect(ensure_repo(repo))) as conn:
-        row = conn.execute("SELECT * FROM idea_entry WHERE uid = ?", (uid,)).fetchone()
+        row = conn.execute(
+            f"SELECT {_COLUMNAS} FROM idea_data"
+            " JOIN idea_node ON idea_node.uid = idea_data.uid"
+            " WHERE idea_data.uid = ?",
+            (uid,),
+        ).fetchone()
         if row is None:
             raise KeyError(uid)
         return _row(conn, row)
@@ -1054,7 +983,7 @@ def create_idea(
         deps = _validar_dependencias(conn, uid, list(depende_de))
         _comprobar_dependencias(conn, uid, status, deps)
         conn.execute(
-            "INSERT INTO idea_entry"
+            "INSERT INTO idea_data"
             " (uid, title, description, content, kind, tags, depende_de,"
             " created_at, updated_at)"
             " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -1070,9 +999,13 @@ def create_idea(
                 ts,
             ),
         )
-        # El estado de la entrada nace con ella, en la misma transacción: con
-        # `draft` no escribe nada (es el cajón); con otro, su fila de cola o
-        # su ficha directamente.
+        # El nodo nace en la entrada y `_escribir_estado` lo mueve si la idea
+        # se creó ya en otro carril, en la misma transacción.
+        conn.execute(
+            "INSERT INTO idea_node (uid, estado, posicion, entered_at)"
+            " VALUES (?, 'draft', NULL, ?)",
+            (uid, ts),
+        )
         _escribir_estado(conn, uid, status, {})
         _emitir(conn, "idea.created", {"uid": uid, "title": title})
         conn.commit()
@@ -1080,18 +1013,17 @@ def create_idea(
 
 
 def _escribir_rechazo(conn: sqlite3.Connection, uid: str, detalle: dict[str, Any]) -> None:
-    """La ficha del descarte, con upsert: re-descartar la misma idea no duplica."""
+    """El detalle del descarte, con upsert: re-descartar la misma idea no duplica."""
     conn.execute(
-        "INSERT INTO idea_rejected"
-        " (uid, rejected_at, rejected_description, rejected_by, superseded_by_uid)"
-        " VALUES (?, ?, ?, ?, ?)"
+        "INSERT INTO rejected_node"
+        " (uid, rejected_description, rejected_by, superseded_by_uid)"
+        " VALUES (?, ?, ?, ?)"
         " ON CONFLICT(uid) DO UPDATE SET"
         "   rejected_description = excluded.rejected_description,"
         "   rejected_by = excluded.rejected_by,"
         "   superseded_by_uid = excluded.superseded_by_uid",
         (
             uid,
-            now_iso(),
             detalle.get("rejected_description") or "",
             detalle.get("rejected_by") or "usuario",
             detalle.get("superseded_by_uid"),
@@ -1137,7 +1069,7 @@ def _actualizar_ficha_activa(
             params["roadmap_referencia"] = detalle["roadmap_referencia"]
         if asignaciones:
             conn.execute(
-                f"UPDATE idea_roadmap SET {', '.join(asignaciones)} WHERE uid = :uid", params
+                f"UPDATE roadmap_node SET {', '.join(asignaciones)} WHERE uid = :uid", params
             )
     elif estado == "verificacion":
         asignaciones = []
@@ -1150,7 +1082,7 @@ def _actualizar_ficha_activa(
             params["verificacion_comentario"] = detalle["verificacion_comentario"]
         if asignaciones:
             conn.execute(
-                f"UPDATE idea_verificacion SET {', '.join(asignaciones)} WHERE uid = :uid", params
+                f"UPDATE verificacion_node SET {', '.join(asignaciones)} WHERE uid = :uid", params
             )
     elif estado == "revision_aprobada":
         asignaciones = []
@@ -1163,7 +1095,7 @@ def _actualizar_ficha_activa(
             params["revision_nota"] = detalle["revision_nota"]
         if asignaciones:
             conn.execute(
-                f"UPDATE idea_revision SET {', '.join(asignaciones)} WHERE uid = :uid", params
+                f"UPDATE revision_node SET {', '.join(asignaciones)} WHERE uid = :uid", params
             )
     elif estado in ("rejected", "superseded"):
         asignaciones = []
@@ -1179,7 +1111,7 @@ def _actualizar_ficha_activa(
             params["superseded_by_uid"] = detalle["superseded_by_uid"]
         if asignaciones:
             conn.execute(
-                f"UPDATE idea_rejected SET {', '.join(asignaciones)} WHERE uid = :uid", params
+                f"UPDATE rejected_node SET {', '.join(asignaciones)} WHERE uid = :uid", params
             )
 
 
@@ -1201,7 +1133,7 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
     with closing(connect(ensure_repo(repo))) as conn:
         # La ficha activa (y el destino, si cambia el estado) decide qué
         # campos de ficha tienen sentido; se comprueba antes de escribir.
-        if conn.execute("SELECT 1 FROM idea_entry WHERE uid = ?", (uid,)).fetchone() is None:
+        if conn.execute("SELECT 1 FROM idea_data WHERE uid = ?", (uid,)).fetchone() is None:
             raise KeyError(uid)
         actual = _estado(conn, uid)
         destino = nuevo_estado or actual
@@ -1228,7 +1160,7 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
             if cambiado_estado:
                 _comprobar_dependencias(conn, uid, nuevo_estado, deps_nuevas)
             cursor = conn.execute(
-                f"UPDATE idea_entry SET {assignments} WHERE uid = :uid",
+                f"UPDATE idea_data SET {assignments} WHERE uid = :uid",
                 {**clean, "uid": uid},
             )
             if cursor.rowcount == 0:
@@ -1239,7 +1171,12 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
                 _actualizar_ficha_activa(conn, uid, actual, detalle_ficha)
             idea = _row(
                 conn,
-                conn.execute("SELECT * FROM idea_entry WHERE uid = ?", (uid,)).fetchone(),
+                conn.execute(
+                    f"SELECT {_COLUMNAS} FROM idea_data"
+                    " JOIN idea_node ON idea_node.uid = idea_data.uid"
+                    " WHERE idea_data.uid = ?",
+                    (uid,),
+                ).fetchone(),
             )
             _emitir(
                 conn,
@@ -1248,15 +1185,6 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
             )
             conn.commit()
         except sqlite3.IntegrityError as exc:
-            mensaje = str(exc)
-            if "otra ficha" in mensaje:
-                raise InvalidInput(
-                    "la idea ya está en otra ficha: retírala antes de moverla"
-                ) from exc
-            if "un item activo" in mensaje:
-                raise InvalidInput(
-                    "roadmap solo admite un item activo: ya hay uno en curso"
-                ) from exc
             # `superseded_by_uid` apunta a una idea que no existe: es un dato
             # mal puesto (400), no un fallo del servidor (500).
             raise InvalidInput("superseded_by_uid apunta a una idea que no existe") from exc
@@ -1264,7 +1192,7 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
 
 
 def delete_idea(repo: str, uid: str) -> bool:
-    """Borra la idea; sus conexiones se van con ella (ON DELETE CASCADE).
+    """Borra la idea; su nodo y el detalle se van con ella (ON DELETE CASCADE).
 
     El título se lee antes de borrar para que el evento `idea.deleted` tenga
     qué mostrar: después no hay fila de la que sacar nada. Si otra ficha la
@@ -1272,11 +1200,11 @@ def delete_idea(repo: str, uid: str) -> bool:
     información y se avisa del conflicto en vez de romperlo en silencio.
     """
     with closing(connect(ensure_repo(repo))) as conn:
-        titulo_row = conn.execute("SELECT title FROM idea_entry WHERE uid = ?", (uid,)).fetchone()
+        titulo_row = conn.execute("SELECT title FROM idea_data WHERE uid = ?", (uid,)).fetchone()
         sustitutas = [
             str(fila[0])
             for fila in conn.execute(
-                "SELECT uid FROM idea_rejected WHERE superseded_by_uid = ? ORDER BY uid",
+                "SELECT uid FROM rejected_node WHERE superseded_by_uid = ? ORDER BY uid",
                 (uid,),
             )
         ]
@@ -1285,11 +1213,11 @@ def delete_idea(repo: str, uid: str) -> bool:
                 f"no se puede borrar {uid}: es la sustituta de {', '.join(sustitutas)};"
                 " retira ese vínculo antes"
             )
-        # La cola, las fichas y las conexiones se borran con la entrada (ON DELETE CASCADE).
+        # El nodo y el detalle se borran con la idea (ON DELETE CASCADE).
         try:
-            cursor = conn.execute("DELETE FROM idea_entry WHERE uid = ?", (uid,))
+            cursor = conn.execute("DELETE FROM idea_data WHERE uid = ?", (uid,))
         except sqlite3.IntegrityError as exc:
-            # Otra conexión pudo enlazarla entre la comprobación y el borrado.
+            # Otra ficha pudo enlazarla entre la comprobación y el borrado.
             raise InvalidInput(
                 f"no se puede borrar {uid}: otra ficha la referencia en `superseded_by_uid`"
             ) from exc
@@ -1297,11 +1225,11 @@ def delete_idea(repo: str, uid: str) -> bool:
             # `depende_de` es una lista JSON, sin FK que la limpie: se retira
             # el uid de las listas ajenas para que nadie quede bloqueado por
             # una idea que ya no existe.
-            for fila in conn.execute("SELECT uid, depende_de FROM idea_entry").fetchall():
+            for fila in conn.execute("SELECT uid, depende_de FROM idea_data").fetchall():
                 deps = _tags_json(fila[1])
                 if uid in deps:
                     conn.execute(
-                        "UPDATE idea_entry SET depende_de = ? WHERE uid = ?",
+                        "UPDATE idea_data SET depende_de = ? WHERE uid = ?",
                         (json.dumps([otra for otra in deps if otra != uid]), fila[0]),
                     )
             _emitir(conn, "idea.deleted", {"uid": uid, "title": titulo_row[0]})
@@ -1344,48 +1272,36 @@ def map_snapshot(repo: str) -> dict[str, Any]:
     with closing(open_read_only(ensure_repo(repo))) as conn:
         conn.execute("BEGIN")
         rows = conn.execute(
-            "SELECT idea_entry.uid, idea_entry.title, idea_entry.description,"
-            " idea_entry.depende_de,"
-            " idea_rejected.rejected_at, idea_rejected.rejected_description"
-            " FROM idea_entry"
-            " LEFT JOIN idea_rejected ON idea_rejected.uid = idea_entry.uid"
-            " LEFT JOIN idea_cola ON idea_cola.uid = idea_entry.uid"
-            " LEFT JOIN idea_roadmap ON idea_roadmap.uid = idea_entry.uid"
-            " LEFT JOIN idea_verificacion ON idea_verificacion.uid = idea_entry.uid"
-            " LEFT JOIN idea_revision ON idea_revision.uid = idea_entry.uid"
+            "SELECT idea_data.uid, idea_data.title, idea_data.description,"
+            " idea_data.depende_de, idea_data.created_at, idea_data.id,"
+            " idea_node.estado, idea_node.entered_at,"
+            " rejected_node.rejected_description"
+            " FROM idea_data"
+            " JOIN idea_node ON idea_node.uid = idea_data.uid"
+            " LEFT JOIN rejected_node ON rejected_node.uid = idea_data.uid"
             # El mapa se pinta en el orden en que llega, así que cada carril
             # tiene que salir como lo lista `/ideas`: la cola por posición
             # (volver de verificación estrena posición, al final) y roadmap y
-            # verificación por entrada en la ficha. Los carriles sin orden
-            # propio, por creación.
+            # verificación por entrada en el nodo. El resto, por creación.
             " ORDER BY"
-            " CASE"
-            " WHEN idea_rejected.uid IS NOT NULL THEN 4"
-            " WHEN idea_revision.uid IS NOT NULL THEN 3"
-            " WHEN idea_verificacion.uid IS NOT NULL THEN 2"
-            " WHEN idea_roadmap.uid IS NOT NULL THEN 1"
-            " WHEN idea_cola.uid IS NOT NULL THEN 0"
+            " CASE idea_node.estado"
+            " WHEN 'proposed' THEN 0"
+            " WHEN 'roadmap' THEN 1"
+            " WHEN 'verificacion' THEN 2"
+            " WHEN 'revision_aprobada' THEN 3"
+            " WHEN 'rejected' THEN 4"
             " ELSE 5 END,"
-            " idea_cola.posicion ASC,"
-            " idea_roadmap.started_at ASC,"
-            " idea_verificacion.started_at ASC,"
-            " idea_entry.created_at DESC, idea_entry.id DESC"
+            " idea_node.posicion ASC,"
+            " idea_node.entered_at ASC,"
+            " idea_data.created_at DESC, idea_data.id DESC"
         ).fetchall()
-        colas, roadmaps, verificaciones, revisiones, _ = _en_lote(
-            conn, [str(row["uid"]) for row in rows]
-        )
         ideas = [
             {
                 **dict(row),
-                "status": _estado_de(
-                    row["rejected_at"] is not None,
-                    str(row["uid"]) in roadmaps,
-                    str(row["uid"]) in verificaciones,
-                    str(row["uid"]) in revisiones,
-                    str(row["uid"]) in colas,
-                ),
+                "status": str(row["estado"]),
+                "rejected_at": (row["entered_at"] if str(row["estado"]) == "rejected" else None),
                 "depende_de": _tags_json(row["depende_de"]),
-                # El JOIN da `NULL` sin ficha; el contrato dice texto.
+                # El JOIN da `NULL` sin descarte; el contrato dice texto.
                 "rejected_description": row["rejected_description"] or "",
             }
             for row in rows
@@ -1426,8 +1342,8 @@ def revision(repo: str) -> dict[str, Any]:
     db_file = ensure_repo(repo)
     with _VIGILANTES_LOCK:
         conn = vigilante(db_file, compartida=True)
-        # La tabla de entradas se llama `idea_entry` desde la 0006; antes, `ideas`.
-        tabla_idea = "idea_entry" if _existe(conn, "idea_entry") else "ideas"
+        # La tabla vive como `idea_data` desde la 0020; antes, `idea_entry`.
+        tabla_idea = "idea_data" if _existe(conn, "idea_data") else "ideas"
         return {
             "instance": _REVISION_INSTANCE,
             "data_version": data_version(conn),
@@ -1453,13 +1369,13 @@ def reiniciar(repo: str) -> dict[str, Any]:
 
     with closing(connect(db_file)) as conn:
         conn.execute("BEGIN IMMEDIATE")
-        n_ideas = contar(conn, "idea_entry")
+        n_ideas = contar(conn, "idea_data")
         n_eventos = contar(conn, "event")
-        # Borrar las entradas arrastra cola y fichas por CASCADE; los eventos
-        # no cuelgan de nada, se borran aparte.
+        # Borrar las ideas arrastra nodo y detalle por CASCADE; los eventos no
+        # cuelgan de nada, se borran aparte.
         if n_eventos:
             conn.execute("DELETE FROM event")
-        conn.execute("DELETE FROM idea_entry")
+        conn.execute("DELETE FROM idea_data")
         conn.commit()
     return {
         "repo": repo,

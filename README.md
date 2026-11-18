@@ -204,9 +204,9 @@ primera lectura. Añadir una columna o cambiar un `CHECK` es, entonces, editar
 Cuando el paso cambia un `CHECK` o una columna, SQLite no tiene `ALTER` para eso y
 hay que reconstruir la tabla. Esa migración lleva `-- sin-foreign-keys` en la
 cabecera y el runner apaga las claves foráneas antes de abrir la transacción
-(dentro se ignora el `PRAGMA`): sin eso, tirar `idea_entry` arrastraría sus fichas
-por `ON DELETE CASCADE`. El paso `0004` es el ejemplo: reconstruye `ideas` para
-añadir `CHECK (json_valid(tags))`.
+(dentro se ignora el `PRAGMA`): sin eso, tirar `idea_data` arrastraría su nodo
+y el detalle por `ON DELETE CASCADE`. El paso `0004` es el ejemplo: reconstruye
+`ideas` para añadir `CHECK (json_valid(tags))`.
 
 ## Estado
 
@@ -225,8 +225,13 @@ añadir `CHECK (json_valid(tags))`.
   declara `depende_de` y no avanza de carril hasta que esas ideas estén
   aprobadas; la tabla de conexiones y sus enlaces laterales se retiraron, así
   que el mapa pinta cada carril plano.
+- **La idea y su nodo (0020)**: `idea_data` guarda qué es la idea y `idea_node`
+  dónde está (`estado`, `posicion` y `entered_at`), una fila por idea; el detalle
+  de cada carril vive en `roadmap_node`, `verificacion_node`, `revision_node` y
+  `rejected_node`. La entrada (`draft`) es un nodo más y no hay triggers de
+  exclusividad: no puede estar en dos carriles porque solo tiene una fila.
 - **Flujo de ideas (0013)**. La migración incorpora roadmap, verificación y
-  revisión aprobada, y traslada las fichas históricas de completadas a `idea_revision`.
+  revisión aprobada, y traslada las fichas históricas de completadas a `revision_node`.
 - **Log con pestañas:** un solo flyout con `Eventos` (timeline del repo, por
   origen y nivel) y `Registro` (operativo de la app, por etiqueta y nivel).
 

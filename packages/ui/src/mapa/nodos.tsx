@@ -18,7 +18,7 @@ function Arrow({ open }: { open: boolean }) {
 /** Palabra del estado para la fila, en español: el contrato habla `draft`/
  *  `proposed` pero la fila se lee en español. Los nombres son los mismos
  *  carriles: `draft` es la entrada (no tiene fila en ninguna ficha),
- *  `proposed` vive en la cola (`idea_cola`), y los demás, en sus fichas. */
+ *  `proposed` vive en la cola, y los demás, en su detalle del nodo. */
 const ETIQUETA_ESTADO: Record<string, string> = {
   draft: "En la entrada",
   proposed: "En cola",
@@ -208,7 +208,7 @@ function NodeRow({
               className="btn ghost mover"
               title={accion.etiqueta}
               onClick={() => {
-                // Descartar pide el motivo (ficha `idea_rejected`); los demás
+                // Descartar pide el motivo (detalle `rejected_node`); los demás
                 // traslados van directos.
                 if (accion.descartar && onEditar) setDescartando(true);
                 else onMover(uid!, accion.estado);

@@ -10,7 +10,7 @@ export default {
       path.join(tmp, "repos", "lab", ".EUI", "EUI_DATABASE.sqlite"),
       { readOnly: true },
     );
-    const ideas = () => db.prepare("SELECT count(*) AS n FROM idea_entry").get().n;
+    const ideas = () => db.prepare("SELECT count(*) AS n FROM idea_data").get().n;
 
     const abrirLab = async () => {
       await page.goto(UI, { waitUntil: "domcontentloaded" });

@@ -74,9 +74,9 @@ class IdeaUpdate(BaseModel):
     """Campos ausentes no se tocan; `null` explícito tampoco los borra.
 
     Los del descarte viajan junto al `status: rejected`/`superseded`: el
-    motivo y quién lo dictamina se guardan en `idea_rejected` al entrar en
+    motivo y quién lo dictamina se guardan en `rejected_node` al entrar en
     `descartadas`. Los de roadmap, verificación y revisión aprobada viajan
-    igual junto a su `status` y se guardan en su ficha.
+    igual junto a su `status` y se guardan en su detalle.
     """
 
     title: str | None = Field(default=None, min_length=1)

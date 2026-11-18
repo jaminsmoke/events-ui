@@ -75,10 +75,10 @@ def test_flujo_completo_con_campos_y_regreso_a_cola(client, repo):  # noqa: ANN0
     assert aprobada["revision_nota"] == "Correcta"
 
     conn = sqlite3.connect(str(ideas.db_file_for(repo)))
-    for tabla in ("idea_cola", "idea_roadmap", "idea_verificacion"):
+    for tabla in ("roadmap_node", "verificacion_node"):
         conteo = conn.execute(f"SELECT count(*) FROM {tabla} WHERE uid = ?", (uid,)).fetchone()[0]
         assert conteo == 0
-    revision = conn.execute("SELECT count(*) FROM idea_revision WHERE uid = ?", (uid,)).fetchone()[
+    revision = conn.execute("SELECT count(*) FROM revision_node WHERE uid = ?", (uid,)).fetchone()[
         0
     ]
     assert revision == 1

@@ -105,12 +105,12 @@ def _comprobar_migrado(client, repo, esperados=_ESPERADOS):  # noqa: ANN001, ANN
     db = ideas.db_file_for(repo)
     conn = sqlite3.connect(str(db))
     try:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 19
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 20
         tablas = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         assert "idea_completada" not in tablas
-        assert conn.execute("SELECT uid, approved_at FROM idea_revision").fetchall() == [
-            ("hecha", "2026-01-02T00:00:00Z")
-        ]
+        assert conn.execute(
+            "SELECT uid, entered_at FROM idea_node WHERE estado = 'revision_aprobada'"
+        ).fetchall() == [("hecha", "2026-01-02T00:00:00Z")]
         protocolos = set(conn.execute("SELECT origen, destino FROM protocolo_flujo").fetchall())
         assert protocolos == esperados
     finally:
@@ -150,10 +150,11 @@ def test_un_v13_mal_migrado_se_repara_al_abrir(client, repo):  # noqa: ANN001, A
     db = _db_v12(repo)
     conn = sqlite3.connect(str(db))
     try:
-        ideas.aplicar_esquema(conn)
+        # El v13 firmado sin migrar: la completada sigue en la tabla vieja y
+        # los carriles nuevos (roadmap, verificación, revisión) aún no existen.
+        conn.execute("PRAGMA user_version = 13")
         conn.commit()
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 19
-        assert conn.execute("SELECT count(*) FROM idea_revision").fetchone()[0] == 0
+        assert conn.execute("SELECT count(*) FROM idea_completada").fetchone()[0] == 1
     finally:
         conn.close()
 

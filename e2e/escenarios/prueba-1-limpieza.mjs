@@ -2,8 +2,8 @@ import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 
 const tablasOperativas = [
-  "idea_entry", "idea_cola", "idea_rejected", "idea_roadmap", "idea_verificacion",
-  "idea_revision", "event",
+  "idea_data", "idea_node", "rejected_node", "roadmap_node", "verificacion_node",
+  "revision_node", "event",
 ];
 
 async function geometria(page) {

@@ -53,30 +53,21 @@ def repo_estado_actual(repo: str) -> dict[str, Any]:
             return 0
 
     with closing(open_read_only(db_file)) as conn:
-        # La tabla vive como `idea_entry` desde la 0006; antes, `ideas`.
-        tabla_idea = "idea_entry" if _existe(conn, "idea_entry") else "ideas"
+        # La tabla vive como `idea_data` desde la 0020; antes era `idea_entry`
+        # (0006) y, más atrás, `ideas`.
+        tabla_idea = "idea_data" if _existe(conn, "idea_data") else "ideas"
         ideas = conteo(conn, f"SELECT count(*) FROM {tabla_idea}")
         eventos = conteo(conn, "SELECT count(*) FROM event")
         por_estado: dict[str, int] = {}
         try:
-            # La cola y las fichas son filas reales (0009): el conteo por
-            # estado es una CASE sobre ellas. Una idea sin fila en ninguna es
-            # la entrada y no cuenta (antes salía la clave literal "None").
-            for estado, n in conn.execute(
-                "SELECT CASE"
-                " WHEN EXISTS (SELECT 1 FROM idea_rejected r WHERE r.uid = idea_entry.uid)"
-                " THEN 'descartadas'"
-                " WHEN EXISTS (SELECT 1 FROM idea_revision r WHERE r.uid = idea_entry.uid)"
-                " THEN 'revision_aprobada'"
-                " WHEN EXISTS (SELECT 1 FROM idea_verificacion v WHERE v.uid = idea_entry.uid)"
-                " THEN 'verificacion'"
-                " WHEN EXISTS (SELECT 1 FROM idea_roadmap m WHERE m.uid = idea_entry.uid)"
-                " THEN 'roadmap'"
-                " WHEN EXISTS (SELECT 1 FROM idea_cola q WHERE q.uid = idea_entry.uid)"
-                " THEN 'cola' END, count(*) FROM idea_entry GROUP BY 1"
-            ):
-                if estado is not None:
-                    por_estado[str(estado)] = int(n)
+            # El estado es una columna del nodo (0020): un GROUP BY y una
+            # traducción de nombre. La entrada (`draft`) no cuenta, como antes.
+            for estado, n in conn.execute("SELECT estado, count(*) FROM idea_node GROUP BY 1"):
+                clave = {"rejected": "descartadas", "proposed": "cola"}.get(
+                    str(estado), str(estado)
+                )
+                if estado != "draft":
+                    por_estado[clave] = int(n)
         except sqlite3.Error:
             pass
         try:

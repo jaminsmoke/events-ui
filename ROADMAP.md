@@ -17,9 +17,10 @@ con el motivo, para no reabrirlo cada semana.
   regenerado (`check:contract`).
 - **La UI escribe**: crear, editar, borrar y mover ideas por la API tipada.
   Las conexiones no se gestionan desde la UI: son arquitectura.
-- **Estado por idea**. El core mueve la idea entre fichas en una transacción.
-  La entrada se representa con la ausencia de ficha y la cola tiene posición propia.
-- **Dependencias entre ideas** (0018): `idea_entry.depende_de` guarda los uids
+- **Estado por idea**. El core mueve la idea de nodo en una transacción: un
+  `UPDATE` de `idea_node` con carril, posición de cola y fecha de entrada. La
+  entrada es un carril más, no una ausencia.
+- **Dependencias entre ideas** (0018): `idea_data.depende_de` guarda los uids
   que bloquean el avance. El core valida que existan, rechaza auto-dependencias
   y ciclos, limpia el uid al borrar y frena roadmap/verificación/revisión
   aprobada mientras alguna no esté aprobada. La fila del mapa enseña a quién
@@ -47,7 +48,7 @@ con el motivo, para no reabrirlo cada semana.
   traslados entre carriles están permitidos; lo no listado se rechaza con
   400. La UI apaga los traslados prohibidos validando la respuesta con Zod.
 - **Flujo completo** (0013). Roadmap, verificación y revisión aprobada tienen
-  ficha propia. La migración recoge las antiguas completadas en `idea_revision`.
+  ficha propia. La migración recoge las antiguas completadas en `revision_node`.
 - **Versionado único** (`scripts/bump.mjs`): la raíz es la fuente de verdad;
   `pnpm bump` sin argumento es el check, con argumento fija la versión y
   sincroniza el lockfile. `pnpm release` encadena bump + gen:api + check +
@@ -66,7 +67,7 @@ con el motivo, para no reabrirlo cada semana.
   toca nada y un v13 firmado sin migrar termina la 0013 al abrirse. Cubierto
   por `services/core/tests/test_seed_migracion.py`.
 - **Almacenes anteriores a `user_version`**: un fichero histórico con la
-  tabla `ideas` se copia a `idea_entry` conservando UID, campos y estado
+  tabla `ideas` se copia a `idea_data` (y su nodo) conservando UID, campos y estado
   (`proposed` a cola, `accepted` a revisión aprobada, `rejected`/`superseded`
   a descartada), y `connections` se retira (0019).
   También se recupera un v13 que ya quedó marcado con la fila en la tabla
@@ -121,10 +122,11 @@ con el motivo, para no reabrirlo cada semana.
   (`datetime(ts) < datetime('now', …)`), así un evento de la mañana del día de
   corte ya no sobrevive a la retención; probado en ambos lados del corte para
   `event` y `registro` en `services/core/tests/test_retencion.py`.
-- **Exclusividad de fichas**: la idea no puede estar en dos fichas a la vez y
-  el roadmap no admite dos activas; los triggers del almacén (migración 0016)
-  lo imponen a cualquier escritor y una inserción rechazada deja el estado
-  anterior intacto. Cubierto en `services/core/tests/test_exclusividad.py`.
+- **Un nodo por idea** (0020): `idea_data` guarda qué es la idea y `idea_node`
+  dónde está, con carril, posición y fecha de entrada. La exclusividad es por
+  construcción (una fila), así que los triggers de la 0016 se retiraron; un
+  índice parcial mantiene un solo roadmap activo. Cubierto en
+  `services/core/tests/test_flujo_items.py`.
 - **Formato de etiquetas**: `tags` es una lista JSON de cadenas en el
   esquema (migración 0017, que sanea `{}` y los elementos no textuales) y en
   la API (422 con valores que no son cadenas); una fila antigua se lee como

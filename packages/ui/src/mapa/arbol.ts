@@ -46,8 +46,9 @@ export function buildTree(ideas: Idea[], links: Connection[]): Tree {
     conPadre.add(link.child_uid);
   }
 
-  /* Una idea y lo que cuelga de ella. `camino` corta los ciclos: la API ya los
-   * rechaza, pero una conexión repetida no puede colgar el render. */
+  /* Una idea y lo que cuelga de ella. `camino` corta los ciclos: una
+   * importación puede traer dos enlaces `child` recíprocos y el render no
+   * puede quedarse dando vueltas. */
   const rama = (uid: string, camino: ReadonlySet<string>): TreeNode | null => {
     const idea = byUid.get(uid);
     if (!idea || camino.has(uid)) return null;
@@ -84,10 +85,40 @@ export function buildTree(ideas: Idea[], links: Connection[]): Tree {
     tone: "root",
   };
 
+  /* Todo lo alcanzable desde una idea, sin repetir. Sirve para saber qué se
+   * ve desde las raíces sin reutilizar el `camino` de `rama`: con varios
+   * padres, una misma idea se pinta bajo cada uno y no puede marcarse como
+   * vista para los demás. */
+  const alcanzables = (uid: string): Set<string> => {
+    const vistos = new Set<string>();
+    const pila = [uid];
+    while (pila.length > 0) {
+      const actual = pila.pop()!;
+      if (vistos.has(actual)) continue;
+      vistos.add(actual);
+      pila.push(...(hijos.get(actual) ?? []));
+    }
+    return vistos;
+  };
+
   const carriles: TreeNode[] = LANES.map((lane) => {
     const items = ideas.filter((idea) => carrilPorUid.get(idea.uid) === lane.id);
-    const kids = items
-      .filter((idea) => !conPadre.has(idea.uid))
+    // Las raíces no tienen padre. Un ciclo sin raíz (A cuelga de B y B de A)
+    // dejaba el carril vacío aunque tuviera ideas, porque nadie lo abría: se
+    // promueve la primera idea de cada ciclo que no se vea desde las raíces y
+    // `rama` corta la arista que vuelve. Varios padres siguen intactos: la
+    // idea se pinta bajo cada uno.
+    const mostradas = new Set<string>();
+    const raices = items.filter((idea) => !conPadre.has(idea.uid));
+    for (const idea of raices) {
+      for (const uid of alcanzables(idea.uid)) mostradas.add(uid);
+    }
+    const promovidas = items.filter((idea) => {
+      if (mostradas.has(idea.uid)) return false;
+      for (const uid of alcanzables(idea.uid)) mostradas.add(uid);
+      return true;
+    });
+    const kids = [...raices, ...promovidas]
       .map((idea) => rama(idea.uid, new Set()))
       .filter((nodo): nodo is TreeNode => nodo !== null);
 

@@ -119,6 +119,11 @@ con el motivo, para no reabrirlo cada semana.
   el roadmap no admite dos activas; los triggers del almacén (migración 0016)
   lo imponen a cualquier escritor y una inserción rechazada deja el estado
   anterior intacto. Cubierto en `services/core/tests/test_exclusividad.py`.
+- **Ciclos en el árbol**: dos enlaces `child` recíprocos llegan de una
+  importación y el mapa los devuelve enteros; el visor promueve una idea de
+  cada ciclo sin raíz para que el carril no se quede vacío y sigue pintando
+  una idea bajo cada padre. Cubierto en `test_flujo_items.py` y comprobado
+  sobre `buildTree` con el bundle compilado.
 - **CI**: `pnpm check` global en cada push a main y en PRs
   (`.github/workflows/ci.yml`). Batería e2e y builds de Tauri quedan fuera
   del CI a propósito (navegador y puertos; se corren en local).
@@ -142,7 +147,6 @@ las relaciones y el alcance de las comprobaciones locales.
 
 Estos casos se reprodujeron con datos de prueba y claves foráneas activadas.
 
-- [ ] **Ciclos en el árbol.** Dos enlaces `child` recíprocos son válidos en SQLite. En el mismo carril, ambas ideas tienen padre y el visor las excluye de las raíces. Cubrir la importación y la visualización de ese caso manteniendo el soporte de varios padres.
 - [ ] **Formato de etiquetas.** El esquema acepta `{}` como JSON válido y después `GET /ideas` devuelve 500. Validar una lista de cadenas y contemplar la recuperación de filas existentes con otro formato.
 - [ ] **Ruta del registro operativo.** Al arrancar desde dos directorios se resuelve `data/registro.sqlite` en ubicaciones distintas. Unificar el destino predeterminado, conservar el override y verificar que ambos arranques consultan el mismo historial.
 

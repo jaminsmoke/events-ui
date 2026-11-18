@@ -5,8 +5,10 @@ solo se lee), ni el historial de ideas: es el registro de la aplicación —
 arranques del core, errores no capturados y operaciones de laboratorio— para
 verse en la UI y depurar.
 
-Vive en su propio SQLite (`data/registro.sqlite`, `EVENTSUI_REGISTRO_DB` para
-cambiarlo): el estado operativo no es estado del repo y no viaja con él. Los
+Vive en su propio SQLite (`data/registro.sqlite` en la raíz del repo,
+`EVENTSUI_REGISTRO_DB` para cambiarlo): el estado operativo no es estado del
+repo y no viaja con él. La ruta no depende del directorio desde el que se
+arranca el core, para que dos arranques vean el mismo historial. Los
 escritores son solo el propio core; la UI lo lee por `/log`.
 
 Purga: automática al escribir, dos barridos como `eventos.compactar` —
@@ -26,7 +28,24 @@ from typing import Any
 from .db import barridos_retencion
 
 REGISTRO_ENV_VAR = "EVENTSUI_REGISTRO_DB"
-DEFAULT_REGISTRO_PATH = "data/registro.sqlite"
+
+
+def _raiz_del_repo() -> Path:
+    """La raíz del repo aunque se arranque desde otro directorio.
+
+    `src/events_core/registro.py` está a cuatro niveles de la raíz. El marcador
+    `services/core` evita confundirla con el temporal donde PyInstaller
+    descomprime el paquete: allí no se reconoce y se usa el directorio de
+    trabajo, como antes de anclar la ruta.
+    """
+    padres = Path(__file__).resolve().parents
+    if len(padres) > 4 and (padres[4] / "services" / "core").is_dir():
+        return padres[4]
+    return Path.cwd()
+
+
+RAIZ_PROYECTO = _raiz_del_repo()
+DEFAULT_REGISTRO_PATH = RAIZ_PROYECTO / "data" / "registro.sqlite"
 
 BUSY_TIMEOUT_MS = 5_000
 # La retención de este registro: tres meses y dos mil entradas. Lo paga cada
@@ -36,8 +55,11 @@ MAX_ENTRADAS = 2_000
 
 
 def ruta() -> Path:
-    """Ruta del SQLite de registro: `EVENTSUI_REGISTRO_DB` o `data/registro.sqlite`."""
-    return Path(os.environ.get(REGISTRO_ENV_VAR, DEFAULT_REGISTRO_PATH)).expanduser().resolve()
+    """Ruta del SQLite de registro: el override o `data/` en la raíz del repo."""
+    env = os.environ.get(REGISTRO_ENV_VAR)
+    if env:
+        return Path(env).expanduser().resolve()
+    return DEFAULT_REGISTRO_PATH
 
 
 def conectar() -> sqlite3.Connection:

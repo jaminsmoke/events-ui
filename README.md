@@ -87,7 +87,7 @@ que los puertos quedan libres. Las capturas de cada corrida quedan en
 El historial que ve la UI se lee de la tabla `event` del repositorio seleccionado.
 
 El registro operativo de la app (arranques, errores y operaciones) vive en su
-propio SQLite, `data/registro.sqlite` (`EVENTSUI_REGISTRO_DB` para cambiarlo);
+propio SQLite, `data/registro.sqlite` en la raíz del repo (`EVENTSUI_REGISTRO_DB` para cambiarlo);
 se ve con `GET /log` y su purga —90 días / 2.000 entradas, automática al
 escribir— también se puede forzar por `POST /log/purgar`.
 

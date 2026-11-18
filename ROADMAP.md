@@ -129,6 +129,11 @@ con el motivo, para no reabrirlo cada semana.
   la API (422 con valores que no son cadenas); una fila antigua se lee como
   lista vacía en vez de tumbar `/ideas`. Cubierto en
   `services/core/tests/test_etiquetas.py`.
+- **Ruta del registro operativo**: el destino por defecto es
+  `<raíz del repo>/data/registro.sqlite` sea cual sea el directorio de
+  arranque (el empaquetado, sin el marcador del repo, conserva el cwd);
+  `EVENTSUI_REGISTRO_DB` sigue mandando. Cubierto en
+  `services/core/tests/test_registro_ruta.py`.
 - **CI**: `pnpm check` global en cada push a main y en PRs
   (`.github/workflows/ci.yml`). Batería e2e y builds de Tauri quedan fuera
   del CI a propósito (navegador y puertos; se corren en local).
@@ -152,7 +157,6 @@ las relaciones y el alcance de las comprobaciones locales.
 
 Estos casos se reprodujeron con datos de prueba y claves foráneas activadas.
 
-- [ ] **Ruta del registro operativo.** Al arrancar desde dos directorios se resuelve `data/registro.sqlite` en ubicaciones distintas. Unificar el destino predeterminado, conservar el override y verificar que ambos arranques consultan el mismo historial.
 
 ## No se hace (por ahora)
 

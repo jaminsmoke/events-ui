@@ -18,7 +18,7 @@ operativo de la aplicación vive en otro fichero y abarca varios repositorios.
 | `connections` | Dos FK a `idea_entry.uid` | Aristas entre ideas. La combinación de padre, hijo y tipo es única. Se admiten varios padres. Los tipos son `child`, `related` y `supersedes`. |
 | `protocolo_flujo` | Clave compuesta `(origen, destino)` | Transiciones permitidas entre grupos. Es configuración del repo y se conserva al reiniciar el laboratorio. |
 | `event` | `id` entero para el cursor y `dedupe_key` opcional única | Historial por repo con fecha, tipo, origen y payload. Se siembra con el almacén y la migración 0015 lo añade a los que nacieron sin él. |
-| `registro` | `id` entero en un SQLite independiente | Fecha, nivel, origen y mensaje de operaciones del core. `EVENTSUI_REGISTRO_DB` permite elegir el fichero. |
+| `registro` | `id` entero en un SQLite independiente | Fecha, nivel, origen y mensaje de operaciones del core. El destino por defecto es `data/registro.sqlite` en la raíz del repo y `EVENTSUI_REGISTRO_DB` permite elegir el fichero. |
 
 Las cinco fichas de estado referencian `idea_entry.uid` con borrado en cascada.
 Una idea sin ficha está en entrada. La unicidad del UID dentro de cada ficha es

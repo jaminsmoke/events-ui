@@ -85,6 +85,26 @@ La app sigue sin crear el log: el productor externo lo escribe y el core solo
 lo abre en `mode=ro`. Un almacén sin tabla no inventa eventos: `/eventos` devuelve
 vacío.
 
+## Enmienda — `ideas` se parte en `idea_entry` + `idea_lane_log` (migración 0006)
+
+La tabla `ideas` (con su `status`) era una columna demasiado fina para un
+dato que es identidad más historial: una entrada tiene una identidad para
+siempre (`uid`, título, `kind`, `tags`…) y un recorrido por carriles, cada uno
+con su propio `entered_at` —cuándo entró en cola, cuándo la descartaron,
+cuándo la completaron—. Un solo `status` aplanaba eso.
+
+- `idea_entry`: la identidad. El `uid` no cambia nunca.
+- `idea_lane_log`: una fila por paso (`cola`, `descartadas`, `completada`) con
+  su `entered_at`. El carril actual es la última fila del log, así que no hay
+  una columna `lane` que pueda desincronizarla del historial.
+- `connections` y `event` cuelgan de `idea_entry(uid)`.
+- El estado que enseña la API (`status` con las palabras de siempre: `draft`,
+  `proposed`, `accepted`, `rejected`, `superseded`) es la traducción del último
+  carril, hecha en el core porque es el significado del dato.
+
+Si una entrada se vuelve a mover a un carril donde ya estuvo, escribe una fila
+nueva: el log conserva todos los pasos.
+
 ## Enmienda — el repo se direcciona por ruta, no por nombre
 
 El primer elemento de UI es un **selector de carpeta**, y devuelve rutas absolutas

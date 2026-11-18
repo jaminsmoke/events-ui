@@ -36,8 +36,9 @@ MIGRATIONS_DIR = Path(__file__).with_name("migraciones")
 # no obliga a tocar este módulo. `PRAGMA user_version` dice cuál hay aplicado en
 # cada almacén. La tabla `event` de `schema/eventos.sql` no entra aquí: el log
 # lo escribe otro proceso y a un almacén existente llega por migración (ver
-# `migraciones/0005_eventos.sql`).
-SCHEMA_VERSION = 5
+# `migraciones/0005_eventos.sql`). La tabla `ideas` pasó a `idea_entry` +
+# `idea_lane_log` en la 0006.
+SCHEMA_VERSION = 6
 
 REPOS_ROOT_ENV_VAR = "EVENTSUI_REPOS_ROOT"
 BUSY_TIMEOUT_MS = 5_000
@@ -48,8 +49,27 @@ EUI_GITIGNORE = f"{DB_FILENAME}-wal\n{DB_FILENAME}-shm\n"
 _GITIGNORE_VIEJO = {f"{LEGACY_DB_FILENAME}-wal", f"{LEGACY_DB_FILENAME}-shm"}
 
 # Columnas que la API puede modificar. Lista blanca: los nombres de columna de un
-# UPDATE no pueden venir del cliente.
-UPDATABLE = ("title", "description", "content", "kind", "status", "tags")
+# UPDATE no pueden venir del cliente. `status` no está: un cambio de estado es
+# una fila nueva en `idea_lane_log`, no un UPDATE de la entrada.
+UPDATABLE = ("title", "description", "content", "kind", "tags")
+
+# El estado que enseña la fila (`status` en el contrato) es el último carril
+# del log traducido a la palabra que la UI conoce. La traducción vive aquí, no
+# en la UI, porque es el significado del dato: `descartadas` en el mapa puede
+# ser `rejected` o `superseded` y la UI no tiene cómo saber cuál.
+ESTADO_DE_CARRIL = {
+    "cola": "draft",
+    "descartadas": "rejected",
+    "completada": "accepted",
+}
+# Lo inverso: qué carril de la UI escribe cada `status` de la API.
+CARRIL_DE_ESTADO = {
+    "draft": "cola",
+    "proposed": "cola",
+    "rejected": "descartadas",
+    "superseded": "descartadas",
+    "accepted": "completada",
+}
 
 
 class InvalidInput(ValueError):
@@ -303,12 +323,22 @@ def _aplicar_paso(conn: sqlite3.Connection, numero: int, script: Path) -> None:
 
 
 def _contar_ideas(db_file: Path) -> int | None:
-    """Filas de `ideas` en un fichero, o `None` si no se puede leer."""
-    try:
-        with closing(sqlite3.connect(f"file:{db_file.as_posix()}?mode=ro", uri=True)) as conn:
-            return conn.execute("SELECT count(*) FROM ideas").fetchone()[0]
-    except (sqlite3.Error, OSError):
-        return None
+    """Filas de la entrada en un fichero, o `None` si no se puede leer.
+
+    La tabla se llama `idea_entry` desde la 0006; un almacén de la 0004 aún
+    lleva `ideas`, así que se mira en los dos sitios (lo viejo se migra solo).
+    """
+    for tabla in ("idea_entry", "ideas"):
+        try:
+            with closing(sqlite3.connect(f"file:{db_file.as_posix()}?mode=ro", uri=True)) as conn:
+                fila = conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (tabla,)
+                ).fetchone()
+                if fila:
+                    return conn.execute(f"SELECT count(*) FROM {tabla}").fetchone()[0]
+        except (sqlite3.Error, OSError):
+            return None
+    return None
 
 
 def _migrar_nombre_viejo(db_file: Path) -> None:
@@ -352,10 +382,29 @@ def list_repos() -> list[dict[str, Any]]:
     return found
 
 
-def _row(row: sqlite3.Row) -> dict[str, Any]:
+def _carril_actual(conn: sqlite3.Connection, uid: str) -> str | None:
+    fila = conn.execute(
+        "SELECT lane FROM idea_lane_log WHERE uid = ? ORDER BY id DESC LIMIT 1", (uid,)
+    ).fetchone()
+    return str(fila[0]) if fila else None
+
+
+def _row(conn: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
     idea = dict(row)
     idea["tags"] = json.loads(idea["tags"] or "[]")
+    carril = _carril_actual(conn, idea["uid"])
+    idea["status"] = ESTADO_DE_CARRIL.get(carril or "cola", "draft")
     return idea
+
+
+def _escribir_carril(conn: sqlite3.Connection, uid: str, lane: str) -> None:
+    """Añade un paso al log, solo si cambia: mover a donde ya está no escribe."""
+    if _carril_actual(conn, uid) == lane:
+        return
+    conn.execute(
+        "INSERT INTO idea_lane_log (uid, lane, entered_at) VALUES (?, ?, ?)",
+        (uid, lane, now_iso()),
+    )
 
 
 def _emitir(conn: sqlite3.Connection, tipo: str, payload: dict[str, Any]) -> None:
@@ -366,14 +415,12 @@ def _emitir(conn: sqlite3.Connection, tipo: str, payload: dict[str, Any]) -> Non
     productor externo. La fila viaja en la misma transacción que la idea: si
     el cambio se deshace, el evento no queda suelto. La `dedupe_key` no aplica.
     """
-    try:
+    # Almacén viejo sin tabla `event`: la idea sí se escribe; el evento no.
+    with suppress(sqlite3.Error):
         conn.execute(
             "INSERT INTO event (ts, type, payload) VALUES (?, ?, ?)",
             (now_iso(), tipo, json.dumps(payload)),
         )
-    except sqlite3.Error:
-        # Almacén viejo sin tabla `event`: la idea sí se escribe; el evento no.
-        pass
 
 
 def list_ideas(
@@ -386,22 +433,30 @@ def list_ideas(
 ) -> list[dict[str, Any]]:
     with closing(connect(ensure_repo(repo))) as conn:
         rows = conn.execute(
-            "SELECT * FROM ideas"
-            " WHERE (:status IS NULL OR status = :status)"
+            "SELECT * FROM idea_entry"
+            " WHERE (:status IS NULL OR ("
+            "   SELECT lane FROM idea_lane_log WHERE uid = idea_entry.uid ORDER BY id DESC LIMIT 1"
+            " ) = :carril)"
             "   AND (:kind IS NULL OR kind = :kind)"
             " ORDER BY created_at DESC, id DESC"
             " LIMIT :limit OFFSET :offset",
-            {"status": status, "kind": kind, "limit": limit, "offset": offset},
+            {
+                "status": status,
+                "carril": CARRIL_DE_ESTADO.get(status or "", ""),
+                "kind": kind,
+                "limit": limit,
+                "offset": offset,
+            },
         ).fetchall()
-    return [_row(r) for r in rows]
+        return [_row(conn, r) for r in rows]
 
 
 def get_idea(repo: str, uid: str) -> dict[str, Any]:
     with closing(connect(ensure_repo(repo))) as conn:
-        row = conn.execute("SELECT * FROM ideas WHERE uid = ?", (uid,)).fetchone()
-    if row is None:
-        raise KeyError(uid)
-    return _row(row)
+        row = conn.execute("SELECT * FROM idea_entry WHERE uid = ?", (uid,)).fetchone()
+        if row is None:
+            raise KeyError(uid)
+        return _row(conn, row)
 
 
 def create_idea(
@@ -418,11 +473,13 @@ def create_idea(
     ts = now_iso()
     with closing(connect(ensure_repo(repo))) as conn:
         conn.execute(
-            "INSERT INTO ideas"
-            " (uid, title, description, content, kind, status, tags, created_at, updated_at)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (uid, title, description, content, kind, status, json.dumps(list(tags)), ts, ts),
+            "INSERT INTO idea_entry"
+            " (uid, title, description, content, kind, tags, created_at, updated_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (uid, title, description, content, kind, json.dumps(list(tags)), ts, ts),
         )
+        # La primera fila del log nace con la entrada, en su transacción.
+        _escribir_carril(conn, uid, CARRIL_DE_ESTADO.get(status, "cola"))
         _emitir(conn, "idea.created", {"uid": uid, "title": title})
         conn.commit()
     return get_idea(repo, uid)
@@ -441,12 +498,18 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
     assignments = ", ".join(f"{column} = :{column}" for column in clean)
     with closing(connect(ensure_repo(repo))) as conn:
         cursor = conn.execute(
-            f"UPDATE ideas SET {assignments} WHERE uid = :uid",
+            f"UPDATE idea_entry SET {assignments} WHERE uid = :uid",
             {**clean, "uid": uid},
         )
         if cursor.rowcount == 0:
             raise KeyError(uid)
-        idea = get_idea(repo, uid)
+        # Un cambio de estado es una fila nueva del log, no un UPDATE.
+        if "status" in clean:
+            _escribir_carril(conn, uid, CARRIL_DE_ESTADO[clean["status"]])
+        idea = _row(
+            conn,
+            conn.execute("SELECT * FROM idea_entry WHERE uid = ?", (uid,)).fetchone(),
+        )
         _emitir(
             conn,
             "idea.status" if "status" in clean else "idea.updated",
@@ -463,10 +526,9 @@ def delete_idea(repo: str, uid: str) -> bool:
     qué mostrar: después no hay fila de la que sacar nada.
     """
     with closing(connect(ensure_repo(repo))) as conn:
-        titulo_row = conn.execute(
-            "SELECT title FROM ideas WHERE uid = ?", (uid,)
-        ).fetchone()
-        cursor = conn.execute("DELETE FROM ideas WHERE uid = ?", (uid,))
+        titulo_row = conn.execute("SELECT title FROM idea_entry WHERE uid = ?", (uid,)).fetchone()
+        # El log se borra por CASCADE junto con la entrada.
+        cursor = conn.execute("DELETE FROM idea_entry WHERE uid = ?", (uid,))
         if cursor.rowcount > 0:
             _emitir(conn, "idea.deleted", {"uid": uid, "title": titulo_row[0]})
         conn.commit()
@@ -509,9 +571,18 @@ def map_snapshot(repo: str) -> dict[str, Any]:
     with closing(open_read_only(ensure_repo(repo))) as conn:
         conn.execute("BEGIN")
         rows = conn.execute(
-            "SELECT uid, title, description, status FROM ideas ORDER BY created_at DESC, id DESC"
+            "SELECT uid, title, description FROM idea_entry ORDER BY created_at DESC, id DESC"
         )
-        return {"ideas": [dict(row) for row in rows], "connections": _list_connections(conn)}
+        ideas = [
+            {
+                **dict(row),
+                "status": ESTADO_DE_CARRIL.get(
+                    _carril_actual(conn, str(row["uid"])) or "cola", "draft"
+                ),
+            }
+            for row in rows
+        ]
+        return {"ideas": ideas, "connections": _list_connections(conn)}
 
 
 def create_connection(
@@ -574,6 +645,14 @@ def _vigilante(db_file: Path) -> sqlite3.Connection:
         return conn
 
 
+def _existe(conn: sqlite3.Connection, tabla: str) -> bool:
+    return bool(
+        conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (tabla,)
+        ).fetchone()
+    )
+
+
 def revision(repo: str) -> dict[str, Any]:
     """Firma barata del almacén para saber si hay que releer.
 
@@ -584,10 +663,12 @@ def revision(repo: str) -> dict[str, Any]:
     db_file = ensure_repo(repo)
     with _VIGILANTES_LOCK:
         conn = _vigilante(db_file)
+        # La tabla de entradas se llama `idea_entry` desde la 0006; antes, `ideas`.
+        tabla_idea = "idea_entry" if _existe(conn, "idea_entry") else "ideas"
         return {
             "instance": _REVISION_INSTANCE,
             "data_version": data_version(conn),
-            "ideas": conn.execute("SELECT count(*) FROM ideas").fetchone()[0],
+            "ideas": conn.execute(f"SELECT count(*) FROM {tabla_idea}").fetchone()[0],
             "connections": conn.execute("SELECT count(*) FROM connections").fetchone()[0],
         }
 

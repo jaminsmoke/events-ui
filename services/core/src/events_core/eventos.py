@@ -88,8 +88,9 @@ def _vigilante(db_file: Path) -> sqlite3.Connection:
         return conn
 
 
-def generar_streamo(repo: str, desde: int = 0, *, intervalo: float = 0.5,
-                    max_esperas: int = 240) -> Iterator[str]:
+def generar_streamo(
+    repo: str, desde: int = 0, *, intervalo: float = 0.5, max_esperas: int = 240
+) -> Iterator[str]:
     """Genera frames SSE del repo: primero el backfill hasta el último, luego en vivo.
 
     Cada frame es `event: evento\ndata: {...}`. El backfill lleva un `id:`

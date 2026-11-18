@@ -5,8 +5,15 @@
 --
 -- Este fichero es la fuente de verdad del esquema. Se aplica con
 -- `python -m events_core.seed <repo>` y es idempotente.
+--
+-- Dos tablas, no una (la «idea» no es un solo estado):
+-- - `idea_entry`: la identidad del ítem (`uid`, título, `kind`, `tags`...).
+--   El `uid` no cambia nunca: el ítem es el mismo aunque mute de carril.
+-- - `idea_lane_log`: el historial de carriles. Cada paso escribe una fila con
+--   su propio `entered_at`: cuándo entró cada idea en cola, en descartadas, o
+--   la completó. Un solo `status` aplanaba eso.
 
-CREATE TABLE IF NOT EXISTS ideas (
+CREATE TABLE IF NOT EXISTS idea_entry (
     -- Rowid normal, sin AUTOINCREMENT: eso solo añade la tabla `sqlite_sequence`
     -- sin darnos nada aquí (`uid` es la identidad).
     id          INTEGER PRIMARY KEY,
@@ -25,20 +32,28 @@ CREATE TABLE IF NOT EXISTS ideas (
     kind        TEXT    NOT NULL DEFAULT 'idea'
                 CHECK (kind IN ('idea', 'adr', 'note')),
 
-    -- Ciclo de vida. `superseded` es para ADRs reemplazados por otro.
-    status      TEXT    NOT NULL DEFAULT 'draft'
-                CHECK (status IN ('draft', 'proposed', 'accepted', 'rejected', 'superseded')),
-
-    -- Array JSON de etiquetas. Se guarda como texto para no necesitar tabla
-    -- aparte; JSON1 permite consultarlo si hace falta. El CHECK no es adorno:
-    -- `_row` hace `json.loads` al listar, así que un `tags` a mano con texto
-    -- suelto devolvía un 500 en /ideas en vez de fallar solo en su fila.
+    -- Tags en texto JSON; ver el comentario histórico en la migración 0004.
     tags        TEXT    NOT NULL DEFAULT '[]' CHECK (json_valid(tags)),
 
     created_at  TEXT    NOT NULL,
     updated_at  TEXT    NOT NULL
 );
 
--- Sin índices propios: `uid` ya trae el suyo por el UNIQUE, y con una tabla
--- vacía cualquier otro solo añade objetos que mantener. Se añadirán cuando haya
--- volumen que lo justifique.
+-- El historial de carriles: una fila por paso, con su momento. El carril
+-- actual de una idea es la última fila de su log (ordenando por `id`), así que
+-- no hay una columna `lane` que pueda desincronizarla del historial.
+CREATE TABLE IF NOT EXISTS idea_lane_log (
+    id         INTEGER PRIMARY KEY,
+    -- La identidad del ítem que muve; se borra con él (ON DELETE CASCADE).
+    uid        TEXT    NOT NULL REFERENCES idea_entry (uid) ON DELETE CASCADE,
+    -- `cola` = esperando revisión; `descartadas` = cerrada; `completada` = hecha.
+    lane       TEXT    NOT NULL CHECK (lane IN ('cola', 'descartadas', 'completada')),
+    -- Cuándo entró: leído junto con `lane`, no separado.
+    entered_at TEXT    NOT NULL
+);
+
+-- El log se lee por ítem (último paso) y en orden cronológico.
+CREATE INDEX IF NOT EXISTS idx_lane_log_uid ON idea_lane_log (uid, id);
+
+-- La fila de la entrada que se acaba de crear vive aquí: el log se escribe
+-- con ella en la misma transacción, así nunca falta la primera fila.

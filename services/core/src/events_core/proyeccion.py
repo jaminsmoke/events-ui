@@ -23,6 +23,14 @@ from .db import open_read_only
 from .ideas import ensure_repo, resolve_repo
 
 
+def _existe(conn: object, tabla: str) -> bool:
+    return bool(
+        conn.execute(  # type: ignore[attr-defined]
+            "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (tabla,)
+        ).fetchone()
+    )
+
+
 def _git(carpeta: Path, *args: str) -> str | None:
     """Un dato de git en la carpeta, o `None` si no hay repo git o falla."""
     try:
@@ -52,13 +60,17 @@ def repo_estado_actual(repo: str) -> dict[str, Any]:
             return 0
 
     with closing(open_read_only(db_file)) as conn:
-        ideas = conteo(conn, "SELECT count(*) FROM ideas")
+        # La tabla vive como `idea_entry` desde la 0006; antes, `ideas`.
+        tabla_idea = "idea_entry" if _existe(conn, "idea_entry") else "ideas"
+        ideas = conteo(conn, f"SELECT count(*) FROM {tabla_idea}")
         conexiones = conteo(conn, "SELECT count(*) FROM connections")
         eventos = conteo(conn, "SELECT count(*) FROM event")
         por_estado: dict[str, int] = {}
         try:
+            # Desde la 0006 el estado es el último carril del log.
             for estado, n in conn.execute(
-                "SELECT status, count(*) FROM ideas GROUP BY status"
+                "SELECT (SELECT lane FROM idea_lane_log WHERE uid = idea_entry.uid"
+                " ORDER BY id DESC LIMIT 1), count(*) FROM idea_entry GROUP BY 1"
             ):
                 por_estado[str(estado)] = int(n)
         except Exception:

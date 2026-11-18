@@ -343,7 +343,9 @@ def stream_eventos(request: Request, repo: RepoParam) -> StreamingResponse:
 # --- F2: proyecciones con nombre, sin SQL libre ---
 
 
-@app.get("/proyecciones/repo", response_model=ProyeccionRepo, tags=["f2"], responses=RESPUESTAS_ERROR)
+@app.get(
+    "/proyecciones/repo", response_model=ProyeccionRepo, tags=["f2"], responses=RESPUESTAS_ERROR
+)
 def get_proyeccion_repo(repo: RepoParam) -> dict[str, Any]:
     """Primera proyección: estado del repo con su identidad (rama/commit)."""
     return proyeccion.repo_estado_actual(repo)

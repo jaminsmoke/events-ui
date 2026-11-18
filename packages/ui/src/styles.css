@@ -334,6 +334,24 @@ header > div {
   border-color: var(--accent);
 }
 
+/* Diálogo de pruebas: los pasos con su marca de hecho. */
+.prueba-pasos {
+  margin: 12px 0;
+  padding-left: 20px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.prueba-pasos li {
+  margin: 4px 0;
+  opacity: 0.75;
+}
+
+.prueba-pasos li.hecho {
+  opacity: 1;
+  color: var(--verde, #3fbf72);
+}
+
 .modal-acciones {
   display: flex;
   gap: 8px;

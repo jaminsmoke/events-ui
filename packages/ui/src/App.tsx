@@ -20,6 +20,7 @@ import { Bienvenida } from "./pantalla/Bienvenida";
 import { NuevaIdea } from "./pantalla/NuevaIdea";
 import { SelectorRepo } from "./pantalla/SelectorRepo";
 import { AvisoRecorte, Controles } from "./pantalla/Controles";
+import { Pruebas } from "./pantalla/Pruebas";
 
 /* *  El mapa: se pliega, se encuadra y se mueve; el almacén se toca solo por
  *  la API del core (crear, mover, editar y borrar ideas). Las conexiones
@@ -28,13 +29,17 @@ import { AvisoRecorte, Controles } from "./pantalla/Controles";
  *  `elegirCarpeta` lo inyecta el envoltorio que tenga diálogo nativo (Tauri);
  *  la web no lo pasa y el selector ofrece lista de `/repos` y ruta manual.
  *  `avisar`, igual: solo lo inyecta desktop (notificaciones del sistema) y
- *  con él aparece el botón de Ajustes; sin él no hay avisos que ajustar. */
+ *  con él aparece el botón de Ajustes; sin él no hay avisos que ajustar.
+ *  `puedeProbar`, también solo desktop: abre el lanzador de pruebas del
+ *  laboratorio; la web no lo pasa y no se pinta. */
 export default function App({
   elegirCarpeta,
   avisar,
+  puedeProbar,
 }: {
   elegirCarpeta?: ElegirCarpeta;
   avisar?: (titulo: string, cuerpo: string) => void;
+  puedeProbar?: boolean;
 }) {
   const [repo, setRepo] = useState<string | null>(storedRepo);
   const [selectorAbierto, setSelectorAbierto] = useState(false);
@@ -44,6 +49,7 @@ export default function App({
   const [cerrados, setCerrados] = useState<ReadonlySet<string>>(() => new Set());
   const [ajustes, setAjustes] = useState<Ajustes>(cargarAjustes);
   const [ajustesAbiertos, setAjustesAbiertos] = useState(false);
+  const [pruebasAbiertas, setPruebasAbiertas] = useState(false);
 
   const {
     ideas,
@@ -208,6 +214,11 @@ export default function App({
             Ajustes
           </button>
         )}
+        {repo && puedeProbar && (
+          <button className="btn ghost" onClick={() => setPruebasAbiertas(true)}>
+            Pruebas
+          </button>
+        )}
       </header>
 
       {ajustesAbiertos && (
@@ -239,6 +250,15 @@ export default function App({
         <section className="card selector-card">
           <NuevaIdea onCrear={crear} onCerrar={() => setNuevaAbierta(false)} />
         </section>
+      )}
+
+      {repo && pruebasAbiertas && puedeProbar && (
+        <Pruebas
+          repo={repo}
+          crear={crear}
+          editar={editar}
+          onCerrar={() => setPruebasAbiertas(false)}
+        />
       )}
 
       {falloAccion && <AvisoError mensaje={falloAccion} />}

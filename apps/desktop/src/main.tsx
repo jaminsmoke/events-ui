@@ -36,6 +36,6 @@ if (!container) throw new Error("#root no existe en index.html");
 
 createRoot(container).render(
   <StrictMode>
-    <App elegirCarpeta={elegirCarpeta} avisar={avisar} />
+    <App elegirCarpeta={elegirCarpeta} avisar={avisar} puedeProbar />
   </StrictMode>,
 );

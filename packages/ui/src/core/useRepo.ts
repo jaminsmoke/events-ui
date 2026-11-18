@@ -67,10 +67,12 @@ export function useRepo(repo: string | null) {
 
   // Escrituras por la API tipada: no hace falta refrescar a mano, el sondeo
   // de `/revision` ve el cambio (`data_version` sube) y relee el mapa solo.
+  // `crear` devuelve la idea recién creada (con su `uid`): el lanzador de
+  // pruebas lo necesita para mover lo que acaba de crear.
   const crear = useCallback(
     async (body: IdeaCreate) => {
-      if (!repo) return;
-      await unwrap(api.POST("/ideas", { params: { query: { repo } }, body }));
+      if (!repo) return null;
+      return unwrap(api.POST("/ideas", { params: { query: { repo } }, body }));
     },
     [repo],
   );

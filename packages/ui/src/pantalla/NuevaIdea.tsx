@@ -10,7 +10,7 @@ export function NuevaIdea({
   onCrear,
   onCerrar,
 }: {
-  onCrear: (body: IdeaCreate) => Promise<void>;
+  onCrear: (body: IdeaCreate) => Promise<unknown>;
   onCerrar: () => void;
 }) {
   const [titulo, setTitulo] = useState("");

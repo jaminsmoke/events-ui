@@ -30,7 +30,15 @@ from .db import data_version, db_path, journal_mode, open_read_only
 # así que el contrato no los ofrece (la columna `kind` dentro del almacén se
 # queda, pero siempre vale `idea`).
 Kind = Literal["idea"]
-Status = Literal["draft", "proposed", "accepted", "rejected", "superseded"]
+Status = Literal[
+    "draft",
+    "proposed",
+    "roadmap",
+    "verificacion",
+    "revision_aprobada",
+    "rejected",
+    "superseded",
+]
 
 app = FastAPI(title="Events UI Core", version="0.2.0")
 
@@ -64,7 +72,8 @@ class IdeaUpdate(BaseModel):
 
     Los del descarte viajan junto al `status: rejected`/`superseded`: el
     motivo y quién lo dictamina se guardan en `idea_rejected` al entrar en
-    `descartadas`.
+    `descartadas`. Los de roadmap, verificación y revisión aprobada viajan
+    igual junto a su `status` y se guardan en su ficha.
     """
 
     title: str | None = Field(default=None, min_length=1)
@@ -76,12 +85,31 @@ class IdeaUpdate(BaseModel):
     rejected_description: str | None = None
     rejected_by: Literal["usuario", "agente", "sistema"] | None = None
     superseded_by_uid: str | None = None
+    roadmap_resultado: str | None = None
+    roadmap_referencia: str | None = None
+    verificacion_resultado: str | None = None
+    verificacion_comentario: str | None = None
+    approved_by: Literal["usuario", "agente", "sistema"] | None = None
+    revision_nota: str | None = None
 
 
 class Idea(IdeaCreate):
     uid: str
     created_at: str
     updated_at: str
+    # Las fichas de roadmap, verificación y revisión aprobada (0013): sin
+    # ficha, sus campos quedan en su valor neutro.
+    roadmap_started_at: str | None = None
+    roadmap_completed_at: str | None = None
+    roadmap_resultado: str = ""
+    roadmap_referencia: str = ""
+    verificacion_started_at: str | None = None
+    verificacion_intentos: int = 0
+    verificacion_ultimo_resultado: str = ""
+    verificacion_comentario: str = ""
+    revision_approved_at: str | None = None
+    revision_approved_by: Literal["usuario", "agente", "sistema"] = "usuario"
+    revision_nota: str = ""
     # La ficha del descarte (0007), o el estado sin ficha si no está descartada.
     rejected_at: str | None = None
     rejected_description: str = ""
@@ -121,8 +149,22 @@ class Protocolo(BaseModel):
     como origen ni destino propios.
     """
 
-    origen: Literal["draft", "proposed", "accepted", "rejected"]
-    destino: Literal["draft", "proposed", "accepted", "rejected"]
+    origen: Literal[
+        "draft",
+        "proposed",
+        "roadmap",
+        "verificacion",
+        "revision_aprobada",
+        "rejected",
+    ]
+    destino: Literal[
+        "draft",
+        "proposed",
+        "roadmap",
+        "verificacion",
+        "revision_aprobada",
+        "rejected",
+    ]
 
 
 class MapSnapshot(BaseModel):

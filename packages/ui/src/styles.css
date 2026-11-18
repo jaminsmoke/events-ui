@@ -793,22 +793,38 @@ header > div {
   position: relative;
   transform-origin: top left;
   display: flex;
-  align-items: flex-start;
-  gap: 56px;
+  flex-direction: column;
+  gap: 36px;
   margin-top: 4px;
 }
 
-/* La disyuntiva cuelga en columna: del cajón se sale por uno de los dos carriles. */
-.lanes {
-  display: flex;
-  flex-direction: column;
-  gap: 28px;
+/* La línea de producción: Entrada → En cola → En roadmap → En verificación
+ * → Revisión aprobada, en una fila de columnas alineadas. */
+.linea {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(232px, 340px));
+  gap: 56px;
+  align-items: start;
+}
+
+/* Descartadas es la salida lateral: cuelga bajo En cola, no es una etapa. */
+.salida {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(232px, 340px));
+  gap: 56px;
+  align-items: start;
+}
+
+.salida > .node {
+  grid-column: 2;
 }
 
 /* ---------- cables ----------
  *
- *  Se miden del DOM porque los nodos crecen al desplegarse. El carril en cola
- *  entra con línea discontinua que fluye; el de descartadas, maciza y apagada.
+ *  Se miden del DOM porque los nodos crecen al desplegarse. Cada cable une
+ *  una etapa con la siguiente de la línea; el de descartadas baja en vertical
+ *  desde En cola. El carril en cola entra con línea discontinua que fluye;
+ *  el de descartadas, maciza y apagada.
  */
 
 .cables {
@@ -829,6 +845,18 @@ header > div {
   stroke: #3f6aa8;
   stroke-dasharray: 5 6;
   animation: fluir 2.6s linear infinite;
+}
+
+.wire.roadmap {
+  stroke: #8b6be0;
+}
+
+.wire.verificacion {
+  stroke: #38b6a5;
+}
+
+.wire.revision_aprobada {
+  stroke: #3fb950;
 }
 
 .wire.descartadas {
@@ -930,6 +958,21 @@ header > div {
   border-color: #2e4a6b;
 }
 
+.node.lane-roadmap {
+  --pulso: #8b6be055;
+  border-color: #4c3a6b;
+}
+
+.node.lane-verificacion {
+  --pulso: #38b6a555;
+  border-color: #1f5568;
+}
+
+.node.lane-revision_aprobada {
+  --pulso: #3fb95055;
+  border-color: #2b5c3f;
+}
+
 .node.lane-descartadas {
   --pulso: #f0883e44;
   border-color: #5c2f2f;
@@ -937,6 +980,18 @@ header > div {
 
 .node.lane-cola > .node-head {
   background: #14243a;
+}
+
+.node.lane-roadmap > .node-head {
+  background: #221a35;
+}
+
+.node.lane-verificacion > .node-head {
+  background: #0f2b36;
+}
+
+.node.lane-revision_aprobada > .node-head {
+  background: #122719;
 }
 
 .node.lane-descartadas > .node-head {
@@ -1121,6 +1176,21 @@ header > div {
   height: 6px;
   border-radius: 99px;
   background: var(--accent);
+}
+
+.lane-roadmap .dot,
+.vuelo.roadmap .dot {
+  background: #8b6be0;
+}
+
+.lane-verificacion .dot,
+.vuelo.verificacion .dot {
+  background: #38b6a5;
+}
+
+.lane-revision_aprobada .dot,
+.vuelo.revision_aprobada .dot {
+  background: #3fb950;
 }
 
 .lane-descartadas .dot,

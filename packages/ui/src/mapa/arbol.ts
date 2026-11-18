@@ -9,14 +9,14 @@ import type { LaneId } from "./carriles";
  *  igual que un nodo de Unreal enseña sus opciones. Nada de un nodo por item ni
  *  de tarjetas dentro de tarjetas.
  *
- *  Tres nodos: `Ideas` es el cajón donde se crean (`draft`, aún sin carril);
- *  en cuanto reciben carril desaparecen del cajón —no se ven en dos sitios a
- *  la vez— y para bajar de nivel se pasa por la disyuntiva de carriles.
- *  `En cola` y `Descartadas` son nodos aparte, cada uno con su lista.
+ *  La entrada (`draft`) es donde se crean las ideas; en cuanto reciben carril
+ *  desaparecen de ahí —no se ven en dos sitios a la vez— y para bajar de
+ *  nivel se pasa por la disyuntiva de carriles. Cada carril es un nodo con su
+ *  lista.
  *
  *  Plegar y desplegar cambia solo lo que se ve; mover, crear, editar y
  *  borrar ideas entra por la API, nunca tocando el árbol a mano.
- */  /** Lo que se pinta: el cajón con las ideas sin carril y la disyuntiva de carriles. */
+ */  /** Lo que se pinta: la entrada con las ideas sin carril y los carriles. */
 export type Tree = { cajon: TreeNode; carriles: TreeNode[] };
 
 export type TreeNode = {
@@ -66,13 +66,13 @@ export function buildTree(ideas: Idea[], links: Connection[]): Tree {
     };
   };
 
-  // El cajón: solo las ideas que aún no tienen carril (`draft`), planas.
+  // La entrada: solo las ideas que aún no tienen carril (`draft`), planas.
   // Al recibir una, dejan de verse aquí y aparecen en su carril: el flujo
-  // se ve porque el cajón se va vaciando.
+  // se ve porque la entrada se va vaciando.
   const sinCarril = ideas.filter((idea) => idea.status === "draft");
   const cajon: TreeNode = {
     key: "ideas",
-    title: "Ideas",
+    title: "Entrada",
     total: sinCarril.length,
     kids: sinCarril.map((idea) => ({
       key: idea.uid,

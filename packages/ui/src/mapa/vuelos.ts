@@ -3,7 +3,7 @@ import type { RefObject } from "react";
 
 import type { Idea } from "../core/api";
 import type { LaneId } from "./carriles";
-import { laneOf } from "./carriles";
+import { LANES, laneOf } from "./carriles";
 import type { Vista } from "./camara";
 
 /** Rectángulo relativo al mapa: lo que un vuelo necesita para saber de dónde a dónde. */
@@ -71,8 +71,11 @@ export function useVuelos({
 
     /* Con el carril plegado no hay fila que medir: el vuelo arranca o aterriza
      * en la cabecera del nodo, que es lo único que se ve de él. */
-    for (const nodo of map.querySelectorAll<HTMLElement>(".lanes > .node")) {
-      const lane = nodo.classList.contains("lane-cola") ? "cola" : "descartadas";
+    for (const nodo of map.querySelectorAll<HTMLElement>(".linea > .node, .salida > .node")) {
+      const lane = LANES.find((carril) =>
+        nodo.classList.contains(`lane-${carril.id}`),
+      )?.id;
+      if (!lane) continue;
       const r = nodo.getBoundingClientRect();
       ahora.set(lane, {
         x: (r.left - caja.left) / k + 8,

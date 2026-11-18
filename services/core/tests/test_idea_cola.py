@@ -1,8 +1,8 @@
 """La cola es estado real y ordenable (`idea_cola`), no una vista del log.
 
-Cubre: fresco en v9 sin `idea_lane_log`, estados desde la cola/completada/
-rechazada (el cajón es no tener fila), el orden de la cola y la migración
-0009 desde un almacén v8 con historial.
+Cubre: fresco en v13 sin `idea_lane_log`, estados desde la cola/revisión
+aprobada/rechazada (la entrada es no tener fila), el orden de la cola y la
+migración 0009 desde un almacén v8 con historial.
 """
 
 from __future__ import annotations
@@ -53,9 +53,12 @@ def test_fresco_sin_lane_log(client, repo):  # noqa: ANN001, ANN202
     db = ideas.ensure_repo(repo)
     conn = sqlite3.connect(str(db))
     tablas = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 12
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 13
     assert "idea_cola" in tablas
-    assert "idea_completada" in tablas
+    assert "idea_roadmap" in tablas
+    assert "idea_verificacion" in tablas
+    assert "idea_revision" in tablas
+    assert "idea_completada" not in tablas
     assert "idea_rejected" in tablas
     assert "idea_lane_log" not in tablas
 
@@ -117,21 +120,21 @@ def test_rejected_sale_de_cola(client, repo):  # noqa: ANN001, ANN202
     assert conn.execute("SELECT count(*) FROM idea_rejected").fetchone()[0] == 1
 
 
-def test_accepted_no_se_alcanza_y_no_sale(client, repo):  # noqa: ANN001, ANN202
-    # Las completadas salieron del flujo (0012): solo las siembra el harness
-    # (status al crear); por API no se puede llegar a ellas ni salir.
+def test_revision_aprobada_es_terminal(client, repo):  # noqa: ANN001, ANN202
+    # La ficha final (0013) solo la siembra el harness (status al crear);
+    # por API no se puede llegar a ella fuera de verificación ni salir.
     uid = client.post(
-        "/ideas", params={"repo": repo}, json={"title": "A", "status": "accepted"}
+        "/ideas", params={"repo": repo}, json={"title": "A", "status": "revision_aprobada"}
     ).json()["uid"]
-    r = client.get("/ideas", params={"repo": repo, "status": "accepted"})
+    r = client.get("/ideas", params={"repo": repo, "status": "revision_aprobada"})
     assert [i["uid"] for i in r.json()] == [uid]
     conn = sqlite3.connect(str(ideas.db_file_for(repo)))
     assert conn.execute("SELECT count(*) FROM idea_cola").fetchone()[0] == 0
-    assert conn.execute("SELECT count(*) FROM idea_completada").fetchone()[0] == 1
+    assert conn.execute("SELECT count(*) FROM idea_revision").fetchone()[0] == 1
     conn.close()
 
     uid2 = client.post("/ideas", params={"repo": repo}, json={"title": "B"}).json()["uid"]
-    r = client.patch(f"/ideas/{uid2}", params={"repo": repo}, json={"status": "accepted"})
+    r = client.patch(f"/ideas/{uid2}", params={"repo": repo}, json={"status": "revision_aprobada"})
     assert r.status_code == 400
     assert "protocolo" in r.json()["detail"]
 
@@ -149,9 +152,17 @@ def test_reiniciar_vacia_todo(client, repo):  # noqa: ANN001, ANN202
     assert client.get("/mapa", params={"repo": repo}).json()["ideas"] == []
     db = ideas.db_file_for(repo)
     conn = sqlite3.connect(str(db))
-    for tabla in ("idea_entry", "idea_cola", "idea_completada", "idea_rejected", "connections"):
+    for tabla in (
+        "idea_entry",
+        "idea_cola",
+        "idea_roadmap",
+        "idea_verificacion",
+        "idea_revision",
+        "idea_rejected",
+        "connections",
+    ):
         assert conn.execute(f"SELECT count(*) FROM {tabla}").fetchone()[0] == 0
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 12
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 13
 
 
 def test_migracion_0009_solo_estado_final(client, repo):  # noqa: ANN001, ANN202
@@ -194,21 +205,23 @@ def test_migracion_0009_solo_estado_final(client, repo):  # noqa: ANN001, ANN202
 
     conn = sqlite3.connect(str(db))
     conn.execute("PRAGMA foreign_keys = ON")
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 12
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 13
     tablas = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert "idea_lane_log" not in tablas
+    assert "idea_completada" not in tablas
+    assert "idea_revision" in tablas
     assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
     cola = [r[0] for r in conn.execute("SELECT uid FROM idea_cola ORDER BY posicion")]
     assert cola == ["b", "d"]
-    completada = [r[0] for r in conn.execute("SELECT uid FROM idea_completada")]
-    assert completada == ["c"]
+    revisiones = [r[0] for r in conn.execute("SELECT uid FROM idea_revision")]
+    assert revisiones == ["c"]
 
     r = client.get("/mapa", params={"repo": repo})
     estados = {i["title"]: i["status"] for i in r.json()["ideas"]}
     assert estados == {
         "A": "rejected",
         "B": "proposed",
-        "C": "accepted",
+        "C": "revision_aprobada",
         "D": "proposed",
         "E": "draft",
     }

@@ -1,8 +1,8 @@
 """Los protocolos de flujo: qué carriles pueden unirse a cuáles.
 
 La tabla `protocolo_flujo` es una allowlist sembrada con el esquema: lo que
-no está listado se prohíbe (las descartadas son terminales, la cola no se
-deshace al cajón y a completada no se puede llegar). El PATCH impone;
+no está listado se prohíbe (las descartadas y la revisión aprobada son
+terminales, y la cola no se deshace a la entrada). El PATCH impone;
 `GET /protocolos` las expone para que la UI no ofrezca lo prohibido.
 """
 
@@ -18,26 +18,32 @@ def test_protocolos_sembrados(client, repo):  # noqa: ANN001, ANN202
     assert pares == {
         ("draft", "proposed"),
         ("draft", "rejected"),
+        ("proposed", "roadmap"),
         ("proposed", "rejected"),
+        ("roadmap", "verificacion"),
+        ("verificacion", "proposed"),
+        ("verificacion", "revision_aprobada"),
     }
     # `superseded` comparte grupo con `rejected`: no lleva filas propias.
     assert all("superseded" not in par for par in pares)
 
 
-def test_a_completada_no_se_puede_llegar(client, repo):  # noqa: ANN001, ANN202
-    # Sin uniones que entren en `accepted`, ningún flujo llega a completada
-    # (0012): la tabla queda como cimiento para cuando se diseñe el flujo.
+def test_a_revision_no_se_llega_directo(client, repo):  # noqa: ANN001, ANN202
+    # La revisión aprobada solo entra desde verificación, no desde la
+    # entrada ni desde la cola.
     for origen_kw in ({}, {"status": "proposed"}):
         uid = _crear(client, repo, **origen_kw)
-        r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": "accepted"})
+        r = client.patch(
+            f"/ideas/{uid}", params={"repo": repo}, json={"status": "revision_aprobada"}
+        )
         assert r.status_code == 400
         assert "protocolo" in r.json()["detail"]
 
 
-def test_completadas_no_salen(client, repo):  # noqa: ANN001, ANN202
+def test_revision_aprobada_es_terminal(client, repo):  # noqa: ANN001, ANN202
     # Ni siquiera las que siembra el harness (status al crear) salen.
-    uid = _crear(client, repo, status="accepted")
-    for destino in ("proposed", "rejected", "draft"):
+    uid = _crear(client, repo, status="revision_aprobada")
+    for destino in ("proposed", "rejected", "draft", "roadmap", "verificacion"):
         r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": destino})
         assert r.status_code == 400
         assert "protocolo" in r.json()["detail"]
@@ -47,8 +53,9 @@ def test_descartadas_son_terminales(client, repo):  # noqa: ANN001, ANN202
     uid = _crear(client, repo, status="proposed")
     r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": "rejected"})
     assert r.status_code == 200
-    # Ni a cola, ni al cajón, ni a completada: las descartadas no salen.
-    for destino in ("proposed", "draft", "accepted"):
+    # Ni a cola, ni a entrada, ni a roadmap, verificación o revisión:
+    # las descartadas no salen.
+    for destino in ("proposed", "draft", "roadmap", "verificacion", "revision_aprobada"):
         r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": destino})
         assert r.status_code == 400
         assert "protocolo" in r.json()["detail"]

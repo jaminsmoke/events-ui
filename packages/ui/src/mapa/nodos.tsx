@@ -6,6 +6,7 @@ import type { IdeaUpdate } from "../core/api";
 import type { PuedeIr } from "../core/useProtocolos";
 import { DescartaIdea } from "../pantalla/DescartaIdea";
 import type { TreeNode } from "./arbol";
+import type { Status } from "./carriles";
 import type { TonoPulso } from "./animaciones";
 import type { Vuelo } from "./vuelos";
 
@@ -15,15 +16,41 @@ function Arrow({ open }: { open: boolean }) {
 }
 
 /** Palabra del estado para la fila, en español: el contrato habla `draft`/
- *  `rejected` pero la fila se lee en español. Los nombres son los mismos
- *  carriles: `draft` es el cajón (no tiene fila en ninguna ficha),
- *  `proposed` vive en la cola (`idea_cola`), los demás, en sus fichas. */
+ *  `proposed` pero la fila se lee en español. Los nombres son los mismos
+ *  carriles: `draft` es la entrada (no tiene fila en ninguna ficha),
+ *  `proposed` vive en la cola (`idea_cola`), y los demás, en sus fichas. */
 const ETIQUETA_ESTADO: Record<string, string> = {
-  draft: "En el cajón",
+  draft: "En la entrada",
   proposed: "En cola",
-  accepted: "Completada",
+  roadmap: "En roadmap",
+  verificacion: "En verificación",
+  revision_aprobada: "Revisión aprobada",
   rejected: "Descartada",
   superseded: "Reemplazada",
+};
+
+/** Acciones de traslado que ofrece cada estado. `descartar` abre el diálogo
+ *  del motivo en vez de mover directamente. */
+const ACCIONES_ESTADO: Record<
+  Status,
+  { estado: Status; etiqueta: string; descartar?: boolean }[]
+> = {
+  draft: [
+    { estado: "proposed", etiqueta: "A cola" },
+    { estado: "rejected", etiqueta: "Descartar", descartar: true },
+  ],
+  proposed: [
+    { estado: "roadmap", etiqueta: "A roadmap" },
+    { estado: "rejected", etiqueta: "Descartar", descartar: true },
+  ],
+  roadmap: [{ estado: "verificacion", etiqueta: "A verificación" }],
+  verificacion: [
+    { estado: "proposed", etiqueta: "A cola" },
+    { estado: "revision_aprobada", etiqueta: "Aprobar revisión" },
+  ],
+  revision_aprobada: [],
+  rejected: [],
+  superseded: [],
 };
 
 /** Fecha corta del sistema: el ISO crudo (`…T07:15:01+00:00`) no se lee. */
@@ -54,7 +81,7 @@ function NodeRow({
   node: TreeNode;
   nodo: string;
   volando: (uid: string, nodo: string) => boolean;
-  onMover?: (uid: string, lane: "cola" | "descartadas") => void;
+  onMover?: (uid: string, status: Status) => void;
   /** Pedir edición: monta el editor en la raíz (App), no aquí —las filas
    *  van portaleadas y los clics del ratón en el portal no llegaban. */
   onPideEditar?: (uid: string, titulo: string, descripcion: string) => void;
@@ -71,6 +98,7 @@ function NodeRow({
   // hijos arrancan abiertas para que se vea la rama; las hoja, cerradas.
   const [expandido, setExpandido] = useState(tiene);
   const uid = node.idea?.uid;
+  const estado = node.idea?.status;
   const descripcion = node.idea?.description ?? "";
   const [descartando, setDescartando] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
@@ -113,22 +141,27 @@ function NodeRow({
         Rechazada el {fechaCorta(node.idea.rejected_at)}
         {node.idea.rejected_description ? ` — ${node.idea.rejected_description}` : ""}
       </p>}
-      {node.idea && onMover && (nodo === "cola" || nodo === "descartadas") &&
-        (!puedeIr || puedeIr(node.idea.status, nodo === "cola" ? "rejected" : "proposed")) && (
-        <button
-          type="button"
-          className="btn ghost mover"
-          title={nodo === "cola" ? "Descartar esta idea" : "Devolver esta idea a En cola"}
-          onClick={() => {
-            // Descartar pide el motivo (ficha `idea_rejected`); volver a cola,
-            // directo: salir de `descartadas` la retira.
-            if (nodo === "cola" && onEditar) setDescartando(true);
-            else onMover(uid!, "cola");
-          }}
-        >
-          {nodo === "cola" ? "Descartar" : "A cola"}
-        </button>
-      )}
+      {node.idea &&
+        estado &&
+        onMover &&
+        ACCIONES_ESTADO[estado]
+          .filter((accion) => !puedeIr || puedeIr(estado, accion.estado))
+          .map((accion) => (
+            <button
+              key={accion.estado}
+              type="button"
+              className="btn ghost mover"
+              title={accion.etiqueta}
+              onClick={() => {
+                // Descartar pide el motivo (ficha `idea_rejected`); los demás
+                // traslados van directos.
+                if (accion.descartar && onEditar) setDescartando(true);
+                else onMover(uid!, accion.estado);
+              }}
+            >
+              {accion.etiqueta}
+            </button>
+          ))}
       {node.idea && onPideEditar && (
         <button
           type="button"
@@ -221,7 +254,7 @@ export function NodeBox({
   boxRef?: Ref<HTMLElement>;
   volando: (uid: string, nodo: string) => boolean;
   pulso?: TonoPulso;
-  onMover?: (uid: string, lane: "cola" | "descartadas") => void;
+  onMover?: (uid: string, status: Status) => void;
   onPideEditar?: (uid: string, titulo: string, descripcion: string) => void;
   onEditar?: (uid: string, cambios: IdeaUpdate) => Promise<void>;
   onBorrar?: (uid: string) => Promise<void>;

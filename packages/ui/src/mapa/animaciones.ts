@@ -12,10 +12,10 @@ export type Animacion = { lane: LaneId; id: number };
 export type NodoId = LaneId | "cajon";
 
 /** Código de colores del pulso de borde de cada nodo:
- *  - `azul`: una idea **entra** (se crea o se mueve a En cola);
+ *  - `azul`: una idea **entra** (se crea o se mueve a un carril);
  *  - `rojo`: una idea **sale** (se borra del repo o se mueve a Descartadas);
- *  - `verde`: una idea se **completa** (`status: "accepted"`).
- *  Verde queda reservado a completado, no a entradas normales. */
+ *  - `verde`: una idea llega a **revisión aprobada**.
+ *  Verde queda reservado al estado final, no a entradas normales. */
 export type TonoPulso = "azul" | "rojo" | "verde";
 export type Pulso = { lane: NodoId; tono: TonoPulso };
 
@@ -71,7 +71,10 @@ export function useAnimaciones(
     for (const idea of ideas) {
       const lane = laneOf(idea.status);
       const lanePrevio = previo.carriles.get(idea.uid);
-      if (idea.status === "accepted" && previo.estados.get(idea.uid) !== "accepted") {
+      if (
+        idea.status === "revision_aprobada" &&
+        previo.estados.get(idea.uid) !== "revision_aprobada"
+      ) {
         if (lane) {
           fijar(lane, "verde");
           cambian.add(lane);

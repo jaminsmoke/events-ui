@@ -461,7 +461,7 @@ export interface components {
              * @default draft
              * @enum {string}
              */
-            status: "draft" | "proposed" | "accepted" | "rejected" | "superseded";
+            status: "draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "rejected" | "superseded";
             /** Tags */
             tags?: string[];
             /** Uid */
@@ -470,6 +470,50 @@ export interface components {
             created_at: string;
             /** Updated At */
             updated_at: string;
+            /** Roadmap Started At */
+            roadmap_started_at?: string | null;
+            /** Roadmap Completed At */
+            roadmap_completed_at?: string | null;
+            /**
+             * Roadmap Resultado
+             * @default
+             */
+            roadmap_resultado: string;
+            /**
+             * Roadmap Referencia
+             * @default
+             */
+            roadmap_referencia: string;
+            /** Verificacion Started At */
+            verificacion_started_at?: string | null;
+            /**
+             * Verificacion Intentos
+             * @default 0
+             */
+            verificacion_intentos: number;
+            /**
+             * Verificacion Ultimo Resultado
+             * @default
+             */
+            verificacion_ultimo_resultado: string;
+            /**
+             * Verificacion Comentario
+             * @default
+             */
+            verificacion_comentario: string;
+            /** Revision Approved At */
+            revision_approved_at?: string | null;
+            /**
+             * Revision Approved By
+             * @default usuario
+             * @enum {string}
+             */
+            revision_approved_by: "usuario" | "agente" | "sistema";
+            /**
+             * Revision Nota
+             * @default
+             */
+            revision_nota: string;
             /** Rejected At */
             rejected_at?: string | null;
             /**
@@ -511,7 +555,7 @@ export interface components {
              * @default draft
              * @enum {string}
              */
-            status: "draft" | "proposed" | "accepted" | "rejected" | "superseded";
+            status: "draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "rejected" | "superseded";
             /** Tags */
             tags?: string[];
         };
@@ -521,7 +565,8 @@ export interface components {
          *
          *     Los del descarte viajan junto al `status: rejected`/`superseded`: el
          *     motivo y quién lo dictamina se guardan en `idea_rejected` al entrar en
-         *     `descartadas`.
+         *     `descartadas`. Los de roadmap, verificación y revisión aprobada viajan
+         *     igual junto a su `status` y se guardan en su ficha.
          */
         IdeaUpdate: {
             /** Title */
@@ -533,7 +578,7 @@ export interface components {
             /** Kind */
             kind?: "idea" | null;
             /** Status */
-            status?: ("draft" | "proposed" | "accepted" | "rejected" | "superseded") | null;
+            status?: ("draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "rejected" | "superseded") | null;
             /** Tags */
             tags?: string[] | null;
             /** Rejected Description */
@@ -542,6 +587,18 @@ export interface components {
             rejected_by?: ("usuario" | "agente" | "sistema") | null;
             /** Superseded By Uid */
             superseded_by_uid?: string | null;
+            /** Roadmap Resultado */
+            roadmap_resultado?: string | null;
+            /** Roadmap Referencia */
+            roadmap_referencia?: string | null;
+            /** Verificacion Resultado */
+            verificacion_resultado?: string | null;
+            /** Verificacion Comentario */
+            verificacion_comentario?: string | null;
+            /** Approved By */
+            approved_by?: ("usuario" | "agente" | "sistema") | null;
+            /** Revision Nota */
+            revision_nota?: string | null;
         };
         /** MapIdea */
         MapIdea: {
@@ -555,7 +612,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "draft" | "proposed" | "accepted" | "rejected" | "superseded";
+            status: "draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "rejected" | "superseded";
             /** Rejected At */
             rejected_at?: string | null;
             /**
@@ -584,12 +641,12 @@ export interface components {
              * Origen
              * @enum {string}
              */
-            origen: "draft" | "proposed" | "accepted" | "rejected";
+            origen: "draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "rejected";
             /**
              * Destino
              * @enum {string}
              */
-            destino: "draft" | "proposed" | "accepted" | "rejected";
+            destino: "draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "rejected";
         };
         /**
          * ProyeccionRepo
@@ -736,7 +793,7 @@ export interface operations {
             query: {
                 /** @description Carpeta del repo: ruta absoluta o nombre en el lab */
                 repo: string;
-                status?: ("draft" | "proposed" | "accepted" | "rejected" | "superseded") | null;
+                status?: ("draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "rejected" | "superseded") | null;
                 kind?: "idea" | null;
                 limit?: number;
                 offset?: number;

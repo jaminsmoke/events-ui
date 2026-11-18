@@ -13,7 +13,14 @@ import type { Status } from "../mapa/carriles";
  *  sin protocolos cargados aún o si la respuesta no valida, se ofrece todo
  *  y el core decide.
  */
-const Grupo = z.enum(["draft", "proposed", "accepted", "rejected"]);
+const Grupo = z.enum([
+  "draft",
+  "proposed",
+  "roadmap",
+  "verificacion",
+  "revision_aprobada",
+  "rejected",
+]);
 const Union = z.object({ origen: Grupo, destino: Grupo });
 const Protocolos = z.array(Union);
 
@@ -24,7 +31,9 @@ type Grupo = z.infer<typeof Grupo>;
 const A_GRUPO: Record<Status, Grupo> = {
   draft: "draft",
   proposed: "proposed",
-  accepted: "accepted",
+  roadmap: "roadmap",
+  verificacion: "verificacion",
+  revision_aprobada: "revision_aprobada",
   rejected: "rejected",
   superseded: "rejected",
 };

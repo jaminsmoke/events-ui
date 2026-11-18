@@ -9,7 +9,7 @@ import { useAnimaciones } from "./mapa/animaciones";
 import { buildTree } from "./mapa/arbol";
 import { useCables } from "./mapa/cables";
 import { useCamara } from "./mapa/camara";
-import type { LaneId } from "./mapa/carriles";
+import type { LaneId, Status } from "./mapa/carriles";
 import { NodeBox, VueloFila } from "./mapa/nodos";
 import { useVuelos } from "./mapa/vuelos";
 import { useEventos, resumenEvento } from "./core/useEventos";
@@ -174,13 +174,12 @@ export default function App({
     [olvidar],
   );
 
-  // Mover entre carriles es cambiar el `status` (PATCH tipado): `rejected`
-  // cierra la rama, `proposed` la devuelve a En cola. El sondeo de `/revision`
-  // relee el mapa y el vuelo existente anima la fila.
+  // Mover entre carriles es cambiar el `status` (PATCH tipado). El sondeo
+  // de `/revision` relee el mapa y el vuelo existente anima la fila.
   const alMover = useCallback(
-    (uid: string, lane: "cola" | "descartadas") => {
+    (uid: string, status: Status) => {
       setFalloAccion(null);
-      void mover(uid, lane === "descartadas" ? "rejected" : "proposed").catch((err: unknown) => {
+      void mover(uid, status).catch((err: unknown) => {
         setFalloAccion(err instanceof Error ? err.message : String(err));
       });
     },
@@ -203,7 +202,7 @@ export default function App({
   const volumen = useMemo(() => {
     const totales = new Map<LaneId, number>();
     for (const lane of tree?.carriles ?? []) {
-      if (lane.tone === "cola" || lane.tone === "descartadas") totales.set(lane.tone, lane.total);
+      if (lane.tone && lane.tone !== "root") totales.set(lane.tone, lane.total);
     }
     return totales;
   }, [tree]);
@@ -358,43 +357,77 @@ export default function App({
                     ) : null;
                   })}
                 </svg>
-                <NodeBox
-                  node={tree.cajon}
-                  cerrados={cerrados}
-                  onToggle={toggle}
-                  boxRef={cajonRef}
-                  volando={volando}
-                  pulso={pulsoCajon}
-                  onPideEditar={(uid, titulo, descripcion) =>
-                    setEditando({ uid, titulo, descripcion })
-                  }
-                  onEditar={editar}
-                  onBorrar={borrar}
-                  enlacesNuevos={enlacesNuevos}
-                  puedeIr={puedeIr}
-                />
-                <div className="lanes">
-                  {tree.carriles.map((lane, i) => (
-                    <NodeBox
-                      key={lane.key}
-                      node={lane}
-                      cerrados={cerrados}
-                      onToggle={toggle}
-                      boxRef={(el) => {
-                        carrilRefs.current[i] = el;
-                      }}
-                      volando={volando}
-                      pulso={pulsos.find((p) => p.lane === lane.tone)?.tono}
-                      onMover={alMover}
-                      onPideEditar={(uid, titulo, descripcion) =>
-                        setEditando({ uid, titulo, descripcion })
-                      }
-                      onEditar={editar}
-                      onBorrar={borrar}
-                      enlacesNuevos={enlacesNuevos}
-                      puedeIr={puedeIr}
-                    />
-                  ))}
+                <div className="linea">
+                  <NodeBox
+                    node={tree.cajon}
+                    cerrados={cerrados}
+                    onToggle={toggle}
+                    boxRef={cajonRef}
+                    volando={volando}
+                    pulso={pulsoCajon}
+                    onMover={alMover}
+                    onPideEditar={(uid, titulo, descripcion) =>
+                      setEditando({ uid, titulo, descripcion })
+                    }
+                    onEditar={editar}
+                    onBorrar={borrar}
+                    enlacesNuevos={enlacesNuevos}
+                    puedeIr={puedeIr}
+                  />
+                  {tree.carriles
+                    .filter((lane) => lane.tone !== "descartadas")
+                    .map((lane) => {
+                      const i = tree.carriles.indexOf(lane);
+                      return (
+                        <NodeBox
+                          key={lane.key}
+                          node={lane}
+                          cerrados={cerrados}
+                          onToggle={toggle}
+                          boxRef={(el) => {
+                            carrilRefs.current[i] = el;
+                          }}
+                          volando={volando}
+                          pulso={pulsos.find((p) => p.lane === lane.tone)?.tono}
+                          onMover={alMover}
+                          onPideEditar={(uid, titulo, descripcion) =>
+                            setEditando({ uid, titulo, descripcion })
+                          }
+                          onEditar={editar}
+                          onBorrar={borrar}
+                          enlacesNuevos={enlacesNuevos}
+                          puedeIr={puedeIr}
+                        />
+                      );
+                    })}
+                </div>
+                <div className="salida">
+                  {tree.carriles
+                    .filter((lane) => lane.tone === "descartadas")
+                    .map((lane) => {
+                      const i = tree.carriles.indexOf(lane);
+                      return (
+                        <NodeBox
+                          key={lane.key}
+                          node={lane}
+                          cerrados={cerrados}
+                          onToggle={toggle}
+                          boxRef={(el) => {
+                            carrilRefs.current[i] = el;
+                          }}
+                          volando={volando}
+                          pulso={pulsos.find((p) => p.lane === lane.tone)?.tono}
+                          onMover={alMover}
+                          onPideEditar={(uid, titulo, descripcion) =>
+                            setEditando({ uid, titulo, descripcion })
+                          }
+                          onEditar={editar}
+                          onBorrar={borrar}
+                          enlacesNuevos={enlacesNuevos}
+                          puedeIr={puedeIr}
+                        />
+                      );
+                    })}
                 </div>
               </div>
             )}

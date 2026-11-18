@@ -62,13 +62,17 @@ def repo_estado_actual(repo: str) -> dict[str, Any]:
         try:
             # La cola y las fichas son filas reales (0009): el conteo por
             # estado es una CASE sobre ellas. Una idea sin fila en ninguna es
-            # el cajón y no cuenta (antes salía la clave literal "None").
+            # la entrada y no cuenta (antes salía la clave literal "None").
             for estado, n in conn.execute(
                 "SELECT CASE"
                 " WHEN EXISTS (SELECT 1 FROM idea_rejected r WHERE r.uid = idea_entry.uid)"
                 " THEN 'descartadas'"
-                " WHEN EXISTS (SELECT 1 FROM idea_completada c WHERE c.uid = idea_entry.uid)"
-                " THEN 'completada'"
+                " WHEN EXISTS (SELECT 1 FROM idea_revision r WHERE r.uid = idea_entry.uid)"
+                " THEN 'revision_aprobada'"
+                " WHEN EXISTS (SELECT 1 FROM idea_verificacion v WHERE v.uid = idea_entry.uid)"
+                " THEN 'verificacion'"
+                " WHEN EXISTS (SELECT 1 FROM idea_roadmap m WHERE m.uid = idea_entry.uid)"
+                " THEN 'roadmap'"
                 " WHEN EXISTS (SELECT 1 FROM idea_cola q WHERE q.uid = idea_entry.uid)"
                 " THEN 'cola' END, count(*) FROM idea_entry GROUP BY 1"
             ):

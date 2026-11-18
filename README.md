@@ -83,7 +83,8 @@ temporales en 18765/15175: si esos puertos ya están ocupados (p. ej. tu
 que los puertos quedan libres. Las capturas de cada corrida quedan en
 `e2e/resultados/`.
 
-El core apunta a `data/events.db` por defecto; cámbialo con `EVENTSUI_DB=/ruta/al/log.db`.
+`/health` comprueba el fichero `EVENTSUI_DB` (por defecto, `data/events.db`).
+El historial que ve la UI se lee de la tabla `event` del repositorio seleccionado.
 
 El registro operativo de la app (arranques, errores y operaciones) vive en su
 propio SQLite, `data/registro.sqlite` (`EVENTSUI_REGISTRO_DB` para cambiarlo);
@@ -125,7 +126,7 @@ existiendo para hacerlo sin arrancar el core:
 
 ```bash
 git clone <url> repoprobe/repos/<repo>
-corepack pnpm core:seed <repo>   # idempotente, aplica schema/ideas.sql
+corepack pnpm core:seed <repo>   # crear un almacén nuevo
 corepack pnpm core:dev           # Swagger en http://127.0.0.1:18765/docs
 ```
 
@@ -149,14 +150,16 @@ corepack pnpm core:dev           # Swagger en http://127.0.0.1:18765/docs
 
 ### Flujo de carriles
 
-La idea nace en el cajón (`draft`); de ahí puede ir a la cola (`proposed`) o a
-descartadas (`rejected`), y de la cola a descartadas. `accepted` (completada)
-**no tiene flujo todavía**: no hay uniones que entren allí hasta que se diseñe.
-Qué traslados están permitidos lo decide la allowlist `protocolo_flujo`
-(visible con `GET /protocolos`): lo que no está listado, el core lo rechaza con
-400 ("el protocolo no permite el flujo X → Y"). Las conexiones entre ideas no
-se crean desde la UI ni la API: son parte de la arquitectura y solo se
-escriben con SQL/tooling.
+El recorrido por defecto es **entrada → cola → roadmap → verificación → revisión aprobada**.
+Desde entrada o cola se puede descartar una idea. Desde verificación se puede
+devolver al final de la cola. El core admite un ítem activo en roadmap y consulta
+`protocolo_flujo` para autorizar los traslados entre grupos. La UI obtiene esas
+reglas con `GET /protocolos`. Las conexiones entre ideas se escriben mediante
+herramientas SQL y se consultan desde el mapa.
+
+Para actualizar un almacén v12 existente, ábrelo desde la aplicación. El comando
+`core:seed` tiene un fallo conocido en ese recorrido. Consulta el
+[modelo de datos](docs/base-de-datos.md) y los [pendientes](ROADMAP.md#pendientes).
 
 `repo` es la ruta de la carpeta (la que devuelve el selector de la UI) o un nombre
 dentro de `repoprobe/repos`. Va en query porque las rutas de Windows no son un
@@ -195,9 +198,8 @@ cabecera y el runner apaga las claves foráneas antes de abrir la transacción
 - **F1–F3 (hecho):** sobre de evento + SSE en vivo por repo (F1), proyección de repo
   con identidad git (F2) y empaquetado con sidecar Python en la desktop, bandeja y
   avisos (F3). El instalador firmado queda fuera (cuesta dinero).
-- **Protocolos de flujo (0011) y completadas fuera (0012):** la allowlist
-  `protocolo_flujo` decide qué traslados están permitidos; `accepted` no tiene flujo
-  hasta que se diseñe.
+- **Flujo de ideas (0013)**. La migración incorpora roadmap, verificación y
+  revisión aprobada, y traslada las fichas históricas de completadas a `idea_revision`.
 - **Log con pestañas:** un solo flyout con `Eventos` (timeline del repo, por
   origen y nivel) y `Registro` (operativo de la app, por etiqueta y nivel).
 

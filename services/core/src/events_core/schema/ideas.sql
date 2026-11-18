@@ -6,16 +6,18 @@
 -- Este fichero es la fuente de verdad del esquema. Se aplica con
 -- `python -m events_core.seed <repo>` y es idempotente.
 --
--- Cuatro piezas, no una (la «idea» no es un solo estado):
+-- Seis piezas, no una (la «idea» no es un solo estado):
 -- - `idea_entry`: la identidad del ítem (`uid`, título, `kind`, `tags`...).
 --   El `uid` no cambia nunca: el ítem es el mismo aunque cambie de estado.
 -- - `idea_cola`: la fila de cola de una idea en cola, con su posición y su
 --   momento de entrada. Es estado real y ordenable, no una vista: estar en
 --   la cola suma fila y no estar resta, y el cajón es justo lo que no suma.
+-- - `idea_roadmap`: la ficha del ítem en curso, con inicio y resultado.
+-- - `idea_verificacion`: la ficha del ítem en revisión, con sus intentos.
+-- - `idea_revision`: la ficha de la revisión aprobada, estado final.
 -- - `idea_rejected`: la ficha del descarte, solo mientras dura el descarte.
--- - `idea_completada`: la ficha de la idea hecha, solo mientras dura así.
--- Una idea que no está en ninguna de las tres fichas es el cajón (recién
--- creada, `draft`). El historial de movimientos vive en `event`.
+-- Una idea que no está en ninguna ficha es la entrada (recién creada,
+-- `draft`). El historial de movimientos vive en `event`.
 
 CREATE TABLE IF NOT EXISTS idea_entry (
     -- Rowid normal, sin AUTOINCREMENT: eso solo añade la tabla `sqlite_sequence`
@@ -53,11 +55,36 @@ CREATE TABLE IF NOT EXISTS idea_cola (
     entered_at  TEXT    NOT NULL
 );
 
--- La ficha de la idea completada. La fila vive solo mientras dura así:
--- al volver a cola, a descartadas o al cajón se retira.
-CREATE TABLE IF NOT EXISTS idea_completada (
+-- La ficha del ítem en roadmap. Vive solo mientras dura ese trabajo:
+-- al pasar a verificación se retira y su fecha de completado queda en la
+-- ficha de verificación (`roadmap_completed_at`).
+CREATE TABLE IF NOT EXISTS idea_roadmap (
     uid          TEXT    PRIMARY KEY REFERENCES idea_entry (uid) ON DELETE CASCADE,
-    completed_at TEXT    NOT NULL
+    started_at   TEXT    NOT NULL,
+    completed_at TEXT,
+    resultado    TEXT    NOT NULL DEFAULT '',
+    referencia   TEXT    NOT NULL DEFAULT ''
+);
+
+-- La ficha del ítem en verificación. Vive solo mientras dura la revisión:
+-- al volver a cola o al aprobarse se retira.
+CREATE TABLE IF NOT EXISTS idea_verificacion (
+    uid                  TEXT    PRIMARY KEY REFERENCES idea_entry (uid) ON DELETE CASCADE,
+    started_at           TEXT    NOT NULL,
+    intentos             INTEGER NOT NULL DEFAULT 1 CHECK (intentos >= 1),
+    ultimo_resultado     TEXT    NOT NULL DEFAULT '',
+    comentario           TEXT    NOT NULL DEFAULT '',
+    roadmap_completed_at TEXT
+);
+
+-- La ficha de la revisión aprobada. La fila vive solo mientras dura así.
+-- Es el estado final del flujo por ahora (la expansión futura saldrá de aquí).
+CREATE TABLE IF NOT EXISTS idea_revision (
+    uid         TEXT    PRIMARY KEY REFERENCES idea_entry (uid) ON DELETE CASCADE,
+    approved_at TEXT    NOT NULL,
+    approved_by TEXT    NOT NULL DEFAULT 'usuario'
+                CHECK (approved_by IN ('usuario', 'agente', 'sistema')),
+    nota        TEXT    NOT NULL DEFAULT ''
 );
 
 -- La ficha del descarte: un ítem descartado tiene un porqué, y ese viene
@@ -85,20 +112,23 @@ CREATE TABLE IF NOT EXISTS idea_rejected (
 
 -- Los protocolos de flujo: qué carriles pueden unirse a cuáles. Una allowlist:
 -- solo las parejas listadas están permitidas; el resto se prohíbe. Las
--- descartadas son terminales: no hay fila que salga de ellas, y volver al
--- cajón desde la cola tampoco está listado. `superseded` comparte grupo con
--- `rejected` para mover (la ficha lo distingue, el carril no), así que no
--- lleva filas propias: el grupo manda. Las completadas no tienen diseño aún:
--- no hay flujo que llegue a `accepted` y `idea_completada` queda como
--- cimiento. Se siembra aquí para los almacenes nuevos; a los existentes les
--- llega por la migración 0011 (las filas de completadas, fuera en la 0012).
+-- descartadas y la revisión aprobada son terminales: no hay fila que salga
+-- de ellas. La revisión puede volver a cola una vez más, pero no al cajón.
+-- `superseded` comparte grupo con `rejected` para mover (la ficha lo
+-- distingue, el carril no), así que no lleva filas propias: el grupo manda.
+-- Se siembra aquí para los almacenes nuevos; a los existentes les llega por
+-- la migración 0011 y se amplía en la 0013.
 CREATE TABLE IF NOT EXISTS protocolo_flujo (
-    origen  TEXT NOT NULL CHECK (origen IN ('draft', 'proposed', 'accepted', 'rejected')),
-    destino TEXT NOT NULL CHECK (destino IN ('draft', 'proposed', 'accepted', 'rejected')),
+    origen  TEXT NOT NULL CHECK (origen IN ('draft', 'proposed', 'roadmap', 'verificacion', 'revision_aprobada', 'rejected')),
+    destino TEXT NOT NULL CHECK (destino IN ('draft', 'proposed', 'roadmap', 'verificacion', 'revision_aprobada', 'rejected')),
     PRIMARY KEY (origen, destino)
 );
 
 INSERT OR IGNORE INTO protocolo_flujo (origen, destino) VALUES
     ('draft', 'proposed'),
     ('draft', 'rejected'),
-    ('proposed', 'rejected');
+    ('proposed', 'roadmap'),
+    ('proposed', 'rejected'),
+    ('roadmap', 'verificacion'),
+    ('verificacion', 'proposed'),
+    ('verificacion', 'revision_aprobada');

@@ -40,7 +40,8 @@ Lo hecho se mueve a *Hecho* con su commit; lo que no va, va a *No se hace
   `payload`, `dedupe_key`) en la tabla `event` de cada `EUI_DATABASE`
   (migración 0005), conexión RO, tail `WHERE id > :last` y SSE con backfill
   (`GET /eventos` y `GET /eventos/stream`); la UI muestra «Actividad» con los
-  eventos por SSE y un fallback para tipos desconocidos.
+  eventos por SSE y un fallback para tipos desconocidos. Renderers conocidos
+  para `idea.created`/`updated`/`deleted`/`status`.
 - **Editar en diálogo modal**: el formulario inline de la fila pasa a un
   diálogo centrado (portal al body), con precarga de `kind`/`tags`.
 

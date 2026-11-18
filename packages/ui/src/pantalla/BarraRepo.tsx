@@ -16,8 +16,10 @@ export function BarraRepo({
 }) {
   return (
     <div className="repo-bar">
-      <span className="repo-name">{folderName(repo)}</span>
-      <span className="repo-path mono">{ruta ?? repo}</span>
+      <div className="repo-texto">
+        <span className="repo-name">{folderName(repo)}</span>
+        <span className="repo-path mono">{ruta ?? repo}</span>
+      </div>
       <button className="btn ghost" onClick={onCambiar} disabled={ocupado}>
         Cambiar
       </button>

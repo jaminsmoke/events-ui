@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { avisaErrores, avisaEventos, cargarAjustes, guardarAjustes } from "./core/avisos";
 import type { Ajustes } from "./core/avisos";
-import { storedRepo } from "./core/repo";
+import { folderName, storedRepo } from "./core/repo";
 import type { ElegirCarpeta } from "./core/repo";
 import { useRepo } from "./core/useRepo";
 import { useAnimaciones } from "./mapa/animaciones";
@@ -403,11 +403,13 @@ export default function App({
       </main>
 
       <footer className="statusbar">
+        {/* Terse: la ruta ya se ve arriba (topbar); aquí solo el nombre,
+            la rama y el recuento que el mapa no dice. */}
         {proyeccion && (
           <div className="proyeccion" aria-label="Estado del repo">
             <h2>Repo</h2>
-            <p className="proyeccion-linea">
-              <strong>{proyeccion.repo}</strong>
+            <p className="hint">
+              <strong>{folderName(proyeccion.repo)}</strong>
               {proyeccion.branch && (
                 <em>
                   {' '}
@@ -415,8 +417,7 @@ export default function App({
                   {proyeccion.commit ? ` · ${proyeccion.commit}` : ""}
                 </em>
               )}
-            </p>
-            <p className="hint">
+              {' · '}
               {proyeccion.ideas} ideas · {proyeccion.connections} conexiones · {proyeccion.events}{" "}
               eventos
               {Object.entries(proyeccion.por_estado).map(([estado, n]) => (

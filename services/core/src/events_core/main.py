@@ -123,20 +123,6 @@ class Idea(IdeaCreate):
     superseded_by_uid: str | None = None
 
 
-class Connection(BaseModel):
-    """Un enlace entre dos ideas, tal como lo define la arquitectura.
-
-    Las conexiones son inmutables: no hay POST ni DELETE —ni la UI
-    ni la API las crean o las borran—. Solo se leen (`GET /connections`).
-    """
-
-    id: int
-    parent_uid: str
-    child_uid: str
-    kind: Literal["child", "related", "supersedes"]
-    created_at: str
-
-
 class MapIdea(BaseModel):
     uid: str
     title: str
@@ -178,7 +164,6 @@ class Protocolo(BaseModel):
 
 class MapSnapshot(BaseModel):
     ideas: list[MapIdea]
-    connections: list[Connection]
 
 
 class Revision(BaseModel):
@@ -187,7 +172,6 @@ class Revision(BaseModel):
     instance: str
     data_version: int
     ideas: int
-    connections: int
 
 
 class Repo(BaseModel):
@@ -224,7 +208,6 @@ class ProyeccionRepo(BaseModel):
     branch: str | None = None
     commit: str | None = None
     ideas: int
-    connections: int
     events: int
     por_estado: dict[str, int]
     ultima_actividad: str | None = None
@@ -248,7 +231,6 @@ class Reinicio(BaseModel):
 
     repo: str
     ideas_eliminadas: int
-    conexiones_eliminadas: int
     eventos_eliminados: int
 
 
@@ -314,8 +296,7 @@ def _peticion_invalida(_request: Request, exc: ideas.InvalidInput) -> JSONRespon
 
 @app.exception_handler(KeyError)
 def _sin_idea(_request: Request, exc: KeyError) -> JSONResponse:
-    que = "conexión" if isinstance(exc.args[0], int) else "idea"
-    return JSONResponse(status_code=404, content={"detail": f"no existe la {que} {exc.args[0]}"})
+    return JSONResponse(status_code=404, content={"detail": f"no existe la idea {exc.args[0]}"})
 
 
 @app.exception_handler(Exception)
@@ -401,33 +382,17 @@ def remove_idea(uid: str, repo: RepoParam) -> None:
 
 @app.post("/reiniciar", response_model=Reinicio, tags=["ideas"], responses=RESPUESTAS_ERROR)
 def post_reiniciar(repo: RepoParam) -> dict[str, Any]:
-    """Reinicio de laboratorio: el almacén queda vacío (ideas, cola, fichas,
-    conexiones y eventos). Solo lo llama el lanzador de pruebas del desktop
+    """Reinicio de laboratorio: el almacén queda vacío (ideas, cola, fichas
+    y eventos). Solo lo llama el lanzador de pruebas del desktop
     (`puedeProbar`): no es parte del CRUD de producto."""
     resultado = ideas.reiniciar(repo)
     registro.escribir(
         "info",
         f"Reinicio de laboratorio en {repo}: {resultado['ideas_eliminadas']} ideas, "
-        f"{resultado['conexiones_eliminadas']} conexiones, "
         f"{resultado['eventos_eliminados']} eventos",
         origen="reiniciar",
     )
     return resultado
-
-
-@app.get(
-    "/connections",
-    response_model=list[Connection],
-    tags=["connections"],
-    responses=RESPUESTAS_ERROR,
-)
-def get_connections(
-    repo: RepoParam,
-    parent_uid: Annotated[
-        str | None, Query(description="Solo las que cuelgan de esta idea")
-    ] = None,
-) -> list[dict[str, Any]]:
-    return ideas.list_connections(repo, parent_uid=parent_uid)
 
 
 @app.get("/protocolos", response_model=list[Protocolo], tags=["ideas"], responses=RESPUESTAS_ERROR)
@@ -440,13 +405,13 @@ def get_protocolos(repo: RepoParam) -> list[dict[str, Any]]:
     return ideas.listar_protocolos(repo)
 
 
-@app.get("/mapa", response_model=MapSnapshot, tags=["connections"], responses=RESPUESTAS_ERROR)
+@app.get("/mapa", response_model=MapSnapshot, tags=["ideas"], responses=RESPUESTAS_ERROR)
 def get_map(repo: RepoParam) -> dict[str, Any]:
-    """Ideas y conexiones tal como estaban en la misma lectura de SQLite."""
+    """Las ideas del mapa tal como estaban en una misma lectura de SQLite."""
     return ideas.map_snapshot(repo)
 
 
-@app.get("/revision", response_model=Revision, tags=["connections"], responses=RESPUESTAS_ERROR)
+@app.get("/revision", response_model=Revision, tags=["ideas"], responses=RESPUESTAS_ERROR)
 def get_revision(repo: RepoParam) -> dict[str, Any]:
     """Sondeo de cambio: la UI lo pide cada par de segundos, sin traerse el mapa."""
     return ideas.revision(repo)

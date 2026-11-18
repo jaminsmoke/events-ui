@@ -75,7 +75,6 @@ function NodeRow({
   onPideEditar,
   onEditar,
   onBorrar,
-  enlacesNuevos = [],
   puedeIr,
   catalogo = [],
 }: {
@@ -88,7 +87,6 @@ function NodeRow({
   onPideEditar?: (uid: string, titulo: string, descripcion: string) => void;
   onEditar?: (uid: string, cambios: IdeaUpdate) => Promise<void>;
   onBorrar?: (uid: string) => Promise<void>;
-  enlacesNuevos?: { parentUid: string; childUid: string }[];
   /** Los protocolos de flujo (`GET /protocolos`): si está, la fila no ofrece
    *  un traslado que el core rechazaría (las descartadas no vuelven a cola,
    *  p. ej.). Sin él se ofrece todo y el core manda. */
@@ -123,7 +121,7 @@ function NodeRow({
     <div
       className={`row${node.tone ? ` lane-${node.tone}` : ""}${
         uid && volando(uid, nodo) ? " volando" : ""
-      }${uid && enlacesNuevos.some((e) => e.parentUid === uid || e.childUid === uid) ? " enlace-nuevo" : ""}`}
+      }`}
       data-uid={uid}
       data-nodo={nodo}
     >
@@ -280,7 +278,6 @@ function NodeRow({
               onPideEditar={onPideEditar}
               onEditar={onEditar}
               onBorrar={onBorrar}
-              enlacesNuevos={enlacesNuevos}
               puedeIr={puedeIr}
               catalogo={catalogo}
             />
@@ -303,7 +300,6 @@ export function NodeBox({
   onPideEditar,
   onEditar,
   onBorrar,
-  enlacesNuevos = [],
   puedeIr,
   catalogo = [],
 }: {
@@ -317,7 +313,6 @@ export function NodeBox({
   onPideEditar?: (uid: string, titulo: string, descripcion: string) => void;
   onEditar?: (uid: string, cambios: IdeaUpdate) => Promise<void>;
   onBorrar?: (uid: string) => Promise<void>;
-  enlacesNuevos?: { parentUid: string; childUid: string }[];
   puedeIr?: PuedeIr;
   catalogo?: readonly Idea[];
 }) {
@@ -352,7 +347,6 @@ export function NodeBox({
               onPideEditar={onPideEditar}
               onEditar={onEditar}
               onBorrar={onBorrar}
-              enlacesNuevos={enlacesNuevos}
               puedeIr={puedeIr}
               catalogo={catalogo}
             />

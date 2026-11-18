@@ -1,17 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { api, unwrap } from "./api";
-import type { Connection, IdeaCreate, IdeaUpdate, Mapa, ProyeccionRepo, Reinicio } from "./api";
+import type { IdeaCreate, IdeaUpdate, Mapa, ProyeccionRepo, Reinicio } from "./api";
 import { STORAGE_KEY } from "./repo";
-
-const SIN_CABLES: Connection[] = [];
 
 /** Lo cargado pertenece a *un* repo: si se cambia de carpeta, lo viejo deja de
  *  valer al instante en vez de pintarse un frame con el árbol anterior. */
 type Cargado = { repo: string; mapa: Mapa };
 type Fallo = { repo: string; mensaje: string };
 
-/** Ideas y conexiones del repo, refrescadas solas.
+/** Ideas del repo, refrescadas solas.
  *
  *  El refresco no es un watcher de ficheros: se pregunta `GET /revision`, cuya
  *  firma sale de `PRAGMA data_version` del almacén. Si cambia, se relee el mapa.
@@ -34,7 +32,7 @@ export function useRepo(repo: string | null) {
       try {
         const rev = await unwrap(api.GET("/revision", { params: { query: { repo } }, signal: controller.signal }));
         if (controller.signal.aborted) return;
-        const actual = `${rev.instance}/${rev.data_version}/${rev.ideas}/${rev.connections}`;
+        const actual = `${rev.instance}/${rev.data_version}/${rev.ideas}`;
         if (actual !== firma) {
           const mapa: Mapa = await unwrap(api.GET("/mapa", { params: { query: { repo } }, signal: controller.signal }));
           if (controller.signal.aborted) return;
@@ -115,8 +113,8 @@ export function useRepo(repo: string | null) {
     [repo],
   );
 
-  // LAB (solo Pruebas): vacía el almacén entero (ideas, cola, fichas,
-  // conexiones y eventos). No borra una idea: deja el proyecto limpio.
+  // LAB (solo Pruebas): vacía el almacén entero (ideas, cola, fichas y
+  // eventos). No borra una idea: deja el proyecto limpio.
   const reiniciar = useCallback(
     async (): Promise<Reinicio | null> => {
       if (!repo) return null;
@@ -124,9 +122,6 @@ export function useRepo(repo: string | null) {
     },
     [repo],
   );
-
-  // Las conexiones son de la arquitectura: inmutables desde la
-  // UI y la API. Solo se leen, dentro del mapa.
 
   // F2: la proyección del repo (identidad + conteos), refrescada con el mapa.
   // Se resetea al cambiar de repo verificando el repo en el render.
@@ -169,7 +164,6 @@ export function useRepo(repo: string | null) {
   return {
     // `null` = todavía sin respuesta; `[]` = el repo está sembrado pero vacío.
     ideas: fresco?.mapa.ideas ?? null,
-    links: fresco?.mapa.connections ?? SIN_CABLES,
     error: fallo && fallo.repo === repo ? fallo.mensaje : null,
     proyeccion: repo ? proyeccion : null,
     crear,

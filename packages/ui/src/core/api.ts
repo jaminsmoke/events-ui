@@ -13,10 +13,7 @@ type Schemas = components["schemas"];
  *  resto (`tags`…) llega al editar, por la `Idea` del CRUD. */
 export type Idea = Schemas["MapIdea"];
 
-/** Espejo de GET /connections: qué idea cuelga de cuál. */
-export type Connection = Schemas["Connection"];
-
-/** Espejo de GET /mapa: todas las ideas del mapa y sus conexiones. */
+/** Espejo de GET /mapa: las ideas del mapa. */
 export type Mapa = Schemas["MapSnapshot"];
 
 /** Espejo de GET /revision: firma del almacén para el refresco en vivo. */

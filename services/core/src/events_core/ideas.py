@@ -48,9 +48,11 @@ MIGRATIONS_DIR = Path(__file__).with_name("migraciones")
 # para que sobrevivan a la ficha, la 0015 sembró la tabla `event` en los
 # almacenes que nacieron sin log, la 0016 puso en triggers la exclusividad de
 # fichas y el roadmap único, para todos los escritores, y la 0017 endureció
-# `tags` a lista JSON de cadenas, y la 0018 añadió `depende_de`: las ideas
-# que tienen que estar aprobadas para que esta avance de carril.
-SCHEMA_VERSION = 18
+# `tags` a lista JSON de cadenas, la 0018 añadió `depende_de` (las ideas que
+# tienen que estar aprobadas para que esta avance de carril) y la 0019 retiró
+# `connections`: la dependencia vive en la entrada y la jerarquía del mapa es
+# el propio flujo.
+SCHEMA_VERSION = 19
 
 REPOS_ROOT_ENV_VAR = "EVENTSUI_REPOS_ROOT"
 BUSY_TIMEOUT_MS = 5_000
@@ -337,8 +339,7 @@ def _copiar_ideas_historicas(conn: sqlite3.Connection) -> None:
     `idea_entry` pero no mueve las filas que ya había en `ideas`. Aquí se
     copia la identidad (`uid` incluido), el estado viejo va a su ficha
     actual (`proposed` -> cola, `accepted` -> revisión aprobada,
-    `rejected`/`superseded` -> descartada) y `connections` se reconstruye
-    para apuntar a `idea_entry` en vez de a la tabla vieja. Si el fichero
+    `rejected`/`superseded` -> descartada) y `connections` se retira (0019). Si el fichero
     ya quedó marcado como v13 por abrirlo sin esto, la misma copia lo
     recupera al siguiente `ensure_repo`.
     """
@@ -399,42 +400,10 @@ def _copiar_ideas_historicas(conn: sqlite3.Connection) -> None:
                 """
             )
 
-            fila_conexiones = conn.execute(
-                "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'connections'"
-            ).fetchone()
-            definicion_conexiones = fila_conexiones[0] if fila_conexiones else ""
-            if definicion_conexiones and "REFERENCES ideas" in definicion_conexiones:
-                conn.execute("DROP TABLE IF EXISTS connections_nueva")
-                conn.execute(
-                    """
-                    CREATE TABLE connections_nueva (
-                        id         INTEGER PRIMARY KEY,
-                        parent_uid TEXT NOT NULL REFERENCES idea_entry (uid) ON DELETE CASCADE,
-                        child_uid  TEXT NOT NULL REFERENCES idea_entry (uid) ON DELETE CASCADE,
-                        kind       TEXT NOT NULL DEFAULT 'child'
-                                   CHECK (kind IN ('child', 'related', 'supersedes')),
-                        created_at TEXT NOT NULL,
-                        UNIQUE (parent_uid, child_uid, kind),
-                        CHECK (parent_uid <> child_uid)
-                    )
-                    """
-                )
-                conn.execute(
-                    """
-                    INSERT INTO connections_nueva
-                        (id, parent_uid, child_uid, kind, created_at)
-                    SELECT id, parent_uid, child_uid, kind, created_at FROM connections
-                    """
-                )
-                conn.execute("DROP TABLE connections")
-                conn.execute("ALTER TABLE connections_nueva RENAME TO connections")
-                conn.execute(
-                    "CREATE INDEX IF NOT EXISTS idx_connections_child_uid"
-                    " ON connections (child_uid)"
-                )
-                conn.execute(
-                    "CREATE INDEX IF NOT EXISTS idx_connections_parent ON connections (parent_uid)"
-                )
+            # La tabla de conexiones se retiró en la 0019. Este camino firma
+            # el almacén como al día, así que se borra aquí: si quedara,
+            # apuntaría a la `ideas` que se tira justo después.
+            conn.execute("DROP TABLE IF EXISTS connections")
 
             conn.execute("DROP TABLE ideas")
             conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
@@ -500,7 +469,7 @@ def _aplicar_paso(conn: sqlite3.Connection, numero: int, script: Path) -> None:
 
     Un paso a medias es peor que un paso sin empezar: si algo falla se deshace
     todo, incluido el `user_version`, y el almacén sigue en la versión anterior.
-    Además se comprueba que no queden conexiones huérfanas.
+    Además se comprueba que no queden filas huérfanas.
 
     Un paso que reconstruye una tabla con claves foráneas apuntándole lleva
     `-- sin-foreign-keys` en la cabecera: `PRAGMA foreign_keys` se ignora dentro
@@ -1370,24 +1339,6 @@ def listar_protocolos(repo: str) -> list[dict[str, Any]]:
     return [{"origen": fila[0], "destino": fila[1]} for fila in filas]
 
 
-def list_connections(repo: str, *, parent_uid: str | None = None) -> list[dict[str, Any]]:
-    """Conexiones del mapa, opcionalmente solo las que cuelgan de un padre."""
-    with closing(connect(ensure_repo(repo))) as conn:
-        return _list_connections(conn, parent_uid)
-
-
-def _list_connections(
-    conn: sqlite3.Connection, parent_uid: str | None = None
-) -> list[dict[str, Any]]:
-    rows = conn.execute(
-        "SELECT * FROM connections"
-        " WHERE (:parent IS NULL OR parent_uid = :parent)"
-        " ORDER BY created_at, id",
-        {"parent": parent_uid},
-    )
-    return [dict(row) for row in rows]
-
-
 def map_snapshot(repo: str) -> dict[str, Any]:
     """Lee el mapa entero en una sola transacción de lectura."""
     with closing(open_read_only(ensure_repo(repo))) as conn:
@@ -1439,7 +1390,7 @@ def map_snapshot(repo: str) -> dict[str, Any]:
             }
             for row in rows
         ]
-        return {"ideas": ideas, "connections": _list_connections(conn)}
+        return {"ideas": ideas}
 
 
 # Una conexión de solo lectura por almacén, no una por petición: `PRAGMA
@@ -1481,12 +1432,11 @@ def revision(repo: str) -> dict[str, Any]:
             "instance": _REVISION_INSTANCE,
             "data_version": data_version(conn),
             "ideas": conn.execute(f"SELECT count(*) FROM {tabla_idea}").fetchone()[0],
-            "connections": conn.execute("SELECT count(*) FROM connections").fetchone()[0],
         }
 
 
 def reiniciar(repo: str) -> dict[str, Any]:
-    """Vacía el almacén de ideas, cola, fichas, conexiones y eventos (LAB).
+    """Vacía el almacén de ideas, cola, fichas y eventos (LAB).
 
     Solo lo usa el lanzador de pruebas (`puedeProbar`) para volver a un estado
     de proyecto limpio tras una prueba: no es parte del CRUD de producto. La
@@ -1504,10 +1454,9 @@ def reiniciar(repo: str) -> dict[str, Any]:
     with closing(connect(db_file)) as conn:
         conn.execute("BEGIN IMMEDIATE")
         n_ideas = contar(conn, "idea_entry")
-        n_conexiones = contar(conn, "connections")
         n_eventos = contar(conn, "event")
-        # Borrar las entradas arrastra cola, fichas y conexiones por CASCADE;
-        # los eventos no cuelgan de nada, se borran aparte.
+        # Borrar las entradas arrastra cola y fichas por CASCADE; los eventos
+        # no cuelgan de nada, se borran aparte.
         if n_eventos:
             conn.execute("DELETE FROM event")
         conn.execute("DELETE FROM idea_entry")
@@ -1515,11 +1464,5 @@ def reiniciar(repo: str) -> dict[str, Any]:
     return {
         "repo": repo,
         "ideas_eliminadas": n_ideas,
-        "conexiones_eliminadas": n_conexiones,
         "eventos_eliminados": n_eventos,
     }
-
-
-# Las conexiones se leen (`list_connections`) pero no se escriben por aquí:
-# son arquitectura, inmutables desde la API. Las escribe el
-# tooling con SQL directo.

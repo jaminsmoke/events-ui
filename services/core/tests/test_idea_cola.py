@@ -95,15 +95,7 @@ def _comprobar_historico(client, repo):  # noqa: ANN001, ANN202
     assert ideas_mapa["hija"]["status"] == "draft"
     assert ideas_mapa["aceptada"]["status"] == "revision_aprobada"
     assert ideas_mapa["rechazada"]["status"] == "rejected"
-    assert r.json()["connections"] == [
-        {
-            "id": 1,
-            "parent_uid": "vieja",
-            "child_uid": "hija",
-            "kind": "child",
-            "created_at": "2025-01-03T00:00:00Z",
-        }
-    ]
+    assert "connections" not in r.json()
     ficha = client.get("/ideas/vieja", params={"repo": repo}).json()
     assert ficha["title"] == "Vieja"
     assert ficha["description"] == "Desc"
@@ -115,7 +107,7 @@ def _comprobar_historico(client, repo):  # noqa: ANN001, ANN202
         tablas = {
             row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 18
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 19
         assert "ideas" not in tablas
         assert conn.execute("SELECT count(*) FROM idea_entry").fetchone()[0] == 4
         assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
@@ -161,7 +153,7 @@ def test_fresco_sin_lane_log(client, repo):  # noqa: ANN001, ANN202
     db = ideas.ensure_repo(repo)
     conn = sqlite3.connect(str(db))
     tablas = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 18
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 19
     assert "idea_cola" in tablas
     assert "idea_roadmap" in tablas
     assert "idea_verificacion" in tablas
@@ -253,16 +245,12 @@ def test_revision_aprobada_es_terminal(client, repo):  # noqa: ANN001, ANN202
 
 def test_reiniciar_vacia_todo(client, repo):  # noqa: ANN001, ANN202
     estados = ["draft", "proposed", "roadmap", "verificacion", "revision_aprobada", "rejected"]
-    uids = [
+    [
         client.post("/ideas", params={"repo": repo}, json={"title": s, "status": s}).json()["uid"]
         for s in estados
     ]
     db = ideas.db_file_for(repo)
     with closing(ideas.connect(db)) as conn:
-        conn.execute(
-            "INSERT INTO connections (parent_uid, child_uid, created_at) VALUES (?, ?, 'hoy')",
-            uids[:2],
-        )
         conn.execute("DELETE FROM protocolo_flujo WHERE destino = 'rejected'")
         conn.commit()
         protocolos = conn.execute("SELECT * FROM protocolo_flujo ORDER BY 1, 2").fetchall()
@@ -272,7 +260,6 @@ def test_reiniciar_vacia_todo(client, repo):  # noqa: ANN001, ANN202
         assert r.json() == {
             "repo": repo,
             "ideas_eliminadas": 6,
-            "conexiones_eliminadas": 1,
             "eventos_eliminados": 6,
         }
         for tabla in (
@@ -282,7 +269,6 @@ def test_reiniciar_vacia_todo(client, repo):  # noqa: ANN001, ANN202
             "idea_verificacion",
             "idea_revision",
             "idea_rejected",
-            "connections",
             "event",
         ):
             assert conn.execute(f"SELECT count(*) FROM {tabla}").fetchone()[0] == 0
@@ -338,7 +324,7 @@ def test_migracion_0009_solo_estado_final(client, repo):  # noqa: ANN001, ANN202
 
     conn = sqlite3.connect(str(db))
     conn.execute("PRAGMA foreign_keys = ON")
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 18
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 19
     tablas = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert "idea_lane_log" not in tablas
     assert "idea_completada" not in tablas
@@ -385,7 +371,7 @@ def test_historico_ya_marcado_se_recupera(client, repo):  # noqa: ANN001, ANN202
     _esquema_inicial(conn)
     ideas.aplicar_esquema(conn)  # lo que hacía el código anterior
     conn.commit()
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 18
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 19
     assert conn.execute("SELECT count(*) FROM idea_entry").fetchone()[0] == 0
     assert conn.execute("SELECT count(*) FROM ideas").fetchone()[0] == 4
     conn.close()

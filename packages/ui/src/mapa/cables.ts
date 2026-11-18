@@ -10,11 +10,6 @@ import type { Vista } from "./camara";
  *  `lane` es el carril de destino: da el color y por dónde viaja la chispa. */
 export type Cable = { lane: LaneId; d: string; x1: number; y1: number };
 
-/** Un enlace lateral entre dos ideas (`related` o `supersedes`), medido en
- *  píxeles del mapa. `kind` da el estilo: punteado el lateral, doble línea
- *  el que reemplaza. No anida: las dos filas siguen donde estaban. */
-export type Enlace = { id: number; kind: "related" | "supersedes"; d: string };
-
 /** Los cables y la respuesta a «¿queda algo fuera del lienzo?».
  *
  *  Los cables se miden del DOM: los nodos crecen al desplegarse y nada es fijo.
@@ -28,7 +23,6 @@ export function useCables({
   mapRef,
   cajonRef,
   carrilRefs,
-  enlaces,
 }: {
   tree: Tree | null;
   cerrados: ReadonlySet<string>;
@@ -37,10 +31,8 @@ export function useCables({
   mapRef: RefObject<HTMLDivElement | null>;
   cajonRef: RefObject<HTMLElement | null>;
   carrilRefs: RefObject<(HTMLElement | null)[]>;
-  enlaces?: { id: number; kind: "related" | "supersedes"; parentUid: string; childUid: string }[];
 }) {
   const [cables, setCables] = useState<Cable[]>([]);
-  const [trazosEnlace, setTrazosEnlace] = useState<Enlace[]>([]);
   const [recortado, setRecortado] = useState(false);
   // Punto medio del cable Entrada↔En cola, donde nace la rama de Descartadas.
   const [nudo, setNudo] = useState<{ x: number; y: number } | null>(null);
@@ -123,41 +115,6 @@ export function useCables({
       setNudo(medio);
       setCables(trazos);
 
-      // Enlaces laterales: de la fila del padre a la del hijo, donde estén
-      // (cajón o carril, plegadas o no). Sin las dos filas a la vista no hay
-      // trazo: el enlace existe, solo que no se puede medir.
-      const filasRect = new Map<string, ReturnType<typeof rectLocal>>();
-      for (const fila of map.querySelectorAll<HTMLElement>(".row[data-uid]")) {
-        const uid = fila.dataset.uid;
-        const cabecera = fila.firstElementChild as HTMLElement | null;
-        if (!uid || !cabecera) continue;
-        const lista = fila.closest<HTMLElement>(".lane-cola > .node-body");
-        const rect = rectLocal(cabecera);
-        if (lista) {
-          const visible = rectLocal(lista);
-          const centro = rect.y + rect.h / 2;
-          if (centro < visible.y || centro > visible.y + visible.h) continue;
-        }
-        filasRect.set(uid, rect);
-      }
-      const trazosEnlace: Enlace[] = [];
-      for (const enlace of enlaces ?? []) {
-        const a = filasRect.get(enlace.parentUid);
-        const b = filasRect.get(enlace.childUid);
-        if (!a || !b) continue;
-        const x1 = a.x + a.w;
-        const y1 = a.y + a.h / 2;
-        const x2 = b.x;
-        const y2 = b.y + b.h / 2;
-        const medio = (x1 + x2) / 2;
-        trazosEnlace.push({
-          id: enlace.id,
-          kind: enlace.kind,
-          d: `M ${x1} ${y1} C ${medio} ${y1}, ${medio} ${y2}, ${x2} ${y2}`,
-        });
-      }
-      setTrazosEnlace(trazosEnlace);
-
       // ¿Queda algo fuera del lienzo? Entonces se ofrece reencuadrar.
       const vistaMapa = map.getBoundingClientRect();
       const hueco = boardRef.current?.getBoundingClientRect();
@@ -178,16 +135,12 @@ export function useCables({
     // cambie ni la vista ni el árbol.
     if (boardRef.current) ro.observe(boardRef.current);
     for (const el of carrilRefs.current) if (el) ro.observe(el);
-    // Y cada fila, para que los enlaces laterales sigan a su idea.
-    for (const fila of map.querySelectorAll<HTMLElement>(".row[data-uid]")) {
-      ro.observe(fila);
-    }
     map.addEventListener("scroll", medir, true);
     return () => {
       ro.disconnect();
       map.removeEventListener("scroll", medir, true);
     };
-  }, [tree, cerrados, vista, boardRef, mapRef, cajonRef, carrilRefs, enlaces]);
+  }, [tree, cerrados, vista, boardRef, mapRef, cajonRef, carrilRefs]);
 
-  return { cables, nudo, recortado, enlaces: trazosEnlace };
+  return { cables, nudo, recortado };
 }

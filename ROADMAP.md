@@ -23,8 +23,8 @@ con el motivo, para no reabrirlo cada semana.
   que bloquean el avance. El core valida que existan, rechaza auto-dependencias
   y ciclos, limpia el uid al borrar y frena roadmap/verificación/revisión
   aprobada mientras alguna no esté aprobada. La fila del mapa enseña a quién
-  espera y permite añadir o quitar dependencias. `connections` sigue en pie:
-  su `child` es la única jerarquía del mapa y el mapa plano falta por consensuar.
+  espera y permite añadir o quitar dependencias. El mapa es plano: `connections`
+  se retiró en la 0019 y cada carril pinta su lista sin anidar.
 - **F1 — motor en vivo por repo**: sobre de evento (`id`, `ts`, `type`,
   `payload`, `dedupe_key`) en la tabla `event` de cada `EUI_DATABASE`
   (migración 0005), conexión RO, tail `WHERE id > :last` y SSE con backfill
@@ -68,7 +68,7 @@ con el motivo, para no reabrirlo cada semana.
 - **Almacenes anteriores a `user_version`**: un fichero histórico con la
   tabla `ideas` se copia a `idea_entry` conservando UID, campos y estado
   (`proposed` a cola, `accepted` a revisión aprobada, `rejected`/`superseded`
-  a descartada), y `connections` se reconstruye apuntando a la entrada.
+  a descartada), y `connections` se retira (0019).
   También se recupera un v13 que ya quedó marcado con la fila en la tabla
   vieja. Cubierto en `services/core/tests/test_idea_cola.py`.
 - **Edición de la ficha activa**: un PATCH sin `status` (o reafirmándolo)
@@ -125,11 +125,6 @@ con el motivo, para no reabrirlo cada semana.
   el roadmap no admite dos activas; los triggers del almacén (migración 0016)
   lo imponen a cualquier escritor y una inserción rechazada deja el estado
   anterior intacto. Cubierto en `services/core/tests/test_exclusividad.py`.
-- **Ciclos en el árbol**: dos enlaces `child` recíprocos llegan de una
-  importación y el mapa los devuelve enteros; el visor promueve una idea de
-  cada ciclo sin raíz para que el carril no se quede vacío y sigue pintando
-  una idea bajo cada padre. Cubierto en `test_flujo_items.py` y comprobado
-  sobre `buildTree` con el bundle compilado.
 - **Formato de etiquetas**: `tags` es una lista JSON de cadenas en el
   esquema (migración 0017, que sanea `{}` y los elementos no textuales) y en
   la API (422 con valores que no son cadenas); una fila antigua se lee como
@@ -144,8 +139,8 @@ con el motivo, para no reabrirlo cada semana.
   (`.github/workflows/ci.yml`). Batería e2e y builds de Tauri quedan fuera
   del CI a propósito (navegador y puertos; se corren en local).
 
-- **Nodos y cables estables.** Las seis cabeceras mantienen su posición al llenar o plegar el mapa. Los cables de etapa se anclan a las cabeceras y la salida hacia Descartadas discurre por el lateral de la cola.
-- **Limpieza de la prueba manual.** La Prueba 1 deja ver el reparto y después vacía el laboratorio en una transacción, también al detenerla o fallar un paso. El E2E compara coordenadas y trazados, consulta las ocho tablas operativas y comprueba los protocolos antes de que el runner haga su propia limpieza.
+- **Nodos y cables estables.** Las seis cabeceras mantienen su posición al llenar o plegar el mapa. Los cables de etapa se anclan a las cabeceras y la rama de Descartadas nace de un nudo en mitad del cable Entrada↔En cola.
+- **Limpieza de la prueba manual.** La Prueba 1 deja ver el reparto y después vacía el laboratorio en una transacción, también al detenerla o fallar un paso. El E2E compara coordenadas y trazados, consulta las siete tablas operativas y comprueba los protocolos antes de que el runner haga su propia limpieza.
 
 - **Prueba interrumpida al cerrar la app.** La ejecución deja una marca con
   latido en `localStorage`; al reabrir el mismo laboratorio, una marca sin
@@ -166,7 +161,3 @@ Nada abierto por ahora.
   modelo y la UI estables. Reabrir cuando el mapa y las acciones dejen de
   moverse.
 - **Instalador firmado**: cuesta dinero.
-- **`related`/`supersedes` como carriles propios**: son conexiones, no
-  columnas; solo se pintan si el visor lo necesita.
-- **Gestionar conexiones desde la UI**: son arquitectura o vienen de tooling
-  con SQL; la UI solo las lee dentro del mapa.

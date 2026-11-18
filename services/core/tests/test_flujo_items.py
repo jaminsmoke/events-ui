@@ -8,7 +8,6 @@ la regla de un solo item activo en roadmap.
 from __future__ import annotations
 
 import sqlite3
-from contextlib import closing
 
 from events_core import ideas
 
@@ -207,27 +206,6 @@ def test_borrar_la_sustituta_conserva_el_vinculo(client, repo):  # noqa: ANN001,
     # Sin la ficha que la referencia, el borrado pasa.
     assert client.delete(f"/ideas/{vieja}", params={"repo": repo}).status_code == 204
     assert client.delete(f"/ideas/{sustituta}", params={"repo": repo}).status_code == 204
-
-
-def test_mapa_devuelve_ciclos_de_enlaces_child(client, repo):  # noqa: ANN001, ANN202
-    """Dos enlaces `child` recíprocos llegan de una importación y el mapa los
-    devuelve enteros: cortar el ciclo es cosa de la vista, no de los datos."""
-    a = _crear(client, repo, title="A", status="proposed")
-    b = _crear(client, repo, title="B", status="proposed")
-    with closing(sqlite3.connect(ideas.db_file_for(repo))) as conn:
-        conn.executemany(
-            "INSERT INTO connections (parent_uid, child_uid, kind, created_at)"
-            " VALUES (?, ?, 'child', '2026-01-01T00:00:00+00:00')",
-            [(a, b), (b, a)],
-        )
-        conn.commit()
-
-    mapa = client.get("/mapa", params={"repo": repo}).json()
-    assert {idea["uid"] for idea in mapa["ideas"]} == {a, b}
-    assert {(c["parent_uid"], c["child_uid"]) for c in mapa["connections"]} == {
-        (a, b),
-        (b, a),
-    }
 
 
 def test_roadmap_solo_un_activo(client, repo):  # noqa: ANN001, ANN202

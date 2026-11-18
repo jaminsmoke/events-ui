@@ -2,7 +2,7 @@
 
 Cada repositorio guarda sus ideas, relaciones y protocolos en
 `.EUI/EUI_DATABASE.sqlite`. El core activa WAL y las claves foráneas en sus
-conexiones de escritura. La versión del esquema de ideas es 18. El registro
+conexiones de escritura. La versión del esquema de ideas es 19. El registro
 operativo de la aplicación vive en otro fichero y abarca varios repositorios.
 
 ## Tablas y relaciones
@@ -15,7 +15,6 @@ operativo de la aplicación vive en otro fichero y abarca varios repositorios.
 | `idea_verificacion` | Una ficha por UID | Inicio, intentos acumulados, último resultado, comentario y fecha de finalización del roadmap previo. |
 | `idea_revision` | Una ficha por UID | Fecha de aprobación, autor y nota. La migración 0013 copia aquí las antiguas completadas. |
 | `idea_rejected` | Una ficha por UID y una referencia opcional a otro UID | Fecha, motivo y autor del descarte. `superseded_by_uid` identifica la idea sustituta. |
-| `connections` | Dos FK a `idea_entry.uid` | Aristas entre ideas. La combinación de padre, hijo y tipo es única. Se admiten varios padres. Los tipos son `child`, `related` y `supersedes`. |
 | `protocolo_flujo` | Clave compuesta `(origen, destino)` | Transiciones permitidas entre grupos. Es configuración del repo y se conserva al reiniciar el laboratorio. |
 | `event` | `id` entero para el cursor y `dedupe_key` opcional única | Historial por repo con fecha, tipo, origen y payload. Se siembra con el almacén y la migración 0015 lo añade a los que nacieron sin él. |
 | `registro` | `id` entero en un SQLite independiente | Fecha, nivel, origen y mensaje de operaciones del core. El destino por defecto es `data/registro.sqlite` en la raíz del repo y `EVENTSUI_REGISTRO_DB` permite elegir el fichero. |
@@ -24,9 +23,9 @@ Las cinco fichas de estado referencian `idea_entry.uid` con borrado en cascada.
 Una idea sin ficha está en entrada. La unicidad del UID dentro de cada ficha es
 una restricción de SQLite. La exclusividad entre fichas la mantienen el core al
 mover la idea y los triggers del almacén (migración 0016), que rechazan
-cualquier inserción que deje la idea en dos fichas o dos ideas en roadmap. Los extremos de `connections` también se borran en cascada y un
-`CHECK` impide que sean iguales. La referencia opcional a una idea sustituta
-impide borrarla mientras exista el vínculo.
+cualquier inserción que deje la idea en dos fichas o dos ideas en roadmap. La
+referencia opcional a una idea sustituta impide borrarla mientras exista el
+vínculo.
 
 Las dependencias viven en `idea_entry.depende_de`, una lista JSON de uids: SQLite no
 admite una FK dentro de un JSON, así que el core valida que cada uid exista,
@@ -35,8 +34,8 @@ borrar la idea. Un ítem no entra en roadmap, verificación ni revisión aprobad
 mientras alguna dependencia no esté en `revision_aprobada`; descartarse y
 editarse sí se permite, para que un ítem bloqueado tenga salida.
 
-La posición única indexa la cola. Las conexiones tienen índices por cada extremo
-y el log por `(origen, id)`. El cursor general usa la clave entera de `event`.
+La posición única indexa la cola y el log tiene índice por `(origen, id)`. La
+migración 0019 retiró `connections` junto con sus índices. El cursor general usa la clave entera de `event`.
 Los eventos guardan la referencia a la idea en el payload, de modo que borrar la
 idea conserva su historial cuando existe la tabla. El reinicio del laboratorio
 vacía expresamente el log. La retención del historial por defecto es de 90 días

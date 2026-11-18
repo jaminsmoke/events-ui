@@ -70,7 +70,7 @@ def test_la_migracion_sanea_las_etiquetas(repo):  # noqa: ANN001, ANN202
     ideas.ensure_repo(repo)
 
     with closing(sqlite3.connect(db)) as conn:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 18
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 19
         filas = dict(conn.execute("SELECT uid, tags FROM idea_entry").fetchall())
     assert filas == {"vieja": "[]", "mixta": '[1, "dos"]', "buena": '["tres"]'}
 

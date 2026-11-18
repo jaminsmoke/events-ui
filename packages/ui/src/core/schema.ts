@@ -93,28 +93,11 @@ export interface paths {
         put?: never;
         /**
          * Post Reiniciar
-         * @description Reinicio de laboratorio: el almacén queda vacío (ideas, cola, fichas,
-         *     conexiones y eventos). Solo lo llama el lanzador de pruebas del desktop
+         * @description Reinicio de laboratorio: el almacén queda vacío (ideas, cola, fichas
+         *     y eventos). Solo lo llama el lanzador de pruebas del desktop
          *     (`puedeProbar`): no es parte del CRUD de producto.
          */
         post: operations["post_reiniciar_reiniciar_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/connections": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Connections */
-        get: operations["get_connections_connections_get"];
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -154,7 +137,7 @@ export interface paths {
         };
         /**
          * Get Map
-         * @description Ideas y conexiones tal como estaban en la misma lectura de SQLite.
+         * @description Las ideas del mapa tal como estaban en una misma lectura de SQLite.
          */
         get: operations["get_map_mapa_get"];
         put?: never;
@@ -313,28 +296,6 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /**
-         * Connection
-         * @description Un enlace entre dos ideas, tal como lo define la arquitectura.
-         *
-         *     Las conexiones son inmutables: no hay POST ni DELETE —ni la UI
-         *     ni la API las crean o las borran—. Solo se leen (`GET /connections`).
-         */
-        Connection: {
-            /** Id */
-            id: number;
-            /** Parent Uid */
-            parent_uid: string;
-            /** Child Uid */
-            child_uid: string;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "child" | "related" | "supersedes";
-            /** Created At */
-            created_at: string;
-        };
         /**
          * EntradaLog
          * @description Una línea del registro operativo (`GET /log`): de la app, no del repo.
@@ -633,8 +594,6 @@ export interface components {
         MapSnapshot: {
             /** Ideas */
             ideas: components["schemas"]["MapIdea"][];
-            /** Connections */
-            connections: components["schemas"]["Connection"][];
         };
         /**
          * Protocolo
@@ -675,8 +634,6 @@ export interface components {
             commit?: string | null;
             /** Ideas */
             ideas: number;
-            /** Connections */
-            connections: number;
             /** Events */
             events: number;
             /** Por Estado */
@@ -707,8 +664,6 @@ export interface components {
             repo: string;
             /** Ideas Eliminadas */
             ideas_eliminadas: number;
-            /** Conexiones Eliminadas */
-            conexiones_eliminadas: number;
             /** Eventos Eliminados */
             eventos_eliminados: number;
         };
@@ -733,8 +688,6 @@ export interface components {
             data_version: number;
             /** Ideas */
             ideas: number;
-            /** Connections */
-            connections: number;
         };
         /** ValidationError */
         ValidationError: {
@@ -1083,58 +1036,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Reinicio"];
-                };
-            };
-            /** @description Petición inválida */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorDetail"];
-                };
-            };
-            /** @description No existe el repo o la idea */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorDetail"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_connections_connections_get: {
-        parameters: {
-            query: {
-                /** @description Carpeta del repo: ruta absoluta o nombre en el lab */
-                repo: string;
-                /** @description Solo las que cuelgan de esta idea */
-                parent_uid?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Connection"][];
                 };
             };
             /** @description Petición inválida */

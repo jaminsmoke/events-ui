@@ -106,7 +106,7 @@ corepack pnpm gen:api    # vuelca app.openapi() y regenera la UI
 
 Eso deja `packages/ui/openapi.json` (snapshot versionado: el diff muestra qué
 cambió del contrato) y `packages/ui/src/core/schema.ts` (generado, no editar).
-`api.ts` deriva `Idea`, `Connection`, `Mapa`, `Revision` y `RepoListado` de
+`api.ts` deriva `Idea`, `Mapa`, `Revision` y `RepoListado` de
 ahí, así que un cambio en el core se ve en el siguiente `check`. No necesita
 el core en marcha: el volcado importa la app con `uv run` (módulo
 `events_core.dump_openapi`).
@@ -136,8 +136,7 @@ corepack pnpm core:dev           # Swagger en http://127.0.0.1:18765/docs
 | GET | `/ideas?repo=<ruta>` (filtros `status`, `kind`, `limit`, `offset`) |
 | POST | `/ideas?repo=<ruta>` |
 | GET / PATCH / DELETE | `/ideas/{uid}?repo=<ruta>` |
-| GET | `/connections?repo=<ruta>` (filtro `parent_uid`) — solo lectura: las conexiones son de la arquitectura, inmutables |
-| GET | `/mapa?repo=<ruta>` — todas las ideas del mapa y sus conexiones en una sola lectura |
+| GET | `/mapa?repo=<ruta>` — las ideas del mapa en una sola lectura |
 | GET | `/revision?repo=<ruta>` — firma barata (`PRAGMA data_version` + conteos) para el refresco en vivo |
 | GET | `/protocolos?repo=<ruta>` — uniones permitidas entre carriles (allowlist) |
 | GET | `/eventos?repo=<ruta>` — tail del log (`desde`, `limite`, `origen`) |
@@ -146,7 +145,7 @@ corepack pnpm core:dev           # Swagger en http://127.0.0.1:18765/docs
 | GET | `/proyecciones/repo?repo=<ruta>` — identidad (ruta, rama/commit git) y conteos del repo |
 | GET | `/log` — registro operativo de la app (filtros `nivel`, `origen`) |
 | POST | `/log/purgar` — purga del registro forzada (también pasa sola al escribir) |
-| POST | `/reiniciar?repo=<ruta>` — vacía ideas, fichas, conexiones y eventos del laboratorio |
+| POST | `/reiniciar?repo=<ruta>` — vacía ideas, fichas y eventos del laboratorio |
 
 ### Prueba 1 en el laboratorio
 
@@ -173,8 +172,7 @@ El recorrido por defecto es **entrada → cola → roadmap → verificación →
 Desde entrada o cola se puede descartar una idea. Desde verificación se puede
 devolver al final de la cola. El core admite un ítem activo en roadmap y consulta
 `protocolo_flujo` para autorizar los traslados entre grupos. La UI obtiene esas
-reglas con `GET /protocolos`. Las conexiones entre ideas se escriben mediante
-herramientas SQL y se consultan desde el mapa.
+reglas con `GET /protocolos`.
 
 Una idea puede declarar `depende_de` (uids de otras ideas del repo): el core no
 la deja entrar en roadmap, verificación ni revisión aprobada mientras alguna de
@@ -206,24 +204,27 @@ primera lectura. Añadir una columna o cambiar un `CHECK` es, entonces, editar
 Cuando el paso cambia un `CHECK` o una columna, SQLite no tiene `ALTER` para eso y
 hay que reconstruir la tabla. Esa migración lleva `-- sin-foreign-keys` en la
 cabecera y el runner apaga las claves foráneas antes de abrir la transacción
-(dentro se ignora el `PRAGMA`): sin eso, tirar `ideas` arrastraría `connections` por
-`ON DELETE CASCADE`. El paso `0004` es el ejemplo: reconstruye `ideas` para añadir
-`CHECK (json_valid(tags))`.
+(dentro se ignora el `PRAGMA`): sin eso, tirar `idea_entry` arrastraría sus fichas
+por `ON DELETE CASCADE`. El paso `0004` es el ejemplo: reconstruye `ideas` para
+añadir `CHECK (json_valid(tags))`.
 
 ## Estado
 
 - **F0 (hecho):** andamio, `/health`, proxy UI→core.
 - **F0.5 (hecho):** tablas de ideas, seed de `.EUI/EUI_DATABASE.sqlite`, API CRUD por repo.
-- **F0.6 (hecho):** tabla `connections` (solo lectura, inmutable), `/revision` y visor
-  en vivo: cada dos segundos se comprueba la revisión y, si cambia, se lee `/mapa`.
-  Una idea se anima al pasar entre carriles.
+- **F0.6 (hecho):** `/revision` y visor en vivo: cada dos segundos se comprueba la
+  revisión y, si cambia, se lee `/mapa`. Una idea se anima al pasar entre carriles.
 - **F0.7 (hecho):** la UI escribe, no solo mira: crear ideas («Nueva idea»), editar
   título/descripción/tags y borrar desde la fila, y moverlas entre carriles. Todo por
   `openapi-fetch` tipado por el OpenAPI generado, con los errores 400/404 declarados
-  en el contrato. Las conexiones **no** se gestionan desde la UI: son arquitectura.
+  en el contrato.
 - **F1–F3 (hecho):** sobre de evento + SSE en vivo por repo (F1), proyección de repo
   con identidad git (F2) y empaquetado con sidecar Python en la desktop, bandeja y
   avisos (F3). El instalador firmado queda fuera (cuesta dinero).
+- **Dependencias entre ideas (0018) y fuera `connections` (0019)**: un ítem
+  declara `depende_de` y no avanza de carril hasta que esas ideas estén
+  aprobadas; la tabla de conexiones y sus enlaces laterales se retiraron, así
+  que el mapa pinta cada carril plano.
 - **Flujo de ideas (0013)**. La migración incorpora roadmap, verificación y
   revisión aprobada, y traslada las fichas históricas de completadas a `idea_revision`.
 - **Log con pestañas:** un solo flyout con `Eventos` (timeline del repo, por

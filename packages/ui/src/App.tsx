@@ -27,8 +27,7 @@ import { Pruebas } from "./pantalla/Pruebas";
 import { pruebaPendiente, soltar } from "./pantalla/pruebaEnCurso";
 
 /* *  El mapa: se pliega, se encuadra y se mueve; el almacén se toca solo por
- *  la API del core (crear, mover, editar y borrar ideas). Las conexiones
- *  son de la arquitectura: la UI las pinta, no las gestiona.
+ *  la API del core (crear, mover, editar y borrar ideas).
  *
  *  `elegirCarpeta` lo inyecta el envoltorio que tenga diálogo nativo (Tauri);
  *  la web no lo pasa y el selector ofrece lista de `/repos` y ruta manual.
@@ -82,7 +81,6 @@ export default function App({
 
   const {
     ideas,
-    links,
     error,
     proyeccion,
     crear,
@@ -92,10 +90,7 @@ export default function App({
     cargarIdea,
     reiniciar,
   } = useRepo(repo);
-  const tree = useMemo(
-    () => (ideas ? buildTree(ideas, links) : null),
-    [ideas, links],
-  );
+  const tree = useMemo(() => (ideas ? buildTree(ideas) : null), [ideas]);
   // F1: el log del repo en vivo (cada `EUI_DATABASE` lleva el suyo).
   const [versionLog, setVersionLog] = useState(0);
   const { eventos, conectado } = useEventos(repo, versionLog);
@@ -172,19 +167,7 @@ export default function App({
     boardRef,
     mapRef,
   });
-  const enlacesLaterales = useMemo(
-    () =>
-      links
-        .filter((l) => l.kind === "related" || l.kind === "supersedes")
-        .map((l) => ({
-          id: l.id,
-          kind: l.kind as "related" | "supersedes",
-          parentUid: l.parent_uid,
-          childUid: l.child_uid,
-        })),
-    [links],
-  );
-  const { cables, nudo, recortado, enlaces: trazosEnlace } = useCables({
+  const { cables, nudo, recortado } = useCables({
     tree,
     cerrados,
     vista,
@@ -192,10 +175,9 @@ export default function App({
     mapRef,
     cajonRef,
     carrilRefs,
-    enlaces: enlacesLaterales,
   });
   const { vuelos, volando, aterrizado } = useVuelos({ repo, ideas, cerrados, vista, mapRef });
-  const { chispas, pulsos, pulsoCajon, enlacesNuevos } = useAnimaciones(repo, ideas, links);
+  const { chispas, pulsos, pulsoCajon } = useAnimaciones(repo, ideas);
 
   const abrir = useCallback(
     (path: string) => {
@@ -388,9 +370,6 @@ export default function App({
                     <circle className="junction" cx={cables[0].x1} cy={cables[0].y1} r={4} />
                   )}
                   {nudo && <circle className="nudo" cx={nudo.x} cy={nudo.y} r={3.4} />}
-                  {trazosEnlace.map((t) => (
-                    <path key={t.id} d={t.d} className={`enlace ${t.kind}`} />
-                  ))}
                   {chispas.map((chispa) => {
                     const cable = cables.find((c) => c.lane === chispa.lane);
                     return cable ? (
@@ -414,7 +393,6 @@ export default function App({
                     }
                     onEditar={editar}
                     onBorrar={borrar}
-                    enlacesNuevos={enlacesNuevos}
                     puedeIr={puedeIr}
                     catalogo={ideas ?? []}
                   />
@@ -435,7 +413,6 @@ export default function App({
                       }
                       onEditar={editar}
                       onBorrar={borrar}
-                      enlacesNuevos={enlacesNuevos}
                       puedeIr={puedeIr}
                       catalogo={ideas ?? []}
                     />
@@ -475,7 +452,7 @@ export default function App({
               </em>
             )}
             {' · '}
-            {proyeccion.ideas} ideas · {proyeccion.connections} conexiones · {proyeccion.events}{" "}
+            {proyeccion.ideas} ideas · {proyeccion.events}{" "}
             eventos
             {Object.entries(proyeccion.por_estado).map(([estado, n]) => (
               <span key={estado}>

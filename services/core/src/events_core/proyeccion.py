@@ -56,7 +56,6 @@ def repo_estado_actual(repo: str) -> dict[str, Any]:
         # La tabla vive como `idea_entry` desde la 0006; antes, `ideas`.
         tabla_idea = "idea_entry" if _existe(conn, "idea_entry") else "ideas"
         ideas = conteo(conn, f"SELECT count(*) FROM {tabla_idea}")
-        conexiones = conteo(conn, "SELECT count(*) FROM connections")
         eventos = conteo(conn, "SELECT count(*) FROM event")
         por_estado: dict[str, int] = {}
         try:
@@ -92,7 +91,6 @@ def repo_estado_actual(repo: str) -> dict[str, Any]:
         "branch": _git(carpeta, "rev-parse", "--abbrev-ref", "HEAD"),
         "commit": _git(carpeta, "rev-parse", "--short", "HEAD"),
         "ideas": ideas,
-        "connections": conexiones,
         "events": eventos,
         "por_estado": por_estado,
         "ultima_actividad": ultima,

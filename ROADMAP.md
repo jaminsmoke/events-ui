@@ -69,11 +69,9 @@ Lo hecho se mueve a *Hecho* con su commit; lo que no va, va a *No se hace
 
 ## Antes de empaquetar (en este orden)
 
-1. **Versionado único**: hoy los `package.json` y el core están en `0.0.0` y
-   Tauri en `0.1.0`. Una sola versión para todo el producto (raíz como fuente
-   de verdad), un script `pnpm bump <versión>` que la propaga a los 4
-   `package.json`, `tauri.conf.json`, `Cargo.toml` y el `version=` del
-   FastAPI, y tags git `vX.Y.Z`.
+1. **Versionado único** *(hecho: `scripts/bump.mjs`, raíz en `0.1.0` como
+   fuente de verdad; `pnpm bump` sin argumento es el check, con argumento
+   fija la versión y sincroniza el lockfile; entra en `pnpm check`)*.
 2. **Empaquetado por app, misma versión**: desktop con `tauri build`
    (instalador NSIS/MSI) y web con `vite build` (estático); un `pnpm release`
    con bump + gen:api + check + ambos builds, sin empaquetar en verde sucio.

@@ -1,7 +1,7 @@
 {
   "name": "events-ui",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "UI reactiva sobre un log de eventos en SQLite para monitorizar repositorios.",
   "scripts": {
     "dev": "node scripts/dev.mjs",
@@ -13,7 +13,9 @@
     "core:dev": "uv run --directory services/core python -m events_core.serve",
     "core:seed": "uv run --directory services/core python -m events_core.seed",
     "gen:api": "corepack pnpm --filter @events-ui/ui gen:api",
-    "check": "corepack pnpm check:contract && corepack pnpm check:ui && corepack pnpm check:py && corepack pnpm check:rust",
+    "bump": "node scripts/bump.mjs",
+    "check": "corepack pnpm check:contract && corepack pnpm check:versions && corepack pnpm check:ui && corepack pnpm check:py && corepack pnpm check:rust",
+    "check:versions": "node scripts/bump.mjs",
     "check:contract": "corepack pnpm --filter @events-ui/ui check:contract",
     "check:ui": "corepack pnpm --filter desktop check && corepack pnpm --filter web check && corepack pnpm --filter @events-ui/ui check",
     "check:py": "uv run --directory services/core ruff check . && uv run --directory services/core ruff format --check .",

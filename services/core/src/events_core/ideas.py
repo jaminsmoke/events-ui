@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from . import registro
-from .db import data_version, open_read_only
+from .db import data_version, open_read_only, vigilante
 
 EUI_DIR = ".EUI"
 # Con extensión: un SQLite sin extensión no lo reconoce ningún editor ni visor, y
@@ -757,29 +757,13 @@ def map_snapshot(repo: str) -> dict[str, Any]:
 
 
 # Una conexión de solo lectura por almacén, no una por petición: `PRAGMA
-# data_version` solo sube en una conexión que **ya existía** cuando otra escribe.
-# Abierta al vuelo devuelve siempre el valor de partida, y los UPDATE —mover una
-# idea de carril— se quedaban sin despertar a la UI.
-_VIGILANTES: dict[Path, sqlite3.Connection] = {}
+# La conexión vigilante vive en `db.vigilante` (es la misma que usa el
+# stream de eventos): `data_version` solo sube en una conexión que **ya
+# existía** cuando otra escribe. La de ideas se comparte entre hilos del
+# pool de uvicorn, y se serializa aquí para no mezclar lecturas.
 _VIGILANTES_LOCK = threading.RLock()
 # Un vigilante nuevo puede empezar por la misma versión aunque cambió el mapa.
 _REVISION_INSTANCE = uuid.uuid4().hex
-
-
-def _vigilante(db_file: Path) -> sqlite3.Connection:
-    """Conexión reutilizada que solo lee `data_version` y los conteos."""
-    with _VIGILANTES_LOCK:
-        conn = _VIGILANTES.get(db_file)
-        if conn is None:
-            conn = sqlite3.connect(
-                f"file:{db_file.as_posix()}?mode=ro",
-                uri=True,
-                timeout=BUSY_TIMEOUT_MS / 1000,
-                check_same_thread=False,
-            )
-            conn.row_factory = sqlite3.Row
-            _VIGILANTES[db_file] = conn
-        return conn
 
 
 def _existe(conn: sqlite3.Connection, tabla: str) -> bool:
@@ -799,7 +783,7 @@ def revision(repo: str) -> dict[str, Any]:
     """
     db_file = ensure_repo(repo)
     with _VIGILANTES_LOCK:
-        conn = _vigilante(db_file)
+        conn = vigilante(db_file, compartida=True)
         # La tabla de entradas se llama `idea_entry` desde la 0006; antes, `ideas`.
         tabla_idea = "idea_entry" if _existe(conn, "idea_entry") else "ideas"
         return {

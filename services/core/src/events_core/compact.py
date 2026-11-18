@@ -29,9 +29,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"no existe ese repo: {exc}", file=sys.stderr)
         return 1
 
-    total = resumen["eliminados_por_edad"] + resumen["eliminados_por_conteo"]
-    por_edad = resumen["eliminados_por_edad"]
-    por_conteo = resumen["eliminados_por_conteo"]
+    total = resumen["por_edad"] + resumen["por_conteo"]
+    por_edad = resumen["por_edad"]
+    por_conteo = resumen["por_conteo"]
     vacuum = ", fichero recompactado (VACUUM)" if resumen["vacuum"] else ""
     linea = f"{total} eventos fuera ({por_edad} por edad, {por_conteo} por conteo){vacuum}"
     print(f"{resumen['repo']}: {linea}")

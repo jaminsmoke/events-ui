@@ -23,6 +23,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from .db import barridos_retencion
+
 REGISTRO_ENV_VAR = "EVENTSUI_REGISTRO_DB"
 DEFAULT_REGISTRO_PATH = "data/registro.sqlite"
 
@@ -76,42 +78,31 @@ def escribir(nivel: str, mensaje: str, origen: str = "core") -> None:
                 "INSERT INTO registro (ts, nivel, origen, mensaje) VALUES (?, ?, ?, ?)",
                 (_ahora(), nivel, origen, mensaje),
             )
-            _purgar(conn, DIAS_RETENCION, MAX_ENTRADAS)
+            barridos_retencion(conn, tabla="registro", dias=DIAS_RETENCION, maximo=MAX_ENTRADAS)
             conn.commit()
     except sqlite3.Error:
         pass
-
-
-def _purgar(conn: sqlite3.Connection, dias: int, max_entradas: int) -> tuple[int, int]:
-    """Los dos barridos (edad, luego conteo): lo que más protege manda."""
-    cursor_edad = conn.execute(
-        "DELETE FROM registro WHERE ts < datetime('now', ?)", (f"-{dias} days",)
-    )
-    cursor_conteo = conn.execute(
-        "DELETE FROM registro WHERE id NOT IN (SELECT id FROM registro ORDER BY id DESC LIMIT ?)",
-        (max_entradas,),
-    )
-    return cursor_edad.rowcount, cursor_conteo.rowcount
 
 
 def purgar(dias: int = DIAS_RETENCION, max_entradas: int = MAX_ENTRADAS) -> dict[str, Any]:
     """Aplica la retención ahora y dice qué se fue.
 
     `dias` y `max_entradas` tienen que ser al menos 1, igual que en
-    `eventos.compactar`: con 0 o negativo el primer barrido se llevaría el
+    `eventos.compactar` (lo guarda `db.barridos_retencion` y lanza
+    `ValueError`): con 0 o negativo el primer barrido se llevaría el
     registro entero.
     """
-    if dias < 1 or max_entradas < 1:
-        raise ValueError("dias y max_entradas tienen que ser al menos 1")
     try:
         with closing(conectar()) as conn:
-            eliminadas_edad, eliminadas_conteo = _purgar(conn, dias, max_entradas)
+            por_edad, por_conteo = barridos_retencion(
+                conn, tabla="registro", dias=dias, maximo=max_entradas
+            )
             conn.commit()
     except sqlite3.Error:
-        eliminadas_edad, eliminadas_conteo = 0, 0
+        por_edad, por_conteo = 0, 0
     return {
-        "eliminadas_por_edad": eliminadas_edad,
-        "eliminadas_por_conteo": eliminadas_conteo,
+        "por_edad": por_edad,
+        "por_conteo": por_conteo,
     }
 
 

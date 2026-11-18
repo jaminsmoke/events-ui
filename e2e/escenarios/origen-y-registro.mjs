@@ -35,8 +35,8 @@ export default {
     const purga = await api("/log/purgar", { method: "POST" });
     await expect(purga.status === 200, "la purga responde 200");
     await expect(
-      typeof purga.data.eliminadas_por_edad === "number" &&
-        typeof purga.data.eliminadas_por_conteo === "number",
+      typeof purga.data.por_edad === "number" &&
+        typeof purga.data.por_conteo === "number",
       "la purga dice qué se llevó",
     );
   },

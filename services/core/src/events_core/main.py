@@ -167,11 +167,15 @@ class ProyeccionRepo(BaseModel):
 
 
 class EventosCompactados(BaseModel):
-    """Respuesta de `POST /eventos/compactar`: qué se recortó del log."""
+    """Respuesta de `POST /eventos/compactar`: qué se recortó del log.
+
+    `por_edad`/`por_conteo` son neutros a propósito: el mismo par de claves
+    sirve para el registro y no hay que adivinar el género del sustantivo.
+    """
 
     repo: str
-    eliminados_por_edad: int
-    eliminados_por_conteo: int
+    por_edad: int
+    por_conteo: int
     vacuum: bool
 
 
@@ -195,10 +199,13 @@ class EntradaLog(BaseModel):
 
 
 class RegistroPurgado(BaseModel):
-    """Respuesta de `POST /log/purgar`: qué se llevó la retención."""
+    """Respuesta de `POST /log/purgar`: qué se llevó la retención.
 
-    eliminadas_por_edad: int
-    eliminadas_por_conteo: int
+    Mismas claves neutras que `EventosCompactados`: `por_edad`/`por_conteo`.
+    """
+
+    por_edad: int
+    por_conteo: int
 
 
 class ErrorDetail(BaseModel):
@@ -421,8 +428,8 @@ def post_compactar(
     resultado = eventos.compactar(repo, dias=dias, max_eventos=max_eventos)
     registro.escribir(
         "info",
-        f"Compactación del log de {repo}: {resultado['eliminados_por_edad']} por edad, "
-        f"{resultado['eliminados_por_conteo']} por conteo",
+        f"Compactación del log de {repo}: {resultado['por_edad']} por edad, "
+        f"{resultado['por_conteo']} por conteo",
         origen="compactar",
     )
     return resultado

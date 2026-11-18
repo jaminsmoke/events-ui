@@ -374,14 +374,17 @@ export interface components {
         /**
          * EventosCompactados
          * @description Respuesta de `POST /eventos/compactar`: qué se recortó del log.
+         *
+         *     `por_edad`/`por_conteo` son neutros a propósito: el mismo par de claves
+         *     sirve para el registro y no hay que adivinar el género del sustantivo.
          */
         EventosCompactados: {
             /** Repo */
             repo: string;
-            /** Eliminados Por Edad */
-            eliminados_por_edad: number;
-            /** Eliminados Por Conteo */
-            eliminados_por_conteo: number;
+            /** Por Edad */
+            por_edad: number;
+            /** Por Conteo */
+            por_conteo: number;
             /** Vacuum */
             vacuum: boolean;
         };
@@ -575,12 +578,14 @@ export interface components {
         /**
          * RegistroPurgado
          * @description Respuesta de `POST /log/purgar`: qué se llevó la retención.
+         *
+         *     Mismas claves neutras que `EventosCompactados`: `por_edad`/`por_conteo`.
          */
         RegistroPurgado: {
-            /** Eliminadas Por Edad */
-            eliminadas_por_edad: number;
-            /** Eliminadas Por Conteo */
-            eliminadas_por_conteo: number;
+            /** Por Edad */
+            por_edad: number;
+            /** Por Conteo */
+            por_conteo: number;
         };
         /**
          * Reinicio

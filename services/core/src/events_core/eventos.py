@@ -18,13 +18,11 @@ import asyncio
 import inspect
 import json
 import sqlite3
-import threading
 from collections.abc import AsyncIterator, Callable
 from contextlib import closing
-from pathlib import Path
 from typing import Any
 
-from .db import data_version, open_read_only
+from .db import barridos_retencion, data_version, open_read_only, vigilante
 from .ideas import connect, ensure_repo
 
 # Conteo por página del tail: bastante para el backfill sin traer el log entero.
@@ -116,40 +114,33 @@ def compactar(
 ) -> dict[str, Any]:
     """Recorta el log del repo a la política de retención y devuelve qué se fue.
 
-    Dos barridos en el orden que protege la cola: primero la antigüedad
-    (`ts` anterior a hace `dias` días) y luego el conteo (se dejan solo los
-    `max_eventos` más nuevos); el segundo nunca resucita lo ya borrado.
+    Dos barridos en el orden que protege la cola (ver
+    `db.barridos_retencion`): primero la antigüedad (`ts` anterior a hace
+    `dias` días) y luego el conteo (se dejan solo los `max_eventos` más
+    nuevos); el segundo nunca resucita lo ya borrado.
 
     `dias` y `max_eventos` tienen que ser al menos 1: con 0 o negativo, el
-    primer barrido se llevaría el log entero. La API ya lo valida; aquí se
-    guarda por si entra por otra vía (CLI, tests).
+    primer barrido se llevaría el log entero. La API ya lo valida; el helper
+    lo guarda por si entra por otra vía (CLI, tests) y lanza `ValueError`.
 
     Después, si el hueco es bastante, se recompacta el fichero con `VACUUM`:
     el `DELETE` solo libera páginas, no devuelve espacio al disco. El `VACUUM`
     es exclusivo y no puede ir en transacción; si otro proceso lo bloquea
     (el productor existe), se salta sin fallar —el recorte ya está hecho—.
     """
-    if dias < 1 or max_eventos < 1:
-        raise ValueError("dias y max_eventos tienen que ser al menos 1")
-
     db_file = ensure_repo(repo)
     try:
         with closing(connect(db_file)) as conn:
-            cursor_edad = conn.execute(
-                "DELETE FROM event WHERE ts < datetime('now', ?)", (f"-{dias} days",)
+            por_edad, por_conteo = barridos_retencion(
+                conn, tabla="event", dias=dias, maximo=max_eventos
             )
-            cursor_conteo = conn.execute(
-                "DELETE FROM event WHERE id NOT IN ("
-                " SELECT id FROM event ORDER BY id DESC LIMIT ?)",
-                (max_eventos,),
-            )
-            borrados = cursor_edad.rowcount + cursor_conteo.rowcount
+            borrados = por_edad + por_conteo
             conn.commit()
     except (FileNotFoundError, sqlite3.Error):
         return {
             "repo": repo,
-            "eliminados_por_edad": 0,
-            "eliminados_por_conteo": 0,
+            "por_edad": 0,
+            "por_conteo": 0,
             "vacuum": False,
         }
 
@@ -165,25 +156,10 @@ def compactar(
 
     return {
         "repo": repo,
-        "eliminados_por_edad": cursor_edad.rowcount,
-        "eliminados_por_conteo": cursor_conteo.rowcount,
+        "por_edad": por_edad,
+        "por_conteo": por_conteo,
         "vacuum": vacuum,
     }
-
-
-# Una conexión vigilante reutilizada, como la de las revisiones de ideas:
-# `data_version` solo cambia en una conexión que ya existía cuando otra escribe.
-_VIGILANTE: dict[Path, sqlite3.Connection] = {}
-_VIGILANTE_LOCK = threading.RLock()
-
-
-def _vigilante(db_file: Path) -> sqlite3.Connection:
-    with _VIGILANTE_LOCK:
-        conn = _VIGILANTE.get(db_file)
-        if conn is None:
-            conn = open_read_only(db_file)
-            _VIGILANTE[db_file] = conn
-        return conn
 
 
 async def generar_streamo(
@@ -231,7 +207,7 @@ async def generar_streamo(
         await asyncio.sleep(intervalo)
         esperas += 1
         try:
-            firma = data_version(_vigilante(db_file))
+            firma = data_version(vigilante(db_file))
         except (FileNotFoundError, sqlite3.Error):
             yield ": ping\n\n"
             continue

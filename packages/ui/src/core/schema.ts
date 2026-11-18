@@ -293,7 +293,7 @@ export interface components {
          * Connection
          * @description Un enlace entre dos ideas, tal como lo define la arquitectura.
          *
-         *     Las conexiones son inmutables (ADR 0002): no hay POST ni DELETE —ni la UI
+         *     Las conexiones son inmutables: no hay POST ni DELETE —ni la UI
          *     ni la API las crean o las borran—. Solo se leen (`GET /connections`).
          */
         Connection: {
@@ -551,7 +551,7 @@ export interface components {
          * ProyeccionRepo
          * @description F2: el estado del repo en una lectura, con su identidad.
          *
-         *     No es SQL libre desde la UI (ADR 0001, decisión 8): es una proyección
+         *     No es SQL libre desde la UI: es una proyección
          *     fija y versionada. `repo` es la carpeta resuelta; `branch`/`commit` vienen
          *     de git cuando hay repo git y son `None` si no.
          */

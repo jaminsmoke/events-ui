@@ -26,7 +26,7 @@ import { Pruebas } from "./pantalla/Pruebas";
 
 /* *  El mapa: se pliega, se encuadra y se mueve; el almacén se toca solo por
  *  la API del core (crear, mover, editar y borrar ideas). Las conexiones
- *  son de la arquitectura: la UI las pinta, no las gestiona (ADR 0002).
+ *  son de la arquitectura: la UI las pinta, no las gestiona.
  *
  *  `elegirCarpeta` lo inyecta el envoltorio que tenga diálogo nativo (Tauri);
  *  la web no lo pasa y el selector ofrece lista de `/repos` y ruta manual.

@@ -1,6 +1,6 @@
 """F2: la primera proyección (`repo_state`) con identidad de repo.
 
-No es SQL libre desde la UI (ADR 0001, decisión 8): es una vista fija y
+No es SQL libre desde la UI: es una vista fija y
 versionada sobre el almacén. Todo lo que se lee aquí es un `SELECT` con los
 parámetros de la propia query, nada que venga del cliente.
 

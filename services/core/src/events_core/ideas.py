@@ -1,4 +1,4 @@
-"""Ideas y ADRs: la primera tabla del sistema, y no la de eventos.
+"""Ideas: la primera tabla del sistema, y no la de eventos.
 
 Cada repositorio investigado es su propio almacén: lleva dentro una carpeta
 `.EUI` con un SQLite llamado `EUI_DATABASE`. El fichero viaja con el repo.
@@ -827,5 +827,5 @@ def reiniciar(repo: str) -> dict[str, Any]:
 
 
 # Las conexiones se leen (`list_connections`) pero no se escriben por aquí:
-# son arquitectura, inmutables desde la API (ADR 0002). Las escribe el
+# son arquitectura, inmutables desde la API. Las escribe el
 # tooling con SQL directo.

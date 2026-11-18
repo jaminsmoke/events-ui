@@ -37,7 +37,7 @@ function fechaCorta(iso: string): string {
  *  Al expandirla aparece un panel con los detalles (descripción, estado) y
  *  los botones de la idea —mover, completar, editar, borrar—, más sus hijos,
  *  si los tiene. Las conexiones no se gestionan aquí: son de la arquitectura
- *  (ADR 0002), inmutables, y la fila solo las pinta. Los botones nunca se ven
+ *  (inmutables) y la fila solo las pinta. Los botones nunca se ven
  *  en la fila cerrada. */
 function NodeRow({
   node,

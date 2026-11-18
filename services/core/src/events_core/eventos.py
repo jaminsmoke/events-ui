@@ -1,12 +1,11 @@
 """Eventos: el sobre, la conexión RO y el tail por cursor, por repo.
 
-La app no produce eventos (ADR 0001): otro proceso los escribe en la tabla
+La app no produce eventos: otro proceso los escribe en la tabla
 `event` del `EUI_DATABASE` de cada repo, aquí solo se leen. El sobre (`id`,
 `ts`, `type`, `payload`, `dedupe_key`) es la parte estable; `type` y
-`payload` son libres. No hay columna `repo`: el fichero ya implica el repo
-(ADR 0002).
+`payload` son libres. No hay columna `repo`: el fichero ya implica el repo.
 
-Tiempo real sin notificaciones ad-hoc (decisión 6 del ADR): se sondea
+Tiempo real sin notificaciones ad-hoc: se sondea
 `PRAGMA data_version` —que sube cuando **otra** conexión hace commit— y, si
 cambió, se hace tail `WHERE id > :last ORDER BY id`. El mismo mecanismo da
 backfill histórico y recuperación tras desconexión.
@@ -36,7 +35,7 @@ NIVELES_POR_TIPO = {
 }
 NIVELES = ("info", "aviso", "error")
 
-# La retención pactada (ADR 0001, enmienda F1-retenidos): como máximo estos
+# La retención pactada: como máximo estos
 # días de antigüedad y como máximo este número de eventos por repo. Los dos
 # topes se aplican a la vez; el más restrictivo manda.
 DIAS_RETENCION = 90

@@ -1,7 +1,7 @@
 # Events UI
 
 UI reactiva sobre un log de eventos en SQLite, para monitorizar repositorios en
-tiempo real. Decisiones de arquitectura en [`docs/0001-arquitectura.md`](docs/0001-arquitectura.md).
+tiempo real. Las decisiones de arquitectura viven en los comentarios del código.
 Plan vivo en [`ROADMAP.md`](ROADMAP.md): qué hay hecho, qué va ahora y qué no se hace.
 
 **Idea central:** la app **no produce eventos**. Un proceso externo escribe el log;
@@ -17,7 +17,6 @@ packages/ui       UI compartida: mapa de ideas, selector de repo y API, sin
                   envoltorio. Desktop inyecta el diálogo nativo; la web ofrece
                   la lista de `GET /repos` y pegar la ruta.
 services/core     FastAPI + SQLite WAL          (uv)
-docs/             ADRs
 repoprobe/        laboratorio: material analizado y su .EUI
 ```
 
@@ -108,9 +107,9 @@ el core en marcha: el volcado importa la app con `uv run` (módulo
 pnpm 11+ no ejecuta postinstall de dependencias sin permiso: la política vive en
 `allowBuilds` dentro de `pnpm-workspace.yaml`, no en `package.json`.
 
-## Ideas y ADR por repositorio
+## Ideas por repositorio
 
-La primera tabla no es la de eventos, es la de ideas ([`docs/0002`](docs/0002-ideas-y-repoprobe.md)).
+La primera tabla no es la de eventos, es la de ideas.
 Cada repo investigado lleva dentro `.EUI/EUI_DATABASE.sqlite`, un SQLite con esa tabla: las
 ideas sobre un repo viajan con su código.
 
@@ -130,7 +129,7 @@ corepack pnpm core:dev           # Swagger en http://127.0.0.1:8765/docs
 | GET | `/ideas?repo=<ruta>` (filtros `status`, `kind`, `limit`, `offset`) |
 | POST | `/ideas?repo=<ruta>` |
 | GET / PATCH / DELETE | `/ideas/{uid}?repo=<ruta>` |
-| GET | `/connections?repo=<ruta>` (filtro `parent_uid`) — solo lectura: las conexiones son de la arquitectura, inmutables (ADR 0002) |
+| GET | `/connections?repo=<ruta>` (filtro `parent_uid`) — solo lectura: las conexiones son de la arquitectura, inmutables |
 | GET | `/mapa?repo=<ruta>` — todas las ideas del mapa y sus conexiones en una sola lectura |
 | GET | `/revision?repo=<ruta>` — firma barata (`PRAGMA data_version` + conteos) para el refresco en vivo |
 
@@ -171,4 +170,4 @@ cabecera y el runner apaga las claves foráneas antes de abrir la transacción
   el OpenAPI generado, con los errores 400/404 declarados en el contrato.
 - **F1–F3 (hecho):** sobre de evento + SSE en vivo (F1), proyección de repo (F2) y
   empaquetado con sidecar Python en la desktop, bandeja y avisos (F3).
-  El instalador firmado queda fuera (cuesta dinero). Ver `ROADMAP.md` y ADRs.
+  El instalador firmado queda fuera (cuesta dinero). Ver `ROADMAP.md`.

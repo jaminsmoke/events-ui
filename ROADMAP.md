@@ -24,7 +24,7 @@ Lo hecho se mueve a *Hecho* con su commit; lo que no va, va a *No se hace
 - **Quitar conexión desde la UI** (`DELETE /connections/{id}` + botón
   «Desconectar» en la fila hija): la idea queda, solo deja de anidarse.
   *(Hecho en su día y luego revertido: las conexiones son arquitectura, no
-  edición manual —ver la enmienda en ADR 0002—.)*
+  edición manual.)*
 - **Copy al día**: fuera «visor de solo lectura» de `App`, `arbol`, `api`,
   `styles.css` y descripciones; el aviso de error ya no manda a `core:dev`
   cuando en dev el core se levanta solo.

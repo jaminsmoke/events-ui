@@ -5,7 +5,7 @@ import type { Evento } from "./api";
 
 /** Registro de renderers por `type`: cada tipo de evento puede pintarse de
  *  su manera. Los tipos que no están caen en `resumenGenerico` —un evento
- *  desconocido nunca rompe la vista (ADR 0001, decisión 7). */
+ *  desconocido nunca rompe la vista. */
 export type Renderizador = (evento: Evento) => string;
 
 function resumenGenerico(evento: Evento): string {

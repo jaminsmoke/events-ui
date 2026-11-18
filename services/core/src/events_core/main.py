@@ -1,10 +1,10 @@
-"""Servicio core: lectura del log de eventos y API de ideas/ADR.
+"""Servicio core: lectura del log de eventos y API de ideas.
 
-La app no produce eventos (ver `docs/0001-arquitectura.md`): otros procesos
+La app no produce eventos: otros procesos
 escriben el log y este servicio lo expone a la UI. `/health` además prueba el
 mecanismo de tiempo real (`PRAGMA data_version`).
 
-Lo de aquí abajo es lo de `docs/0002-ideas-y-repoprobe.md`: CRUD de ideas sobre
+Lo de aquí abajo: CRUD de ideas sobre
 el `EUI_DATABASE` que vive dentro de cada repositorio investigado. Sin ORM a
 propósito: el SQL está en `schema/ideas.sql` y el de las consultas, a la vista.
 FastAPI publica el contrato en `/openapi.json` (Swagger en `/docs`), de ahí
@@ -92,7 +92,7 @@ class Idea(IdeaCreate):
 class Connection(BaseModel):
     """Un enlace entre dos ideas, tal como lo define la arquitectura.
 
-    Las conexiones son inmutables (ADR 0002): no hay POST ni DELETE —ni la UI
+    Las conexiones son inmutables: no hay POST ni DELETE —ni la UI
     ni la API las crean o las borran—. Solo se leen (`GET /connections`).
     """
 
@@ -151,7 +151,7 @@ class Evento(BaseModel):
 class ProyeccionRepo(BaseModel):
     """F2: el estado del repo en una lectura, con su identidad.
 
-    No es SQL libre desde la UI (ADR 0001, decisión 8): es una proyección
+    No es SQL libre desde la UI: es una proyección
     fija y versionada. `repo` es la carpeta resuelta; `branch`/`commit` vienen
     de git cuando hay repo git y son `None` si no.
     """

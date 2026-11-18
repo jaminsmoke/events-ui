@@ -125,7 +125,7 @@ export function useRepo(repo: string | null) {
     [repo],
   );
 
-  // Las conexiones son de la arquitectura (ADR 0002): inmutables desde la
+  // Las conexiones son de la arquitectura: inmutables desde la
   // UI y la API. Solo se leen, dentro del mapa.
 
   // F2: la proyección del repo (identidad + conteos), refrescada con el mapa.

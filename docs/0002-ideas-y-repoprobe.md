@@ -122,6 +122,29 @@ La UI pide el motivo al descartar (diálogo `DescartaIdea`); sin motivo la ficha
 queda con la descripción vacía, no se bloquea el descarte. El backfill de la
 migración toma el `entered_at` del último descarte de cada idea aún descartada.
 
+## Enmienda — auditoría del esquema (migración 0008)
+
+La auditoría del esquema (tras F3) encontró que el fresco y el migrado habían
+divergido. Lo que había, con el síntoma:
+
+- `schema/connections.sql` apuntaba a `ideas(uid)` —tabla que dejó de existir
+  en la 0006—. Todo almacén **nuevo** nacía con las FKs rotas y conectar ideas
+  fallaba con `no such table: main.ideas`; solo los ya migrados funcionaban.
+  La 0008 reconstruye `connections` igual en los dos caminos (con el
+  `CHECK (parent_uid <> child_uid)` que a la 0006 le faltó) y `schema/` vuelve
+  a decir la verdad.
+- Índices cruzados: los migrados tenían `parent_uid` y los frescos
+  `child_uid` (el que usa el chequeo de ciclos). La 0008 deja los dos en todos.
+- `idx_event_id` era un índice sobre el rowid: se fue.
+- N+1 al listar: `_row` hacía 2 queries por idea. Ahora el carril y la ficha se
+  traen en lote (`_en_lote`); `map_snapshot` y `list_ideas` hacen 3 queries
+  en total.
+- `_emitir` tragaba cualquier `sqlite3.Error`; ahora solo la ausencia de la
+  tabla `event`, que es el caso pensado (almacén viejo).
+- Re-PATCHear el motivo de un descarte ya existente no actualizaba la ficha
+  (el upsert solo entraba al cambiar de carril); ahora también entra cuando
+  vienen campos de rechazo.
+
 ## Enmienda — el repo se direcciona por ruta, no por nombre
 
 El primer elemento de UI es un **selector de carpeta**, y devuelve rutas absolutas

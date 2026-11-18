@@ -37,9 +37,9 @@ MIGRATIONS_DIR = Path(__file__).with_name("migraciones")
 # cada almacén. La tabla `event` de `schema/eventos.sql` no entra aquí: el log
 # lo escribe otro proceso y a un almacén existente llega por migración (ver
 # `migraciones/0005_eventos.sql`). La tabla `ideas` pasó a `idea_entry` +
-# `idea_lane_log` en la 0006, y la ficha del descarte a `idea_rejected` en la
-# 0007.
-SCHEMA_VERSION = 7
+# `idea_lane_log` en la 0006, la ficha del descarte a `idea_rejected` en la
+# 0007, y `connections` se igualó con el esquema fresco en la 0008.
+SCHEMA_VERSION = 8
 
 REPOS_ROOT_ENV_VAR = "EVENTSUI_REPOS_ROOT"
 BUSY_TIMEOUT_MS = 5_000
@@ -394,22 +394,62 @@ def _carril_actual(conn: sqlite3.Connection, uid: str) -> str | None:
     return str(fila[0]) if fila else None
 
 
-def _row(conn: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
-    idea = dict(row)
-    idea["tags"] = json.loads(idea["tags"] or "[]")
-    carril = _carril_actual(conn, idea["uid"])
-    idea["status"] = ESTADO_DE_CARRIL.get(carril or "cola", "draft")
-    # La ficha del descarte (0007), si la hay: sin fila no hay rechazo.
-    rechazo = conn.execute(
+def _rechazo(conn: sqlite3.Connection, uid: str) -> sqlite3.Row | None:
+    """La ficha del descarte (0007) de una idea, si la tiene."""
+    return conn.execute(
         "SELECT rejected_at, rejected_description, rejected_by, superseded_by_uid"
         " FROM idea_rejected WHERE uid = ?",
-        (idea["uid"],),
+        (uid,),
     ).fetchone()
+
+
+def _fila(row: sqlite3.Row, carril: str | None, rechazo: sqlite3.Row | None) -> dict[str, Any]:
+    """Arma el dict de una idea con su carril y su ficha ya resueltos.
+
+    Quien lista muchas ideas no llama a `_carril_actual`/`_rechazo` por fila
+    (eso era un N+1: 2 queries por idea), sino que trae los dos dics en lote
+    con `_carriles_actuales`/`_rechazos` y ensambla aquí.
+    """
+    idea = dict(row)
+    idea["tags"] = json.loads(idea["tags"] or "[]")
+    idea["status"] = ESTADO_DE_CARRIL.get(carril or "cola", "draft")
     idea["rejected_at"] = rechazo["rejected_at"] if rechazo else None
     idea["rejected_description"] = rechazo["rejected_description"] if rechazo else ""
     idea["rejected_by"] = rechazo["rejected_by"] if rechazo else "usuario"
     idea["superseded_by_uid"] = rechazo["superseded_by_uid"] if rechazo else None
     return idea
+
+
+def _row(conn: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
+    """Una idea suelta (get/update): dos lecturas por idea, no merece lote."""
+    uid = str(row["uid"])
+    return _fila(row, _carril_actual(conn, uid), _rechazo(conn, uid))
+
+
+def _en_lote(
+    conn: sqlite3.Connection, uids: list[str]
+) -> tuple[dict[str, str], dict[str, sqlite3.Row]]:
+    """Carril actual y ficha de rechazo de varias ideas en dos queries."""
+    if not uids:
+        return {}, {}
+    marcas = ",".join("?" for _ in uids)
+    carriles = {
+        str(uid): str(lane)
+        for uid, lane in conn.execute(
+            "SELECT uid, lane FROM idea_lane_log WHERE id IN ("
+            f"SELECT max(id) FROM idea_lane_log WHERE uid IN ({marcas}) GROUP BY uid)",
+            uids,
+        )
+    }
+    rechazos = {
+        str(row["uid"]): row
+        for row in conn.execute(
+            "SELECT uid, rejected_at, rejected_description, rejected_by, superseded_by_uid"
+            f" FROM idea_rejected WHERE uid IN ({marcas})",
+            uids,
+        )
+    }
+    return carriles, rechazos
 
 
 def _escribir_carril(conn: sqlite3.Connection, uid: str, lane: str) -> None:
@@ -431,11 +471,16 @@ def _emitir(conn: sqlite3.Connection, tipo: str, payload: dict[str, Any]) -> Non
     el cambio se deshace, el evento no queda suelto. La `dedupe_key` no aplica.
     """
     # Almacén viejo sin tabla `event`: la idea sí se escribe; el evento no.
-    with suppress(sqlite3.Error):
+    # Solo se traga esa ausencia: otro error (disco lleno, payload roto) debe
+    # notarse, no desaparecer en silencio.
+    try:
         conn.execute(
             "INSERT INTO event (ts, type, payload) VALUES (?, ?, ?)",
             (now_iso(), tipo, json.dumps(payload)),
         )
+    except sqlite3.OperationalError as exc:
+        if "no such table" not in str(exc):
+            raise
 
 
 def list_ideas(
@@ -463,7 +508,8 @@ def list_ideas(
                 "offset": offset,
             },
         ).fetchall()
-        return [_row(conn, r) for r in rows]
+        carriles, rechazos = _en_lote(conn, [str(r["uid"]) for r in rows])
+        return [_fila(r, carriles.get(str(r["uid"])), rechazos.get(str(r["uid"]))) for r in rows]
 
 
 def get_idea(repo: str, uid: str) -> dict[str, Any]:
@@ -545,7 +591,11 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
             antes = _carril_actual(conn, uid)
             lane = CARRIL_DE_ESTADO[changes["status"]]
             _escribir_carril(conn, uid, lane)
-            if lane == "descartadas" and antes != "descartadas":
+            if lane == "descartadas" and (antes != "descartadas" or rechazo):
+                # Entrar en descartadas crea la ficha; re-PATCHear el rechazo de
+                # una idea ya descartada (con motivo nuevo) la actualiza: el
+                # upsert ya vive para eso. Sin motivo nuevo también se upserta
+                # al entrar, así la ficha nunca falta en `descartadas`.
                 _escribir_rechazo(conn, uid, rechazo)
             elif lane != "descartadas" and antes == "descartadas":
                 conn.execute("DELETE FROM idea_rejected WHERE uid = ?", (uid,))
@@ -620,13 +670,12 @@ def map_snapshot(repo: str) -> dict[str, Any]:
             " idea_rejected.rejected_at, idea_rejected.rejected_description"
             " FROM idea_entry LEFT JOIN idea_rejected ON idea_rejected.uid = idea_entry.uid"
             " ORDER BY idea_entry.created_at DESC, idea_entry.id DESC"
-        )
+        ).fetchall()
+        carriles, _ = _en_lote(conn, [str(row["uid"]) for row in rows])
         ideas = [
             {
                 **dict(row),
-                "status": ESTADO_DE_CARRIL.get(
-                    _carril_actual(conn, str(row["uid"])) or "cola", "draft"
-                ),
+                "status": ESTADO_DE_CARRIL.get(carriles.get(str(row["uid"])) or "cola", "draft"),
                 # El JOIN da `NULL` sin ficha; el contrato dice texto.
                 "rejected_description": row["rejected_description"] or "",
             }

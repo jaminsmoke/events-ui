@@ -23,8 +23,10 @@ CREATE TABLE IF NOT EXISTS event (
     UNIQUE (dedupe_key)
 );
 
--- El tail (F1) es `WHERE id > :last ORDER BY id`: el índice lo hace casi gratis.
-CREATE INDEX IF NOT EXISTS idx_event_id ON event (id);
-
--- El productor puede mirar la versión del esquema, igual que en los almacenes.
-PRAGMA user_version = 1;
+-- El tail (F1) es `WHERE id > :last ORDER BY id`: `id` es el rowid
+-- (`INTEGER PRIMARY KEY`), así que ya ordena por él sin índice auxiliar —
+-- el que hubo aquí (`idx_event_id`) era pagar escritura por nada y se fue
+-- con la migración 0008.
+--
+-- Nada de `PRAGMA user_version` en este fichero: el `user_version` del
+-- almacén es la versión del esquema de ideas y lo sube el core, no el log.

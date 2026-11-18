@@ -8,9 +8,11 @@ CREATE TABLE IF NOT EXISTS connections (
     id          INTEGER PRIMARY KEY,
 
     -- UIDs y no ids: el id es local al repo, la conexión debe sobrevivir a
-    -- exportar/importar ideas entre repos.
-    parent_uid  TEXT    NOT NULL REFERENCES ideas(uid) ON DELETE CASCADE,
-    child_uid   TEXT    NOT NULL REFERENCES ideas(uid) ON DELETE CASCADE,
+    -- exportar/importar ideas entre repos. Apuntan a `idea_entry` (la tabla
+    -- `ideas` se partió en la migración 0006: apuntar a ella rompe todo
+    -- almacén que nazca con este fichero —`no such table: main.ideas`—).
+    parent_uid  TEXT    NOT NULL REFERENCES idea_entry (uid) ON DELETE CASCADE,
+    child_uid   TEXT    NOT NULL REFERENCES idea_entry (uid) ON DELETE CASCADE,
 
     -- `child` = rama del organigrama; `related` = enlace lateral;
     -- `supersedes` = un ADR que reemplaza a otro.
@@ -25,8 +27,10 @@ CREATE TABLE IF NOT EXISTS connections (
     CHECK (parent_uid <> child_uid)
 );
 
--- El chequeo de ciclos de `create_connection` sube por el árbol buscando por
--- `child_uid`. También está en `migraciones/0003`: un almacén nuevo nace con el
--- índice, uno viejo lo recibe al abrirse. El texto debe ser idéntico en los dos
--- sitios, o las dos rutas no darían el mismo esquema.
+-- Dos índices, uno por cada sentido de lectura: el chequeo de ciclos de
+-- `create_connection` sube por el árbol buscando por `child_uid`, y el panel
+-- del carril y el mapa leen por `parent_uid`. Un almacén nuevo nace con los
+-- dos; uno viejo los recibe de `migraciones/0008` (que además iguala el
+-- `CHECK parent_uid <> child_uid`, que la reconstrucción de la 0006 olvidó).
 CREATE INDEX IF NOT EXISTS idx_connections_child_uid ON connections (child_uid);
+CREATE INDEX IF NOT EXISTS idx_connections_parent ON connections (parent_uid);

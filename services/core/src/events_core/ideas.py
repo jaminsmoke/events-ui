@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from . import registro
-from .db import data_version, open_read_only, vigilante
+from .db import data_version, open_read_only, uri_lectura, vigilante
 
 EUI_DIR = ".EUI"
 # Con extensión: un SQLite sin extensión no lo reconoce ningún editor ni visor, y
@@ -43,9 +43,10 @@ MIGRATIONS_DIR = Path(__file__).with_name("migraciones")
 # pasó a estado real y ordenable (`idea_cola`) en la 0009, el `origen` del
 # evento se hizo explícito en la 0010, los protocolos de flujo llegaron
 # en la 0011 (`protocolo_flujo`), las completadas salieron del flujo en
-# la 0012, y el flujo completo (roadmap, verificación y revisión aprobada)
-# llegó en la 0013.
-SCHEMA_VERSION = 13
+# la 0012, el flujo completo (roadmap, verificación y revisión aprobada)
+# llegó en la 0013, y la 0014 llevó los intentos de verificación a la entrada
+# para que sobrevivan a la ficha.
+SCHEMA_VERSION = 14
 
 REPOS_ROOT_ENV_VAR = "EVENTSUI_REPOS_ROOT"
 BUSY_TIMEOUT_MS = 5_000
@@ -252,20 +253,23 @@ def _migrar_esquema(db_file: Path) -> None:
     """
     with _ESQUEMA_LOCK, closing(connect(db_file)) as conn:
         version = int(conn.execute("PRAGMA user_version").fetchone()[0])
+        # Un almacén firmado por el `core:seed` anterior no pasó por la
+        # migración 0013: `aplicar_esquema` marcó la versión sin copiar
+        # `idea_completada` ni ampliar los protocolos. Si ese esquema
+        # incompleto sigue ahí, hay que terminar la 0013 antes de seguir, no
+        # fiarse del número. Un almacén migrado de verdad no tiene
+        # `idea_completada` y su `protocolo_flujo` ya acepta los carriles
+        # nuevos.
+        #
+        # `_aplicar_paso` firma el paso que aplica: si el almacén ya estaba
+        # por encima (un esquema fresco marcado sin terminar la 0013), se
+        # devuelve su versión para no repetir los pasos que ya tiene.
+        if version >= 13 and _esquema_0013_incompleto(conn):
+            conn.isolation_level = None
+            _aplicar_paso(conn, 13, MIGRATIONS_DIR / "0013_estado_completo.sql")
+            conn.execute(f"PRAGMA user_version = {version}")
+
         if version >= SCHEMA_VERSION:
-            # Un v13 firmado por el `core:seed` anterior no pasó por la
-            # migración 0013: `aplicar_esquema` marcó la versión sin copiar
-            # `idea_completada` ni ampliar los protocolos. Si ese esquema
-            # incompleto sigue ahí, hay que terminar la migración, no fiarse
-            # del número. Un v13 de verdad no tiene `idea_completada` y su
-            # `protocolo_flujo` ya acepta los carriles nuevos.
-            if version == SCHEMA_VERSION and _esquema_0013_incompleto(conn):
-                conn.isolation_level = None
-                _aplicar_paso(
-                    conn,
-                    SCHEMA_VERSION,
-                    MIGRATIONS_DIR / "0013_estado_completo.sql",
-                )
             if _existe(conn, "ideas"):
                 _copiar_ideas_historicas(conn)
             return
@@ -291,7 +295,7 @@ def _migrar_esquema(db_file: Path) -> None:
 
 
 def _esquema_0013_incompleto(conn: sqlite3.Connection) -> bool:
-    """¿Un v13 quedó sin terminar la migración 0013?
+    """¿El almacén quedó sin terminar la migración 0013?
 
     La prueba no es «faltan filas»: un repo puede haber retirado un protocolo
     a propósito. Es el esquema: la migración 0013 retira `idea_completada`
@@ -519,7 +523,7 @@ def _contar_ideas(db_file: Path) -> int | None:
     """
     for tabla in ("idea_entry", "ideas"):
         try:
-            with closing(sqlite3.connect(f"file:{db_file.as_posix()}?mode=ro", uri=True)) as conn:
+            with closing(sqlite3.connect(uri_lectura(db_file), uri=True)) as conn:
                 fila = conn.execute(
                     "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (tabla,)
                 ).fetchone()
@@ -669,7 +673,9 @@ def _fila(
     idea["roadmap_resultado"] = roadmap["resultado"] if roadmap else ""
     idea["roadmap_referencia"] = roadmap["referencia"] if roadmap else ""
     idea["verificacion_started_at"] = verificacion["started_at"] if verificacion else None
-    idea["verificacion_intentos"] = int(verificacion["intentos"]) if verificacion else 0
+    # Los intentos acumulados viven en la entrada (0014): la ficha solo existe
+    # mientras dura la estancia.
+    idea["verificacion_intentos"] = int(row["verificacion_intentos"]) if verificacion else 0
     idea["verificacion_ultimo_resultado"] = verificacion["ultimo_resultado"] if verificacion else ""
     idea["verificacion_comentario"] = verificacion["comentario"] if verificacion else ""
     if roadmap is None and verificacion is not None:
@@ -805,6 +811,20 @@ def _escribir_estado(
             ),
         )
     elif estado == "verificacion":
+        # Los intentos son del ítem, no de la estancia: la ficha se retira al
+        # volver a la cola, así que el contador vive en `idea_entry` (0014) y
+        # cada entrada en verificación suma una vuelta.
+        intentos = (
+            int(
+                conn.execute(
+                    "SELECT verificacion_intentos FROM idea_entry WHERE uid = ?", (uid,)
+                ).fetchone()[0]
+            )
+            + 1
+        )
+        conn.execute(
+            "UPDATE idea_entry SET verificacion_intentos = ? WHERE uid = ?", (intentos, uid)
+        )
         conn.execute(
             "INSERT INTO idea_verificacion"
             " (uid, started_at, intentos, ultimo_resultado, comentario, roadmap_completed_at)"
@@ -812,7 +832,7 @@ def _escribir_estado(
             (
                 uid,
                 now_iso(),
-                1,
+                intentos,
                 detalle.get("verificacion_resultado") or "",
                 detalle.get("verificacion_comentario") or "",
                 now_iso() if roadmap_previo is not None else None,
@@ -1206,8 +1226,29 @@ def map_snapshot(repo: str) -> dict[str, Any]:
         rows = conn.execute(
             "SELECT idea_entry.uid, idea_entry.title, idea_entry.description,"
             " idea_rejected.rejected_at, idea_rejected.rejected_description"
-            " FROM idea_entry LEFT JOIN idea_rejected ON idea_rejected.uid = idea_entry.uid"
-            " ORDER BY idea_entry.created_at DESC, idea_entry.id DESC"
+            " FROM idea_entry"
+            " LEFT JOIN idea_rejected ON idea_rejected.uid = idea_entry.uid"
+            " LEFT JOIN idea_cola ON idea_cola.uid = idea_entry.uid"
+            " LEFT JOIN idea_roadmap ON idea_roadmap.uid = idea_entry.uid"
+            " LEFT JOIN idea_verificacion ON idea_verificacion.uid = idea_entry.uid"
+            " LEFT JOIN idea_revision ON idea_revision.uid = idea_entry.uid"
+            # El mapa se pinta en el orden en que llega, así que cada carril
+            # tiene que salir como lo lista `/ideas`: la cola por posición
+            # (volver de verificación estrena posición, al final) y roadmap y
+            # verificación por entrada en la ficha. Los carriles sin orden
+            # propio, por creación.
+            " ORDER BY"
+            " CASE"
+            " WHEN idea_rejected.uid IS NOT NULL THEN 4"
+            " WHEN idea_revision.uid IS NOT NULL THEN 3"
+            " WHEN idea_verificacion.uid IS NOT NULL THEN 2"
+            " WHEN idea_roadmap.uid IS NOT NULL THEN 1"
+            " WHEN idea_cola.uid IS NOT NULL THEN 0"
+            " ELSE 5 END,"
+            " idea_cola.posicion ASC,"
+            " idea_roadmap.started_at ASC,"
+            " idea_verificacion.started_at ASC,"
+            " idea_entry.created_at DESC, idea_entry.id DESC"
         ).fetchall()
         colas, roadmaps, verificaciones, revisiones, _ = _en_lote(
             conn, [str(row["uid"]) for row in rows]

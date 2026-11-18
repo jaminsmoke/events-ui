@@ -69,6 +69,22 @@ con el motivo, para no reabrirlo cada semana.
   actualiza la ficha en la que ya vive la idea (roadmap, verificación,
   revisión aprobada o descarte); un campo de otra ficha recibe un 400
   claro. Cubierto en `services/core/tests/test_flujo_items.py`.
+- **Protocolos personalizados**: la migración 0013 copia las uniones
+  antiguas tal como están y solo añade las nuevas, así que una unión
+  retirada en v12 (p. ej. `draft → rejected`) sigue retirada tras migrar.
+  Cubierto en `services/core/tests/test_seed_migracion.py`.
+- **Orden de cola en el mapa**: `GET /mapa` entrega cada carril en el mismo
+  orden que `GET /ideas` (la cola por `posicion`, roadmap y verificación por
+  `started_at`), así que devolver una idea desde verificación la deja al final
+  también en el visor. Cubierto en `services/core/tests/test_flujo_items.py`.
+- **Intentos de verificación acumulados**: el contador vive en la entrada
+  (`verificacion_intentos`, migración 0014), no en la ficha, así que una
+  segunda vuelta por cola y roadmap muestra dos intentos aunque la ficha se
+  retire al salir. Cubierto en `services/core/tests/test_flujo_items.py`.
+- **Rutas con `#`**: la conexión de solo lectura escapa la ruta antes de
+  armarla como URI (`uri_lectura`), así que una carpeta `carpeta#1` no se parte
+  en fragmento y `/mapa`, `/revision` y el log abren su almacén. Cubierto en
+  `services/core/tests/test_rutas.py`.
 - **CI**: `pnpm check` global en cada push a main y en PRs
   (`.github/workflows/ci.yml`). Batería e2e y builds de Tauri quedan fuera
   del CI a propósito (navegador y puertos; se corren en local).
@@ -84,10 +100,6 @@ las relaciones y el alcance de las comprobaciones locales.
 
 ### Flujo y visor
 
-- [ ] **Protocolos personalizados.** La migración 0013 vuelve a insertar permisos antiguos que el repo había retirado. Migrar una v12 con `draft → rejected` deshabilitado y verificar que sigue deshabilitado junto a las nuevas transiciones.
-- [ ] **Orden de cola.** El mapa ordena por creación y la API de cola por posición. Tras devolver una idea desde verificación, comprobar que ambos sitúan la misma idea al final.
-- [ ] **Intentos de verificación.** Una segunda vuelta por cola y roadmap vuelve a mostrar un intento. Probar dos vueltas de la misma idea y comprobar que el contador llega a dos.
-- [ ] **Rutas con `#`.** La apertura de SQLite en modo lectura interpreta parte de la ruta como fragmento. Abrir una carpeta llamada `carpeta#1` y comprobar que `/mapa` y `/revision` devuelven 200.
 
 ### Historial y almacenamiento
 

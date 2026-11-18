@@ -85,6 +85,24 @@ def test_flujo_completo_con_campos_y_regreso_a_cola(client, repo):  # noqa: ANN0
     conn.close()
 
 
+def test_intentos_cuentan_las_vueltas(client, repo):  # noqa: ANN001, ANN202
+    """Volver a cola y a roadmap no reinicia los intentos: la ficha de
+    verificación se retira, pero el historial guarda cada vuelta."""
+    uid = _crear(client, repo, status="proposed")
+    _paso(client, repo, uid, "roadmap")
+    primera = _paso(client, repo, uid, "verificacion")
+    assert primera["verificacion_intentos"] == 1
+
+    _paso(client, repo, uid, "proposed")
+    _paso(client, repo, uid, "roadmap")
+    segunda = _paso(client, repo, uid, "verificacion")
+    assert segunda["verificacion_intentos"] == 2
+
+    # La ficha se va al aprobar: el contador vive con ella.
+    aprobada = _paso(client, repo, uid, "revision_aprobada")
+    assert aprobada["verificacion_intentos"] == 0
+
+
 def test_editar_ficha_activa_sin_cambiar_estado(client, repo):  # noqa: ANN001, ANN202
     uid = _crear(client, repo, status="proposed")
     _paso(client, repo, uid, "roadmap", roadmap_resultado="Hecho", roadmap_referencia="commit abc")
@@ -118,6 +136,26 @@ def test_campos_de_otra_ficha_se_rechazan(client, repo):  # noqa: ANN001, ANN202
     r = client.get(f"/ideas/{uid}", params={"repo": repo})
     assert r.json()["roadmap_resultado"] == "Hecho"
     assert r.json()["verificacion_ultimo_resultado"] == ""
+
+
+def test_el_mapa_ordena_la_cola_por_posicion(client, repo):  # noqa: ANN001, ANN202
+    """El mapa pinta la cola como la lista `/ideas`: quien vuelve de
+    verificación estrena posición y aparece al final en los dos sitios."""
+    primera = _crear(client, repo, status="proposed")
+    segunda = _crear(client, repo, status="proposed")
+    tercera = _crear(client, repo, status="proposed")
+
+    # La segunda recorre roadmap y verificación y vuelve a la cola.
+    _paso(client, repo, segunda, "roadmap")
+    _paso(client, repo, segunda, "verificacion")
+    _paso(client, repo, segunda, "proposed")
+
+    esperado = [primera, tercera, segunda]
+    r = client.get("/ideas", params={"repo": repo, "status": "proposed"})
+    assert [i["uid"] for i in r.json()] == esperado
+
+    mapa = client.get("/mapa", params={"repo": repo}).json()["ideas"]
+    assert [i["uid"] for i in mapa if i["status"] == "proposed"] == esperado
 
 
 def test_transiciones_no_listadas_se_rechazan(client, repo):  # noqa: ANN001, ANN202

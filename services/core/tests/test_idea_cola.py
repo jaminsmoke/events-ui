@@ -1,6 +1,6 @@
 """La cola es estado real y ordenable (`idea_cola`), no una vista del log.
 
-Cubre: fresco en v13 sin `idea_lane_log`, estados desde la cola/revisión
+Cubre: fresco en v14 sin `idea_lane_log`, estados desde la cola/revisión
 aprobada/rechazada (la entrada es no tener fila), el orden de la cola y la
 migración 0009 desde un almacén v8 con historial.
 """
@@ -114,7 +114,7 @@ def _comprobar_historico(client, repo):  # noqa: ANN001, ANN202
         tablas = {
             row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 13
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 14
         assert "ideas" not in tablas
         assert conn.execute("SELECT count(*) FROM idea_entry").fetchone()[0] == 4
         assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
@@ -126,7 +126,7 @@ def test_fresco_sin_lane_log(client, repo):  # noqa: ANN001, ANN202
     db = ideas.ensure_repo(repo)
     conn = sqlite3.connect(str(db))
     tablas = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 13
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 14
     assert "idea_cola" in tablas
     assert "idea_roadmap" in tablas
     assert "idea_verificacion" in tablas
@@ -235,7 +235,7 @@ def test_reiniciar_vacia_todo(client, repo):  # noqa: ANN001, ANN202
         "connections",
     ):
         assert conn.execute(f"SELECT count(*) FROM {tabla}").fetchone()[0] == 0
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 13
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 14
 
 
 def test_migracion_0009_solo_estado_final(client, repo):  # noqa: ANN001, ANN202
@@ -278,7 +278,7 @@ def test_migracion_0009_solo_estado_final(client, repo):  # noqa: ANN001, ANN202
 
     conn = sqlite3.connect(str(db))
     conn.execute("PRAGMA foreign_keys = ON")
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 13
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 14
     tablas = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert "idea_lane_log" not in tablas
     assert "idea_completada" not in tablas
@@ -303,7 +303,7 @@ def test_migracion_0009_solo_estado_final(client, repo):  # noqa: ANN001, ANN202
 def test_historico_sin_version_conserva_ideas_y_conexiones(client, repo):  # noqa: ANN001, ANN202
     """Un fichero anterior a `user_version` trae `ideas`, no `idea_entry`.
 
-    Abrirlo no puede marcar v13 dejando la fila en la tabla vieja: el mapa
+    Abrirlo no puede marcar al día dejando la fila en la tabla vieja: el mapa
     tiene que conservar el UID, los campos, el estado y la conexión.
     """
     db = ideas.db_file_for(repo)
@@ -316,15 +316,16 @@ def test_historico_sin_version_conserva_ideas_y_conexiones(client, repo):  # noq
     _comprobar_historico(client, repo)
 
 
-def test_historico_ya_marcado_v13_se_recupera(client, repo):  # noqa: ANN001, ANN202
-    """El fichero ya abierto una vez: v13 con la fila en `ideas` y cero en `idea_entry`."""
+def test_historico_ya_marcado_se_recupera(client, repo):  # noqa: ANN001, ANN202
+    """El fichero ya abierto una vez: al día y con la fila en `ideas` y cero en
+    `idea_entry`."""
     db = ideas.db_file_for(repo)
     db.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(db))
     _esquema_inicial(conn)
     ideas.aplicar_esquema(conn)  # lo que hacía el código anterior
     conn.commit()
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 13
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 14
     assert conn.execute("SELECT count(*) FROM idea_entry").fetchone()[0] == 0
     assert conn.execute("SELECT count(*) FROM ideas").fetchone()[0] == 4
     conn.close()

@@ -105,7 +105,7 @@ def _comprobar_migrado(client, repo, esperados=_ESPERADOS):  # noqa: ANN001, ANN
     db = ideas.db_file_for(repo)
     conn = sqlite3.connect(str(db))
     try:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 13
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 14
         tablas = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         assert "idea_completada" not in tablas
         assert conn.execute("SELECT uid, approved_at FROM idea_revision").fetchall() == [
@@ -127,6 +127,20 @@ def test_seed_migra_un_v12_y_es_idempotente(client, repo):  # noqa: ANN001, ANN2
     _comprobar_migrado(client, repo)
 
 
+def test_seed_v12_conserva_un_protocolo_retirado(client, repo):  # noqa: ANN001, ANN202
+    """Un v12 con `draft → rejected` retirado migra sin volver a habilitarlo."""
+    db = _db_v12(repo)
+    conn = sqlite3.connect(str(db))
+    try:
+        conn.execute("DELETE FROM protocolo_flujo WHERE origen = 'draft' AND destino = 'rejected'")
+        conn.commit()
+    finally:
+        conn.close()
+
+    _seed(repo)
+    _comprobar_migrado(client, repo, _ESPERADOS - {("draft", "rejected")})
+
+
 def test_un_v13_mal_migrado_se_repara_al_abrir(client, repo):  # noqa: ANN001, ANN202
     """El fallo anterior: `aplicar_esquema` firmó v13 sin terminar la 0013.
 
@@ -138,7 +152,7 @@ def test_un_v13_mal_migrado_se_repara_al_abrir(client, repo):  # noqa: ANN001, A
     try:
         ideas.aplicar_esquema(conn)
         conn.commit()
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 13
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 14
         assert conn.execute("SELECT count(*) FROM idea_revision").fetchone()[0] == 0
     finally:
         conn.close()

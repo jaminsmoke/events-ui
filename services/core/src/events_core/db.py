@@ -22,13 +22,23 @@ def db_path() -> Path:
     return Path(os.environ.get(DB_ENV_VAR, DEFAULT_DB_PATH)).expanduser().resolve()
 
 
+def uri_lectura(path: Path) -> str:
+    """URI de SQLite en solo lectura, con la ruta ya escapada.
+
+    Una carpeta puede llamarse `carpeta#1`: dentro de una URI, `#` empieza el
+    fragmento y `?` la query, así que SQLite abriría otro fichero. `as_uri()`
+    codifica esos caracteres.
+    """
+    return f"{path.resolve().as_uri()}?mode=ro"
+
+
 def open_read_only(path: Path) -> sqlite3.Connection:
     """Conexión de solo lectura. Falla si el fichero no existe: no lo creamos."""
     if not path.exists():
         raise FileNotFoundError(f"no existe la BD de eventos: {path}")
 
     conn = sqlite3.connect(
-        f"file:{path.as_posix()}?mode=ro",
+        uri_lectura(path),
         uri=True,
         timeout=BUSY_TIMEOUT_MS / 1000,
     )
@@ -69,7 +79,7 @@ def vigilante(db_file: Path, *, compartida: bool = False) -> sqlite3.Connection:
         if conn is None:
             if compartida:
                 conn = sqlite3.connect(
-                    f"file:{db_file.as_posix()}?mode=ro",
+                    uri_lectura(db_file),
                     uri=True,
                     timeout=BUSY_TIMEOUT_MS / 1000,
                     check_same_thread=False,

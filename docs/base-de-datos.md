@@ -2,17 +2,17 @@
 
 Cada repositorio guarda sus ideas, relaciones y protocolos en
 `.EUI/EUI_DATABASE.sqlite`. El core activa WAL y las claves foráneas en sus
-conexiones de escritura. La versión del esquema de ideas es 13. El registro
+conexiones de escritura. La versión del esquema de ideas es 14. El registro
 operativo de la aplicación vive en otro fichero y abarca varios repositorios.
 
 ## Tablas y relaciones
 
 | Tabla | Identidad y relación | Qué representa |
 | --- | --- | --- |
-| `idea_entry` | `id` local y `uid` único | Identidad estable, título, descripción, contenido, tipo, etiquetas y fechas de la idea. Las relaciones usan el UID. |
+| `idea_entry` | `id` local y `uid` único | Identidad estable, título, descripción, contenido, tipo, etiquetas, intentos acumulados de verificación y fechas de la idea. Las relaciones usan el UID. |
 | `idea_cola` | Una ficha por UID y una posición única | Orden de la cola y fecha de entrada. Una idea que vuelve desde verificación recibe una posición nueva. |
 | `idea_roadmap` | Una ficha por UID | Inicio, resultado y referencia del trabajo en curso. El core comprueba que haya como máximo una idea activa en el repo. |
-| `idea_verificacion` | Una ficha por UID | Inicio, intentos, último resultado, comentario y fecha de finalización del roadmap previo. |
+| `idea_verificacion` | Una ficha por UID | Inicio, intentos acumulados, último resultado, comentario y fecha de finalización del roadmap previo. |
 | `idea_revision` | Una ficha por UID | Fecha de aprobación, autor y nota. La migración 0013 copia aquí las antiguas completadas. |
 | `idea_rejected` | Una ficha por UID y una referencia opcional a otro UID | Fecha, motivo y autor del descarte. `superseded_by_uid` identifica la idea sustituta. |
 | `connections` | Dos FK a `idea_entry.uid` | Aristas entre ideas. La combinación de padre, hijo y tipo es única. Se admiten varios padres. Los tipos son `child`, `related` y `supersedes`. |

@@ -42,6 +42,11 @@ CREATE TABLE IF NOT EXISTS idea_entry (
     -- Tags en texto JSON; ver el comentario histórico en la migración 0004.
     tags        TEXT    NOT NULL DEFAULT '[]' CHECK (json_valid(tags)),
 
+    -- Vueltas por verificación (0014). El contador pertenece al ítem, no a la
+    -- estancia: la ficha se retira al volver a la cola y el número sigue.
+    verificacion_intentos INTEGER NOT NULL DEFAULT 0
+                CHECK (verificacion_intentos >= 0),
+
     created_at  TEXT    NOT NULL,
     updated_at  TEXT    NOT NULL
 );

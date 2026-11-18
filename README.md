@@ -77,8 +77,11 @@ verdad están `build:web` (Vite) y `build` (bundle Tauri).
 Los **e2e** van aparte porque levantan procesos (no entran en `check`):
 `pnpm e2e` corre todos los escenarios de `e2e/escenarios/` y
 `pnpm e2e -- <nombre>` solo uno. Cada escenario usa su core y su Vite
-temporales en 8765/5175 (mata cualquier resto antes), así que no se toca el
-dev de nadie. Las capturas de cada corrida quedan en `e2e/resultados/`.
+temporales en 8765/5175: si esos puertos ya están ocupados (p. ej. tu
+`pnpm dev`), el runner se niega a arrancar sin tocar ese proceso; al terminar
+—pase, falle o se interrumpa con Ctrl+C— cierra lo que levantó y comprueba
+que los puertos quedan libres. Las capturas de cada corrida quedan en
+`e2e/resultados/`.
 
 El core apunta a `data/events.db` por defecto; cámbialo con `EVENTSUI_DB=/ruta/al/log.db`.
 

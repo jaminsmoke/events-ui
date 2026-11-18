@@ -6,10 +6,13 @@
 //  node e2e/run.mjs --ayuda
 //
 // El runner levanta su propio core en :8765 (con su temporal propio de repos
-// y de registro) y su Vite de desktop en :5175, y mata todo lo que queda en
-// esos puertos tanto al arrancar como al terminar: no toca el dev de nadie.
-// Si algo falla, los procesos se terminan igual y el resumen sale con el
-// nombre del escenario y la causa.
+// y de registro) y su Vite de desktop en :5175. Los puertos deben estar
+// libres: si algo ya escucha (el `pnpm dev` de alguien), el runner se niega
+// a arrancar en vez de matar ese proceso —nunca se toca lo ajeno.
+// Al terminar (pase, falle o se interrumpa con Ctrl+C) se cierra lo que el
+// runner levantó y se comprueba que los puertos quedan libres: si algo
+// nuestro sobrevivió, se remata y se avisa. Si algo falla, el resumen sale
+// igual con el nombre del escenario y la causa.
 
 import { spawn, spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, readdir, readFile } from "node:fs/promises";
@@ -19,7 +22,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { esperarPuertoLibre, matarEnPuerto } from "../scripts/puertos.mjs";
+import { esperarPuertoLibre, matarEnPuerto, pidsEnPuerto } from "../scripts/puertos.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ESCENARIOS_DIR = path.join(ROOT, "e2e", "escenarios");
@@ -32,11 +35,21 @@ const TIMEOUT_MS = 45_000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function matar(child) {
-  if (!child || child.exitCode !== null) return;
+  if (!child || child.pid === undefined) return;
   if (process.platform === "win32") {
+    // Con árbol: el shell intermedio (`shell: true`) deja al hijo vivo.
+    // Síncrono a propósito: si se lanzara y acto seguido saliera el proceso,
+    // el `taskkill` no llegaría a correr y el hijo quedaría huérfano.
     spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore" });
   } else {
-    child.kill("SIGTERM");
+    // Grupo de proceso (`detached` al arrancar): matar solo al shell deja a
+    // `uv`/Python y a pnpm/node de Vite vivos como huérfanos. El grupo
+    // sobrevive al líder, así que vale aunque el hijo ya hubiera salido.
+    try {
+      process.kill(-child.pid, "SIGTERM");
+    } catch {
+      /* el grupo ya no existe */
+    }
   }
 }
 
@@ -62,6 +75,9 @@ function arrancarCore(tmp) {
     {
       cwd: ROOT,
       shell: true,
+      // En POSIX, grupo de proceso propio: así `matar` lleva el árbol entero
+      // (uv → Python) y no queda huérfano si se interrumpe el runner.
+      detached: process.platform !== "win32",
       env: {
         ...process.env,
         EVENTSUI_REPOS_ROOT: path.join(tmp, "repos"),
@@ -75,6 +91,7 @@ function arrancarVite() {
   return spawn("corepack pnpm --filter desktop dev", {
     cwd: ROOT,
     shell: true,
+    detached: process.platform !== "win32",
   });
 }
 
@@ -117,17 +134,69 @@ async function main() {
   await mkdir(path.join(tmp, "repos", "lab"), { recursive: true });
   await mkdir(RESULTADOS_DIR, { recursive: true });
 
-  // En limpio: nada nuestro escucha en 8765/5175 durante el e2e.
+  // Los puertos deben estar libres y el runner NUNCA mata a quien los ocupe:
+  // si hay un `pnpm dev` en marcha, se avisa y se sale. Matar a ciegas aquí
+  // era tirar la sesión de dev de quien estuviera probando.
   for (const puerto of [8765, 5175]) {
-    const muertos = matarEnPuerto(puerto);
-    if (muertos.length > 0) console.log(`Puerto ${puerto}: terminados ${muertos.join(", ")}.`);
-    await esperarPuertoLibre(puerto);
+    const ocupantes = pidsEnPuerto(puerto);
+    if (ocupantes.length > 0) {
+      console.error(
+        `El puerto ${puerto} ya está ocupado (PID ${ocupantes.join(", ")}). ` +
+          "Para el e2e hay que parar antes esa instancia (p. ej. tu `pnpm dev`): " +
+          "el runner no mata procesos ajenos.",
+      );
+      process.exit(1);
+    }
   }
 
   const core = arrancarCore(tmp);
   const vite = arrancarVite();
   let browser = null;
   const resultados = [];
+
+  // Cierre de lo que levantamos, con comprobación de que no queda huérfano:
+  // los puertos estaban libres al arrancar y solo nuestros hijos podían
+  // escuchar en ellos, así que quien siga ahí es un nieto nuestro que
+  // sobrevivió al árbol (se reparentó al morir el líder) y se remata.
+  let limpiando = false;
+  async function limpiar() {
+    if (limpiando) return;
+    limpiando = true;
+    await browser?.close().catch(() => {});
+    matar(core);
+    matar(vite);
+    for (const puerto of [8765, 5175]) {
+      if (await esperarPuertoLibre(puerto, 5_000)) continue;
+      const restos = matarEnPuerto(puerto);
+      console.warn(
+        `Puerto ${puerto}: quedaba escuchando tras cerrar el árbol ` +
+          `(PID ${restos.join(", ")}); rematado.`,
+      );
+      if (!(await esperarPuertoLibre(puerto, 5_000))) {
+        console.error(
+          `Puerto ${puerto}: SIGUE ocupado (PID ${pidsEnPuerto(puerto).join(", ")}) ` +
+            "tras el cierre. Hay un huérfano: míralo a mano.",
+        );
+      }
+    }
+  }
+  // Sin esto, un Ctrl+C (o morir de SIGTERM) salta el `finally` de abajo y
+  // deja core+Vite huérfanos escuchando. El segundo Ctrl+C fuerza la salida.
+  const alInterrumpir = (codigo) => async () => {
+    if (limpiando) process.exit(codigo);
+    await limpiar();
+    process.exit(codigo);
+  };
+  process.on("SIGINT", alInterrumpir(130));
+  process.on("SIGTERM", alInterrumpir(143));
+  process.on("uncaughtException", (err) => {
+    console.error(err);
+    void alInterrumpir(1)();
+  });
+  process.on("unhandledRejection", (err) => {
+    console.error(err);
+    void alInterrumpir(1)();
+  });
   try {
     core.on("error", (err) => console.error(`core: ${err.message}`));
     vite.on("error", (err) => console.error(`vite: ${err.message}`));
@@ -199,9 +268,7 @@ async function main() {
       }
     }
   } finally {
-    await browser?.close().catch(() => {});
-    matar(core);
-    matar(vite);
+    await limpiar();
   }
 
   const fallos = resultados.filter((r) => !r.ok);

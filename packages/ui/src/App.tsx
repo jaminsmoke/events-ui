@@ -145,12 +145,12 @@ export default function App({
   );
 
   // Mover entre carriles es cambiar el `status` (PATCH tipado): `rejected`
-  // cierra la rama, `draft` la devuelve a En cola. El sondeo de `/revision`
+  // cierra la rama, `proposed` la devuelve a En cola. El sondeo de `/revision`
   // relee el mapa y el vuelo existente anima la fila.
   const alMover = useCallback(
     (uid: string, lane: "cola" | "descartadas") => {
       setFalloAccion(null);
-      void mover(uid, lane === "descartadas" ? "rejected" : "draft").catch((err: unknown) => {
+      void mover(uid, lane === "descartadas" ? "rejected" : "proposed").catch((err: unknown) => {
         setFalloAccion(err instanceof Error ? err.message : String(err));
       });
     },
@@ -256,7 +256,9 @@ export default function App({
         <Pruebas
           repo={repo}
           crear={crear}
+          mover={mover}
           editar={editar}
+          borrar={borrar}
           onCerrar={() => setPruebasAbiertas(false)}
         />
       )}

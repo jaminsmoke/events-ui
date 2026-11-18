@@ -7,8 +7,8 @@ import type { LaneId } from "./carriles";
 export type Animacion = { lane: LaneId; id: number };
 
 /** Dónde puede pulsar un nodo: un carril, o el cajón de Ideas (`"cajon"`).
- *  El cajón contiene todas las ideas, así que pulsa cuando entra o sale
- *  alguna, independientemente de qué carril toque. */
+ *  El cajón contiene las ideas sin carril (recién creadas), así que pulsa
+ *  cuando entra alguna y cuando una lo deja hacia un carril. */
 export type NodoId = LaneId | "cajon";
 
 /** Código de colores del pulso de borde de cada nodo:
@@ -39,7 +39,7 @@ export function useAnimaciones(
   const anterior = useRef<{
     repo: string;
     estados: Map<string, Idea["status"]>;
-    carriles: Map<string, LaneId>;
+    carriles: Map<string, LaneId | null>;
     enlaces: Map<number, { parentUid: string; childUid: string }>;
   } | null>(null);
   const secuencia = useRef(0);
@@ -72,25 +72,35 @@ export function useAnimaciones(
       const lane = laneOf(idea.status);
       const lanePrevio = previo.carriles.get(idea.uid);
       if (idea.status === "accepted" && previo.estados.get(idea.uid) !== "accepted") {
-        fijar(lane, "verde");
-        cambian.add(lane);
+        if (lane) {
+          fijar(lane, "verde");
+          cambian.add(lane);
+        }
       } else if (lanePrevio === undefined) {
-        fijar(lane, "azul");
+        if (lane) {
+          fijar(lane, "azul");
+          cambian.add(lane);
+        }
         fijarCajon("azul");
-        cambian.add(lane);
       } else if (lanePrevio !== lane) {
-        fijar(lane, lane === "descartadas" ? "rojo" : "azul");
-        cambian.add(lane);
-        cambian.add(lanePrevio);
+        if (lane) {
+          fijar(lane, lane === "descartadas" ? "rojo" : "azul");
+          cambian.add(lane);
+        }
+        if (lanePrevio) cambian.add(lanePrevio);
+        // Salir del cajón a un carril: el cajón pulsa en rojo (sale de aquí).
+        if (lanePrevio === null) fijarCajon("rojo");
       }
     }
     // Borrada del repo: su carril y el cajón pulsan en rojo aunque ya no
     // tengan la fila.
     for (const [uid, lane] of previo.carriles) {
       if (!carriles.has(uid)) {
-        fijar(lane, "rojo");
+        if (lane) {
+          fijar(lane, "rojo");
+          cambian.add(lane);
+        }
         fijarCajon("rojo");
-        cambian.add(lane);
       }
     }
     // Un enlace lateral nuevo (`related`/`supersedes`) pulsa en azul en los

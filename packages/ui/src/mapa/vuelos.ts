@@ -39,7 +39,11 @@ export function useVuelos({
   mapRef: RefObject<HTMLDivElement | null>;
 }) {
   const [vuelos, setVuelos] = useState<Vuelo[]>([]);
-  const anterior = useRef<{ repo: string; carriles: Map<string, LaneId>; rects: Map<string, Rect> } | null>(null);
+  const anterior = useRef<{
+    repo: string;
+    carriles: Map<string, LaneId | "root">;
+    rects: Map<string, Rect>;
+  } | null>(null);
   const secuencia = useRef(0);
   const k = vista.k;
 
@@ -52,9 +56,10 @@ export function useVuelos({
     for (const fila of map.querySelectorAll<HTMLElement>(".row[data-uid]")) {
       const uid = fila.dataset.uid;
       const nodo = fila.dataset.nodo;
-      // El cajón no vuela: sus filas no son origen ni destino de nada.
+      // Las filas del cajón también se miden: son el origen del vuelo cuando
+      // una idea recibe carril (deja Ideas para ir a En cola).
       const cabecera = fila.firstElementChild;
-      if (!uid || !nodo || nodo === "root" || !cabecera) continue;
+      if (!uid || !nodo || !cabecera) continue;
       const r = cabecera.getBoundingClientRect();
       ahora.set(`${nodo}:${uid}`, {
         x: (r.left - caja.left) / k,
@@ -77,7 +82,9 @@ export function useVuelos({
       });
     }
 
-    const carriles = new Map(ideas.map((idea) => [idea.uid, laneOf(idea.status)]));
+    const carriles = new Map<string, LaneId | "root">(
+      ideas.map((idea) => [idea.uid, laneOf(idea.status) ?? ("root" as const)]),
+    );
     const previo = anterior.current;
     anterior.current = { repo, carriles, rects: ahora };
     if (previo?.repo !== repo) return;
@@ -86,7 +93,9 @@ export function useVuelos({
     for (const { uid, title, status } of ideas) {
       const lane = laneOf(status);
       const antes = previo.carriles.get(uid);
-      if (!antes || antes === lane) continue;
+      if (antes === undefined || antes === lane) continue;
+      // Volver al cajón (sin carril) no tiene destino: ahí no se vuela.
+      if (!lane) continue;
 
       const desde = previo.rects.get(`${antes}:${uid}`) ?? previo.rects.get(antes);
       const fila = ahora.get(`${lane}:${uid}`);

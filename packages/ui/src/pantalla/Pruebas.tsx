@@ -1,18 +1,19 @@
 import { useRef, useState } from "react";
 
-import type { IdeaCreate, IdeaUpdate } from "../core/api";
-
-/** Lanzador de pruebas del laboratorio (solo desktop: `puedeProbar` lo abre,
+import type { IdeaCreate, IdeaUpdate } from "../core/api";  /** Lanzador de pruebas del laboratorio (solo desktop: `puedeProbar` lo abre,
  *  la web no lo pasa).
  *
  *  Cada prueba es una lista de pasos que se ejecutan en orden contra la API
  *  del core, con pausa entre ellos para que el tablero se vea repartirse en
- *  vivo. La 1 es el ciclo mínimo: 10 ideas creadas, de las que 3 se descartan
- *  con motivo y 7 quedan en cola. */
+ *  vivo. La 1 es el ciclo mínimo: 10 ideas creadas en el cajón (Ideas), de
+ *  las que 7 pasan a En cola y 3 se descartan con motivo. «Limpiar» borra las
+ *  ideas que creó la prueba y deja la base sin ideas. */
 
 type Acciones = {
   crear: (body: IdeaCreate) => Promise<{ uid: string } | null>;
+  mover: (uid: string, status: IdeaCreate["status"]) => Promise<void>;
   editar: (uid: string, cambios: IdeaUpdate) => Promise<void>;
+  borrar: (uid: string) => Promise<void>;
 };
 
 type Paso = { texto: string; ejecutar: () => Promise<void> };
@@ -31,10 +32,11 @@ const PRUEBAS: Prueba[] = [
     id: "prueba-1",
     nombre: "Prueba 1",
     descripcion:
-      "Crea 10 ideas en el repo abierto, poco a poco, y luego descarta 3 de " +
-      "ellas con motivo. Estado final: 7 en cola y 3 descartadas. Sirve para " +
-      "ver el flujo en vivo sin tocar nada a mano.",
-    construir: ({ crear, editar }) => {
+      "Crea 10 ideas en el cajón de Ideas, poco a poco, y va vaciándolo: " +
+      "manda 7 a En cola y descarta 3 con motivo. Estado final: Ideas vacío, " +
+      "7 en En cola y 3 en Descartadas. Después, «Limpiar» borra las 10 y " +
+      "deja la base sin ideas.",
+    construir: ({ crear, mover, editar }) => {
       const creadas: string[] = [];
       const pasos: Paso[] = [];
       for (let i = 1; i <= 10; i++) {
@@ -51,6 +53,16 @@ const PRUEBAS: Prueba[] = [
             });
             if (!idea) throw new Error("El core no devolvió la idea creada.");
             creadas.push(idea.uid);
+          },
+        });
+      }
+      for (let i = 0; i < 7; i++) {
+        pasos.push({
+          texto: `En cola: «Prueba 1 · ${i + 1}»`,
+          ejecutar: async () => {
+            const uid = creadas[i];
+            if (!uid) throw new Error("Falta el uid de una idea creada.");
+            await mover(uid, "proposed");
           },
         });
       }
@@ -114,12 +126,16 @@ type Estado = "parada" | "corriendo" | "terminada" | "cancelada" | "error";
 export function Pruebas({
   repo,
   crear,
+  mover,
   editar,
+  borrar,
   onCerrar,
 }: {
   repo: string;
   crear: Acciones["crear"];
+  mover: Acciones["mover"];
   editar: Acciones["editar"];
+  borrar: Acciones["borrar"];
   onCerrar: () => void;
 }) {
   const [seleccionada, setSeleccionada] = useState(PRUEBAS[0]?.id ?? "");
@@ -127,16 +143,29 @@ export function Pruebas({
   const [hechos, setHechos] = useState<boolean[]>([]);
   const [fallo, setFallo] = useState<string | null>(null);
   const [duracion, setDuracion] = useState<string | null>(null);
+  const [limpiando, setLimpiando] = useState(false);
   const cancelar = useRef(false);
+  /** Ideas creadas por la prueba, para poder limpiarlas al terminar. */
+  const [creadas, setCreadas] = useState<{ uid: string; title: string }[]>([]);
+
+  const registrar = (body: IdeaCreate) =>
+    crear(body).then((idea) => {
+      if (idea) {
+        setCreadas((prev) => [...prev, { uid: idea.uid, title: body.title }]);
+      }
+      return idea;
+    });
 
   const prueba = PRUEBAS.find((p) => p.id === seleccionada) ?? PRUEBAS[0];
-  const pasos = prueba ? prueba.construir({ crear, editar }) : [];
+  const pasos = prueba
+    ? prueba.construir({ crear: registrar, mover, editar, borrar })
+    : [];
   const corriendo = estado === "corriendo";
   const totales = `${hechos.filter(Boolean).length}/${pasos.length}`;
 
   const lanzar = () => {
-    if (!prueba || corriendo) return;
-    const lista = prueba.construir({ crear, editar });
+    if (!prueba || corriendo || limpiando) return;
+    const lista = prueba.construir({ crear: registrar, mover, editar, borrar });
     cancelar.current = false;
     setEstado("corriendo");
     setHechos(Array.from({ length: lista.length }, () => false));
@@ -232,6 +261,33 @@ export function Pruebas({
               }}
             >
               Detener
+            </button>
+          )}
+          {creadas.length > 0 && !corriendo && (
+            <button
+              type="button"
+              className="btn ghost"
+              disabled={limpiando}
+              onClick={() => {
+                const lista: Paso[] = creadas.map((c) => ({
+                  texto: `Borrar «${c.title}»`,
+                  ejecutar: async () => {
+                    await borrar(c.uid).catch(() => {
+                      // Ya borrada a mano: limpiar no debe fallar por eso.
+                    });
+                  },
+                }));
+                setLimpiando(true);
+                void ejecutar(lista, () => false, () => {}).then(() => {
+                  setCreadas([]);
+                  setLimpiando(false);
+                  setHechos([]);
+                  setDuracion(null);
+                  setEstado("parada");
+                });
+              }}
+            >
+              {limpiando ? "Limpiando…" : "Limpiar"}
             </button>
           )}
           <button type="button" className="btn ghost" onClick={onCerrar}>

@@ -13,6 +13,7 @@ import type { LaneId } from "./mapa/carriles";
 import { NodeBox, VueloFila } from "./mapa/nodos";
 import { useVuelos } from "./mapa/vuelos";
 import { useEventos, resumenEvento } from "./core/useEventos";
+import { useProtocolos } from "./core/useProtocolos";
 import { Ajustes as DialogoAjustes } from "./pantalla/Ajustes";
 import { AvisoError } from "./pantalla/AvisoError";
 import { BarraRepo } from "./pantalla/BarraRepo";
@@ -94,6 +95,9 @@ export default function App({
   );
   // F1: el log del repo en vivo (cada `EUI_DATABASE` lleva el suyo).
   const { eventos, conectado } = useEventos(repo);
+  // Los protocolos de flujo: las uniones permitidas entre carriles. La fila
+  // no ofrece traslados prohibidos; el core los rechaza si llegan igual.
+  const puedeIr = useProtocolos(repo);
 
   // Avisos del sistema (F3): solo eventos *nuevos* (ids por encima del último
   // visto) y solo si el usuario lo quiere ver; el primer lote del SSE es el
@@ -379,6 +383,7 @@ export default function App({
                   onEditar={editar}
                   onBorrar={borrar}
                   enlacesNuevos={enlacesNuevos}
+                  puedeIr={puedeIr}
                 />
                 <div className="lanes">
                   {tree.carriles.map((lane, i) => (
@@ -400,6 +405,7 @@ export default function App({
                       onEditar={editar}
                       onBorrar={borrar}
                       enlacesNuevos={enlacesNuevos}
+                      puedeIr={puedeIr}
                     />
                   ))}
                 </div>

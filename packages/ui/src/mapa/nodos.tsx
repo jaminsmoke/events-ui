@@ -3,6 +3,7 @@ import type { Ref } from "react";
 import { createPortal } from "react-dom";
 
 import type { IdeaUpdate } from "../core/api";
+import type { PuedeIr } from "../core/useProtocolos";
 import { DescartaIdea } from "../pantalla/DescartaIdea";
 import type { TreeNode } from "./arbol";
 import type { TonoPulso } from "./animaciones";
@@ -49,6 +50,7 @@ function NodeRow({
   onEditar,
   onBorrar,
   enlacesNuevos = [],
+  puedeIr,
 }: {
   node: TreeNode;
   nodo: string;
@@ -61,6 +63,10 @@ function NodeRow({
   onEditar?: (uid: string, cambios: IdeaUpdate) => Promise<void>;
   onBorrar?: (uid: string) => Promise<void>;
   enlacesNuevos?: { parentUid: string; childUid: string }[];
+  /** Los protocolos de flujo (`GET /protocolos`): si está, la fila no ofrece
+   *  un traslado que el core rechazaría (las descartadas no vuelven a cola,
+   *  p. ej.). Sin él se ofrece todo y el core manda. */
+  puedeIr?: PuedeIr;
 }) {
   const tiene = node.kids.length > 0;
   // Una sola expansión por fila: detalles, botones e hijos. Las filas con
@@ -109,7 +115,8 @@ function NodeRow({
         Rechazada el {fechaCorta(node.idea.rejected_at)}
         {node.idea.rejected_description ? ` — ${node.idea.rejected_description}` : ""}
       </p>}
-      {node.idea && onMover && (nodo === "cola" || nodo === "descartadas") && (
+      {node.idea && onMover && (nodo === "cola" || nodo === "descartadas") &&
+        (!puedeIr || puedeIr(node.idea.status, nodo === "cola" ? "rejected" : "proposed")) && (
         <button
           type="button"
           className="btn ghost mover"
@@ -124,7 +131,8 @@ function NodeRow({
           {nodo === "cola" ? "Descartar" : "A cola"}
         </button>
       )}
-      {node.idea && onCompletar && node.idea.status !== "accepted" && (
+      {node.idea && onCompletar && node.idea.status !== "accepted" &&
+        (!puedeIr || puedeIr(node.idea.status, "accepted")) && (
         <button
           type="button"
           className="btn ghost mover"
@@ -197,6 +205,7 @@ function NodeRow({
               onEditar={onEditar}
               onBorrar={onBorrar}
               enlacesNuevos={enlacesNuevos}
+              puedeIr={puedeIr}
             />
           ))}
         </div>
@@ -219,6 +228,7 @@ export function NodeBox({
   onEditar,
   onBorrar,
   enlacesNuevos = [],
+  puedeIr,
 }: {
   node: TreeNode;
   cerrados: ReadonlySet<string>;
@@ -232,6 +242,7 @@ export function NodeBox({
   onEditar?: (uid: string, cambios: IdeaUpdate) => Promise<void>;
   onBorrar?: (uid: string) => Promise<void>;
   enlacesNuevos?: { parentUid: string; childUid: string }[];
+  puedeIr?: PuedeIr;
 }) {
   const tiene = node.kids.length > 0;
   const abierto = tiene && !cerrados.has(node.key);
@@ -266,6 +277,7 @@ export function NodeBox({
               onEditar={onEditar}
               onBorrar={onBorrar}
               enlacesNuevos={enlacesNuevos}
+              puedeIr={puedeIr}
             />
           ))}
         </div>

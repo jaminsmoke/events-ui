@@ -40,9 +40,10 @@ MIGRATIONS_DIR = Path(__file__).with_name("migraciones")
 # `migraciones/0005_eventos.sql`). La tabla `ideas` pasó a `idea_entry` +
 # `idea_lane_log` en la 0006, la ficha del descarte a `idea_rejected` en la
 # 0007, `connections` se igualó con el esquema fresco en la 0008, la cola
-# pasó a estado real y ordenable (`idea_cola`) en la 0009 y el `origen` del
-# evento se hizo explícito en la 0010.
-SCHEMA_VERSION = 10
+# pasó a estado real y ordenable (`idea_cola`) en la 0009, el `origen` del
+# evento se hizo explícito en la 0010 y los protocolos de flujo llegaron
+# en la 0011 (`protocolo_flujo`).
+SCHEMA_VERSION = 11
 
 REPOS_ROOT_ENV_VAR = "EVENTSUI_REPOS_ROOT"
 BUSY_TIMEOUT_MS = 5_000
@@ -676,7 +677,15 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
                 # Reafirmar el mismo estado no es un traslado: la cola no se
                 # reordena (su posición se conserva) y el evento que se emite
                 # es de edición, no de cambio de estado.
-                cambiado_estado = _estado(conn, uid) != changes["status"]
+                actual = _estado(conn, uid)
+                cambiado_estado = actual != changes["status"]
+                # Los protocolos mandan sobre el flujo: una unión no listada
+                # se rechaza (400) y no escribe nada.
+                if cambiado_estado and not _protocolo_ok(conn, actual, changes["status"]):
+                    raise InvalidInput(
+                        f"el protocolo no permite el flujo {actual} → "
+                        f"{changes['status']}: esa unión no está en `protocolo_flujo`"
+                    )
                 _escribir_estado(conn, uid, changes["status"], rechazo)
             idea = _row(
                 conn,
@@ -709,6 +718,36 @@ def delete_idea(repo: str, uid: str) -> bool:
             _emitir(conn, "idea.deleted", {"uid": uid, "title": titulo_row[0]})
         conn.commit()
     return cursor.rowcount > 0
+
+
+def _protocolo_ok(conn: sqlite3.Connection, actual: str, nuevo: str) -> bool:
+    """¿Permite el protocolo ir de `actual` a `nuevo`?
+
+    Mismo grupo no es un traslado (la ficha de descartada se afina con
+    `superseded`, el carril no cambia): pasa siempre. Entre grupos manda la
+    allowlist `protocolo_flujo`: lo que no está listado se prohíbe.
+    """
+    if _grupo(actual) == _grupo(nuevo):
+        return True
+    fila = conn.execute(
+        "SELECT 1 FROM protocolo_flujo WHERE origen = ? AND destino = ?",
+        (_grupo(actual), _grupo(nuevo)),
+    ).fetchone()
+    return fila is not None
+
+
+def listar_protocolos(repo: str) -> list[dict[str, Any]]:
+    """Las uniones permitidas entre carriles (`protocolo_flujo`).
+
+    La UI las lee para no ofrecer flujos prohibidos; la que impone de verdad
+    es `update_idea`. Son configuración del almacén, no estado: el reinicio
+    de laboratorio no las toca.
+    """
+    with closing(connect(ensure_repo(repo))) as conn:
+        filas = conn.execute(
+            "SELECT origen, destino FROM protocolo_flujo ORDER BY origen, destino"
+        ).fetchall()
+    return [{"origen": fila[0], "destino": fila[1]} for fila in filas]
 
 
 def list_connections(repo: str, *, parent_uid: str | None = None) -> list[dict[str, Any]]:

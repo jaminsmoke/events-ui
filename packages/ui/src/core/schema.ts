@@ -121,6 +121,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/protocolos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Protocolos
+         * @description Las uniones permitidas entre carriles (`protocolo_flujo`).
+         *
+         *     La UI las lee para no ofrecer flujos prohibidos; la que impone de verdad
+         *     es el PATCH, que responde 400 cuando la unión no está listada. Es
+         *     configuración del almacén: el reinicio de laboratorio no la toca.
+         */
+        get: operations["get_protocolos_protocolos_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/mapa": {
         parameters: {
             query?: never;
@@ -546,6 +570,26 @@ export interface components {
             ideas: components["schemas"]["MapIdea"][];
             /** Connections */
             connections: components["schemas"]["Connection"][];
+        };
+        /**
+         * Protocolo
+         * @description Una unión permitida por el protocolo de flujo (`protocolo_flujo`).
+         *
+         *     Los grupos son los carriles que se mueven (`superseded` comparte grupo con
+         *     `rejected`: la ficha lo distingue, el carril no), así que no aparecen
+         *     como origen ni destino propios.
+         */
+        Protocolo: {
+            /**
+             * Origen
+             * @enum {string}
+             */
+            origen: "draft" | "proposed" | "accepted" | "rejected";
+            /**
+             * Destino
+             * @enum {string}
+             */
+            destino: "draft" | "proposed" | "accepted" | "rejected";
         };
         /**
          * ProyeccionRepo
@@ -1024,6 +1068,56 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Connection"][];
+                };
+            };
+            /** @description Petición inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description No existe el repo o la idea */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_protocolos_protocolos_get: {
+        parameters: {
+            query: {
+                /** @description Carpeta del repo: ruta absoluta o nombre en el lab */
+                repo: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Protocolo"][];
                 };
             };
             /** @description Petición inválida */

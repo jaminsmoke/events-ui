@@ -113,6 +113,18 @@ class MapIdea(BaseModel):
     rejected_description: str = ""
 
 
+class Protocolo(BaseModel):
+    """Una unión permitida por el protocolo de flujo (`protocolo_flujo`).
+
+    Los grupos son los carriles que se mueven (`superseded` comparte grupo con
+    `rejected`: la ficha lo distingue, el carril no), así que no aparecen
+    como origen ni destino propios.
+    """
+
+    origen: Literal["draft", "proposed", "accepted", "rejected"]
+    destino: Literal["draft", "proposed", "accepted", "rejected"]
+
+
 class MapSnapshot(BaseModel):
     ideas: list[MapIdea]
     connections: list[Connection]
@@ -364,6 +376,16 @@ def get_connections(
     ] = None,
 ) -> list[dict[str, Any]]:
     return ideas.list_connections(repo, parent_uid=parent_uid)
+
+
+@app.get("/protocolos", response_model=list[Protocolo], tags=["ideas"], responses=RESPUESTAS_ERROR)
+def get_protocolos(repo: RepoParam) -> list[dict[str, Any]]:
+    """Las uniones permitidas entre carriles (`protocolo_flujo`).
+
+    La UI las lee para no ofrecer flujos prohibidos; la que impone de verdad
+    es el PATCH, que responde 400 cuando la unión no está listada. Es
+    configuración del almacén: el reinicio de laboratorio no la toca."""
+    return ideas.listar_protocolos(repo)
 
 
 @app.get("/mapa", response_model=MapSnapshot, tags=["connections"], responses=RESPUESTAS_ERROR)

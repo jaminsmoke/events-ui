@@ -53,7 +53,7 @@ def test_fresco_sin_lane_log(client, repo):  # noqa: ANN001, ANN202
     db = ideas.ensure_repo(repo)
     conn = sqlite3.connect(str(db))
     tablas = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 10
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 11
     assert "idea_cola" in tablas
     assert "idea_completada" in tablas
     assert "idea_rejected" in tablas
@@ -66,7 +66,7 @@ def test_draft_no_tiene_fila(client, repo):  # noqa: ANN001, ANN202
     assert r.json()["status"] == "draft"
 
 
-def test_proposed_entra_en_cola_y_sale(client, repo):  # noqa: ANN001, ANN202
+def test_proposed_entra_en_cola_y_no_vuelve_al_cajon(client, repo):  # noqa: ANN001, ANN202
     uid = client.post("/ideas", params={"repo": repo}, json={"title": "A"}).json()["uid"]
     r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": "proposed"})
     assert r.json()["status"] == "proposed"
@@ -75,11 +75,13 @@ def test_proposed_entra_en_cola_y_sale(client, repo):  # noqa: ANN001, ANN202
     assert conn.execute("SELECT count(*) FROM idea_cola").fetchone()[0] == 1
     conn.close()
 
-    # Volver a draft saca la fila: la idea queda en el cajón.
+    # El protocolo prohíbe volver al cajón: la cola no se deshace a mano.
     r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": "draft"})
-    assert r.json()["status"] == "draft"
+    assert r.status_code == 400
+    assert "protocolo" in r.json()["detail"]
     conn = sqlite3.connect(str(ideas.db_file_for(repo)))
-    assert conn.execute("SELECT count(*) FROM idea_cola").fetchone()[0] == 0
+    assert conn.execute("SELECT count(*) FROM idea_cola").fetchone()[0] == 1
+    conn.close()
 
 
 def test_cola_ordenada_por_posicion(client, repo):  # noqa: ANN001, ANN202
@@ -140,7 +142,7 @@ def test_reiniciar_vacia_todo(client, repo):  # noqa: ANN001, ANN202
     conn = sqlite3.connect(str(db))
     for tabla in ("idea_entry", "idea_cola", "idea_completada", "idea_rejected", "connections"):
         assert conn.execute(f"SELECT count(*) FROM {tabla}").fetchone()[0] == 0
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 10
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 11
 
 
 def test_migracion_0009_solo_estado_final(client, repo):  # noqa: ANN001, ANN202
@@ -183,7 +185,7 @@ def test_migracion_0009_solo_estado_final(client, repo):  # noqa: ANN001, ANN202
 
     conn = sqlite3.connect(str(db))
     conn.execute("PRAGMA foreign_keys = ON")
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 10
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 11
     tablas = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert "idea_lane_log" not in tablas
     assert conn.execute("PRAGMA foreign_key_check").fetchall() == []

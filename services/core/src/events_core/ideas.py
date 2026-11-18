@@ -1363,6 +1363,8 @@ def reiniciar(repo: str) -> dict[str, Any]:
     de proyecto limpio tras una prueba: no es parte del CRUD de producto. La
     estructura (tablas, `user_version`) no cambia: la misma BD, vacía.
     """
+    if resolve_repo(repo).parent != repos_root():
+        raise InvalidInput("el reinicio solo está disponible en repositorios del laboratorio")
     db_file = ensure_repo(repo)
 
     def contar(conn: sqlite3.Connection, tabla: str) -> int:
@@ -1371,6 +1373,7 @@ def reiniciar(repo: str) -> dict[str, Any]:
         return conn.execute(f"SELECT count(*) FROM {tabla}").fetchone()[0]
 
     with closing(connect(db_file)) as conn:
+        conn.execute("BEGIN IMMEDIATE")
         n_ideas = contar(conn, "idea_entry")
         n_conexiones = contar(conn, "connections")
         n_eventos = contar(conn, "event")

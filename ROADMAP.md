@@ -138,25 +138,13 @@ con el motivo, para no reabrirlo cada semana.
   (`.github/workflows/ci.yml`). Batería e2e y builds de Tauri quedan fuera
   del CI a propósito (navegador y puertos; se corren en local).
 
+- **Nodos y cables estables.** Las seis cabeceras mantienen su posición al llenar o plegar el mapa. Los cables de etapa se anclan a las cabeceras y la salida hacia Descartadas discurre por el lateral de la cola.
+- **Limpieza de la prueba manual.** La Prueba 1 deja ver el reparto y después vacía el laboratorio en una transacción, también al detenerla o fallar un paso. El E2E compara coordenadas y trazados, consulta las ocho tablas operativas y comprueba los protocolos antes de que el runner haga su propia limpieza.
+
 ## Pendientes
 
-Revisión del 18 de noviembre de 2026. Cada casilla indica la prueba que debe pasar
-para cerrarla. El [modelo de datos](docs/base-de-datos.md) recoge las tablas,
-las relaciones y el alcance de las comprobaciones locales.
-
-### Prioridad alta
-
-
-### Flujo y visor
-
-
-### Historial y almacenamiento
-
-
-### Integridad de las escrituras SQL
-
-Estos casos se reprodujeron con datos de prueba y claves foráneas activadas.
-
+- [ ] **Recuperar una prueba interrumpida por el cierre de la aplicación.** La ejecución manual vive en la ventana. Si el proceso termina antes de solicitar el reinicio, pueden quedar datos. Probar la recuperación al reabrir el mismo laboratorio sin afectar a otra ejecución activa.
+- [ ] **Ejecutar los E2E mientras se observa la app.** El runner y el proxy de Vite usan puertos fijos. Permitir puertos independientes y verificar que las pruebas terminan mientras la sesión de escritorio sigue abierta.
 
 ## No se hace (por ahora)
 

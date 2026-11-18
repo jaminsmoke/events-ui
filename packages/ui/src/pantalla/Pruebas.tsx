@@ -1,19 +1,11 @@
 import { useRef, useState } from "react";
 
-import type { IdeaCreate, IdeaUpdate } from "../core/api";  /** Lanzador de pruebas del laboratorio (solo desktop: `puedeProbar` lo abre,
- *  la web no lo pasa).
- *
- *  Cada prueba es una lista de pasos que se ejecutan en orden contra la API
- *  del core, con pausa entre ellos para que el tablero se vea repartirse en
- *  vivo. La 1 es el ciclo mínimo: 10 ideas creadas en el cajón (Ideas), de
- *  las que 7 pasan a En cola y 3 se descartan con motivo. «Limpiar» reinicia
- *  el proyecto completo (ideas, cola, descartadas, conexiones y eventos). */
+import type { IdeaCreate, IdeaUpdate } from "../core/api";
 
 type Acciones = {
   crear: (body: IdeaCreate) => Promise<{ uid: string } | null>;
   mover: (uid: string, status: IdeaCreate["status"]) => Promise<void>;
   editar: (uid: string, cambios: IdeaUpdate) => Promise<void>;
-  borrar: (uid: string) => Promise<void>;
 };
 
 type Paso = { texto: string; ejecutar: () => Promise<void> };
@@ -32,10 +24,8 @@ const PRUEBAS: Prueba[] = [
     id: "prueba-1",
     nombre: "Prueba 1",
     descripcion:
-      "Crea 10 ideas en el cajón de Ideas, poco a poco, y va vaciándolo: " +
-      "manda 7 a En cola y descarta 3 con motivo. Estado final: Ideas vacío, " +
-      "7 en En cola y 3 en Descartadas. Después, «Limpiar» reinicia el proyecto " +
-      "completo: ideas, cola, descartadas, conexiones y eventos a cero.",
+      "Crea 10 ideas, mueve 7 a En cola y descarta 3. El reparto queda visible seis segundos. " +
+      "Al terminar, detenerse o fallar, se vacían todas las ideas, fichas, conexiones y eventos del laboratorio, incluidos los datos anteriores.",
     construir: ({ crear, mover, editar }) => {
       const creadas: string[] = [];
       const pasos: Paso[] = [];
@@ -121,14 +111,17 @@ async function ejecutar(
   return { resultado: "terminada", duracion: duracion() };
 }
 
-type Estado = "parada" | "corriendo" | "terminada" | "cancelada" | "error";
+const ROTULO_RESULTADO = { terminada: "Completada", cancelada: "Detenida", error: "Con error" };
+
+type Fase = "parada" | "corriendo" | "mostrando" | "limpiando" | "limpiezaPendiente";
 
 export function Pruebas({
   repo,
   crear,
   mover,
   editar,
-  borrar,
+  abierta,
+  onActividad,
   reiniciar,
   onCerrar,
 }: {
@@ -136,49 +129,57 @@ export function Pruebas({
   crear: Acciones["crear"];
   mover: Acciones["mover"];
   editar: Acciones["editar"];
-  borrar: Acciones["borrar"];
+  abierta: boolean;
+  onActividad: (enCurso: boolean) => void;
   reiniciar: () => Promise<unknown>;
   onCerrar: () => void;
 }) {
   const [seleccionada, setSeleccionada] = useState(PRUEBAS[0]?.id ?? "");
-  const [estado, setEstado] = useState<Estado>("parada");
+  const [fase, setFase] = useState<Fase>("parada");
   const [hechos, setHechos] = useState<boolean[]>([]);
-  const [fallo, setFallo] = useState<string | null>(null);
-  const [duracion, setDuracion] = useState<string | null>(null);
-  const [limpiando, setLimpiando] = useState(false);
+  const [resultado, setResultado] = useState<Resultado | null>(null);
+  const [errorLimpieza, setErrorLimpieza] = useState<string | null>(null);
   const cancelar = useRef(false);
 
   const prueba = PRUEBAS.find((p) => p.id === seleccionada) ?? PRUEBAS[0];
-  const pasos = prueba
-    ? prueba.construir({ crear, mover, editar, borrar })
-    : [];
-  const corriendo = estado === "corriendo";
+  const pasos = prueba?.construir({ crear, mover, editar }) ?? [];
   const totales = `${hechos.filter(Boolean).length}/${pasos.length}`;
 
-  const lanzar = () => {
-    if (!prueba || corriendo || limpiando) return;
-    const lista = prueba.construir({ crear, mover, editar, borrar });
-    cancelar.current = false;
-    setEstado("corriendo");
-    setHechos(Array.from({ length: lista.length }, () => false));
-    setFallo(null);
-    setDuracion(null);
-    void ejecutar(
-      lista,
-      () => cancelar.current,
-      (i) =>
-        setHechos((prev) => {
-          const next = [...prev];
-          next[i] = true;
-          return next;
-        }),
-    ).then((r) => {
-      setEstado(r.resultado);
-      setDuracion(r.duracion.toFixed(1));
-      if (r.fallo) setFallo(r.fallo);
-    });
+  const limpiar = async () => {
+    onActividad(true);
+    setFase("limpiando");
+    setErrorLimpieza(null);
+    try {
+      await reiniciar();
+      setFase("parada");
+    } catch (err) {
+      setErrorLimpieza(err instanceof Error ? err.message : String(err));
+      setFase("limpiezaPendiente");
+    } finally {
+      onActividad(false);
+    }
   };
 
+  const lanzar = async () => {
+    if (!prueba || fase !== "parada") return;
+    onActividad(true);
+    cancelar.current = false;
+    setFase("corriendo");
+    setHechos(Array.from({ length: pasos.length }, () => false));
+    setResultado(null);
+    const r = await ejecutar(pasos, () => cancelar.current, (i) =>
+      setHechos((prev) => prev.map((hecho, indice) => hecho || indice === i)),
+    );
+    setResultado(r);
+    if (r.resultado === "terminada") {
+      setFase("mostrando");
+      await new Promise<void>((resolve) => setTimeout(resolve, 6000));
+    }
+    await limpiar();
+  };
+
+  // Ocultar el diálogo permite mirar el tablero y volver a abrir el progreso.
+  if (!abierta) return null;
   return (
     <div className="modal-fondo" role="presentation" onClick={onCerrar}>
       <div
@@ -200,11 +201,9 @@ export function Pruebas({
             onChange={(e) => {
               setSeleccionada(e.target.value);
               setHechos([]);
-              setFallo(null);
-              setDuracion(null);
-              setEstado("parada");
+              setResultado(null);
             }}
-            disabled={corriendo}
+            disabled={fase !== "parada"}
             aria-label="Prueba"
           >
             {PRUEBAS.map((p) => (
@@ -225,65 +224,29 @@ export function Pruebas({
           ))}
         </ol>
 
-        {fallo && <p className="hint error">Error: {fallo}</p>}
-        {duracion && estado !== "corriendo" && (
-          <p className="hint">
-            {estado === "terminada" && "Completada"}
-            {estado === "cancelada" && "Detenida"}
-            {estado === "error" && "Con error"}{" "}
-            en {duracion} s · pasos {totales}
-          </p>
-        )}
+        {resultado?.fallo && <p className="hint error">{resultado.fallo}</p>}
+        {errorLimpieza && <p className="hint error">Limpieza pendiente. {errorLimpieza}</p>}
+        <div role="status" className="hint">
+          {fase === "mostrando" && "Reparto listo. El laboratorio se vaciará en seis segundos."}
+          {fase === "limpiando" && "Limpiando el laboratorio…"}
+          {fase === "parada" && resultado && (
+            <>{ROTULO_RESULTADO[resultado.resultado]} en {resultado.duracion.toFixed(1)} s
+              · pasos {totales} · Laboratorio limpio.</>
+          )}
+        </div>
 
         <div className="modal-acciones">
-          <button
-            type="button"
-            className="btn"
-            onClick={lanzar}
-            disabled={corriendo}
-          >
+          <button type="button" className="btn" onClick={() => void lanzar()} disabled={fase !== "parada"}>
             Lanzar
           </button>
-          {corriendo && (
-            <button
-              type="button"
-              className="btn ghost"
-              onClick={() => {
-                cancelar.current = true;
-              }}
-            >
+          {fase === "corriendo" && (
+            <button type="button" className="btn ghost" onClick={() => { cancelar.current = true; }}>
               Detener
             </button>
           )}
-          {hechos.length > 0 && !corriendo && (
-            <button
-              type="button"
-              className="btn ghost"
-              disabled={limpiando}
-              onClick={() => {
-                setFallo(null);
-                if (
-                  !window.confirm(
-                    "Reiniciar el proyecto: se borran ideas, cola, descartadas, conexiones y eventos. ¿Seguro?",
-                  )
-                ) {
-                  return;
-                }
-                setLimpiando(true);
-                void reiniciar()
-                  .then(() => {
-                    setLimpiando(false);
-                    setHechos([]);
-                    setDuracion(null);
-                    setEstado("parada");
-                  })
-                  .catch((err: unknown) => {
-                    setLimpiando(false);
-                    setFallo(err instanceof Error ? err.message : String(err));
-                  });
-              }}
-            >
-              {limpiando ? "Reiniciando…" : "Limpiar"}
+          {fase === "limpiezaPendiente" && (
+            <button type="button" className="btn ghost" onClick={() => void limpiar()}>
+              Reintentar limpieza
             </button>
           )}
           <button type="button" className="btn ghost" onClick={onCerrar}>

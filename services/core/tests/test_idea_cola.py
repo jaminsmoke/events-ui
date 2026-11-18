@@ -8,6 +8,7 @@ migración 0009 desde un almacén v8 con historial.
 from __future__ import annotations
 
 import sqlite3
+from contextlib import closing
 
 from events_core import ideas
 
@@ -251,25 +252,50 @@ def test_revision_aprobada_es_terminal(client, repo):  # noqa: ANN001, ANN202
 
 
 def test_reiniciar_vacia_todo(client, repo):  # noqa: ANN001, ANN202
-    client.post("/ideas", params={"repo": repo}, json={"title": "A", "status": "proposed"})
-    r = client.post("/reiniciar", params={"repo": repo})
-    assert r.json()["ideas_eliminadas"] == 1
-    assert r.json()["conexiones_eliminadas"] == 0
-    assert client.get("/ideas", params={"repo": repo}).json() == []
-    assert client.get("/mapa", params={"repo": repo}).json()["ideas"] == []
+    estados = ["draft", "proposed", "roadmap", "verificacion", "revision_aprobada", "rejected"]
+    uids = [
+        client.post("/ideas", params={"repo": repo}, json={"title": s, "status": s}).json()["uid"]
+        for s in estados
+    ]
     db = ideas.db_file_for(repo)
-    conn = sqlite3.connect(str(db))
-    for tabla in (
-        "idea_entry",
-        "idea_cola",
-        "idea_roadmap",
-        "idea_verificacion",
-        "idea_revision",
-        "idea_rejected",
-        "connections",
-    ):
-        assert conn.execute(f"SELECT count(*) FROM {tabla}").fetchone()[0] == 0
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 17
+    with closing(ideas.connect(db)) as conn:
+        conn.execute(
+            "INSERT INTO connections (parent_uid, child_uid, created_at) VALUES (?, ?, 'hoy')",
+            uids[:2],
+        )
+        conn.execute("DELETE FROM protocolo_flujo WHERE destino = 'rejected'")
+        conn.commit()
+        protocolos = conn.execute("SELECT * FROM protocolo_flujo ORDER BY 1, 2").fetchall()
+
+        r = client.post("/reiniciar", params={"repo": repo})
+        assert r.status_code == 200
+        assert r.json() == {
+            "repo": repo,
+            "ideas_eliminadas": 6,
+            "conexiones_eliminadas": 1,
+            "eventos_eliminados": 6,
+        }
+        for tabla in (
+            "idea_entry",
+            "idea_cola",
+            "idea_roadmap",
+            "idea_verificacion",
+            "idea_revision",
+            "idea_rejected",
+            "connections",
+            "event",
+        ):
+            assert conn.execute(f"SELECT count(*) FROM {tabla}").fetchone()[0] == 0
+        assert conn.execute("SELECT * FROM protocolo_flujo ORDER BY 1, 2").fetchall() == protocolos
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == ideas.SCHEMA_VERSION
+
+
+def test_reinicio_limitado_al_laboratorio(client, tmp_path):  # noqa: ANN001, ANN202
+    repo = str(tmp_path.resolve())
+    idea = client.post("/ideas", params={"repo": repo}, json={"title": "Conservar"}).json()
+    assert not client.get("/proyecciones/repo", params={"repo": repo}).json()["laboratorio"]
+    assert client.post("/reiniciar", params={"repo": repo}).status_code == 400
+    assert client.get(f"/ideas/{idea['uid']}", params={"repo": repo}).status_code == 200
 
 
 def test_migracion_0009_solo_estado_final(client, repo):  # noqa: ANN001, ANN202

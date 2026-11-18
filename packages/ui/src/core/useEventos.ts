@@ -57,11 +57,11 @@ export function resumenEvento(evento: Evento): string {
  *
  *  Sin repo no hay stream: con el repo sin elegir no hay log que vigilar.
  */
-export function useEventos(repo: string | null): { eventos: Evento[]; conectado: boolean } {
+export function useEventos(repo: string | null, version: number): { eventos: Evento[]; conectado: boolean } {
   // El estado se resetea al cambiar de repo (verificado por repo en el render,
   // sin seteo en el efecto).
-  const [estado, setEstado] = useState<{ repo: string | null; eventos: Evento[] }>({
-    repo,
+  const [estado, setEstado] = useState<{ repo: string | null; version: number; eventos: Evento[] }>({
+    repo, version,
     eventos: [],
   });
   const [conectado, setConectado] = useState(false);
@@ -74,8 +74,8 @@ export function useEventos(repo: string | null): { eventos: Evento[]; conectado:
       try {
         const evento = JSON.parse(mensaje.data) as Evento;
         setEstado((previo) => ({
-          repo,
-          eventos: previo.repo === repo ? [...previo.eventos.slice(-99), evento] : [evento],
+          repo, version,
+          eventos: previo.repo === repo && previo.version === version ? [...previo.eventos.slice(-99), evento] : [evento],
         }));
       } catch {
         // Un frame roto no rompe el stream: el siguiente lo sustituye.
@@ -84,8 +84,8 @@ export function useEventos(repo: string | null): { eventos: Evento[]; conectado:
     fuente.onopen = () => setConectado(true);
     fuente.onerror = () => setConectado(false);
     return () => fuente.close();
-  }, [repo]);
+  }, [repo, version]);
 
-  const eventos = estado.repo === repo ? estado.eventos : [];
+  const eventos = estado.repo === repo && estado.version === version ? estado.eventos : [];
   return { eventos, conectado: conectado && repo !== null };
 }

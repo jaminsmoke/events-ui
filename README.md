@@ -146,7 +146,19 @@ corepack pnpm core:dev           # Swagger en http://127.0.0.1:18765/docs
 | GET | `/proyecciones/repo?repo=<ruta>` — identidad (ruta, rama/commit git) y conteos del repo |
 | GET | `/log` — registro operativo de la app (filtros `nivel`, `origen`) |
 | POST | `/log/purgar` — purga del registro forzada (también pasa sola al escribir) |
-| POST | `/reiniciar?repo=<ruta>` — vacía el almacén entero (LAB, solo el lanzador de Pruebas) |
+| POST | `/reiniciar?repo=<ruta>` — vacía ideas, fichas, conexiones y eventos del laboratorio |
+
+### Prueba 1 en el laboratorio
+
+En escritorio, abre un repo de `repoprobe/repos` (o de la raíz configurada en
+`EVENTSUI_REPOS_ROOT`) y pulsa **Pruebas → Lanzar**. Puedes cerrar el diálogo
+para ver el movimiento y volver a abrirlo para consultar los pasos.
+
+La prueba crea diez ideas y deja seis segundos para ver siete en cola y tres
+descartadas. Después **vacía todos los datos operativos del lab**, incluidos
+los anteriores a la prueba. Detenerla o fallar un paso también activa la limpieza.
+Se conservan las reglas del repo, el esquema y el registro operativo de la app.
+Si el core falla durante el vaciado, el diálogo ofrece **Reintentar limpieza**.
 
 ### Flujo de carriles
 

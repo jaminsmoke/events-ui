@@ -52,6 +52,7 @@ export default function App({
   const [cerrados, setCerrados] = useState<ReadonlySet<string>>(() => new Set());
   const [ajustes, setAjustes] = useState<Ajustes>(cargarAjustes);
   const [ajustesAbiertos, setAjustesAbiertos] = useState(false);
+  const [pruebaEnCurso, setPruebaEnCurso] = useState(false);
   const [pruebasAbiertas, setPruebasAbiertas] = useState(false);
   // El editor de la fila vive aquí, no dentro de la fila: la fila le monta
   // un `createPortal` a body y con el ratón sus clics no llegaban (Guardar/
@@ -94,7 +95,8 @@ export default function App({
     [ideas, links],
   );
   // F1: el log del repo en vivo (cada `EUI_DATABASE` lleva el suyo).
-  const { eventos, conectado } = useEventos(repo);
+  const [versionLog, setVersionLog] = useState(0);
+  const { eventos, conectado } = useEventos(repo, versionLog);
   // Los protocolos de flujo: las uniones permitidas entre carriles. La fila
   // no ofrece traslados prohibidos; el core los rechaza si llegan igual.
   const puedeIr = useProtocolos(repo);
@@ -104,7 +106,11 @@ export default function App({
   // historial y nunca avisa. Con `soloFondo`, mirar la ventana silencia todo.
   const ultimoEvento = useRef<number | null>(null);
   useEffect(() => {
-    if (!avisar || eventos.length === 0) return;
+    if (eventos.length === 0) {
+      ultimoEvento.current = null;
+      return;
+    }
+    if (!avisar) return;
     const ultimo = eventos[eventos.length - 1];
     if (!ultimo) return;
     const previo = ultimoEvento.current;
@@ -221,7 +227,7 @@ export default function App({
           <BarraRepo
             repo={repo}
             ruta={proyeccion?.repo}
-            ocupado={busy}
+            ocupado={busy || pruebaEnCurso}
             onCambiar={() => setSelectorAbierto(true)}
           />
         )}
@@ -235,8 +241,8 @@ export default function App({
             Ajustes
           </button>
         )}
-        {repo && puedeProbar && (
-          <button className="btn ghost" onClick={() => setPruebasAbiertas(true)}>
+        {repo && puedeProbar && proyeccion?.laboratorio && (
+          <button className="btn ghost" onClick={() => { setSelectorAbierto(false); setPruebasAbiertas(true); }}>
             Pruebas
           </button>
         )}
@@ -283,14 +289,19 @@ export default function App({
         />
       )}
 
-      {repo && pruebasAbiertas && puedeProbar && (
+      {repo && puedeProbar && proyeccion?.laboratorio && (
         <Pruebas
+          key={repo}
+          abierta={pruebasAbiertas}
+          onActividad={setPruebaEnCurso}
           repo={repo}
           crear={crear}
           mover={mover}
           editar={editar}
-          borrar={borrar}
-          reiniciar={reiniciar}
+          reiniciar={async () => {
+            await reiniciar();
+            setVersionLog((v) => v + 1);
+          }}
           onCerrar={() => setPruebasAbiertas(false)}
         />
       )}
@@ -374,60 +385,27 @@ export default function App({
                     enlacesNuevos={enlacesNuevos}
                     puedeIr={puedeIr}
                   />
-                  {tree.carriles
-                    .filter((lane) => lane.tone !== "descartadas")
-                    .map((lane) => {
-                      const i = tree.carriles.indexOf(lane);
-                      return (
-                        <NodeBox
-                          key={lane.key}
-                          node={lane}
-                          cerrados={cerrados}
-                          onToggle={toggle}
-                          boxRef={(el) => {
-                            carrilRefs.current[i] = el;
-                          }}
-                          volando={volando}
-                          pulso={pulsos.find((p) => p.lane === lane.tone)?.tono}
-                          onMover={alMover}
-                          onPideEditar={(uid, titulo, descripcion) =>
-                            setEditando({ uid, titulo, descripcion })
-                          }
-                          onEditar={editar}
-                          onBorrar={borrar}
-                          enlacesNuevos={enlacesNuevos}
-                          puedeIr={puedeIr}
-                        />
-                      );
-                    })}
-                </div>
-                <div className="salida">
-                  {tree.carriles
-                    .filter((lane) => lane.tone === "descartadas")
-                    .map((lane) => {
-                      const i = tree.carriles.indexOf(lane);
-                      return (
-                        <NodeBox
-                          key={lane.key}
-                          node={lane}
-                          cerrados={cerrados}
-                          onToggle={toggle}
-                          boxRef={(el) => {
-                            carrilRefs.current[i] = el;
-                          }}
-                          volando={volando}
-                          pulso={pulsos.find((p) => p.lane === lane.tone)?.tono}
-                          onMover={alMover}
-                          onPideEditar={(uid, titulo, descripcion) =>
-                            setEditando({ uid, titulo, descripcion })
-                          }
-                          onEditar={editar}
-                          onBorrar={borrar}
-                          enlacesNuevos={enlacesNuevos}
-                          puedeIr={puedeIr}
-                        />
-                      );
-                    })}
+                  {tree.carriles.map((lane, i) => (
+                    <NodeBox
+                      key={lane.key}
+                      node={lane}
+                      cerrados={cerrados}
+                      onToggle={toggle}
+                      boxRef={(el) => {
+                        carrilRefs.current[i] = el;
+                      }}
+                      volando={volando}
+                      pulso={pulsos.find((p) => p.lane === lane.tone)?.tono}
+                      onMover={alMover}
+                      onPideEditar={(uid, titulo, descripcion) =>
+                        setEditando({ uid, titulo, descripcion })
+                      }
+                      onEditar={editar}
+                      onBorrar={borrar}
+                      enlacesNuevos={enlacesNuevos}
+                      puedeIr={puedeIr}
+                    />
+                  ))}
                 </div>
               </div>
             )}

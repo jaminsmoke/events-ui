@@ -71,7 +71,7 @@ export function useVuelos({
 
     /* Con el carril plegado no hay fila que medir: el vuelo arranca o aterriza
      * en la cabecera del nodo, que es lo único que se ve de él. */
-    for (const nodo of map.querySelectorAll<HTMLElement>(".linea > .node, .salida > .node")) {
+    for (const nodo of map.querySelectorAll<HTMLElement>(".linea > .node")) {
       const lane = LANES.find((carril) =>
         nodo.classList.contains(`lane-${carril.id}`),
       )?.id;

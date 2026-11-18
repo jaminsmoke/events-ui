@@ -63,10 +63,11 @@ export function useCables({
     };
     const medir = () => {
       const cajas = new Map<LaneId | "root", ReturnType<typeof rectLocal>>();
-      cajas.set("root", rectLocal(cajon));
+      const cabecera = (nodo: HTMLElement) => rectLocal(nodo.querySelector<HTMLElement>(".node-head")!);
+      cajas.set("root", cabecera(cajon));
       carrilRefs.current.forEach((el, i) => {
         const lane = LANES[i];
-        if (el && lane) cajas.set(lane.id, rectLocal(el));
+        if (el && lane) cajas.set(lane.id, cabecera(el));
       });
 
       const trazar = (
@@ -75,30 +76,15 @@ export function useCables({
         hasta: ReturnType<typeof rectLocal>,
         vertical = false,
       ): Cable => {
+        const y1 = desde.y + desde.h / 2;
+        const y2 = hasta.y + hasta.h / 2;
         if (vertical) {
-          const x1 = desde.x + desde.w / 2;
-          const y1 = desde.y + desde.h;
-          const x2 = hasta.x + hasta.w / 2;
-          const y2 = hasta.y;
-          const medio = (y1 + y2) / 2;
-          return {
-            lane,
-            x1,
-            y1,
-            d: `M ${x1} ${y1} C ${x1} ${medio}, ${x2} ${medio}, ${x2} ${y2}`,
-          };
+          // El canto izquierdo de las dos cabeceras deja libre el cuerpo de la cola.
+          const x1 = desde.x - 1;
+          return { lane, x1, y1, d: `M ${x1} ${y1} V ${y2}` };
         }
         const x1 = desde.x + desde.w;
-        const y1 = desde.y + desde.h / 2;
-        const x2 = hasta.x;
-        const y2 = hasta.y + hasta.h / 2;
-        const medio = (x1 + x2) / 2;
-        return {
-          lane,
-          x1,
-          y1,
-          d: `M ${x1} ${y1} C ${medio} ${y1}, ${medio} ${y2}, ${x2} ${y2}`,
-        };
+        return { lane, x1, y1, d: `M ${x1} ${y1} L ${hasta.x} ${y2}` };
       };
 
       // La línea de producción, etapa a etapa. Descartadas es la salida
@@ -128,7 +114,14 @@ export function useCables({
         const uid = fila.dataset.uid;
         const cabecera = fila.firstElementChild as HTMLElement | null;
         if (!uid || !cabecera) continue;
-        filasRect.set(uid, rectLocal(cabecera));
+        const lista = fila.closest<HTMLElement>(".lane-cola > .node-body");
+        const rect = rectLocal(cabecera);
+        if (lista) {
+          const visible = rectLocal(lista);
+          const centro = rect.y + rect.h / 2;
+          if (centro < visible.y || centro > visible.y + visible.h) continue;
+        }
+        filasRect.set(uid, rect);
       }
       const trazosEnlace: Enlace[] = [];
       for (const enlace of enlaces ?? []) {
@@ -172,7 +165,11 @@ export function useCables({
     for (const fila of map.querySelectorAll<HTMLElement>(".row[data-uid]")) {
       ro.observe(fila);
     }
-    return () => ro.disconnect();
+    map.addEventListener("scroll", medir, true);
+    return () => {
+      ro.disconnect();
+      map.removeEventListener("scroll", medir, true);
+    };
   }, [tree, cerrados, vista, boardRef, mapRef, cajonRef, carrilRefs, enlaces]);
 
   return { cables, recortado, enlaces: trazosEnlace };

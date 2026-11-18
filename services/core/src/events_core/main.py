@@ -214,6 +214,7 @@ class ProyeccionRepo(BaseModel):
     """
 
     repo: str
+    laboratorio: bool
     branch: str | None = None
     commit: str | None = None
     ideas: int

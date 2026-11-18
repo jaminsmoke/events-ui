@@ -82,7 +82,7 @@ export function useCamara({
     );
     setVista({
       x: (board.clientWidth - ancho * k) / 2 - map.offsetLeft,
-      y: (board.clientHeight - alto * k) / 2 - map.offsetTop,
+      y: 0,
       k,
     });
   }, [boardRef, mapRef]);
@@ -111,6 +111,8 @@ export function useCamara({
 
     const rueda = (e: WheelEvent) => {
       const caja = mapRef.current?.getBoundingClientRect();
+      const lista = e.target instanceof Element ? e.target.closest(".lane-cola > .node-body") : null;
+      if (lista && lista.scrollHeight > lista.clientHeight && !e.ctrlKey) return;
       if (!caja || !e.deltaY) return;
       e.preventDefault();
 

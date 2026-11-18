@@ -659,6 +659,8 @@ export interface components {
         ProyeccionRepo: {
             /** Repo */
             repo: string;
+            /** Laboratorio */
+            laboratorio: boolean;
             /** Branch */
             branch?: string | null;
             /** Commit */

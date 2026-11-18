@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from .db import open_read_only
-from .ideas import _existe, ensure_repo, resolve_repo
+from .ideas import _existe, ensure_repo, repos_root, resolve_repo
 
 
 def _git(carpeta: Path, *args: str) -> str | None:
@@ -88,6 +88,7 @@ def repo_estado_actual(repo: str) -> dict[str, Any]:
 
     return {
         "repo": str(carpeta),
+        "laboratorio": carpeta.parent == repos_root(),
         "branch": _git(carpeta, "rev-parse", "--abbrev-ref", "HEAD"),
         "commit": _git(carpeta, "rev-parse", "--short", "HEAD"),
         "ideas": ideas,

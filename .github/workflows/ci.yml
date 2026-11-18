@@ -58,5 +58,13 @@ jobs:
       - name: pnpm install
         run: corepack pnpm install --frozen-lockfile
 
+      # `cargo check` no ejecuta el sidecar, pero el build script de Tauri
+      # exige que exista `binaries/events-core-<triple>` (declarado en
+      # tauri.conf.json). Se crea el placeholder y listo.
+      - name: Placeholder del sidecar para Tauri
+        run: |
+          mkdir -p apps/desktop/src-tauri/binaries
+          touch apps/desktop/src-tauri/binaries/events-core-x86_64-unknown-linux-gnu
+
       - name: check completo
         run: corepack pnpm check

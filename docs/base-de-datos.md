@@ -34,6 +34,24 @@ idea conserva su historial cuando existe la tabla. El reinicio del laboratorio
 vacía expresamente el log. La retención del historial por defecto es de 90 días
 o 5.000 eventos y la del registro operativo de 90 días o 2.000 entradas.
 
+## Versionar el almacén
+
+El fichero principal se versiona con el repo, pero `-wal` y `-shm` quedan
+fuera por el `.gitignore` del almacén. Copiar `EUI_DATABASE.sqlite` a mano
+mientras la app lo tiene abierto deja fuera lo confirmado que aún vive en el
+WAL. La instantánea se saca con el API de backup de SQLite, que lee una
+transacción y escribe una copia completa:
+
+```sh
+uv run --directory services/core python -m events_core.instantanea \
+  repoprobe/repos/<repo>/.EUI/EUI_DATABASE.sqlite /tmp/EUI_DATABASE.sqlite
+```
+
+El comando deja la copia sin auxiliares, en modo rollback, y comprueba
+`PRAGMA integrity_check` antes de darla por buena. Se sustituye el fichero
+versionado por la copia y se comprueba desde un directorio limpio abriéndola:
+debe ver las mismas ideas que la app, sin `-wal` al lado.
+
 Fuentes del modelo: [ideas y protocolos](../services/core/src/events_core/schema/ideas.sql),
 [conexiones](../services/core/src/events_core/schema/connections.sql),
 [eventos](../services/core/src/events_core/schema/eventos.sql),

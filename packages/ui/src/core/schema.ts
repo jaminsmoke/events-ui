@@ -373,6 +373,51 @@ export interface components {
             /** Vacuum */
             vacuum: boolean;
         };
+        /**
+         * Fase
+         * @description Una fase de la idea (0021), con su propio estado y fecha de entrada.
+         */
+        Fase: {
+            /** Orden */
+            orden: number;
+            /** Titulo */
+            titulo: string;
+            /**
+             * Estado
+             * @default pendiente
+             * @enum {string}
+             */
+            estado: "pendiente" | "completada" | "fallida" | "rechazada";
+            /**
+             * Nota
+             * @default
+             */
+            nota: string;
+            /** Entered At */
+            entered_at: string;
+        };
+        /**
+         * FaseEntrada
+         * @description Una fase en el PATCH: `entered_at` lo pone el core (y se conserva si el
+         *     estado no cambia). Sin `orden`, se añade al final.
+         */
+        FaseEntrada: {
+            /** Orden */
+            orden?: number | null;
+            /** Titulo */
+            titulo: string;
+            /**
+             * Estado
+             * @default pendiente
+             * @enum {string}
+             */
+            estado: "pendiente" | "completada" | "fallida" | "rechazada";
+            /**
+             * Nota
+             * @default
+             */
+            nota: string;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -492,6 +537,8 @@ export interface components {
             rejected_by: "usuario" | "agente" | "sistema";
             /** Superseded By Uid */
             superseded_by_uid?: string | null;
+            /** Fases */
+            fases?: components["schemas"]["Fase"][];
         };
         /** IdeaCreate */
         IdeaCreate: {
@@ -566,6 +613,8 @@ export interface components {
             approved_by?: ("usuario" | "agente" | "sistema") | null;
             /** Revision Nota */
             revision_nota?: string | null;
+            /** Fases */
+            fases?: components["schemas"]["FaseEntrada"][] | null;
         };
         /** MapIdea */
         MapIdea: {
@@ -589,6 +638,8 @@ export interface components {
              * @default
              */
             rejected_description: string;
+            /** Fases */
+            fases?: components["schemas"]["Fase"][];
         };
         /** MapSnapshot */
         MapSnapshot: {
@@ -614,6 +665,11 @@ export interface components {
              * @enum {string}
              */
             destino: "draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "rejected";
+            /**
+             * Exige Fases
+             * @default false
+             */
+            exige_fases: boolean;
         };
         /**
          * ProyeccionRepo

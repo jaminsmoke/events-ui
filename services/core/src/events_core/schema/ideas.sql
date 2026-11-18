@@ -129,6 +129,21 @@ CREATE TABLE IF NOT EXISTS rejected_node (
     CHECK (superseded_by_uid IS NULL OR superseded_by_uid <> uid)
 );
 
+-- Las fases de una idea (0021): su descomposición en trabajo. No son una
+-- estancia (no cambian con el carril), así que cuelgan de `idea_data` y
+-- sobreviven al paso por verificación y a la vuelta a la cola. Cada fase lleva
+-- su propio estado y `entered_at` es cuándo entró en él, igual que el nodo.
+CREATE TABLE IF NOT EXISTS idea_fase (
+    idea_uid   TEXT    NOT NULL REFERENCES idea_data (uid) ON DELETE CASCADE,
+    orden      INTEGER NOT NULL CHECK (orden > 0),
+    titulo     TEXT    NOT NULL CHECK (length(trim(titulo)) > 0),
+    estado     TEXT    NOT NULL DEFAULT 'pendiente'
+               CHECK (estado IN ('pendiente', 'completada', 'fallida', 'rechazada')),
+    nota       TEXT    NOT NULL DEFAULT '',
+    entered_at TEXT    NOT NULL,
+    PRIMARY KEY (idea_uid, orden)
+);
+
 -- Los protocolos de flujo: qué carriles pueden unirse a cuáles. Una allowlist:
 -- solo las parejas listadas están permitidas; el resto se prohíbe. Las
 -- descartadas y la revisión aprobada son terminales: no hay fila que salga
@@ -140,14 +155,17 @@ CREATE TABLE IF NOT EXISTS rejected_node (
 CREATE TABLE IF NOT EXISTS protocolo_flujo (
     origen  TEXT NOT NULL CHECK (origen IN ('draft', 'proposed', 'roadmap', 'verificacion', 'revision_aprobada', 'rejected')),
     destino TEXT NOT NULL CHECK (destino IN ('draft', 'proposed', 'roadmap', 'verificacion', 'revision_aprobada', 'rejected')),
+    -- ¿Exige al menos una fase al cruzar por esta unión? (0021). Es dato del
+    -- protocolo, no un `if` del core: la UI lo lee y el PATCH lo impone.
+    exige_fases INTEGER NOT NULL DEFAULT 0 CHECK (exige_fases IN (0, 1)),
     PRIMARY KEY (origen, destino)
 );
 
-INSERT OR IGNORE INTO protocolo_flujo (origen, destino) VALUES
-    ('draft', 'proposed'),
-    ('draft', 'rejected'),
-    ('proposed', 'roadmap'),
-    ('proposed', 'rejected'),
-    ('roadmap', 'verificacion'),
-    ('verificacion', 'proposed'),
-    ('verificacion', 'revision_aprobada');
+INSERT OR IGNORE INTO protocolo_flujo (origen, destino, exige_fases) VALUES
+    ('draft', 'proposed', 0),
+    ('draft', 'rejected', 0),
+    ('proposed', 'roadmap', 1),
+    ('proposed', 'rejected', 0),
+    ('roadmap', 'verificacion', 0),
+    ('verificacion', 'proposed', 0),
+    ('verificacion', 'revision_aprobada', 0);

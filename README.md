@@ -230,6 +230,11 @@ y el detalle por `ON DELETE CASCADE`. El paso `0004` es el ejemplo: reconstruye
   de cada carril vive en `roadmap_node`, `verificacion_node`, `revision_node` y
   `rejected_node`. La entrada (`draft`) es un nodo más y no hay triggers de
   exclusividad: no puede estar en dos carriles porque solo tiene una fila.
+- **Fases de la idea (0021)**: `idea_fase` la descompone con su propio estado
+  (`pendiente`, `completada`, `fallida`, `rechazada`); el protocolo puede exigir
+  al menos una para cruzar una unión (`protocolo_flujo.exige_fases`, hoy al
+  entrar en roadmap). La lista viaja en el `PATCH` y se reemplaza en la misma
+  transacción que el traslado.
 - **Flujo de ideas (0013)**. La migración incorpora roadmap, verificación y
   revisión aprobada, y traslada las fichas históricas de completadas a `revision_node`.
 - **Log con pestañas:** un solo flyout con `Eventos` (timeline del repo, por

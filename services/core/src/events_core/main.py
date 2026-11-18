@@ -41,6 +41,9 @@ Status = Literal[
     "superseded",
 ]
 
+# El estado de una fase (0021): su vida no es la del carril, pero se lee igual.
+FaseEstado = Literal["pendiente", "completada", "fallida", "rechazada"]
+
 app = FastAPI(title="Events UI Core", version="0.2.0")
 
 # En dev la UI llega por el proxy de Vite. En producción Tauri sirve la UI desde
@@ -57,6 +60,26 @@ app.add_middleware(
     expose_headers=["Last-Event-ID"],
     allow_headers=["content-type"],
 )
+
+
+class Fase(BaseModel):
+    """Una fase de la idea (0021), con su propio estado y fecha de entrada."""
+
+    orden: int = Field(ge=1)
+    titulo: str = Field(min_length=1)
+    estado: FaseEstado = "pendiente"
+    nota: str = ""
+    entered_at: str
+
+
+class FaseEntrada(BaseModel):
+    """Una fase en el PATCH: `entered_at` lo pone el core (y se conserva si el
+    estado no cambia). Sin `orden`, se añade al final."""
+
+    orden: int | None = Field(default=None, ge=1)
+    titulo: str = Field(min_length=1)
+    estado: FaseEstado = "pendiente"
+    nota: str = ""
 
 
 class IdeaCreate(BaseModel):
@@ -95,6 +118,8 @@ class IdeaUpdate(BaseModel):
     verificacion_comentario: str | None = None
     approved_by: Literal["usuario", "agente", "sistema"] | None = None
     revision_nota: str | None = None
+    # Reemplazo atómico de las fases: la lista que llega es la que queda.
+    fases: list[FaseEntrada] | None = None
 
 
 class Idea(IdeaCreate):
@@ -121,6 +146,8 @@ class Idea(IdeaCreate):
     rejected_description: str = ""
     rejected_by: Literal["usuario", "agente", "sistema"] = "usuario"
     superseded_by_uid: str | None = None
+    # Las fases de la idea (0021), en orden y con su propio estado.
+    fases: list[Fase] = Field(default_factory=list)
 
 
 class MapIdea(BaseModel):
@@ -134,6 +161,8 @@ class MapIdea(BaseModel):
     # La ficha del descarte en el mapa, para que la fila la enseñe.
     rejected_at: str | None = None
     rejected_description: str = ""
+    # Las fases viajan al mapa para el contador de la fila (x/y).
+    fases: list[Fase] = Field(default_factory=list)
 
 
 class Protocolo(BaseModel):
@@ -160,6 +189,9 @@ class Protocolo(BaseModel):
         "revision_aprobada",
         "rejected",
     ]
+    # ¿Pide esta unión al menos una fase? (0021). La UI lo usa para no ofrecer
+    # un traslado que el core va a rechazar.
+    exige_fases: bool = False
 
 
 class MapSnapshot(BaseModel):

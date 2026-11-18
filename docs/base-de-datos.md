@@ -2,7 +2,7 @@
 
 Cada repositorio guarda sus ideas, relaciones y protocolos en
 `.EUI/EUI_DATABASE.sqlite`. El core activa WAL y las claves foráneas en sus
-conexiones de escritura. La versión del esquema de ideas es 20. El registro
+conexiones de escritura. La versión del esquema de ideas es 21. El registro
 operativo de la aplicación vive en otro fichero y abarca varios repositorios.
 
 ## Tablas y relaciones
@@ -10,12 +10,13 @@ operativo de la aplicación vive en otro fichero y abarca varios repositorios.
 | Tabla | Identidad y relación | Qué representa |
 | --- | --- | --- |
 | `idea_data` | `id` local y `uid` único | Qué es la idea: título, descripción, contenido, tipo, etiquetas, intentos acumulados de verificación, fechas y sus dependencias (`depende_de`, migración 0018). Las relaciones usan el UID. |
+| `idea_fase` | Una fila por fase y orden | Descomposición de la idea en trabajo: título, estado (`pendiente`, `completada`, `fallida`, `rechazada`), nota y cuándo entró en ese estado. Cuelga de `idea_data`, así que sobrevive a los cambios de carril. |
 | `idea_node` | Una fila por UID | Dónde está: `estado`, `posicion` (solo en cola) y `entered_at`, la fecha de entrada en el carril actual. La entrada (`draft`) es un estado más. |
 | `roadmap_node` | Una fila por UID mientras dura | Resultado y referencia del trabajo en curso. Un índice parcial impide dos ideas en roadmap. |
 | `verificacion_node` | Una fila por UID mientras dura | Intentos de la estancia, último resultado, comentario y fecha de finalización del roadmap previo. |
 | `revision_node` | Una fila por UID mientras dura | Autor y nota de la aprobación. La fecha es `entered_at` del nodo. La migración 0013 copia aquí las antiguas completadas. |
 | `rejected_node` | Una fila por UID mientras dura y una referencia opcional a otro UID | Motivo y autor del descarte. `superseded_by_uid` identifica la idea sustituta. |
-| `protocolo_flujo` | Clave compuesta `(origen, destino)` | Transiciones permitidas entre grupos. Es configuración del repo y se conserva al reiniciar el laboratorio. |
+| `protocolo_flujo` | Clave compuesta `(origen, destino)` | Transiciones permitidas entre grupos y, con `exige_fases` (0021), las que exigen al menos una fase. Es configuración del repo y se conserva al reiniciar el laboratorio. |
 | `event` | `id` entero para el cursor y `dedupe_key` opcional única | Historial por repo con fecha, tipo, origen y payload. Se siembra con el almacén y la migración 0015 lo añade a los que nacieron sin él. |
 | `registro` | `id` entero en un SQLite independiente | Fecha, nivel, origen y mensaje de operaciones del core. El destino por defecto es `data/registro.sqlite` en la raíz del repo y `EVENTSUI_REGISTRO_DB` permite elegir el fichero. |
 
@@ -33,6 +34,13 @@ rechaza ciclos y auto-dependencias, y retira el uid de las listas ajenas al
 borrar la idea. Un ítem no entra en roadmap, verificación ni revisión aprobada
 mientras alguna dependencia no esté en `revision_aprobada`; descartarse y
 editarse sí se permite, para que un ítem bloqueado tenga salida.
+
+Las fases viven en `idea_fase`, colgadas de `idea_data` y no de `idea_node`:
+no son una estancia, sobreviven al paso por verificación y a la vuelta a la
+cola. Cada una lleva su estado (`pendiente`, `completada`, `fallida`,
+`rechazada`) y `entered_at`. La lista se reemplaza desde el `PATCH` de la idea
+en la misma transacción que el traslado, y `protocolo_flujo.exige_fases` marca
+las uniones que no se cruzan sin al menos una (hoy, entrar en roadmap).
 
 La posición única indexa la cola y el log tiene índice por `(origen, id)`. Las
 migraciones 0019 y 0020 retiraron `connections` y `idea_cola` junto con sus
@@ -73,7 +81,7 @@ integridad y referencias. Las escrituras de prueba se hicieron en bases temporal
 
 | Ficheros observados | Resultado |
 | --- | --- |
-| Dos almacenes de ideas | Ambos en v13 y WAL, con siete protocolos. Uno tenía seis ideas repartidas entre los carriles, sin tabla `event`. El otro estaba vacío y sí tenía `event`. |
+| Dos almacenes de ideas | Ambos en v13 y WAL, con siete protocolos (la observación es anterior a la 0021). Uno tenía seis ideas repartidas entre los carriles, sin tabla `event`. El otro estaba vacío y sí tenía `event`. |
 | Dos registros operativos | Uno bajo `data/` y otro bajo `services/core/data/`, con una y 21 entradas respectivamente. La ruta predeterminada depende del directorio de arranque. |
 | Integridad | `PRAGMA integrity_check` devolvió `ok` en los cuatro ficheros y `PRAGMA foreign_key_check` devolvió cero filas. En ambos almacenes había cero conexiones y cero ideas en varias fichas a la vez. |
 

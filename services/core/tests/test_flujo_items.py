@@ -17,6 +17,10 @@ def _crear(client, repo, **kw):  # noqa: ANN001, ANN202
 
 
 def _paso(client, repo, uid, status, **detalle):  # noqa: ANN001, ANN202
+    # Entrar en roadmap exige al menos una fase (0021); estas pruebas son del
+    # flujo, no de las fases, así que se añade una salvo que digan otra cosa.
+    if status == "roadmap" and "fases" not in detalle:
+        detalle["fases"] = [{"titulo": "Fase única"}]
     r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": status, **detalle})
     assert r.status_code == 200, r.json()
     return r.json()
@@ -213,7 +217,11 @@ def test_roadmap_solo_un_activo(client, repo):  # noqa: ANN001, ANN202
     segunda = _crear(client, repo, status="proposed")
     _paso(client, repo, primera, "roadmap")
 
-    r = client.patch(f"/ideas/{segunda}", params={"repo": repo}, json={"status": "roadmap"})
+    r = client.patch(
+        f"/ideas/{segunda}",
+        params={"repo": repo},
+        json={"status": "roadmap", "fases": [{"titulo": "Fase única"}]},
+    )
     assert r.status_code == 400
     assert "solo admite un item activo" in r.json()["detail"]
     r = client.get("/ideas", params={"repo": repo, "status": "proposed"})

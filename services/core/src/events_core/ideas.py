@@ -53,8 +53,10 @@ MIGRATIONS_DIR = Path(__file__).with_name("migraciones")
 # `connections`: la dependencia vive en la entrada y la jerarquía del mapa es
 # el propio flujo. La 0020 separa la idea (`idea_data`) de su sitio
 # (`idea_node`, una fila por idea): el estado y la posición dejan de deducirse
-# de las fichas y las fichas pasan a ser detalle de la estancia.
-SCHEMA_VERSION = 20
+# de las fichas y las fichas pasan a ser detalle de la estancia. La 0021
+# descompone la idea en fases (`idea_fase`) y hace que el protocolo pueda
+# exigirlas para cruzar una unión (`exige_fases`).
+SCHEMA_VERSION = 21
 
 REPOS_ROOT_ENV_VAR = "EVENTSUI_REPOS_ROOT"
 BUSY_TIMEOUT_MS = 5_000
@@ -94,6 +96,10 @@ CAMPOS_FICHA = {
     "verificacion": {"verificacion_resultado", "verificacion_comentario"},
     "revision_aprobada": {"approved_by", "revision_nota"},
 }
+
+# Estados de una fase (0021). La fase pertenece a la idea, no a la estancia:
+# sobrevive al paso por verificación y a la vuelta a la cola.
+FASE_ESTADOS = ("pendiente", "completada", "fallida", "rechazada")
 
 
 class InvalidInput(ValueError):
@@ -598,6 +604,39 @@ def _rechazo(conn: sqlite3.Connection, uid: str) -> sqlite3.Row | None:
     ).fetchone()
 
 
+def _fases(conn: sqlite3.Connection, uid: str) -> list[dict[str, Any]]:
+    """Las fases de una idea, en orden (`idea_fase`, 0021)."""
+    filas = conn.execute(
+        "SELECT orden, titulo, estado, nota, entered_at"
+        " FROM idea_fase WHERE idea_uid = ? ORDER BY orden",
+        (uid,),
+    ).fetchall()
+    return [dict(fila) for fila in filas]
+
+
+def _fases_en_lote(conn: sqlite3.Connection, uids: list[str]) -> dict[str, list[dict[str, Any]]]:
+    """Las fases de muchas ideas, en una consulta (listado y mapa)."""
+    por_uid: dict[str, list[dict[str, Any]]] = {uid: [] for uid in uids}
+    if not uids:
+        return por_uid
+    marcas = ",".join("?" for _ in uids)
+    for fila in conn.execute(
+        "SELECT idea_uid, orden, titulo, estado, nota, entered_at"
+        f" FROM idea_fase WHERE idea_uid IN ({marcas}) ORDER BY idea_uid, orden",
+        uids,
+    ):
+        por_uid[str(fila["idea_uid"])].append(
+            {
+                "orden": fila["orden"],
+                "titulo": fila["titulo"],
+                "estado": fila["estado"],
+                "nota": fila["nota"],
+                "entered_at": fila["entered_at"],
+            }
+        )
+    return por_uid
+
+
 def _estado(conn: sqlite3.Connection, uid: str) -> str:
     """El estado que manda: el de la fila de nodo de la idea."""
     fila = conn.execute("SELECT estado FROM idea_node WHERE uid = ?", (uid,)).fetchone()
@@ -705,6 +744,7 @@ def _fila(
     verificacion: sqlite3.Row | None,
     revision: sqlite3.Row | None,
     rechazo: sqlite3.Row | None,
+    fases: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Arma el dict de una idea con su nodo y el detalle ya resueltos.
 
@@ -738,6 +778,7 @@ def _fila(
     idea["rejected_description"] = rechazo["rejected_description"] if rechazo else ""
     idea["rejected_by"] = rechazo["rejected_by"] if rechazo else "usuario"
     idea["superseded_by_uid"] = rechazo["superseded_by_uid"] if rechazo else None
+    idea["fases"] = list(fases or [])
     return idea
 
 
@@ -750,6 +791,7 @@ def _row(conn: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
         _verificacion(conn, uid),
         _revision(conn, uid),
         _rechazo(conn, uid),
+        _fases(conn, uid),
     )
 
 
@@ -760,6 +802,7 @@ def _en_lote(
     dict[str, sqlite3.Row],
     dict[str, sqlite3.Row],
     dict[str, sqlite3.Row],
+    dict[str, list[dict[str, Any]]],
 ]:
     """Detalle de roadmap, verificación, revisión y descarte, en lote."""
     if not uids:
@@ -795,7 +838,7 @@ def _en_lote(
             uids,
         )
     }
-    return roadmaps, verificaciones, revisiones, rechazos
+    return roadmaps, verificaciones, revisiones, rechazos, _fases_en_lote(conn, uids)
 
 
 def _grupo(estado: str) -> str:
@@ -938,7 +981,7 @@ def list_ideas(
             " LIMIT :limit OFFSET :offset",
             {"kind": kind, "estado": filtro, "limit": limit, "offset": offset},
         ).fetchall()
-        roadmaps, verificaciones, revisiones, rechazos = _en_lote(
+        roadmaps, verificaciones, revisiones, rechazos, fases = _en_lote(
             conn, [str(r["uid"]) for r in rows]
         )
         return [
@@ -948,6 +991,7 @@ def list_ideas(
                 verificaciones.get(str(r["uid"])),
                 revisiones.get(str(r["uid"])),
                 rechazos.get(str(r["uid"])),
+                fases.get(str(r["uid"])),
             )
             for r in rows
         ]
@@ -1115,12 +1159,84 @@ def _actualizar_ficha_activa(
             )
 
 
+def _normalizar_fases(fases: Any, existentes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Valida la lista de fases y decide la fecha de entrada de cada una.
+
+    El PATCH reemplaza la lista entera: lo que llega es lo que queda. Una fase
+    que conserva su `orden` y su estado conserva `entered_at`; si cambia de
+    estado o es nueva, entra ahora. Sin `orden`, se añade al final.
+    """
+    if not isinstance(fases, list):
+        raise InvalidInput("fases tiene que ser una lista")
+    previas = {int(fase["orden"]): fase for fase in existentes}
+    siguiente = max(previas, default=0)
+    normalizadas: list[dict[str, Any]] = []
+    vistas: set[int] = set()
+    for item in fases:
+        if not isinstance(item, dict):
+            raise InvalidInput("cada fase tiene que ser un objeto")
+        titulo = str(item.get("titulo") or "").strip()
+        if not titulo:
+            raise InvalidInput("una fase sin título no vale")
+        estado = str(item.get("estado") or "pendiente")
+        if estado not in FASE_ESTADOS:
+            raise InvalidInput(f"estado de fase desconocido: {estado}")
+        orden = item.get("orden")
+        if orden is None:
+            siguiente += 1
+            orden = siguiente
+        try:
+            orden = int(orden)
+        except (TypeError, ValueError) as exc:
+            raise InvalidInput("el orden de una fase tiene que ser un entero") from exc
+        if orden < 1:
+            raise InvalidInput("el orden de una fase empieza en 1")
+        if orden in vistas:
+            raise InvalidInput(f"el orden de fase {orden} está repetido")
+        vistas.add(orden)
+        previa = previas.get(orden)
+        normalizadas.append(
+            {
+                "orden": orden,
+                "titulo": titulo,
+                "estado": estado,
+                "nota": str(item.get("nota") or ""),
+                "entered_at": (
+                    previa["entered_at"]
+                    if previa is not None and previa["estado"] == estado
+                    else now_iso()
+                ),
+            }
+        )
+    return sorted(normalizadas, key=lambda fase: fase["orden"])
+
+
+def _escribir_fases(conn: sqlite3.Connection, uid: str, fases: list[dict[str, Any]]) -> None:
+    """Reemplaza las fases de la idea (borra e inserta, en su transacción)."""
+    conn.execute("DELETE FROM idea_fase WHERE idea_uid = ?", (uid,))
+    conn.executemany(
+        "INSERT INTO idea_fase (idea_uid, orden, titulo, estado, nota, entered_at)"
+        " VALUES (?, ?, ?, ?, ?, ?)",
+        [
+            (uid, fase["orden"], fase["titulo"], fase["estado"], fase["nota"], fase["entered_at"])
+            for fase in fases
+        ],
+    )
+
+
 def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
     """Actualiza solo los campos presentes. Los `None` no se escriben."""
     clean = {k: v for k, v in changes.items() if v is not None and k in UPDATABLE}
     rechazo = {k: v for k, v in changes.items() if v is not None and k in REJECT_FIELDS}
     estado_detalle = {k: v for k, v in changes.items() if v is not None and k in STATE_FIELDS}
-    if not clean and not rechazo and not estado_detalle and "status" not in changes:
+    fases_pedidas = changes.get("fases")
+    if (
+        not clean
+        and not rechazo
+        and not estado_detalle
+        and "status" not in changes
+        and fases_pedidas is None
+    ):
         raise InvalidInput("nada que actualizar")
 
     if "tags" in clean:
@@ -1159,6 +1275,21 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
                 )
             if cambiado_estado:
                 _comprobar_dependencias(conn, uid, nuevo_estado, deps_nuevas)
+            # Las fases se reemplazan enteras y se validan antes de escribir
+            # nada: el gate mira lo que quedará, no lo que había.
+            fases_finales = (
+                _normalizar_fases(fases_pedidas, _fases(conn, uid))
+                if fases_pedidas is not None
+                else None
+            )
+            if (
+                cambiado_estado
+                and _exige_fases(conn, actual, nuevo_estado)
+                and not (fases_finales if fases_finales is not None else _fases(conn, uid))
+            ):
+                raise InvalidInput(
+                    f"el protocolo exige al menos una fase para pasar a {nuevo_estado}"
+                )
             cursor = conn.execute(
                 f"UPDATE idea_data SET {assignments} WHERE uid = :uid",
                 {**clean, "uid": uid},
@@ -1169,6 +1300,8 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
                 _escribir_estado(conn, uid, nuevo_estado, detalle_ficha)
             else:
                 _actualizar_ficha_activa(conn, uid, actual, detalle_ficha)
+            if fases_finales is not None:
+                _escribir_fases(conn, uid, fases_finales)
             idea = _row(
                 conn,
                 conn.execute(
@@ -1237,6 +1370,17 @@ def delete_idea(repo: str, uid: str) -> bool:
     return cursor.rowcount > 0
 
 
+def _exige_fases(conn: sqlite3.Connection, actual: str, nuevo: str) -> bool:
+    """¿Pide el protocolo al menos una fase para cruzar esta unión? (0021)."""
+    if _grupo(actual) == _grupo(nuevo):
+        return False
+    fila = conn.execute(
+        "SELECT exige_fases FROM protocolo_flujo WHERE origen = ? AND destino = ?",
+        (_grupo(actual), _grupo(nuevo)),
+    ).fetchone()
+    return bool(fila and fila[0])
+
+
 def _protocolo_ok(conn: sqlite3.Connection, actual: str, nuevo: str) -> bool:
     """¿Permite el protocolo ir de `actual` a `nuevo`?
 
@@ -1262,9 +1406,9 @@ def listar_protocolos(repo: str) -> list[dict[str, Any]]:
     """
     with closing(connect(ensure_repo(repo))) as conn:
         filas = conn.execute(
-            "SELECT origen, destino FROM protocolo_flujo ORDER BY origen, destino"
+            "SELECT origen, destino, exige_fases FROM protocolo_flujo ORDER BY origen, destino"
         ).fetchall()
-    return [{"origen": fila[0], "destino": fila[1]} for fila in filas]
+    return [{"origen": fila[0], "destino": fila[1], "exige_fases": bool(fila[2])} for fila in filas]
 
 
 def map_snapshot(repo: str) -> dict[str, Any]:
@@ -1295,6 +1439,7 @@ def map_snapshot(repo: str) -> dict[str, Any]:
             " idea_node.entered_at ASC,"
             " idea_data.created_at DESC, idea_data.id DESC"
         ).fetchall()
+        fases = _fases_en_lote(conn, [str(row[0]) for row in rows])
         ideas = [
             {
                 **dict(row),
@@ -1303,6 +1448,7 @@ def map_snapshot(repo: str) -> dict[str, Any]:
                 "depende_de": _tags_json(row["depende_de"]),
                 # El JOIN da `NULL` sin descarte; el contrato dice texto.
                 "rejected_description": row["rejected_description"] or "",
+                "fases": fases.get(str(row["uid"]), []),
             }
             for row in rows
         ]

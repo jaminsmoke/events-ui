@@ -21,7 +21,9 @@ const Grupo = z.enum([
   "revision_aprobada",
   "rejected",
 ]);
-const Union = z.object({ origen: Grupo, destino: Grupo });
+// `exige_fases` (0021): la unión no se cruza sin al menos una fase. Es dato
+// del protocolo, así que la fila puede avisar antes de que el core la pare.
+const Union = z.object({ origen: Grupo, destino: Grupo, exige_fases: z.boolean() });
 const Protocolos = z.array(Union);
 
 type Grupo = z.infer<typeof Grupo>;
@@ -40,12 +42,20 @@ const A_GRUPO: Record<Status, Grupo> = {
 
 export type PuedeIr = (origen: Status, destino: Status) => boolean;
 
-export function useProtocolos(repo: string | null): PuedeIr {
+export type ProtocolosFlujo = {
+  /** ¿Está la unión en la allowlist? */
+  puedeIr: PuedeIr;
+  /** ¿Exige el protocolo una fase para cruzar esa unión? */
+  exigeFases: PuedeIr;
+};
+
+export function useProtocolos(repo: string | null): ProtocolosFlujo {
   // Lo cargado pertenece a *un* repo: al cambiar de carpeta, lo viejo deja de
   // valer al instante en vez de aplicarse un frame (patrón de `useRepo`).
   const [estado, setEstado] = useState<{
     repo: string | null;
     pares: ReadonlySet<string>;
+    exigen: ReadonlySet<string>;
   } | null>(null);
 
   useEffect(() => {
@@ -59,7 +69,13 @@ export function useProtocolos(repo: string | null): PuedeIr {
         );
         const filas = Protocolos.parse(datos);
         if (!controller.signal.aborted) {
-          setEstado({ repo, pares: new Set(filas.map((f) => `${f.origen}→${f.destino}`)) });
+          setEstado({
+            repo,
+            pares: new Set(filas.map((f) => `${f.origen}→${f.destino}`)),
+            exigen: new Set(
+              filas.filter((f) => f.exige_fases).map((f) => `${f.origen}→${f.destino}`),
+            ),
+          });
         }
       } catch {
         // Sin protocolos se deja la puerta como estaba: el core manda.
@@ -74,11 +90,17 @@ export function useProtocolos(repo: string | null): PuedeIr {
     };
   }, [repo]);
 
-  const pares = estado?.repo === repo ? estado.pares : null;
-  return (origen: Status, destino: Status) => {
-    if (pares === null) return true;
-    const a = A_GRUPO[origen];
-    const d = A_GRUPO[destino];
-    return a === d || pares.has(`${a}→${d}`);
+  const cargado = estado?.repo === repo ? estado : null;
+  return {
+    puedeIr: (origen, destino) => {
+      if (cargado === null) return true;
+      const a = A_GRUPO[origen];
+      const d = A_GRUPO[destino];
+      return a === d || cargado.pares.has(`${a}→${d}`);
+    },
+    exigeFases: (origen, destino) => {
+      if (cargado === null) return false;
+      return cargado.exigen.has(`${A_GRUPO[origen]}→${A_GRUPO[destino]}`);
+    },
   };
 }

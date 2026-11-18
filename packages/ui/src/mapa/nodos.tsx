@@ -61,6 +61,106 @@ function fechaCorta(iso: string): string {
     : f.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 
+/** Estados de una fase (`idea_fase`, 0021). */
+const ESTADOS_FASE = ["pendiente", "completada", "fallida", "rechazada"] as const;
+type Fase = NonNullable<Idea["fases"]>[number];
+
+/** Las fases de una idea: lista corta con su estado, sin salir de la fila.
+ *  Cada cambio reenvía la lista entera: el PATCH la reemplaza en una
+ *  transacción, así que marcar una casilla no pisa el carril. */
+function FasesIdea({
+  uid,
+  fases,
+  onEditar,
+}: {
+  uid: string;
+  fases: readonly Fase[];
+  onEditar: (uid: string, cambios: IdeaUpdate) => Promise<void>;
+}) {
+  const [nuevo, setNuevo] = useState("");
+  const [fallo, setFallo] = useState<string | null>(null);
+  const [guardando, setGuardando] = useState(false);
+
+  const guardar = (siguientes: readonly Fase[]) => {
+    setGuardando(true);
+    setFallo(null);
+    onEditar(uid, {
+      fases: siguientes.map(({ orden, titulo, estado, nota }) => ({
+        orden,
+        titulo,
+        estado,
+        nota,
+      })),
+    })
+      .catch((err: unknown) => setFallo(err instanceof Error ? err.message : String(err)))
+      .finally(() => setGuardando(false));
+  };
+
+  const anadir = (e: React.FormEvent) => {
+    e.preventDefault();
+    const titulo = nuevo.trim();
+    if (!titulo) return;
+    const orden = Math.max(0, ...fases.map((fase) => fase.orden)) + 1;
+    guardar([...fases, { orden, titulo, estado: "pendiente", nota: "", entered_at: "" }]);
+    setNuevo("");
+  };
+
+  return (
+    <div className="fases">
+      <p className="fases-cabecera">
+        Fases {fases.filter((fase) => fase.estado === "completada").length}/{fases.length}
+      </p>
+      {fases.map((fase) => (
+        <div className="fase" key={fase.orden}>
+          <span className="fase-titulo">{fase.titulo}</span>
+          <select
+            className="fase-estado"
+            value={fase.estado}
+            disabled={guardando}
+            aria-label={`Estado de ${fase.titulo}`}
+            onChange={(e) =>
+              guardar(
+                fases.map((otra) =>
+                  otra.orden === fase.orden
+                    ? { ...otra, estado: e.target.value as Fase["estado"] }
+                    : otra,
+                ),
+              )
+            }
+          >
+            {ESTADOS_FASE.map((estado) => (
+              <option key={estado} value={estado}>
+                {estado}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="chip-quitar"
+            title="Quitar fase"
+            disabled={guardando}
+            onClick={() => guardar(fases.filter((otra) => otra.orden !== fase.orden))}
+          >
+            ×
+          </button>
+        </div>
+      ))}
+      <form className="fase-nueva" onSubmit={anadir}>
+        <input
+          value={nuevo}
+          onChange={(e) => setNuevo(e.target.value)}
+          placeholder="Nueva fase…"
+          aria-label="Nueva fase"
+        />
+        <button className="btn ghost" type="submit" disabled={guardando}>
+          Añadir
+        </button>
+      </form>
+      {fallo && <span className="hint error">{fallo}</span>}
+    </div>
+  );
+}
+
 /** Una fila del nodo: solo título, contador y su botón de expandir.
  *  Al expandirla aparece un panel con los detalles (descripción, estado) y
  *  los botones de la idea —mover, completar, editar, borrar—, más sus hijos,
@@ -76,6 +176,7 @@ function NodeRow({
   onEditar,
   onBorrar,
   puedeIr,
+  exigeFases,
   catalogo = [],
 }: {
   node: TreeNode;
@@ -91,6 +192,9 @@ function NodeRow({
    *  un traslado que el core rechazaría (las descartadas no vuelven a cola,
    *  p. ej.). Sin él se ofrece todo y el core manda. */
   puedeIr?: PuedeIr;
+  /** ¿Pide el protocolo fases para esa unión? (0021). Sin él no se apaga
+   *  ningún botón: el core manda. */
+  exigeFases?: PuedeIr;
   /** Todas las ideas del repo: resuelve títulos de las dependencias y
    *  ofrece las que aún no lo son. */
   catalogo?: readonly Idea[];
@@ -103,6 +207,8 @@ function NodeRow({
   const estado = node.idea?.status;
   const descripcion = node.idea?.description ?? "";
   const deps = node.idea?.depende_de ?? [];
+  const fases = node.idea?.fases ?? [];
+  const hechas = fases.filter((fase) => fase.estado === "completada").length;
   const [descartando, setDescartando] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
   const [fallo, setFallo] = useState<string | null>(null);
@@ -134,6 +240,11 @@ function NodeRow({
         {node.idea && <span className="dot" />}
         <span className="row-title">{node.title}</span>
         {node.total > 0 && <span className="count">{node.total}</span>}
+        {fases.length > 0 && (
+          <span className="count fases-count" title="fases completadas">
+            {hechas}/{fases.length}
+          </span>
+        )}
         <Arrow open={expandido} />
       </button>
       {expandido && node.idea && (
@@ -196,6 +307,9 @@ function NodeRow({
             ))}
         </select>
       )}
+      {node.idea && onEditar && estado !== "rejected" && estado !== "superseded" && (
+        <FasesIdea uid={uid!} fases={fases} onEditar={onEditar} />
+      )}
       {node.idea &&
         estado &&
         onMover &&
@@ -206,7 +320,19 @@ function NodeRow({
               key={accion.estado}
               type="button"
               className="btn ghost mover"
-              title={accion.etiqueta}
+              title={
+                accion.estado === "roadmap" &&
+                exigeFases?.(estado, "roadmap") &&
+                fases.length === 0
+                  ? "El protocolo exige al menos una fase"
+                  : accion.etiqueta
+              }
+              disabled={
+                trabajando ||
+                (accion.estado === "roadmap" &&
+                  exigeFases?.(estado, "roadmap") === true &&
+                  fases.length === 0)
+              }
               onClick={() => {
                 // Descartar pide el motivo (detalle `rejected_node`); los demás
                 // traslados van directos.
@@ -217,6 +343,9 @@ function NodeRow({
               {accion.etiqueta}
             </button>
           ))}
+      {estado === "proposed" && fases.length === 0 && exigeFases?.(estado, "roadmap") && (
+        <span className="hint">Añade al menos una fase para pasar a roadmap.</span>
+      )}
       {node.idea && onPideEditar && (
         <button
           type="button"
@@ -279,6 +408,7 @@ function NodeRow({
               onEditar={onEditar}
               onBorrar={onBorrar}
               puedeIr={puedeIr}
+              exigeFases={exigeFases}
               catalogo={catalogo}
             />
           ))}
@@ -301,6 +431,7 @@ export function NodeBox({
   onEditar,
   onBorrar,
   puedeIr,
+  exigeFases,
   catalogo = [],
 }: {
   node: TreeNode;
@@ -314,6 +445,7 @@ export function NodeBox({
   onEditar?: (uid: string, cambios: IdeaUpdate) => Promise<void>;
   onBorrar?: (uid: string) => Promise<void>;
   puedeIr?: PuedeIr;
+  exigeFases?: PuedeIr;
   catalogo?: readonly Idea[];
 }) {
   const tiene = node.kids.length > 0;
@@ -348,6 +480,7 @@ export function NodeBox({
               onEditar={onEditar}
               onBorrar={onBorrar}
               puedeIr={puedeIr}
+              exigeFases={exigeFases}
               catalogo={catalogo}
             />
           ))}

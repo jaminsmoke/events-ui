@@ -37,8 +37,9 @@ MIGRATIONS_DIR = Path(__file__).with_name("migraciones")
 # cada almacén. La tabla `event` de `schema/eventos.sql` no entra aquí: el log
 # lo escribe otro proceso y a un almacén existente llega por migración (ver
 # `migraciones/0005_eventos.sql`). La tabla `ideas` pasó a `idea_entry` +
-# `idea_lane_log` en la 0006.
-SCHEMA_VERSION = 6
+# `idea_lane_log` en la 0006, y la ficha del descarte a `idea_rejected` en la
+# 0007.
+SCHEMA_VERSION = 7
 
 REPOS_ROOT_ENV_VAR = "EVENTSUI_REPOS_ROOT"
 BUSY_TIMEOUT_MS = 5_000
@@ -50,8 +51,12 @@ _GITIGNORE_VIEJO = {f"{LEGACY_DB_FILENAME}-wal", f"{LEGACY_DB_FILENAME}-shm"}
 
 # Columnas que la API puede modificar. Lista blanca: los nombres de columna de un
 # UPDATE no pueden venir del cliente. `status` no está: un cambio de estado es
-# una fila nueva en `idea_lane_log`, no un UPDATE de la entrada.
+# una fila nueva en `idea_lane_log`, no un UPDATE de la entrada. Los campos del
+# descarte tampoco: los gestiona la transición del propio `status`.
 UPDATABLE = ("title", "description", "content", "kind", "tags")
+
+# Campos del descarte que el PATCH acepta junto al `status` (ver `update_idea`).
+REJECT_FIELDS = ("rejected_description", "rejected_by", "superseded_by_uid")
 
 # El estado que enseña la fila (`status` en el contrato) es el último carril
 # del log traducido a la palabra que la UI conoce. La traducción vive aquí, no
@@ -394,6 +399,16 @@ def _row(conn: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
     idea["tags"] = json.loads(idea["tags"] or "[]")
     carril = _carril_actual(conn, idea["uid"])
     idea["status"] = ESTADO_DE_CARRIL.get(carril or "cola", "draft")
+    # La ficha del descarte (0007), si la hay: sin fila no hay rechazo.
+    rechazo = conn.execute(
+        "SELECT rejected_at, rejected_description, rejected_by, superseded_by_uid"
+        " FROM idea_rejected WHERE uid = ?",
+        (idea["uid"],),
+    ).fetchone()
+    idea["rejected_at"] = rechazo["rejected_at"] if rechazo else None
+    idea["rejected_description"] = rechazo["rejected_description"] if rechazo else ""
+    idea["rejected_by"] = rechazo["rejected_by"] if rechazo else "usuario"
+    idea["superseded_by_uid"] = rechazo["superseded_by_uid"] if rechazo else None
     return idea
 
 
@@ -433,7 +448,7 @@ def list_ideas(
 ) -> list[dict[str, Any]]:
     with closing(connect(ensure_repo(repo))) as conn:
         rows = conn.execute(
-            "SELECT * FROM idea_entry"
+            "SELECT idea_entry.* FROM idea_entry"
             " WHERE (:status IS NULL OR ("
             "   SELECT lane FROM idea_lane_log WHERE uid = idea_entry.uid ORDER BY id DESC LIMIT 1"
             " ) = :carril)"
@@ -485,10 +500,31 @@ def create_idea(
     return get_idea(repo, uid)
 
 
+def _escribir_rechazo(conn: sqlite3.Connection, uid: str, detalle: dict[str, Any]) -> None:
+    """La ficha del descarte, con upsert: re-descartar la misma idea no duplica."""
+    conn.execute(
+        "INSERT INTO idea_rejected"
+        " (uid, rejected_at, rejected_description, rejected_by, superseded_by_uid)"
+        " VALUES (?, ?, ?, ?, ?)"
+        " ON CONFLICT(uid) DO UPDATE SET"
+        "   rejected_description = excluded.rejected_description,"
+        "   rejected_by = excluded.rejected_by,"
+        "   superseded_by_uid = excluded.superseded_by_uid",
+        (
+            uid,
+            now_iso(),
+            detalle.get("rejected_description") or "",
+            detalle.get("rejected_by") or "usuario",
+            detalle.get("superseded_by_uid"),
+        ),
+    )
+
+
 def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
     """Actualiza solo los campos presentes. Los `None` no se escriben."""
     clean = {k: v for k, v in changes.items() if v is not None and k in UPDATABLE}
-    if not clean:
+    rechazo = {k: v for k, v in changes.items() if v is not None and k in REJECT_FIELDS}
+    if not clean and not rechazo and "status" not in changes:
         raise InvalidInput("nada que actualizar")
 
     if "tags" in clean:
@@ -503,16 +539,25 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
         )
         if cursor.rowcount == 0:
             raise KeyError(uid)
-        # Un cambio de estado es una fila nueva del log, no un UPDATE.
-        if "status" in clean:
-            _escribir_carril(conn, uid, CARRIL_DE_ESTADO[clean["status"]])
+        # Un cambio de estado es una fila nueva del log, no un UPDATE. La ficha
+        # del descarte entra y sale con el carril `descartadas`.
+        if "status" in changes and changes["status"] is not None:
+            antes = _carril_actual(conn, uid)
+            lane = CARRIL_DE_ESTADO[changes["status"]]
+            _escribir_carril(conn, uid, lane)
+            if lane == "descartadas" and antes != "descartadas":
+                _escribir_rechazo(conn, uid, rechazo)
+            elif lane != "descartadas" and antes == "descartadas":
+                conn.execute("DELETE FROM idea_rejected WHERE uid = ?", (uid,))
         idea = _row(
             conn,
             conn.execute("SELECT * FROM idea_entry WHERE uid = ?", (uid,)).fetchone(),
         )
         _emitir(
             conn,
-            "idea.status" if "status" in clean else "idea.updated",
+            "idea.status"
+            if "status" in changes and changes["status"] is not None
+            else "idea.updated",
             {"uid": uid, "title": idea["title"], "status": idea["status"]},
         )
         conn.commit()
@@ -571,7 +616,10 @@ def map_snapshot(repo: str) -> dict[str, Any]:
     with closing(open_read_only(ensure_repo(repo))) as conn:
         conn.execute("BEGIN")
         rows = conn.execute(
-            "SELECT uid, title, description FROM idea_entry ORDER BY created_at DESC, id DESC"
+            "SELECT idea_entry.uid, idea_entry.title, idea_entry.description,"
+            " idea_rejected.rejected_at, idea_rejected.rejected_description"
+            " FROM idea_entry LEFT JOIN idea_rejected ON idea_rejected.uid = idea_entry.uid"
+            " ORDER BY idea_entry.created_at DESC, idea_entry.id DESC"
         )
         ideas = [
             {
@@ -579,6 +627,8 @@ def map_snapshot(repo: str) -> dict[str, Any]:
                 "status": ESTADO_DE_CARRIL.get(
                     _carril_actual(conn, str(row["uid"])) or "cola", "draft"
                 ),
+                # El JOIN da `NULL` sin ficha; el contrato dice texto.
+                "rejected_description": row["rejected_description"] or "",
             }
             for row in rows
         ]

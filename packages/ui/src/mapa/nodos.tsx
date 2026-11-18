@@ -3,6 +3,7 @@ import type { Ref } from "react";
 import { createPortal } from "react-dom";
 
 import type { Idea, IdeaUpdate } from "../core/api";
+import { DescartaIdea } from "../pantalla/DescartaIdea";
 import { EditorIdea } from "../pantalla/EditorIdea";
 import type { TreeNode } from "./arbol";
 import type { TonoPulso } from "./animaciones";
@@ -50,6 +51,7 @@ function NodeRow({
   const [expandido, setExpandido] = useState(tiene);
   const uid = node.idea?.uid;
   const [editando, setEditando] = useState(false);
+  const [descartando, setDescartando] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
   const [conectando, setConectando] = useState(false);
   const [hijo, setHijo] = useState("");
@@ -88,12 +90,21 @@ function NodeRow({
         <div className="fila-detalle">
           <p className="fila-descripcion">{node.idea.description || "Sin descripción"}</p>
           <span className="fila-estado">{node.idea.status}</span>
+      {node.idea.rejected_at && <p className="fila-rechazo">
+        Rechazada el {node.idea.rejected_at}
+        {node.idea.rejected_description ? ` — ${node.idea.rejected_description}` : ""}
+      </p>}
       {node.idea && onMover && (nodo === "cola" || nodo === "descartadas") && (
         <button
           type="button"
           className="btn ghost mover"
           title={nodo === "cola" ? "Descartar esta idea" : "Devolver esta idea a En cola"}
-          onClick={() => onMover(uid!, nodo === "cola" ? "descartadas" : "cola")}
+          onClick={() => {
+            // Descartar pide el motivo (ficha `idea_rejected`); volver a cola,
+            // directo: salir de `descartadas` la retira.
+            if (nodo === "cola" && onEditar) setDescartando(true);
+            else onMover(uid!, "cola");
+          }}
         >
           {nodo === "cola" ? "Descartar" : "A cola"}
         </button>
@@ -133,6 +144,18 @@ function NodeRow({
           Desconectar
         </button>
       )}
+
+      {node.idea && descartando && onEditar &&
+        createPortal(
+          <DescartaIdea
+            titulo={node.title}
+            onDescartar={(motivo) =>
+              onEditar(uid!, { status: "rejected", rejected_description: motivo })
+            }
+            onCerrar={() => setDescartando(false)}
+          />,
+          document.body,
+        )}
 
       {node.idea && editando && onEditar &&
         // Portal al body: dentro del mapa (transformado) un `fixed` dejaría de

@@ -40,6 +40,9 @@ Lo hecho se mueve a *Hecho* con su commit; lo que no va, va a *No se hace
   (`uid` estable) vive en `idea_entry`; cada paso por carril es una fila en
   `idea_lane_log` con su `entered_at`. El `status` de la API es la traducción
   del último carril; `connections` y `event` cuelgan de la entrada.
+- **`idea_rejected`** (migración 0007): la ficha del descarte —`rejected_at`,
+  `rejected_description`, `rejected_by`, `superseded_by_uid`— se crea al entrar
+  en descartadas, se retira al salir, y la UI pide el motivo al descartar.
 - **F1 — motor en vivo por repo**: sobre de evento (`id`, `ts`, `type`,
   `payload`, `dedupe_key`) en la tabla `event` de cada `EUI_DATABASE`
   (migración 0005), conexión RO, tail `WHERE id > :last` y SSE con backfill

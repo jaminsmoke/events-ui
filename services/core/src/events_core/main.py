@@ -57,7 +57,12 @@ class IdeaCreate(BaseModel):
 
 
 class IdeaUpdate(BaseModel):
-    """Campos ausentes no se tocan; `null` explícito tampoco los borra."""
+    """Campos ausentes no se tocan; `null` explícito tampoco los borra.
+
+    Los del descarte viajan junto al `status: rejected`/`superseded`: el
+    motivo y quién lo dictamina se guardan en `idea_rejected` al entrar en
+    `descartadas`.
+    """
 
     title: str | None = Field(default=None, min_length=1)
     description: str | None = None
@@ -65,12 +70,20 @@ class IdeaUpdate(BaseModel):
     kind: Kind | None = None
     status: Status | None = None
     tags: list[str] | None = None
+    rejected_description: str | None = None
+    rejected_by: Literal["usuario", "agente", "sistema"] | None = None
+    superseded_by_uid: str | None = None
 
 
 class Idea(IdeaCreate):
     uid: str
     created_at: str
     updated_at: str
+    # La ficha del descarte (0007), o el estado sin ficha si no está descartada.
+    rejected_at: str | None = None
+    rejected_description: str = ""
+    rejected_by: Literal["usuario", "agente", "sistema"] = "usuario"
+    superseded_by_uid: str | None = None
 
 
 class ConnectionCreate(BaseModel):
@@ -89,6 +102,9 @@ class MapIdea(BaseModel):
     title: str
     description: str
     status: Status
+    # La ficha del descarte en el mapa, para que la fila la enseñe.
+    rejected_at: str | None = None
+    rejected_description: str = ""
 
 
 class MapSnapshot(BaseModel):

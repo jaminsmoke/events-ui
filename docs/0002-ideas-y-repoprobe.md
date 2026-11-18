@@ -105,6 +105,23 @@ cuándo la completaron—. Un solo `status` aplanaba eso.
 Si una entrada se vuelve a mover a un carril donde ya estuvo, escribe una fila
 nueva: el log conserva todos los pasos.
 
+## Enmienda — la ficha del descarte vive en `idea_rejected` (migración 0007)
+
+Una idea en `descartadas` tiene un porqué, y ese viene con sus propios campos
+que no pertenecen a la identidad: el `created_at` y la descripción inicial se
+quedan en `idea_entry`, y a su lado van `rejected_at`, `rejected_description`
+—la razón en palabras del que descarta— y `rejected_by` (`usuario`, `agente` o
+`sistema`). Para `superseded` hay además `superseded_by_uid`: por qué idea fue
+reemplazada.
+
+La ficha se crea al entrar en `descartadas` (junto con la fila del log, con el
+mismo `now_iso`) y se retira al salir: es el descarte *actual*, no el historial
+—ese sigue en `idea_lane_log`—. Al borrar la entrada se cae por CASCADE.
+
+La UI pide el motivo al descartar (diálogo `DescartaIdea`); sin motivo la ficha
+queda con la descripción vacía, no se bloquea el descarte. El backfill de la
+migración toma el `entered_at` del último descarte de cada idea aún descartada.
+
 ## Enmienda — el repo se direcciona por ruta, no por nombre
 
 El primer elemento de UI es un **selector de carpeta**, y devuelve rutas absolutas

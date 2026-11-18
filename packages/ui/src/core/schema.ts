@@ -342,6 +342,21 @@ export interface components {
             created_at: string;
             /** Updated At */
             updated_at: string;
+            /** Rejected At */
+            rejected_at?: string | null;
+            /**
+             * Rejected Description
+             * @default
+             */
+            rejected_description: string;
+            /**
+             * Rejected By
+             * @default usuario
+             * @enum {string}
+             */
+            rejected_by: "usuario" | "agente" | "sistema";
+            /** Superseded By Uid */
+            superseded_by_uid?: string | null;
         };
         /** IdeaCreate */
         IdeaCreate: {
@@ -375,6 +390,10 @@ export interface components {
         /**
          * IdeaUpdate
          * @description Campos ausentes no se tocan; `null` explícito tampoco los borra.
+         *
+         *     Los del descarte viajan junto al `status: rejected`/`superseded`: el
+         *     motivo y quién lo dictamina se guardan en `idea_rejected` al entrar en
+         *     `descartadas`.
          */
         IdeaUpdate: {
             /** Title */
@@ -389,6 +408,12 @@ export interface components {
             status?: ("draft" | "proposed" | "accepted" | "rejected" | "superseded") | null;
             /** Tags */
             tags?: string[] | null;
+            /** Rejected Description */
+            rejected_description?: string | null;
+            /** Rejected By */
+            rejected_by?: ("usuario" | "agente" | "sistema") | null;
+            /** Superseded By Uid */
+            superseded_by_uid?: string | null;
         };
         /** MapIdea */
         MapIdea: {
@@ -403,6 +428,13 @@ export interface components {
              * @enum {string}
              */
             status: "draft" | "proposed" | "accepted" | "rejected" | "superseded";
+            /** Rejected At */
+            rejected_at?: string | null;
+            /**
+             * Rejected Description
+             * @default
+             */
+            rejected_description: string;
         };
         /** MapSnapshot */
         MapSnapshot: {

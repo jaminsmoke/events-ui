@@ -55,5 +55,24 @@ CREATE TABLE IF NOT EXISTS idea_lane_log (
 -- El log se lee por ítem (último paso) y en orden cronológico.
 CREATE INDEX IF NOT EXISTS idx_lane_log_uid ON idea_lane_log (uid, id);
 
+-- La ficha del descarte: un ítem en `descartadas` tiene un porqué, y ese viene
+-- con sus propios campos (`rejected_at`, `rejected_description`), mientras la
+-- descripción inicial y `created_at` se quedan en la entrada. La fila vive
+-- solo mientras dura el descarte: al volver a cola se retira (el historial
+-- de pasos queda en `idea_lane_log`).
+CREATE TABLE IF NOT EXISTS idea_rejected (
+    uid TEXT PRIMARY KEY REFERENCES idea_entry (uid) ON DELETE CASCADE,
+    -- Cuándo se descartó, al mismo tiempo que la fila del log.
+    rejected_at TEXT NOT NULL,
+    -- La razón del descarte, en palabras del que descarta.
+    rejected_description TEXT NOT NULL DEFAULT '',
+    -- Quién: el usuario, un agente o el sistema. Hoy solo `usuario` lo escribe.
+    rejected_by TEXT    NOT NULL DEFAULT 'usuario'
+                CHECK (rejected_by IN ('usuario', 'agente', 'sistema')),
+    -- Para `superseded`: por qué idea fue reemplazada (la entrada que la releva).
+    superseded_by_uid TEXT REFERENCES idea_entry (uid),
+    CHECK (superseded_by_uid IS NULL OR superseded_by_uid <> uid)
+);
+
 -- La fila de la entrada que se acaba de crear vive aquí: el log se escribe
 -- con ella en la misma transacción, así nunca falta la primera fila.

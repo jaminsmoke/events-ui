@@ -47,8 +47,7 @@ Lo hecho se mueve a *Hecho* con su commit; lo que no va, va a *No se hace
 - *(Hecho: `kind` y `tags` se editan en la fila.)*
 - Formulario de edición como diálogo modal en vez de en línea en la fila.
 - *(Hecho: `related`/`supersedes` se pintan como enlaces con pulso.)*
-- Quitar la duplicación `unwrap`/`unwrapVacio` en `api.ts` (manejo de error
-  en un solo sitio).
+- *(Hecho: un solo `unwrap` en `api.ts`.)*
 - Empezar F1: esquema del sobre de evento, conexión RO, tail + SSE.
 
 ## No se hace (por ahora)

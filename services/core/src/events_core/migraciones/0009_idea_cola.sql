@@ -10,24 +10,27 @@ CREATE TABLE idea_cola (
     entered_at  TEXT    NOT NULL
 );
 
--- La posición de cada idea en cola es su orden de entrada: el de la última
--- fila del log que la puso en cola, en orden creciente.
+-- La posición de cada idea en cola es su orden de entrada: el de la fila que
+-- la puso en cola, en orden creciente. Solo entran las que siguen en cola,
+-- es decir, cuyo ÚLTIMO paso es `cola`: una idea que ya salió (a descartadas
+-- o a completada) pasó por cola al nacer, pero no debe volver a entrar aquí.
 INSERT INTO idea_cola (uid, posicion, entered_at)
 SELECT uid, ROW_NUMBER() OVER (ORDER BY ultimo), entered_at FROM (
-    SELECT uid, entered_at, max(id) AS ultimo
-    FROM idea_lane_log WHERE lane = 'cola' GROUP BY uid
-);
+    SELECT uid, entered_at, lane, max(id) AS ultimo
+    FROM idea_lane_log GROUP BY uid
+) WHERE lane = 'cola';
 
 CREATE TABLE idea_completada (
     uid          TEXT    PRIMARY KEY REFERENCES idea_entry (uid) ON DELETE CASCADE,
     completed_at TEXT    NOT NULL
 );
 
--- Lo mismo para las completadas: su último paso del log, en su ficha.
+-- Lo mismo para las completadas: cuyo último paso es `completada`, en su
+-- ficha. Una que volvió a cola después ya no cuenta como completada.
 INSERT INTO idea_completada (uid, completed_at)
 SELECT uid, entered_at FROM (
-    SELECT uid, entered_at, max(id) AS ultimo
-    FROM idea_lane_log WHERE lane = 'completada' GROUP BY uid
-);
+    SELECT uid, entered_at, lane, max(id) AS ultimo
+    FROM idea_lane_log GROUP BY uid
+) WHERE lane = 'completada';
 
 DROP TABLE idea_lane_log;

@@ -36,6 +36,10 @@ Lo hecho se mueve a *Hecho* con su commit; lo que no va, va a *No se hace
 - **Fila solo-expandir**: la fila cerrada es solo título y contador; al
   expandirla aparecen descripción, estado, botones e hijos. Nada de botones
   junto al título.
+- **`ideas` → `idea_entry` + `idea_lane_log`** (migración 0006): la identidad
+  (`uid` estable) vive en `idea_entry`; cada paso por carril es una fila en
+  `idea_lane_log` con su `entered_at`. El `status` de la API es la traducción
+  del último carril; `connections` y `event` cuelgan de la entrada.
 - **F1 — motor en vivo por repo**: sobre de evento (`id`, `ts`, `type`,
   `payload`, `dedupe_key`) en la tabla `event` de cada `EUI_DATABASE`
   (migración 0005), conexión RO, tail `WHERE id > :last` y SSE con backfill

@@ -29,7 +29,7 @@ from .db import data_version, db_path, journal_mode, open_read_only
 Kind = Literal["idea", "adr", "note"]
 Status = Literal["draft", "proposed", "accepted", "rejected", "superseded"]
 
-app = FastAPI(title="Events UI Core", version="0.1.0")
+app = FastAPI(title="Events UI Core", version="0.2.0")
 
 # En dev la UI llega por el proxy de Vite. En producción Tauri sirve la UI desde
 # su propio origen, que varía según plataforma.

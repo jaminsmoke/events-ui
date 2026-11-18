@@ -96,7 +96,7 @@ def _seed(repo: str) -> None:
     )
 
 
-def _comprobar_migrado(client, repo):  # noqa: ANN001, ANN202
+def _comprobar_migrado(client, repo, esperados=_ESPERADOS):  # noqa: ANN001, ANN202
     # La API es la que abre el repo: en el caso del v13 mal migrado, esta
     # lectura es la que tiene que terminar la 0013 antes de leer el mapa.
     mapa = client.get("/mapa", params={"repo": repo}).json()
@@ -112,7 +112,7 @@ def _comprobar_migrado(client, repo):  # noqa: ANN001, ANN202
             ("hecha", "2026-01-02T00:00:00Z")
         ]
         protocolos = set(conn.execute("SELECT origen, destino FROM protocolo_flujo").fetchall())
-        assert protocolos == _ESPERADOS
+        assert protocolos == esperados
     finally:
         conn.close()
 
@@ -146,3 +146,19 @@ def test_un_v13_mal_migrado_se_repara_al_abrir(client, repo):  # noqa: ANN001, A
     _comprobar_migrado(client, repo)
     # Y queda reparado: abrirlo otra vez no vuelve a copiar ni a tocar nada.
     _comprobar_migrado(client, repo)
+
+
+def test_reparacion_v13_no_reinserta_un_protocolo_retirado(client, repo):  # noqa: ANN001, ANN202
+    """Si el repo había retirado `draft → rejected`, la reparación no lo devuelve."""
+    db = _db_v12(repo)
+    conn = sqlite3.connect(str(db))
+    try:
+        conn.execute("DELETE FROM protocolo_flujo WHERE origen = 'draft' AND destino = 'rejected'")
+        # El v13 mal migrado: la versión subió sin terminar la 0013. No se
+        # aplica el esquema fresco (eso re-sembraría la fila); solo se firma.
+        conn.execute("PRAGMA user_version = 13")
+        conn.commit()
+    finally:
+        conn.close()
+
+    _comprobar_migrado(client, repo, _ESPERADOS - {("draft", "rejected")})

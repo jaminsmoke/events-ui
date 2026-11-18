@@ -59,11 +59,10 @@ DROP TABLE IF EXISTS protocolo_flujo;
 
 ALTER TABLE protocolo_flujo_nueva RENAME TO protocolo_flujo;
 
+-- Solo se añaden las uniones nuevas. Las antiguas ya se copiaron desde la
+-- tabla anterior; si una se había retirado a propósito, debe seguir retirada.
 INSERT OR IGNORE INTO protocolo_flujo (origen, destino) VALUES
-    ('draft', 'proposed'),
-    ('draft', 'rejected'),
     ('proposed', 'roadmap'),
-    ('proposed', 'rejected'),
     ('roadmap', 'verificacion'),
     ('verificacion', 'proposed'),
     ('verificacion', 'revision_aprobada');

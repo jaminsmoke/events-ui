@@ -1,0 +1,41 @@
+# CI: lo desplegable de verdad —`pnpm check` (contrato, versiones, UI, py,
+# pytest y rust) en cada push y PR a main.
+#
+# Fuera a propósito: la batería e2e (necesita el navegador de Playwright y
+# puertos libres; se corre en local con `pnpm e2e`) y los builds de Tauri
+# (el bundle solo sale en local / con el release; no son parte de este CI).
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.14
+
+      - name: uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Rust (estable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: pnpm install
+        run: corepack pnpm install --frozen-lockfile
+
+      - name: check completo
+        run: corepack pnpm check

@@ -671,7 +671,12 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
         # fila de cola, de descartada o de completada. La ficha del descarte
         # entra y sale con los estados `rejected`/`superseded`.
         try:
+            cambiado_estado = False
             if "status" in changes and changes["status"] is not None:
+                # Reafirmar el mismo estado no es un traslado: la cola no se
+                # reordena (su posición se conserva) y el evento que se emite
+                # es de edición, no de cambio de estado.
+                cambiado_estado = _estado(conn, uid) != changes["status"]
                 _escribir_estado(conn, uid, changes["status"], rechazo)
             idea = _row(
                 conn,
@@ -679,9 +684,7 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
             )
             _emitir(
                 conn,
-                "idea.status"
-                if "status" in changes and changes["status"] is not None
-                else "idea.updated",
+                "idea.status" if cambiado_estado else "idea.updated",
                 {"uid": uid, "title": idea["title"], "status": idea["status"]},
             )
             conn.commit()

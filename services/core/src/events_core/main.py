@@ -392,7 +392,7 @@ def stream_eventos(request: Request, repo: RepoParam) -> StreamingResponse:
     ultimo = request.headers.get("last-event-id")
     desde = int(ultimo) if ultimo and ultimo.isdigit() else 0
     return StreamingResponse(
-        eventos.generar_streamo(repo, desde),
+        eventos.generar_streamo(repo, desde, desconectado=request.is_disconnected),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

@@ -14,11 +14,12 @@ backfill histórico y recuperación tras desconexión.
 
 from __future__ import annotations
 
+import asyncio
+import inspect
 import json
 import sqlite3
 import threading
-import time
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import closing
 from pathlib import Path
 from typing import Any
@@ -166,16 +167,27 @@ def _vigilante(db_file: Path) -> sqlite3.Connection:
         return conn
 
 
-def generar_streamo(
-    repo: str, desde: int = 0, *, intervalo: float = 0.5, max_esperas: int = 240
-) -> Iterator[str]:
+async def generar_streamo(
+    repo: str,
+    desde: int = 0,
+    *,
+    intervalo: float = 0.5,
+    max_esperas: int = 240,
+    desconectado: Callable[[], Any] | None = None,
+) -> AsyncIterator[str]:
+    # `desconectado` vale tanto en sync como en async (la ruta pasa
+    # `request.is_disconnected`, async; los tests, un bool a secas).
     """Genera frames SSE del repo: primero el backfill hasta el último, luego en vivo.
 
     Cada frame es `event: evento\ndata: {...}`. El backfill lleva un `id:`
     para que el cliente reconecte con `Last-Event-ID`; el vivo lleva un
     `ping` cada `intervalo` segundos para que el proxy no cierre la conexión.
-    La parada interna (`max_esperas`) es solo para no colgar el generador en
-    tests: en producción el cliente cierra y el generador muere con él.
+
+    El corte es limpio, no a base de error: `desconectado` (en producción,
+    `request.is_disconnected`) se pregunta en cada vuelta y, si el cliente ya
+    se fue, se deja de sondear y el stream termina. La parada interna
+    (`max_esperas`) es solo para no colgar el generador en tests: en
+    producción el cliente cierra y a los 240 pings el EventSource reconecta.
     """
     db_file = ensure_repo(repo)
     cursor = max(desde, 0)
@@ -191,7 +203,13 @@ def generar_streamo(
     version = -1
     esperas = 0
     while esperas < max_esperas:
-        time.sleep(intervalo)
+        if desconectado is not None:
+            salida = desconectado()
+            if inspect.isawaitable(salida):
+                salida = await salida
+            if salida:
+                return
+        await asyncio.sleep(intervalo)
         esperas += 1
         try:
             firma = data_version(_vigilante(db_file))

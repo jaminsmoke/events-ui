@@ -11,7 +11,9 @@ export default {
     const url = `${ctx.UI}/`;
 
     await page.goto(url, { waitUntil: "networkidle", timeout: 30_000 });
-    await page.getByRole("button", { name: "lab" }).click();
+    // Si un escenario anterior ya dejó `lab` abierto, el selector no aparece.
+    const selector = page.getByRole("button", { name: "lab" });
+    if ((await selector.count()) > 0) await selector.click();
     await page.waitForTimeout(2000);
 
     await page.getByRole("button", { name: "Pruebas" }).click();

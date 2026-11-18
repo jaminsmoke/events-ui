@@ -26,16 +26,17 @@ Lo hecho se mueve a *Hecho* con su commit; lo que no va, va a *No se hace
 - **Copy al día**: fuera «visor de solo lectura» de `App`, `arbol`, `api`,
   `styles.css` y descripciones; el aviso de error ya no manda a `core:dev`
   cuando en dev el core se levanta solo.
+- **Pulso también en el cajón** de Ideas (azul al crear, rojo al borrar;
+  sin chispa, que va por el cable del carril) y botón **Completar** en la
+  fila, con su pulso verde (`accepted`).
 
 ## Ahora
 
-1. **Pulso también en el cajón** — hoy solo pulsan los carriles; el cajón
-   «Ideas» también debería marcar entradas/salidas.
+*(Nada pendiente en esta sección: ver Backlog.)*
 
 ## Backlog
 
-- Marcar una idea como *completada* (`accepted`) desde la fila, con su pulso
-  verde — hoy solo se provoca por API.
+- *(Hecho: botón Completar en la fila con pulso verde.)*
 - Edición completa en la fila: `kind` y `tags`, no solo título/descripción.
 - Formulario de edición como diálogo modal en vez de en línea en la fila.
 - Pintar las conexiones `related`/`supersedes` (la API las acepta y crea;

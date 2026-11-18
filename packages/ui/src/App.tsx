@@ -58,7 +58,7 @@ export default function App({ elegirCarpeta }: { elegirCarpeta?: ElegirCarpeta }
     carrilRefs,
   });
   const { vuelos, volando, aterrizado } = useVuelos({ repo, ideas, cerrados, vista, mapRef });
-  const { chispas, pulsos } = useAnimaciones(repo, ideas);
+  const { chispas, pulsos, pulsoCajon } = useAnimaciones(repo, ideas);
 
   const abrir = useCallback(
     (path: string) => {
@@ -76,6 +76,17 @@ export default function App({ elegirCarpeta }: { elegirCarpeta?: ElegirCarpeta }
     (uid: string, lane: "cola" | "descartadas") => {
       setFalloAccion(null);
       void mover(uid, lane === "descartadas" ? "rejected" : "draft").catch((err: unknown) => {
+        setFalloAccion(err instanceof Error ? err.message : String(err));
+      });
+    },
+    [mover],
+  );
+
+  // Completar es `accepted`: el pulso verde sale solo del diff de estados.
+  const alCompletar = useCallback(
+    (uid: string) => {
+      setFalloAccion(null);
+      void mover(uid, "accepted").catch((err: unknown) => {
         setFalloAccion(err instanceof Error ? err.message : String(err));
       });
     },
@@ -205,6 +216,8 @@ export default function App({ elegirCarpeta }: { elegirCarpeta?: ElegirCarpeta }
                 onToggle={toggle}
                 boxRef={cajonRef}
                 volando={volando}
+                pulso={pulsoCajon}
+                onCompletar={alCompletar}
                 onEditar={editar}
                 onBorrar={borrar}
                 onConectar={conectar}
@@ -225,6 +238,7 @@ export default function App({ elegirCarpeta }: { elegirCarpeta?: ElegirCarpeta }
                     volando={volando}
                     pulso={pulsos.find((p) => p.lane === lane.tone)?.tono}
                     onMover={alMover}
+                    onCompletar={alCompletar}
                     onEditar={editar}
                     onBorrar={borrar}
                     onDesconectar={desconectar}

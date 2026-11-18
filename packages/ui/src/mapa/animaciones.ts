@@ -6,13 +6,18 @@ import type { LaneId } from "./carriles";
 
 export type Animacion = { lane: LaneId; id: number };
 
+/** Dónde puede pulsar un nodo: un carril, o el cajón de Ideas (`"cajon"`).
+ *  El cajón contiene todas las ideas, así que pulsa cuando entra o sale
+ *  alguna, independientemente de qué carril toque. */
+export type NodoId = LaneId | "cajon";
+
 /** Código de colores del pulso de borde de cada nodo:
  *  - `azul`: una idea **entra** (se crea o se mueve a En cola);
  *  - `rojo`: una idea **sale** (se borra del repo o se mueve a Descartadas);
  *  - `verde`: una idea se **completa** (`status: "accepted"`).
  *  Verde queda reservado a completado, no a entradas normales. */
 export type TonoPulso = "azul" | "rojo" | "verde";
-export type Pulso = { lane: LaneId; tono: TonoPulso };
+export type Pulso = { lane: NodoId; tono: TonoPulso };
 
 const PRIORIDAD: Record<TonoPulso, number> = { azul: 1, rojo: 2, verde: 3 };
 
@@ -22,7 +27,8 @@ export function useAnimaciones(repo: string | null, ideas: Idea[] | null) {
   const [actividad, setActividad] = useState<{
     repo: string;
     chispas: Animacion[];
-    pulsos: Pulso[];
+    pulsos: { lane: LaneId; tono: TonoPulso }[];
+    cajon?: TonoPulso;
   } | null>(null);
   const anterior = useRef<{
     repo: string;
@@ -45,6 +51,11 @@ export function useAnimaciones(repo: string | null, ideas: Idea[] | null) {
       const actual = pulsos.get(lane);
       if (!actual || PRIORIDAD[tono] > PRIORIDAD[actual]) pulsos.set(lane, tono);
     };
+    // El cajón no tiene cable (no hay chispa): solo pulsa el borde.
+    let cajon: TonoPulso | undefined;
+    const fijarCajon = (tono: TonoPulso) => {
+      if (!cajon || PRIORIDAD[tono] > PRIORIDAD[cajon]) cajon = tono;
+    };
     const cambian = new Set<LaneId>();
 
     for (const idea of ideas) {
@@ -55,6 +66,7 @@ export function useAnimaciones(repo: string | null, ideas: Idea[] | null) {
         cambian.add(lane);
       } else if (lanePrevio === undefined) {
         fijar(lane, "azul");
+        fijarCajon("azul");
         cambian.add(lane);
       } else if (lanePrevio !== lane) {
         fijar(lane, lane === "descartadas" ? "rojo" : "azul");
@@ -62,10 +74,12 @@ export function useAnimaciones(repo: string | null, ideas: Idea[] | null) {
         cambian.add(lanePrevio);
       }
     }
-    // Borrada del repo: su carril pulsa en rojo aunque ya no tenga la fila.
+    // Borrada del repo: su carril y el cajón pulsan en rojo aunque ya no
+    // tengan la fila.
     for (const [uid, lane] of previo.carriles) {
       if (!carriles.has(uid)) {
         fijar(lane, "rojo");
+        fijarCajon("rojo");
         cambian.add(lane);
       }
     }
@@ -77,6 +91,7 @@ export function useAnimaciones(repo: string | null, ideas: Idea[] | null) {
         repo,
         chispas,
         pulsos: Array.from(pulsos, ([lane, tono]) => ({ lane, tono })),
+        cajon,
       });
     });
     return () => cancelAnimationFrame(raf);
@@ -89,5 +104,9 @@ export function useAnimaciones(repo: string | null, ideas: Idea[] | null) {
   }, [actividad]);
 
   const visible = actividad?.repo === repo ? actividad : null;
-  return { chispas: visible?.chispas ?? [], pulsos: visible?.pulsos ?? [] };
+  return {
+    chispas: visible?.chispas ?? [],
+    pulsos: visible?.pulsos ?? [],
+    pulsoCajon: visible?.cajon,
+  };
 }

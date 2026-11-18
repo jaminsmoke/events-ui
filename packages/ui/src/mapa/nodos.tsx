@@ -22,6 +22,7 @@ function NodeRow({
   nodo,
   volando,
   onMover,
+  onCompletar,
   onEditar,
   onBorrar,
   onConectar,
@@ -34,6 +35,7 @@ function NodeRow({
   nodo: string;
   volando: (uid: string, nodo: string) => boolean;
   onMover?: (uid: string, lane: "cola" | "descartadas") => void;
+  onCompletar?: (uid: string) => void;
   onEditar?: (uid: string, cambios: IdeaUpdate) => Promise<void>;
   onBorrar?: (uid: string) => Promise<void>;
   onConectar?: (parentUid: string, childUid: string) => Promise<void>;
@@ -89,6 +91,16 @@ function NodeRow({
           onClick={() => onMover(uid!, nodo === "cola" ? "descartadas" : "cola")}
         >
           {nodo === "cola" ? "Descartar" : "A cola"}
+        </button>
+      )}
+      {node.idea && onCompletar && node.idea.status !== "accepted" && (
+        <button
+          type="button"
+          className="btn ghost mover"
+          title="Marcar como completada (accepted)"
+          onClick={() => onCompletar(uid!)}
+        >
+          Completar
         </button>
       )}
       {node.idea && onEditar && (
@@ -207,6 +219,7 @@ function NodeRow({
               nodo={nodo}
               volando={volando}
               onMover={onMover}
+              onCompletar={onCompletar}
               onEditar={onEditar}
               onBorrar={onBorrar}
               onConectar={onConectar}
@@ -229,6 +242,7 @@ export function NodeBox({
   volando,
   pulso,
   onMover,
+  onCompletar,
   onEditar,
   onBorrar,
   onConectar,
@@ -242,6 +256,7 @@ export function NodeBox({
   volando: (uid: string, nodo: string) => boolean;
   pulso?: TonoPulso;
   onMover?: (uid: string, lane: "cola" | "descartadas") => void;
+  onCompletar?: (uid: string) => void;
   onEditar?: (uid: string, cambios: IdeaUpdate) => Promise<void>;
   onBorrar?: (uid: string) => Promise<void>;
   onConectar?: (parentUid: string, childUid: string) => Promise<void>;
@@ -278,6 +293,7 @@ export function NodeBox({
               nodo={node.tone ?? "ideas"}
               volando={volando}
               onMover={onMover}
+              onCompletar={onCompletar}
               onEditar={onEditar}
               onBorrar={onBorrar}
               onConectar={onConectar}

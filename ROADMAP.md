@@ -57,7 +57,8 @@ Lo hecho se mueve a *Hecho* con su commit; lo que no va, va a *No se hace
 - *(Hecho: `related`/`supersedes` se pintan como enlaces con pulso.)*
 - *(Hecho: un solo `unwrap` en `api.ts`.)*
 - *(Hecho: F1 — sobre de evento, conexión RO, tail + SSE.)*
-- F2: primera proyección e identidad de repo.
+- *(Hecho: F2 — `GET /proyecciones/repo` con identidad (ruta + rama/commit git);
+  el core emite `idea.*` al escribir.)*
 
 ## No se hace (por ahora)
 

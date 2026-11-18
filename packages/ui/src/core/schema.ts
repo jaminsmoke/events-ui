@@ -200,6 +200,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/proyecciones/repo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Proyeccion Repo
+         * @description Primera proyección: estado del repo con su identidad (rama/commit).
+         */
+        get: operations["get_proyeccion_repo_proyecciones_repo_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -390,6 +410,34 @@ export interface components {
             ideas: components["schemas"]["MapIdea"][];
             /** Connections */
             connections: components["schemas"]["Connection"][];
+        };
+        /**
+         * ProyeccionRepo
+         * @description F2: el estado del repo en una lectura, con su identidad.
+         *
+         *     No es SQL libre desde la UI (ADR 0001, decisión 8): es una proyección
+         *     fija y versionada. `repo` es la carpeta resuelta; `branch`/`commit` vienen
+         *     de git cuando hay repo git y son `None` si no.
+         */
+        ProyeccionRepo: {
+            /** Repo */
+            repo: string;
+            /** Branch */
+            branch?: string | null;
+            /** Commit */
+            commit?: string | null;
+            /** Ideas */
+            ideas: number;
+            /** Connections */
+            connections: number;
+            /** Events */
+            events: number;
+            /** Por Estado */
+            por_estado: {
+                [key: string]: number;
+            };
+            /** Ultima Actividad */
+            ultima_actividad?: string | null;
         };
         /**
          * Repo
@@ -1071,6 +1119,56 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Petición inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description No existe el repo o la idea */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_proyeccion_repo_proyecciones_repo_get: {
+        parameters: {
+            query: {
+                /** @description Carpeta del repo: ruta absoluta o nombre en el lab */
+                repo: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProyeccionRepo"];
                 };
             };
             /** @description Petición inválida */

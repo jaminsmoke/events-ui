@@ -268,6 +268,20 @@ header > div {
   font-size: 11.5px;
 }
 
+/* F2: proyección del repo con su identidad. */
+.proyeccion-linea {
+  margin: 0;
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proyeccion-linea em {
+  color: var(--muted);
+  font-style: normal;
+}
+
 /* Diálogo modal de edición: capa oscura y tarjeta centrada. */
 .modal-fondo {
   position: fixed;

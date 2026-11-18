@@ -35,6 +35,7 @@ export default function App({ elegirCarpeta }: { elegirCarpeta?: ElegirCarpeta }
     ideas,
     links,
     error,
+    proyeccion,
     crear,
     mover,
     editar,
@@ -177,6 +178,33 @@ export default function App({ elegirCarpeta }: { elegirCarpeta?: ElegirCarpeta }
       )}
 
       {falloAccion && <AvisoError mensaje={falloAccion} />}
+
+      {proyeccion && (
+        <section className="card proyeccion" aria-label="Estado del repo">
+          <h2>Repo</h2>
+          <p className="proyeccion-linea">
+            <strong>{proyeccion.repo}</strong>
+            {proyeccion.branch && (
+              <em>
+                {' '}
+                {proyeccion.branch}
+                {proyeccion.commit ? ` · ${proyeccion.commit}` : ""}
+              </em>
+            )}
+          </p>
+          <p className="hint">
+            {proyeccion.ideas} ideas · {proyeccion.connections} conexiones · {proyeccion.events}{" "}
+            eventos
+            {Object.entries(proyeccion.por_estado).map(([estado, n]) => (
+              <span key={estado}>
+                {" · "}
+                {estado}: {n}
+              </span>
+            ))}
+            {proyeccion.ultima_actividad && <span> · última: {proyeccion.ultima_actividad}</span>}
+          </p>
+        </section>
+      )}
 
       <section className="card eventos" aria-label="Actividad del log">
         <h2>

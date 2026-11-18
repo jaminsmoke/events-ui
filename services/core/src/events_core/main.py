@@ -21,7 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
-from . import eventos, ideas
+from . import eventos, ideas, proyeccion
 from .db import data_version, db_path, journal_mode, open_read_only
 
 # Se repiten los CHECK de `schema/ideas.sql` a propósito: aquí sirven para que el
@@ -120,6 +120,24 @@ class Evento(BaseModel):
     type: str
     payload: dict | str
     dedupe_key: str | None = None
+
+
+class ProyeccionRepo(BaseModel):
+    """F2: el estado del repo en una lectura, con su identidad.
+
+    No es SQL libre desde la UI (ADR 0001, decisión 8): es una proyección
+    fija y versionada. `repo` es la carpeta resuelta; `branch`/`commit` vienen
+    de git cuando hay repo git y son `None` si no.
+    """
+
+    repo: str
+    branch: str | None = None
+    commit: str | None = None
+    ideas: int
+    connections: int
+    events: int
+    por_estado: dict[str, int]
+    ultima_actividad: str | None = None
 
 
 class ErrorDetail(BaseModel):
@@ -320,3 +338,12 @@ def stream_eventos(request: Request, repo: RepoParam) -> StreamingResponse:
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+# --- F2: proyecciones con nombre, sin SQL libre ---
+
+
+@app.get("/proyecciones/repo", response_model=ProyeccionRepo, tags=["f2"], responses=RESPUESTAS_ERROR)
+def get_proyeccion_repo(repo: RepoParam) -> dict[str, Any]:
+    """Primera proyección: estado del repo con su identidad (rama/commit)."""
+    return proyeccion.repo_estado_actual(repo)

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { api, unwrap } from "./api";
-import type { Connection, IdeaCreate, IdeaUpdate, Mapa } from "./api";
+import type { Connection, IdeaCreate, IdeaUpdate, Mapa, ProyeccionRepo } from "./api";
 import { STORAGE_KEY } from "./repo";
 
 const SIN_CABLES: Connection[] = [];
@@ -141,6 +141,42 @@ export function useRepo(repo: string | null) {
     [repo],
   );
 
+  // F2: la proyección del repo (identidad + conteos), refrescada con el mapa.
+  // Se resetea al cambiar de repo verificando el repo en el render.
+  const [proyeccionEstado, setProyeccionEstado] = useState<{
+    repo: string | null;
+    datos: ProyeccionRepo;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!repo) return;
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const vigilar = async () => {
+      try {
+        const p: ProyeccionRepo = await unwrap(
+          api.GET("/proyecciones/repo", {
+            params: { query: { repo } },
+            signal: controller.signal,
+          }),
+        );
+        if (!controller.signal.aborted) setProyeccionEstado({ repo, datos: p });
+      } catch {
+        // La proyección no bloquea el mapa: si falla, simplemente no se ve.
+      } finally {
+        if (!controller.signal.aborted) timer = setTimeout(vigilar, 5000);
+      }
+    };
+    void vigilar();
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [repo]);
+
+  const proyeccion =
+    repo && proyeccionEstado?.repo === repo ? proyeccionEstado.datos : null;
+
   const fresco = cargado && cargado.repo === repo ? cargado : null;
 
   return {
@@ -148,6 +184,7 @@ export function useRepo(repo: string | null) {
     ideas: fresco?.mapa.ideas ?? null,
     links: fresco?.mapa.connections ?? SIN_CABLES,
     error: fallo && fallo.repo === repo ? fallo.mensaje : null,
+    proyeccion: repo ? proyeccion : null,
     crear,
     mover,
     editar,

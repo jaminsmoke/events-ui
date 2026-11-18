@@ -358,6 +358,24 @@ def _row(row: sqlite3.Row) -> dict[str, Any]:
     return idea
 
 
+def _emitir(conn: sqlite3.Connection, tipo: str, payload: dict[str, Any]) -> None:
+    """Añade un evento `idea.*` al log del propio almacén, en su transacción.
+
+    El core es quien escribe ideas, así que es también quien emite sus eventos
+    de ciclo de vida —esos sí los produce la app; el resto del log viene del
+    productor externo. La fila viaja en la misma transacción que la idea: si
+    el cambio se deshace, el evento no queda suelto. La `dedupe_key` no aplica.
+    """
+    try:
+        conn.execute(
+            "INSERT INTO event (ts, type, payload) VALUES (?, ?, ?)",
+            (now_iso(), tipo, json.dumps(payload)),
+        )
+    except sqlite3.Error:
+        # Almacén viejo sin tabla `event`: la idea sí se escribe; el evento no.
+        pass
+
+
 def list_ideas(
     repo: str,
     *,
@@ -405,6 +423,7 @@ def create_idea(
             " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (uid, title, description, content, kind, status, json.dumps(list(tags)), ts, ts),
         )
+        _emitir(conn, "idea.created", {"uid": uid, "title": title})
         conn.commit()
     return get_idea(repo, uid)
 
@@ -425,16 +444,31 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
             f"UPDATE ideas SET {assignments} WHERE uid = :uid",
             {**clean, "uid": uid},
         )
-        conn.commit()
         if cursor.rowcount == 0:
             raise KeyError(uid)
-    return get_idea(repo, uid)
+        idea = get_idea(repo, uid)
+        _emitir(
+            conn,
+            "idea.status" if "status" in clean else "idea.updated",
+            {"uid": uid, "title": idea["title"], "status": idea["status"]},
+        )
+        conn.commit()
+    return idea
 
 
 def delete_idea(repo: str, uid: str) -> bool:
-    """Borra la idea; sus conexiones se van con ella (ON DELETE CASCADE)."""
+    """Borra la idea; sus conexiones se van con ella (ON DELETE CASCADE).
+
+    El título se lee antes de borrar para que el evento `idea.deleted` tenga
+    qué mostrar: después no hay fila de la que sacar nada.
+    """
     with closing(connect(ensure_repo(repo))) as conn:
+        titulo_row = conn.execute(
+            "SELECT title FROM ideas WHERE uid = ?", (uid,)
+        ).fetchone()
         cursor = conn.execute("DELETE FROM ideas WHERE uid = ?", (uid,))
+        if cursor.rowcount > 0:
+            _emitir(conn, "idea.deleted", {"uid": uid, "title": titulo_row[0]})
         conn.commit()
     return cursor.rowcount > 0
 

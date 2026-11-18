@@ -157,8 +157,10 @@ devolver al final de la cola. El core admite un ítem activo en roadmap y consul
 reglas con `GET /protocolos`. Las conexiones entre ideas se escriben mediante
 herramientas SQL y se consultan desde el mapa.
 
-Para actualizar un almacén v12 existente, ábrelo desde la aplicación. El comando
-`core:seed` tiene un fallo conocido en ese recorrido. Consulta el
+Para actualizar un almacén v12 existente, ábrelo desde la aplicación o ejecuta
+`core:seed`: en los dos casos se aplica la migración que falte. Si un almacén
+quedó marcado como v13 por el fallo anterior de `core:seed`, al abrirlo se
+termina la migración 0013. Consulta el
 [modelo de datos](docs/base-de-datos.md) y los [pendientes](ROADMAP.md#pendientes).
 
 `repo` es la ruta de la carpeta (la que devuelve el selector de la UI) o un nombre

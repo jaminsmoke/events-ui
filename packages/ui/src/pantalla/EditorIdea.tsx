@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { IdeaUpdate } from "../core/api";
 
@@ -25,25 +25,48 @@ export function EditorIdea({
   const [tituloLocal, setTituloLocal] = useState(titulo);
   const [descripcionLocal, setDescripcionLocal] = useState(descripcion);
   const [tags, setTags] = useState("");
-  const [cargada, setCargada] = useState(false);
+  const [estadoCarga, setEstadoCarga] = useState<"cargando" | "lista" | "fallida">("cargando");
   const [fallo, setFallo] = useState<string | null>(null);
   const [trabajando, setTrabajando] = useState(false);
 
+  // El mapa se refresca cada dos segundos y `onCargar`/`onGuardar` son
+  // funciones nuevas en cada render del padre. La carga de tags se hace una
+  // sola vez al abrirse: si dependiera de esas funciones, cada refresco
+  // volvería a pedir la idea y pisaría el borrador mientras se escribe.
+  const cargarRef = useRef(onCargar);
+  const tagsModificadosRef = useRef(false);
+  useEffect(() => {
+    cargarRef.current = onCargar;
+  }, [onCargar]);
   useEffect(() => {
     let viva = true;
-    onCargar()
+    cargarRef
+      .current()
       .then((completa) => {
-        if (!viva || !completa) return;
-        setTags((completa.tags ?? []).join(", "));
-        setCargada(true);
+        if (!viva) return;
+        if (!completa) {
+          setEstadoCarga("fallida");
+          setFallo(
+            "No se pudieron cargar las etiquetas. Al guardar sin editarlas, se conservan las actuales.",
+          );
+          return;
+        }
+        if (!tagsModificadosRef.current) {
+          setTags((completa.tags ?? []).join(", "));
+        }
+        setEstadoCarga("lista");
       })
       .catch(() => {
-        if (viva) setFallo("No se pudo cargar la idea; se abre con valores vacíos.");
+        if (!viva) return;
+        setEstadoCarga("fallida");
+        setFallo(
+          "No se pudieron cargar las etiquetas. Al guardar sin editarlas, se conservan las actuales.",
+        );
       });
     return () => {
       viva = false;
     };
-  }, [onCargar]);
+  }, []);
 
   const guardar = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,14 +74,21 @@ export function EditorIdea({
     setTrabajando(true);
     setFallo(null);
     try {
-      await onGuardar({
+      const cambios: IdeaUpdate = {
         title: tituloLocal.trim(),
         description: descripcionLocal.trim(),
-        tags: tags
+      };
+      // Si la lectura de las etiquetas falló (o aún no volvió) y el campo no
+      // se tocó, no hay que enviar `tags`: hacerlo con el input vacío
+      // borraría las que la idea ya tuviera. Si el campo sí se tocó, se
+      // respeta lo escrito, aunque sea quitar todas las etiquetas.
+      if (estadoCarga === "lista" || tagsModificadosRef.current) {
+        cambios.tags = tags
           .split(",")
           .map((t) => t.trim())
-          .filter(Boolean),
-      });
+          .filter(Boolean);
+      }
+      await onGuardar(cambios);
       onCerrar();
     } catch (err: unknown) {
       setFallo(err instanceof Error ? err.message : String(err));
@@ -82,7 +112,7 @@ export function EditorIdea({
       >
         <form onSubmit={guardar}>
           <h2>Editar idea</h2>
-          {!cargada && <p className="hint">Cargando tags…</p>}
+          {estadoCarga === "cargando" && <p className="hint">Cargando tags…</p>}
           <label>
             Título
             <input
@@ -105,9 +135,13 @@ export function EditorIdea({
             Tags
             <input
               value={tags}
-              onChange={(e) => setTags(e.target.value)}
+              onChange={(e) => {
+                tagsModificadosRef.current = true;
+                setTags(e.target.value);
+              }}
               placeholder="tags, separados por comas"
               aria-label="Tags"
+              disabled={estadoCarga === "cargando"}
             />
           </label>
           {fallo && <p className="hint error">{fallo}</p>}

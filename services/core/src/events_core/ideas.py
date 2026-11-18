@@ -143,19 +143,25 @@ def connect(db_file: Path, *, create: bool = False) -> sqlite3.Connection:
 
 
 def init_repo(repo: str) -> Path:
-    """Crea `.EUI/EUI_DATABASE.sqlite` con el esquema aplicado. Idempotente.
+    """Crea o pone al día `.EUI/EUI_DATABASE.sqlite`. Idempotente.
 
-    No crea el repo: exige que ya exista. Un nombre mal escrito no debe dejar un
-    almacén vacío suelto, igual que la app no crea la BD de eventos.
+    Si el almacén ya existe no basta con aplicar `schema/*.sql`: eso solo
+    crea lo que falta (`IF NOT EXISTS`) y deja las filas de una versión vieja
+    en la tabla antigua. Un almacén existente se migra por número, igual que
+    al abrirlo desde la app. Un nombre mal escrito no crea un repo: exige que
+    ya exista, como la app no crea la BD de eventos.
     """
     directory = resolve_repo(repo)
     if not directory.is_dir():
         raise FileNotFoundError(f"no existe el repo {directory} (deja ahí su código primero)")
 
     db_file = directory / EUI_DIR / DB_FILENAME
-    with closing(connect(db_file, create=True)) as conn:
-        aplicar_esquema(conn)
-        conn.commit()
+    if db_file.is_file():
+        _migrar_esquema(db_file)
+    else:
+        with closing(connect(db_file, create=True)) as conn:
+            aplicar_esquema(conn)
+            conn.commit()
 
     registro.escribir("info", f"Almacén sembrado en {directory}", origen="seed")
     _ignorar_auxiliares(db_file)
@@ -238,6 +244,19 @@ def _migrar_esquema(db_file: Path) -> None:
     with _ESQUEMA_LOCK, closing(connect(db_file)) as conn:
         version = int(conn.execute("PRAGMA user_version").fetchone()[0])
         if version >= SCHEMA_VERSION:
+            # Un v13 firmado por el `core:seed` anterior no pasó por la
+            # migración 0013: `aplicar_esquema` marcó la versión sin copiar
+            # `idea_completada` ni ampliar los protocolos. Si ese esquema
+            # incompleto sigue ahí, hay que terminar la migración, no fiarse
+            # del número. Un v13 de verdad no tiene `idea_completada` y su
+            # `protocolo_flujo` ya acepta los carriles nuevos.
+            if version == SCHEMA_VERSION and _esquema_0013_incompleto(conn):
+                conn.isolation_level = None
+                _aplicar_paso(
+                    conn,
+                    SCHEMA_VERSION,
+                    MIGRATIONS_DIR / "0013_estado_completo.sql",
+                )
             return
 
         if version == 0:
@@ -253,6 +272,27 @@ def _migrar_esquema(db_file: Path) -> None:
         conn.isolation_level = None  # las transacciones las llevamos nosotros
         for numero, script in _pasos(version):
             _aplicar_paso(conn, numero, script)
+
+
+def _esquema_0013_incompleto(conn: sqlite3.Connection) -> bool:
+    """¿Un v13 quedó sin terminar la migración 0013?
+
+    La prueba no es «faltan filas»: un repo puede haber retirado un protocolo
+    a propósito. Es el esquema: la migración 0013 retira `idea_completada`
+    y reconstruye `protocolo_flujo` para aceptar los carriles nuevos. Si la
+    tabla vieja sigue viva o el CHECK aún no contiene esos carriles, el
+    número 13 se firmó sin migrar (típicamente, con el `core:seed` anterior).
+    """
+    if _existe(conn, "idea_completada"):
+        return True
+    fila = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'protocolo_flujo'"
+    ).fetchone()
+    if fila is None:
+        return True
+    definicion = fila[0] or ""
+    carriles = ("roadmap", "verificacion", "revision_aprobada")
+    return any(carril not in definicion for carril in carriles)
 
 
 def _pasos(version: int) -> list[tuple[int, Path]]:

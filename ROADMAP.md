@@ -52,6 +52,13 @@ con el motivo, para no reabrirlo cada semana.
 - **Log con pestañas**: un solo flyout con `Eventos` (timeline del repo) y
   `Registro` (operativo de la app), coloreado por nivel y filtrado por
   etiqueta (`origen`).
+- **Etiquetas del editor sin pérdida**: la carga se hace una sola vez al abrir,
+  el refresco de 2 s no pisa el borrador y, si la lectura falla, guardar sin
+  tocar el campo no envía `tags`. Cubierto por `e2e/escenarios/editor-conserva-etiquetas.mjs`.
+- **Actualización con `core:seed`**: sobre un almacén existente el comando migra
+  por número en vez de reaplicar el esquema fresco; la segunda ejecución no
+  toca nada y un v13 firmado sin migrar termina la 0013 al abrirse. Cubierto
+  por `services/core/tests/test_seed_migracion.py`.
 - **CI**: `pnpm check` global en cada push a main y en PRs
   (`.github/workflows/ci.yml`). Batería e2e y builds de Tauri quedan fuera
   del CI a propósito (navegador y puertos; se corren en local).
@@ -64,8 +71,6 @@ las relaciones y el alcance de las comprobaciones locales.
 
 ### Prioridad alta
 
-- [ ] **Etiquetas del editor.** El refresco periódico sustituye las etiquetas que se están escribiendo. Si falla su carga, guardar solo el título envía una lista vacía. Probar en navegador que el borrador sobrevive a un refresco y que un cambio de título conserva las etiquetas tras un fallo de lectura.
-- [ ] **Actualización con `core:seed`.** Sobre una v12 con una idea completada, el comando marca v13 y deja la ficha en la tabla antigua. El mapa muestra un borrador y faltan los protocolos nuevos. Cubrir el comando real, una segunda ejecución y la recuperación de almacenes que ya quedaron marcados como v13.
 - [ ] **Almacenes anteriores a `user_version`.** Al abrir el esquema inicial con una idea, el core marcó v13 con una fila en `ideas` y cero en `idea_entry`. Migrar un fichero histórico y verificar que el mapa conserva el UID, los campos y el estado.
 
 ### Flujo y visor

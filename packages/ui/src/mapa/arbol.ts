@@ -32,13 +32,19 @@ export type TreeNode = {
 
 export function buildTree(ideas: Idea[], links: Connection[]): Tree {
   const byUid = new Map(ideas.map((idea) => [idea.uid, idea]));
+  const carrilPorUid = new Map(ideas.map((idea) => [idea.uid, laneOf(idea.status)]));
 
   const hijos = new Map<string, string[]>();
+  const conPadre = new Set<string>();
   for (const link of links) {
     if (link.kind !== "child") continue;
+    const carrilPadre = carrilPorUid.get(link.parent_uid);
+    // Si cambian de carril por separado, cada idea se ve en el suyo.
+    if (!carrilPadre || carrilPadre !== carrilPorUid.get(link.child_uid)) continue;
     const lista = hijos.get(link.parent_uid) ?? [];
     lista.push(link.child_uid);
     hijos.set(link.parent_uid, lista);
+    conPadre.add(link.child_uid);
   }
 
   /* Una idea y lo que cuelga de ella. `camino` corta los ciclos: la API ya los
@@ -64,11 +70,8 @@ export function buildTree(ideas: Idea[], links: Connection[]): Tree {
     tone: "root",
   };
 
-  // Quien tiene padre en `connections` se dibuja dentro de él, no en el carril.
-  const conPadre = new Set(links.filter((link) => link.kind === "child").map((l) => l.child_uid));
-
   const carriles: TreeNode[] = LANES.map((lane) => {
-    const items = ideas.filter((idea) => laneOf(idea.status) === lane.id);
+    const items = ideas.filter((idea) => carrilPorUid.get(idea.uid) === lane.id);
     const kids = items
       .filter((idea) => !conPadre.has(idea.uid))
       .map((idea) => rama(idea.uid, new Set()))

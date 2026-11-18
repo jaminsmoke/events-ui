@@ -4,7 +4,6 @@
   --line: #263041;
   --fg: #e6edf3;
   --muted: #8b98a9;
-  --good: #3fb950;
   --warn: #d29922;
   --bad: #f85149;
   --accent: #58a6ff;
@@ -52,7 +51,15 @@ h2 {
 }
 
 header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
   margin-bottom: 24px;
+}
+
+header > div {
+  flex: 1;
 }
 
 .repo-bar {
@@ -133,6 +140,116 @@ header {
   padding: 9px 18px;
 }
 
+/* Selector de repo: el mismo en la web y en desktop. */
+.selector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.selector .manual {
+  max-width: 560px;
+}
+
+.selector-lista {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.selector-lista .btn.ghost.activo {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.selector-card {
+  max-width: 720px;
+  margin: 0 auto 16px;
+}
+
+/* Nueva idea: dos campos y las acciones, como el selector. */
+.nueva {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.nueva input {
+  background: #0b0e13;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--fg);
+  padding: 7px 10px;
+}
+
+.nueva input:focus {
+  outline: 1px solid var(--accent);
+  border-color: var(--accent);
+}
+
+.nueva-acciones {
+  display: flex;
+  gap: 8px;
+}
+
+.hint.error {
+  color: var(--bad);
+}
+
+/* Mover una idea al otro carril: fantasma, a la derecha de la fila. */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.row .row-head {
+  flex: 1;
+}
+
+.btn.ghost.mover {
+  flex: none;
+  font-size: 11px;
+  padding: 2px 8px;
+}
+
+/* Formulario en línea dentro de la fila (editar / conectar). */
+.fila-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 9px;
+}
+
+.fila-form input,
+.fila-form select {
+  flex: 1;
+  min-width: 120px;
+  background: #0b0e13;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--fg);
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.fila-acciones {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.fila-fallo {
+  padding: 0 9px 6px;
+}
+
 .manual {
   display: flex;
   gap: 8px;
@@ -180,6 +297,19 @@ header {
   overflow: hidden;
   cursor: grab;
   touch-action: none;
+}
+
+.aviso-refresco {
+  position: absolute;
+  z-index: 1;
+  top: 8px;
+  right: 18px;
+  margin: 0;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--warn);
 }
 
 /* El esquema no cabe: se avisa y se ofrece reencuadrar de un clic. */
@@ -408,6 +538,35 @@ header {
   text-align: center;
 }
 
+/* Pulso de borde del nodo según qué pasó: azul entra, rojo sale, verde
+ * completado. El mismo tono tiñe el contador (`--pulso`). */
+.node.pulso-azul {
+  --pulso: #58a6ff55;
+  animation: pulso-borde 900ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.node.pulso-rojo {
+  --pulso: #f8514955;
+  animation: pulso-borde 900ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.node.pulso-verde {
+  --pulso: #3fb95066;
+  animation: pulso-borde 900ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@keyframes pulso-borde {
+  0% {
+    box-shadow: 0 0 0 0 var(--pulso);
+  }
+  30% {
+    box-shadow: 0 0 0 6px var(--pulso);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
 /* El contador del carril que acaba de recibir una idea: un golpe, no un latido. */
 .count.pulso {
   animation: pulso 900ms cubic-bezier(0.2, 0.7, 0.2, 1);
@@ -510,26 +669,17 @@ header {
   border-left: 1px solid #1f2a3a;
 }
 
-/* Punto de estado de una idea: el carril ya lo dice, esto lo repite a golpe de vista. */
+/* Azul en Ideas y En cola. En vuelo se usa el color del destino. */
 .dot {
   flex: none;
   width: 6px;
   height: 6px;
   border-radius: 99px;
-  background: var(--muted);
-}
-
-.dot.status-proposed,
-.dot.status-draft {
   background: var(--accent);
 }
 
-.dot.status-accepted {
-  background: var(--good);
-}
-
-.dot.status-rejected,
-.dot.status-superseded {
+.lane-descartadas .dot,
+.vuelo.descartadas .dot {
   background: var(--bad);
 }
 
@@ -541,6 +691,7 @@ header {
 
 .vuelos {
   position: absolute;
+  z-index: 1;
   inset: 0;
   pointer-events: none;
 }

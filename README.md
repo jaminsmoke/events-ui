@@ -10,11 +10,18 @@ y hace tail por cursor. No hay watcher de ficheros ni poller de git.
 ## Estructura
 
 ```
-apps/desktop      Tauri 2 + React + TS + Vite   (pnpm)
+apps/desktop      Envoltorio Tauri 2 (diálogo nativo) sobre la UI compartida
+apps/web          Envoltorio web (Vite, 5174) sobre la misma UI compartida
+packages/ui       UI compartida: visor del mapa, selector de repo y API, sin
+                  envoltorio. Desktop inyecta el diálogo nativo; la web ofrece
+                  la lista de `GET /repos` y pegar la ruta.
 services/core     FastAPI + SQLite WAL          (uv)
 docs/             ADRs
 repoprobe/        laboratorio: material analizado y su .EUI
 ```
+
+Las dos apps montan `@events-ui/ui`: cambiar el visor se hace una sola vez.
+Lo que difiere es el envoltorio (Tauri frente a navegador) y el puerto.
 
 ## Requisitos
 
@@ -30,10 +37,17 @@ corepack pnpm -v
 
 ```bash
 corepack pnpm install      # dependencias de la UI
-corepack pnpm core:dev     # core en 127.0.0.1:8765
-corepack pnpm dev:ui       # UI en localhost:5173 con proxy /api
-corepack pnpm dev          # ventana Tauri
+corepack pnpm dev          # ventana Tauri (levanta el core si no está)
+corepack pnpm dev:web      # solo web en localhost:5174, también con core
+                           # (`dev:ui` es el alias histórico de este)
+corepack pnpm core:dev     # core solo, en 127.0.0.1:8765 (si ya va, se reutiliza)
 ```
+
+`dev` y `dev:web` pasan por `scripts/dev.mjs`, que comprueba `127.0.0.1:8765/health`
+y levanta el core si nadie responde: sin él, Vite no puede proxyficar `/api` y la
+UI se queda esperando (`connect ECONNREFUSED 127.0.0.1:8765` en la terminal de
+Vite). Si el core ya está en marcha (porque se arrancó aparte), se reutiliza y
+no se apaga al cerrar la UI.
 
 El prefijo `corepack` es necesario aquí: sin él, `pnpm` no existe en el PATH.
 Ojo: `corepack pnpm` **no** deja un `pnpm` en el PATH, así que dentro de un script
@@ -48,11 +62,34 @@ corepack pnpm check        # types + eslint, ruff check/format, cargo check
 corepack pnpm fix          # aplica ruff --fix + ruff format + eslint --fix
 ```
 
-`check` encadena `check:ui` (`tsc --noEmit` y ESLint), `check:py` (`ruff check` y
-`ruff format --check`, config en `services/core/pyproject.toml`) y `check:rust`
-(`cargo check`). Para compilar de verdad están `build:ui` (Vite) y `build` (bundle Tauri).
+`check` encadena `check:contract` (regenera el OpenAPI en memoria y falla si
+`openapi.json`/`schema.ts` no coinciden con el core: cambiar la API sin
+`gen:api` no pasa), `check:ui` (`tsc --noEmit` y ESLint en desktop, web y la UI
+compartida), `check:py` (`ruff check` y `ruff format --check`, config en
+`services/core/pyproject.toml`) y `check:rust` (`cargo check`). Para compilar de
+verdad están `build:web` (Vite) y `build` (bundle Tauri).
 
 El core apunta a `data/events.db` por defecto; cámbialo con `EVENTSUI_DB=/ruta/al/log.db`.
+
+Los tipos TS del cliente no se escriben a mano: se generan del OpenAPI del
+core con [`openapi-typescript`](https://openapi-ts.dev/) y las llamadas van
+por [`openapi-fetch`](https://openapi-ts.dev/openapi-fetch), tipado por esos
+`paths`: ruta, query y el **cuerpo** de POST/PATCH se comprueban contra el
+contrato (`api.POST("/ideas", { params, body })` compone el `body` contra
+`IdeaCreate` generado). El cliente vive en `packages/ui/src/core/api.ts` junto
+con `unwrap`, que convierte el error del core en su `detail`. Tras
+cambiar la API del core:
+
+```bash
+corepack pnpm gen:api    # vuelca app.openapi() y regenera la UI
+```
+
+Eso deja `packages/ui/openapi.json` (snapshot versionado: el diff muestra qué
+cambió del contrato) y `packages/ui/src/core/schema.ts` (generado, no editar).
+`api.ts` deriva `Idea`, `Connection`, `Mapa`, `Revision` y `RepoListado` de
+ahí, así que un cambio en el core se ve en el siguiente `check`. No necesita
+el core en marcha: el volcado importa la app con `uv run` (módulo
+`events_core.dump_openapi`).
 
 pnpm 11+ no ejecuta postinstall de dependencias sin permiso: la política vive en
 `allowBuilds` dentro de `pnpm-workspace.yaml`, no en `package.json`.
@@ -81,6 +118,7 @@ corepack pnpm core:dev           # Swagger en http://127.0.0.1:8765/docs
 | GET / PATCH / DELETE | `/ideas/{uid}?repo=<ruta>` |
 | GET | `/connections?repo=<ruta>` (filtro `parent_uid`) |
 | POST | `/connections?repo=<ruta>` |
+| GET | `/mapa?repo=<ruta>` — todas las ideas del visor y sus conexiones en una sola lectura |
 | GET | `/revision?repo=<ruta>` — firma barata (`PRAGMA data_version` + conteos) para el refresco en vivo |
 
 `repo` es la ruta de la carpeta (la que devuelve el selector de la UI) o un nombre
@@ -110,6 +148,12 @@ cabecera y el runner apaga las claves foráneas antes de abrir la transacción
 
 - **F0 (hecho):** andamio, `/health`, proxy UI→core.
 - **F0.5 (hecho):** tabla `ideas`, seed de `.EUI/EUI_DATABASE.sqlite`, API CRUD por repo.
-- **F0.6 (hecho):** tabla `connections`, `/revision` y el visor en vivo: el mapa solo lee,
-  se refresca con el `data_version` y no permite editar nada.
+- **F0.6 (hecho):** tabla `connections`, `/revision` y visor en vivo. Cada dos segundos
+  se comprueba la revisión y, si cambia, se lee `/mapa`. Una idea se anima al pasar entre
+  «En cola» y «Descartadas». Las conexiones `child` se muestran anidadas cuando ambos
+  extremos están en el mismo carril. El visor compara el estado entre lecturas.
+- **F0.7 (hecho):** la UI escribe, no solo mira: crear ideas («Nueva idea»), editar
+  título/descripción y borrar desde la fila, mover entre carriles y conectar ideas
+  del cajón como padre (`POST /connections`). Todo por `openapi-fetch` tipado por
+  el OpenAPI generado, con los errores 400/404 declarados en el contrato.
 - **F1 (siguiente):** esquema del sobre de evento, conexión RO, tail + SSE.

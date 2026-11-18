@@ -1,7 +1,10 @@
 export const STORAGE_KEY = "eui.repo";
 
-/** En `dev:ui` (navegador) no hay Tauri, así que no hay diálogo nativo. */
-export const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+/** Cómo se elige una carpeta puede depender del envoltorio: en desktop es el
+ *  diálogo nativo de Tauri y lo inyecta `apps/desktop`; en la web no hay
+ *  diálogo y la UI compartida ofrece la lista de `GET /repos` y pegar la ruta.
+ *  Por eso aquí no se pregunta si estamos en Tauri: se recibe la capacidad. */
+export type ElegirCarpeta = () => Promise<string | null>;
 
 export function folderName(path: string): string {
   const parts = path.split(/[\\/]/).filter(Boolean);

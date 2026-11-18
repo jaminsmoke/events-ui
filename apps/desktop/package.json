@@ -11,6 +11,7 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@events-ui/ui": "workspace:*",
     "@tauri-apps/plugin-dialog": "^2.8.4",
     "react": "^19",
     "react-dom": "^19"

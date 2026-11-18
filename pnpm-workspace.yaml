@@ -1,5 +1,6 @@
 packages:
   - "apps/*"
+  - "packages/*"
 
 # pnpm 11+ no ejecuta postinstall de dependencias sin permiso explícito, y
 # retiró `onlyBuiltDependencies`: ahora es un mapa `allowBuilds`.

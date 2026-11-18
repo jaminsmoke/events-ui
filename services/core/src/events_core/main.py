@@ -36,7 +36,8 @@ app = FastAPI(title="Events UI Core", version="0.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:5173",
+        "http://localhost:5173",  # desktop (Vite)
+        "http://localhost:5174",  # web (Vite)
         "tauri://localhost",
         "http://tauri.localhost",
     ],
@@ -82,12 +83,62 @@ class Connection(ConnectionCreate):
     created_at: str
 
 
+class MapIdea(BaseModel):
+    uid: str
+    title: str
+    description: str
+    status: Status
+
+
+class MapSnapshot(BaseModel):
+    ideas: list[MapIdea]
+    connections: list[Connection]
+
+
 class Revision(BaseModel):
     """Firma del almacén para el refresco en vivo (`PRAGMA data_version`)."""
 
+    instance: str
     data_version: int
     ideas: int
     connections: int
+
+
+class Repo(BaseModel):
+    """Una carpeta del laboratorio ya sembrada, tal como la ofrece `GET /repos`."""
+
+    repo: str
+    db_path: str
+
+
+class ErrorDetail(BaseModel):
+    """Lo que devuelven los exception handlers de abajo: `{"detail": ...}`.
+
+    Declarado a propósito: sin esto, el OpenAPI solo publicaba el 200 y el
+    422 de validación, y el cliente TS tenía que adivinar (con un cast) que
+    el 400/404 trae `detail` como texto.
+    """
+
+    detail: str
+
+
+# Errores que cualquier endpoint con `repo` puede devolver: nombre inválido
+# (400, `InvalidInput`) o carpeta/idea que no existe (404). Se declaran en
+# cada decorador para que el cliente generado los tipé.
+RESPUESTAS_ERROR = {
+    400: {"model": ErrorDetail, "description": "Petición inválida"},
+    404: {"model": ErrorDetail, "description": "No existe el repo o la idea"},
+}
+
+
+class Health(BaseModel):
+    """Respuesta de `/health`: `journal_mode`/`data_version` solo si hay BD."""
+
+    status: Literal["ok", "degraded"]
+    db_path: str
+    db_exists: bool
+    journal_mode: str | None = None
+    data_version: int | None = None
 
 
 @app.exception_handler(FileNotFoundError)
@@ -105,7 +156,7 @@ def _sin_idea(_request: Request, exc: KeyError) -> JSONResponse:
     return JSONResponse(status_code=404, content={"detail": f"no existe la idea {exc.args[0]}"})
 
 
-@app.get("/health")
+@app.get("/health", response_model=Health)
 def health() -> dict[str, Any]:
     """Estado del core y de la BD de eventos.
 
@@ -129,7 +180,7 @@ def health() -> dict[str, Any]:
     return report
 
 
-@app.get("/repos", tags=["ideas"])
+@app.get("/repos", response_model=list[Repo], tags=["ideas"])
 def get_repos() -> list[dict[str, Any]]:
     """Repos investigados que ya tienen `.EUI/EUI_DATABASE.sqlite`."""
     return ideas.list_repos()
@@ -141,7 +192,7 @@ def get_repos() -> list[dict[str, Any]]:
 RepoParam = Annotated[str, Query(description="Carpeta del repo: ruta absoluta o nombre en el lab")]
 
 
-@app.get("/ideas", response_model=list[Idea], tags=["ideas"])
+@app.get("/ideas", response_model=list[Idea], tags=["ideas"], responses=RESPUESTAS_ERROR)
 def get_ideas(
     repo: RepoParam,
     status: Status | None = None,
@@ -152,28 +203,35 @@ def get_ideas(
     return ideas.list_ideas(repo, status=status, kind=kind, limit=limit, offset=offset)
 
 
-@app.post("/ideas", response_model=Idea, status_code=201, tags=["ideas"])
+@app.post(
+    "/ideas", response_model=Idea, status_code=201, tags=["ideas"], responses=RESPUESTAS_ERROR
+)
 def post_idea(body: IdeaCreate, repo: RepoParam) -> dict[str, Any]:
     return ideas.create_idea(repo, **body.model_dump())
 
 
-@app.get("/ideas/{uid}", response_model=Idea, tags=["ideas"])
+@app.get("/ideas/{uid}", response_model=Idea, tags=["ideas"], responses=RESPUESTAS_ERROR)
 def get_idea(uid: str, repo: RepoParam) -> dict[str, Any]:
     return ideas.get_idea(repo, uid)
 
 
-@app.patch("/ideas/{uid}", response_model=Idea, tags=["ideas"])
+@app.patch("/ideas/{uid}", response_model=Idea, tags=["ideas"], responses=RESPUESTAS_ERROR)
 def patch_idea(uid: str, body: IdeaUpdate, repo: RepoParam) -> dict[str, Any]:
     return ideas.update_idea(repo, uid, body.model_dump(exclude_unset=True))
 
 
-@app.delete("/ideas/{uid}", status_code=204, tags=["ideas"])
+@app.delete("/ideas/{uid}", status_code=204, tags=["ideas"], responses=RESPUESTAS_ERROR)
 def remove_idea(uid: str, repo: RepoParam) -> None:
     if not ideas.delete_idea(repo, uid):
         raise KeyError(uid)
 
 
-@app.get("/connections", response_model=list[Connection], tags=["connections"])
+@app.get(
+    "/connections",
+    response_model=list[Connection],
+    tags=["connections"],
+    responses=RESPUESTAS_ERROR,
+)
 def get_connections(
     repo: RepoParam,
     parent_uid: Annotated[
@@ -183,12 +241,24 @@ def get_connections(
     return ideas.list_connections(repo, parent_uid=parent_uid)
 
 
-@app.post("/connections", response_model=Connection, status_code=201, tags=["connections"])
+@app.post(
+    "/connections",
+    response_model=Connection,
+    status_code=201,
+    tags=["connections"],
+    responses=RESPUESTAS_ERROR,
+)
 def post_connection(body: ConnectionCreate, repo: RepoParam) -> dict[str, Any]:
     return ideas.create_connection(repo, **body.model_dump())
 
 
-@app.get("/revision", response_model=Revision, tags=["connections"])
+@app.get("/mapa", response_model=MapSnapshot, tags=["connections"], responses=RESPUESTAS_ERROR)
+def get_map(repo: RepoParam) -> dict[str, Any]:
+    """Ideas y conexiones tal como estaban en la misma lectura de SQLite."""
+    return ideas.map_snapshot(repo)
+
+
+@app.get("/revision", response_model=Revision, tags=["connections"], responses=RESPUESTAS_ERROR)
 def get_revision(repo: RepoParam) -> dict[str, Any]:
     """Sondeo de cambio: la UI lo pide cada par de segundos, sin traerse el mapa."""
     return ideas.revision(repo)

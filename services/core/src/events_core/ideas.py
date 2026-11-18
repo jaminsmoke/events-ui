@@ -20,7 +20,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from .db import data_version
+from .db import data_version, open_read_only
 
 EUI_DIR = ".EUI"
 # Con extensión: un SQLite sin extensión no lo reconoce ningún editor ni visor, y
@@ -430,13 +430,29 @@ def delete_idea(repo: str, uid: str) -> bool:
 def list_connections(repo: str, *, parent_uid: str | None = None) -> list[dict[str, Any]]:
     """Conexiones del mapa, opcionalmente solo las que cuelgan de un padre."""
     with closing(connect(ensure_repo(repo))) as conn:
-        rows = conn.execute(
-            "SELECT * FROM connections"
-            " WHERE (:parent IS NULL OR parent_uid = :parent)"
-            " ORDER BY created_at, id",
-            {"parent": parent_uid},
-        ).fetchall()
+        return _list_connections(conn, parent_uid)
+
+
+def _list_connections(
+    conn: sqlite3.Connection, parent_uid: str | None = None
+) -> list[dict[str, Any]]:
+    rows = conn.execute(
+        "SELECT * FROM connections"
+        " WHERE (:parent IS NULL OR parent_uid = :parent)"
+        " ORDER BY created_at, id",
+        {"parent": parent_uid},
+    )
     return [dict(row) for row in rows]
+
+
+def map_snapshot(repo: str) -> dict[str, Any]:
+    """Lee el mapa entero en una sola transacción de lectura."""
+    with closing(open_read_only(ensure_repo(repo))) as conn:
+        conn.execute("BEGIN")
+        rows = conn.execute(
+            "SELECT uid, title, description, status FROM ideas ORDER BY created_at DESC, id DESC"
+        )
+        return {"ideas": [dict(row) for row in rows], "connections": _list_connections(conn)}
 
 
 def create_connection(
@@ -479,6 +495,8 @@ def create_connection(
 # idea de carril— se quedaban sin despertar a la UI.
 _VIGILANTES: dict[Path, sqlite3.Connection] = {}
 _VIGILANTES_LOCK = threading.RLock()
+# Un vigilante nuevo puede empezar por la misma versión aunque cambió el mapa.
+_REVISION_INSTANCE = uuid.uuid4().hex
 
 
 def _vigilante(db_file: Path) -> sqlite3.Connection:
@@ -508,6 +526,7 @@ def revision(repo: str) -> dict[str, Any]:
     with _VIGILANTES_LOCK:
         conn = _vigilante(db_file)
         return {
+            "instance": _REVISION_INSTANCE,
             "data_version": data_version(conn),
             "ideas": conn.execute("SELECT count(*) FROM ideas").fetchone()[0],
             "connections": conn.execute("SELECT count(*) FROM connections").fetchone()[0],

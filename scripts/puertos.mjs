@@ -17,7 +17,7 @@ export function pidsEnPuerto(puerto) {
     const pids = new Set();
     for (const linea of salida.split("\n")) {
       const partes = linea.trim().split(/\s+/);
-      // TCP 127.0.0.1:8765 0.0.0.0:0 LISTENING 12345
+      // TCP 127.0.0.1:18765 0.0.0.0:0 LISTENING 12345
       if (partes[3] === "LISTENING" && partes[1]?.endsWith(`:${puerto}`)) {
         const pid = Number(partes[4]);
         if (pid > 0) pids.add(pid);

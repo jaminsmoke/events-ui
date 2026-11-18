@@ -15,7 +15,7 @@ y hace tail por cursor. No hay watcher de ficheros ni poller de git.
 
 ```
 apps/desktop      Envoltorio Tauri 2 (diálogo nativo) sobre la UI compartida
-apps/web          Envoltorio web (Vite, 5174) sobre la misma UI compartida
+apps/web          Envoltorio web (Vite, 15174) sobre la misma UI compartida
 packages/ui       UI compartida: mapa de ideas, selector de repo y API, sin
                   envoltorio. Desktop inyecta el diálogo nativo; la web ofrece
                   la lista de `GET /repos` y pegar la ruta.
@@ -41,15 +41,15 @@ corepack pnpm -v
 ```bash
 corepack pnpm install      # dependencias de la UI
 corepack pnpm dev          # ventana Tauri (levanta el core si no está)
-corepack pnpm dev:web      # solo web en localhost:5174, también con core
+corepack pnpm dev:web      # solo web en localhost:15174, también con core
                            # (`dev:ui` es el alias histórico de este)
-corepack pnpm core:dev     # core solo, en 127.0.0.1:8765 (si ya va, se reutiliza)
+corepack pnpm core:dev     # core solo, en 127.0.0.1:18765 (si ya va, se reutiliza)
 ```
 
 `dev` y `dev:web` pasan por `scripts/dev.mjs`, que arranca en limpio: quien
-escuchara en `127.0.0.1:8765` y en el puerto de la UI (5175 desktop, 5174 web)
+escuchara en `127.0.0.1:18765` y en el puerto de la UI (15175 desktop, 15174 web)
 se termina antes de levantar el core —sin él, Vite no puede proxyficar `/api` y
-la UI se queda esperando (`connect ECONNREFUSED 127.0.0.1:8765` en la terminal de
+la UI se queda esperando (`connect ECONNREFUSED 127.0.0.1:18765` en la terminal de
 Vite)—. Al cerrar la UI el core también cae. Nada de reutilizar de sesiones
 anteriores: es como ayer se quedó el código viejo atendiendo.
 
@@ -77,7 +77,7 @@ verdad están `build:web` (Vite) y `build` (bundle Tauri).
 Los **e2e** van aparte porque levantan procesos (no entran en `check`):
 `pnpm e2e` corre todos los escenarios de `e2e/escenarios/` y
 `pnpm e2e -- <nombre>` solo uno. Cada escenario usa su core y su Vite
-temporales en 8765/5175: si esos puertos ya están ocupados (p. ej. tu
+temporales en 18765/15175: si esos puertos ya están ocupados (p. ej. tu
 `pnpm dev`), el runner se niega a arrancar sin tocar ese proceso; al terminar
 —pase, falle o se interrumpa con Ctrl+C— cierra lo que levantó y comprueba
 que los puertos quedan libres. Las capturas de cada corrida quedan en
@@ -126,7 +126,7 @@ existiendo para hacerlo sin arrancar el core:
 ```bash
 git clone <url> repoprobe/repos/<repo>
 corepack pnpm core:seed <repo>   # idempotente, aplica schema/ideas.sql
-corepack pnpm core:dev           # Swagger en http://127.0.0.1:8765/docs
+corepack pnpm core:dev           # Swagger en http://127.0.0.1:18765/docs
 ```
 
 | Método | Ruta |

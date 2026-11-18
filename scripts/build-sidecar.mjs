@@ -60,9 +60,9 @@ const destino = path.join(DESTINO, `events-core-${triple}${sufijo}`);
 cpSync(congelado, destino);
 console.log(`Copiado a ${destino}`);
 
-// Prueba en frío: arranca en el puerto de verdad (8765) y responde /health.
-if (!(await puertoLibre(8765))) {
-  throw new Error("El puerto 8765 ya está ocupado: no se puede probar el sidecar.");
+// Prueba en frío: arranca en el puerto de verdad (18765) y responde /health.
+if (!(await puertoLibre(18765))) {
+  throw new Error("El puerto 18765 ya está ocupado: no se puede probar el sidecar.");
 }
 const proceso = spawn(congelado, [], { stdio: ["ignore", "pipe", "pipe"] });
 let salida = "";
@@ -73,7 +73,7 @@ async function esperarHealth() {
   const limite = Date.now() + 30_000;
   while (Date.now() < limite) {
     try {
-      const res = await fetch("http://127.0.0.1:8765/health", {
+      const res = await fetch("http://127.0.0.1:18765/health", {
         signal: AbortSignal.timeout(1_000),
       });
       if (res.ok) return true;
@@ -87,7 +87,7 @@ async function esperarHealth() {
 
 try {
   if (await esperarHealth()) {
-    console.log("Sidecar congelado responde a /health en 127.0.0.1:8765. OK");
+    console.log("Sidecar congelado responde a /health en 127.0.0.1:18765. OK");
   } else {
     throw new Error(`El sidecar no respondió a /health en 30 s. Salida:\n${salida.slice(-2000)}`);
   }

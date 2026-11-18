@@ -48,7 +48,7 @@ pub fn run() {
       }
 
       // Sidecar (F3): solo en release. En dev (`tauri dev`) el core lo levanta
-      // `scripts/dev.mjs` si no está; arrancar otro aquí pelearía por el 8765.
+      // `scripts/dev.mjs` si no está; arrancar otro aquí pelearía por el 18765.
       // El binario viaja como `externalBin` y el instalador lo deja junto al
       // ejecutable, así que su ruta es "el mismo directorio que yo".
       if !cfg!(debug_assertions) {
@@ -74,7 +74,7 @@ pub fn run() {
           }
           None => log::error!(
             "No se pudo arrancar el sidecar events-core junto al ejecutable: \
-             la UI no tendrá API hasta que el core esté en 127.0.0.1:8765"
+             la UI no tendrá API hasta que el core esté en 127.0.0.1:18765"
           ),
         }
 

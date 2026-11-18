@@ -5,8 +5,8 @@
 //  node e2e/run.mjs prueba-1    solo los que matcheen ese nombre de fichero
 //  node e2e/run.mjs --ayuda
 //
-// El runner levanta su propio core en :8765 (con su temporal propio de repos
-// y de registro) y su Vite de desktop en :5175. Los puertos deben estar
+// El runner levanta su propio core en :18765 (con su temporal propio de repos
+// y de registro) y su Vite de desktop en :15175. Los puertos deben estar
 // libres: si algo ya escucha (el `pnpm dev` de alguien), el runner se niega
 // a arrancar en vez de matar ese proceso —nunca se toca lo ajeno.
 // Al terminar (pase, falle o se interrumpa con Ctrl+C) se cierra lo que el
@@ -28,8 +28,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ESCENARIOS_DIR = path.join(ROOT, "e2e", "escenarios");
 const RESULTADOS_DIR = path.join(ROOT, "e2e", "resultados");
 
-const CORE = "http://127.0.0.1:8765";
-const UI = "http://localhost:5175";
+const CORE = "http://127.0.0.1:18765";
+const UI = "http://localhost:15175";
 const TIMEOUT_MS = 45_000;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -71,7 +71,7 @@ function arrancarCore(tmp) {
   // Uvicorn directo (no events_core.serve): así el runner controla su puerto
   // sin colisionar con la comprobación de puerto del arranque en dev.
   return spawn(
-    "uv run --directory services/core python -m uvicorn events_core.main:app --host 127.0.0.1 --port 8765",
+    "uv run --directory services/core python -m uvicorn events_core.main:app --host 127.0.0.1 --port 18765",
     {
       cwd: ROOT,
       shell: true,
@@ -137,7 +137,7 @@ async function main() {
   // Los puertos deben estar libres y el runner NUNCA mata a quien los ocupe:
   // si hay un `pnpm dev` en marcha, se avisa y se sale. Matar a ciegas aquí
   // era tirar la sesión de dev de quien estuviera probando.
-  for (const puerto of [8765, 5175]) {
+  for (const puerto of [18765, 15175]) {
     const ocupantes = pidsEnPuerto(puerto);
     if (ocupantes.length > 0) {
       console.error(
@@ -165,7 +165,7 @@ async function main() {
     await browser?.close().catch(() => {});
     matar(core);
     matar(vite);
-    for (const puerto of [8765, 5175]) {
+    for (const puerto of [18765, 15175]) {
       if (await esperarPuertoLibre(puerto, 5_000)) continue;
       const restos = matarEnPuerto(puerto);
       console.warn(
@@ -220,7 +220,7 @@ async function main() {
       );
       db.close();
     }
-    if (!(await esperarUrl(`${UI}/`))) throw new Error("Vite no respondió en 5175");
+    if (!(await esperarUrl(`${UI}/`))) throw new Error("Vite no respondió en 15175");
 
     browser = await chromium.launch();
     const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });

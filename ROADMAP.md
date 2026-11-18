@@ -7,9 +7,9 @@ con el motivo, para no reabrirlo cada semana.
 
 - **Arranque en un comando** (`scripts/dev.mjs`): `pnpm dev` levanta el core
   si no está y lo apaga al salir; arranca siempre en limpio (un core viejo
-  atendiendo dejaba `ECONNREFUSED 127.0.0.1:8765` y un mapa caducado).
+  atendiendo dejaba `ECONNREFUSED 127.0.0.1:18765` y un mapa caducado).
 - **UI compartida desktop + web** (`packages/ui`): `apps/desktop` (Tauri con
-  diálogo nativo, 5175) y `apps/web` (Vite, 5174) montan el mismo visor.
+  diálogo nativo, 15175) y `apps/web` (Vite, 15174) montan el mismo visor.
   El selector de repo funciona en ambos (lista de `GET /repos` + ruta manual).
 - **Cliente generado del OpenAPI**: tipos con `openapi-typescript`, llamadas
   con `openapi-fetch` tipado por `paths`; errores 400/404 declarados en el
@@ -31,7 +31,7 @@ con el motivo, para no reabrirlo cada semana.
   (`sidecar.py` + `pnpm build:sidecar`, verificado con `/health` en frío) y
   viaja como `externalBin` de Tauri; en release `lib.rs` lo arranca junto al
   ejecutable y lo mata al salir, y la UI empaquetada habla directo con
-  `127.0.0.1:8765` (`.env.production`). `pnpm release` construye el sidecar
+  `127.0.0.1:18765` (`.env.production`). `pnpm release` construye el sidecar
   antes del bundle desktop.
 - **F3 — bandeja y avisos**: cerrar la ventana minimiza a la bandeja (el
   sidecar sigue vivo para los avisos); «Salir» del menú es la única salida

@@ -23,7 +23,7 @@ import uvicorn
 from . import registro
 
 HOST = "127.0.0.1"
-PORT = 8765
+PORT = 18765
 
 
 def puerto_libre(host: str, port: int) -> bool:

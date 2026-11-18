@@ -1,18 +1,18 @@
 // Arranque en desarrollo: core + UI en un solo comando.
 //
 // La UI no habla con el core directamente: Vite le pasa `/api` por proxy a
-// 127.0.0.1:8765. Si el core no está, Vite escupe
-// `http proxy error: connect ECONNREFUSED 127.0.0.1:8765` cada dos segundos
+// 127.0.0.1:18765. Si el core no está, Vite escupe
+// `http proxy error: connect ECONNREFUSED 127.0.0.1:18765` cada dos segundos
 // (lo que pide `useRepo`) y la ventana se queda en "Cargando…".
 //
-// Siempre en limpio: antes de arrancar, quien escuchaba en 8765 y en el
+// Siempre en limpio: antes de arrancar, quien escuchaba en 18765 y en el
 // puerto de la UI es un resto de una sesión anterior (core o Vite, incluso un
 // zombie) y muere; el core se levanta siempre de nuevo con el código de hoy.
 // Reutilizarlo a ciegas ya costó una mañana: ayer atendía el código de
 // antes de ayer sin que nada lo notara. Al salir la UI, el core también cae.
 //
 // Uso: `node scripts/dev.mjs` (Tauri) o `node scripts/dev.mjs web` (solo web,
-// en 5174; `ui` es un alias histórico). Ambas montan la UI de `@events-ui/ui`.
+// en 15174; `ui` es un alias histórico). Ambas montan la UI de `@events-ui/ui`.
 
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -22,7 +22,7 @@ import process from "node:process";
 import { esperarPuertoLibre, matarEnPuerto } from "./puertos.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const CORE = "http://127.0.0.1:8765";
+const CORE = "http://127.0.0.1:18765";
 const TIMEOUT_MS = 20_000;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -69,8 +69,8 @@ async function main() {
   const modo = process.argv[2] === "web" || process.argv[2] === "ui" ? "web" : "tauri";
 
   // En limpio: los restos de sesiones anteriores no estorban ni reutilizan.
-  const puertoUi = modo === "web" ? 5174 : 5175;
-  for (const puerto of [8765, puertoUi]) {
+  const puertoUi = modo === "web" ? 15174 : 15175;
+  for (const puerto of [18765, puertoUi]) {
     const muertos = matarEnPuerto(puerto);
     if (muertos.length > 0) {
       console.log(
@@ -80,7 +80,7 @@ async function main() {
     await esperarPuertoLibre(puerto);
   }
 
-  console.log("Levantando el core en 127.0.0.1:8765…");
+  console.log("Levantando el core en 127.0.0.1:18765…");
   const core = arrancarCore();
   core.on("error", (err) => {
     console.error(`No se pudo arrancar el core: ${err.message}`);

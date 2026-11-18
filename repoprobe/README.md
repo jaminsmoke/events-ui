@@ -45,7 +45,7 @@ corepack pnpm core:dev
 Ejemplo:
 
 ```bash
-curl -X POST 'http://127.0.0.1:8765/ideas?repo=C:\ruta\a\Lab1' \
+curl -X POST 'http://127.0.0.1:18765/ideas?repo=C:\ruta\a\Lab1' \
   -H 'content-type: application/json' \
   -d '{"title":"Probar el parser con repos grandes","kind":"idea"}'
 ```

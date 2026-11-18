@@ -98,6 +98,10 @@ con el motivo, para no reabrirlo cada semana.
   empezar, el stream reinicia el cursor cuando queda por delante del último
   evento, tanto en la conexión viva como al reconectar con `Last-Event-ID`,
   en vez de omitir el alta nueva. Cubierto en `services/core/tests/test_sse.py`.
+- **Compatibilidad de tipos históricos**: un almacén con `kind = 'adr'` o
+  `'note'` se lee entero; el contrato conserva esos valores al devolver la
+  idea y sigue sin ofrecerlos al crear o editar. Cubierto en
+  `services/core/tests/test_idea_cola.py`.
 - **CI**: `pnpm check` global en cada push a main y en PRs
   (`.github/workflows/ci.yml`). Batería e2e y builds de Tauri quedan fuera
   del CI a propósito (navegador y puertos; se corren en local).
@@ -116,7 +120,6 @@ las relaciones y el alcance de las comprobaciones locales.
 
 ### Historial y almacenamiento
 
-- [ ] **Compatibilidad de tipos históricos.** Una v9 con `kind='adr'` llega a v13 y se ve en el mapa, pero el listado y la ficha devuelven 500. Acordar cómo conservar los tipos históricos `adr` y `note` y comprobar ambos recorridos con sus datos originales.
 - [ ] **Borrado de una idea sustituta.** Si otra ficha la referencia mediante `superseded_by_uid`, el DELETE devuelve 500. Definir si se conserva el vínculo y se comunica el conflicto o si se permite retirarlo. Probar la respuesta y el estado de ambas ideas.
 - [ ] **Reproducción de la base versionada.** Una copia del fichero principal con WAL activo puede omitir escrituras confirmadas. Definir cómo obtener una instantánea SQLite consistente para los repos que versionan su almacén y verificarla desde una copia limpia.
 - [ ] **Límite de retención.** La comparación textual mezcla fechas ISO con `T` y el espacio de `datetime('now', …)`. Un evento anterior al corte, pero del mismo día, se conserva. Probar ambos lados del instante de corte en eventos y registro.

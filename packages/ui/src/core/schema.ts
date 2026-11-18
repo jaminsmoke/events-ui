@@ -453,9 +453,9 @@ export interface components {
             /**
              * Kind
              * @default idea
-             * @constant
+             * @enum {string}
              */
-            kind: "idea";
+            kind: "idea" | "adr" | "note";
             /**
              * Status
              * @default draft

@@ -26,10 +26,11 @@ from .db import data_version, db_path, journal_mode, open_read_only
 
 # Se repiten los CHECK de `schema/ideas.sql` a propósito: aquí sirven para que el
 # contrato OpenAPI publique los enums y la UI no tenga que adivinarlos.
-# Solo hay un tipo de ítem: la idea. Nota/ADR no han sido pensados todavía,
-# así que el contrato no los ofrece (la columna `kind` dentro del almacén se
-# queda, pero siempre vale `idea`).
+# Al crear y editar solo se admite la idea: nota/ADR no están pensados como
+# tipos nuevos. Al leer sí se conservan los históricos (`adr`, `note`): vienen
+# de almacenes anteriores y no pueden tumbar el listado ni la ficha.
 Kind = Literal["idea"]
+KindLeido = Literal["idea", "adr", "note"]
 Status = Literal[
     "draft",
     "proposed",
@@ -95,6 +96,8 @@ class IdeaUpdate(BaseModel):
 
 class Idea(IdeaCreate):
     uid: str
+    # El tipo histórico se devuelve tal cual; el contrato no lo crea.
+    kind: KindLeido = "idea"
     created_at: str
     updated_at: str
     # Las fichas de roadmap, verificación y revisión aprobada (0013): sin

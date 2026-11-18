@@ -122,6 +122,40 @@ def _comprobar_historico(client, repo):  # noqa: ANN001, ANN202
         conn.close()
 
 
+def test_tipos_historicos_se_leen_sin_romper(client, repo):  # noqa: ANN001, ANN202
+    """Un almacén con `kind = 'adr'` y `'note'` se lee entero: el listado y la
+    ficha conservan el tipo en vez de devolver 500."""
+    db = ideas.db_file_for(repo)
+    db.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(db))
+    _esquema_v8(conn)
+    conn.executemany(
+        "INSERT INTO idea_entry"
+        " (uid, title, description, content, kind, tags, created_at, updated_at)"
+        " VALUES (?, ?, '', '', ?, '[]', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')",
+        [("adr-1", "ADR uno", "adr"), ("nota-1", "Nota uno", "note")],
+    )
+    conn.execute("PRAGMA user_version = 8")
+    conn.commit()
+    conn.close()
+
+    lista = client.get("/ideas", params={"repo": repo})
+    assert lista.status_code == 200, lista.json()
+    assert {i["uid"]: i["kind"] for i in lista.json()} == {"adr-1": "adr", "nota-1": "note"}
+
+    for uid, kind in (("adr-1", "adr"), ("nota-1", "note")):
+        ficha = client.get(f"/ideas/{uid}", params={"repo": repo})
+        assert ficha.status_code == 200, ficha.json()
+        assert ficha.json()["kind"] == kind
+
+    mapa = client.get("/mapa", params={"repo": repo})
+    assert mapa.status_code == 200, mapa.json()
+    assert {i["uid"]: i["status"] for i in mapa.json()["ideas"]} == {
+        "adr-1": "draft",
+        "nota-1": "draft",
+    }
+
+
 def test_fresco_sin_lane_log(client, repo):  # noqa: ANN001, ANN202
     db = ideas.ensure_repo(repo)
     conn = sqlite3.connect(str(db))

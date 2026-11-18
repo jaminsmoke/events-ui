@@ -2,7 +2,7 @@
 
 Cada repositorio guarda sus ideas, relaciones y protocolos en
 `.EUI/EUI_DATABASE.sqlite`. El core activa WAL y las claves foráneas en sus
-conexiones de escritura. La versión del esquema de ideas es 16. El registro
+conexiones de escritura. La versión del esquema de ideas es 17. El registro
 operativo de la aplicación vive en otro fichero y abarca varios repositorios.
 
 ## Tablas y relaciones

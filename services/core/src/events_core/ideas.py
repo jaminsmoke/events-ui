@@ -46,9 +46,10 @@ MIGRATIONS_DIR = Path(__file__).with_name("migraciones")
 # la 0012, el flujo completo (roadmap, verificación y revisión aprobada)
 # llegó en la 0013, la 0014 llevó los intentos de verificación a la entrada
 # para que sobrevivan a la ficha, la 0015 sembró la tabla `event` en los
-# almacenes que nacieron sin log y la 0016 puso en triggers la exclusividad de
-# fichas y el roadmap único, para todos los escritores.
-SCHEMA_VERSION = 16
+# almacenes que nacieron sin log, la 0016 puso en triggers la exclusividad de
+# fichas y el roadmap único, para todos los escritores, y la 0017 endureció
+# `tags` a lista JSON de cadenas.
+SCHEMA_VERSION = 17
 
 REPOS_ROOT_ENV_VAR = "EVENTSUI_REPOS_ROOT"
 BUSY_TIMEOUT_MS = 5_000
@@ -340,7 +341,8 @@ def _copiar_ideas_historicas(conn: sqlite3.Connection) -> None:
                 INSERT OR IGNORE INTO idea_entry
                     (id, uid, title, description, content, kind, tags, created_at, updated_at)
                 SELECT id, uid, title, description, content, kind,
-                       CASE WHEN json_valid(tags) THEN tags ELSE '[]' END,
+                       CASE WHEN json_valid(tags) AND json_type(tags) = 'array'
+                            THEN tags ELSE '[]' END,
                        created_at, updated_at
                 FROM ideas
                 """
@@ -646,6 +648,22 @@ def _rechazo(conn: sqlite3.Connection, uid: str) -> sqlite3.Row | None:
     ).fetchone()
 
 
+def _tags_json(texto: str | None) -> list[str]:
+    """Lee `tags` sin fiarse del fichero: una fila vieja puede no ser una lista.
+
+    El CHECK exige lista desde la 0017, pero un almacén a medio migrar o una
+    escritura con los CHECK relajados no puede tumbar el listado: lo que no
+    sea una lista de cadenas se lee como lista vacía.
+    """
+    try:
+        valor = json.loads(texto or "[]")
+    except (TypeError, ValueError):
+        return []
+    if not isinstance(valor, list):
+        return []
+    return [elemento for elemento in valor if isinstance(elemento, str)]
+
+
 def _fila(
     row: sqlite3.Row,
     en_cola: bool,
@@ -660,7 +678,7 @@ def _fila(
     sino que las trae en lote con `_en_lote` y ensambla aquí.
     """
     idea = dict(row)
-    idea["tags"] = json.loads(idea["tags"] or "[]")
+    idea["tags"] = _tags_json(idea["tags"])
     idea["status"] = _estado_de(
         rechazo is not None,
         roadmap is not None,

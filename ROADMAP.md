@@ -124,6 +124,11 @@ con el motivo, para no reabrirlo cada semana.
   cada ciclo sin raíz para que el carril no se quede vacío y sigue pintando
   una idea bajo cada padre. Cubierto en `test_flujo_items.py` y comprobado
   sobre `buildTree` con el bundle compilado.
+- **Formato de etiquetas**: `tags` es una lista JSON de cadenas en el
+  esquema (migración 0017, que sanea `{}` y los elementos no textuales) y en
+  la API (422 con valores que no son cadenas); una fila antigua se lee como
+  lista vacía en vez de tumbar `/ideas`. Cubierto en
+  `services/core/tests/test_etiquetas.py`.
 - **CI**: `pnpm check` global en cada push a main y en PRs
   (`.github/workflows/ci.yml`). Batería e2e y builds de Tauri quedan fuera
   del CI a propósito (navegador y puertos; se corren en local).
@@ -147,7 +152,6 @@ las relaciones y el alcance de las comprobaciones locales.
 
 Estos casos se reprodujeron con datos de prueba y claves foráneas activadas.
 
-- [ ] **Formato de etiquetas.** El esquema acepta `{}` como JSON válido y después `GET /ideas` devuelve 500. Validar una lista de cadenas y contemplar la recuperación de filas existentes con otro formato.
 - [ ] **Ruta del registro operativo.** Al arrancar desde dos directorios se resuelve `data/registro.sqlite` en ubicaciones distintas. Unificar el destino predeterminado, conservar el override y verificar que ambos arranques consultan el mismo historial.
 
 ## No se hace (por ahora)

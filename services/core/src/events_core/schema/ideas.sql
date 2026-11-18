@@ -39,8 +39,11 @@ CREATE TABLE IF NOT EXISTS idea_entry (
     kind        TEXT    NOT NULL DEFAULT 'idea'
                 CHECK (kind IN ('idea', 'adr', 'note')),
 
-    -- Tags en texto JSON; ver el comentario histórico en la migración 0004.
-    tags        TEXT    NOT NULL DEFAULT '[]' CHECK (json_valid(tags)),
+    -- Tags en texto JSON; lista de cadenas. El 0004 solo pedía JSON válido y
+    -- `{}` también lo es: pasaba el CHECK y el listado no sabía leerlo, así
+    -- que la 0017 exige que el tipo sea `array`.
+    tags        TEXT    NOT NULL DEFAULT '[]'
+                CHECK (json_valid(tags) AND json_type(tags) = 'array'),
 
     -- Vueltas por verificación (0014). El contador pertenece al ítem, no a la
     -- estancia: la ficha se retira al volver a la cola y el número sigue.

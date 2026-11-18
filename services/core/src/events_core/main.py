@@ -18,10 +18,10 @@ from typing import Annotated, Any, Literal
 
 from fastapi import FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
-from . import ideas
+from . import eventos, ideas
 from .db import data_version, db_path, journal_mode, open_read_only
 
 # Se repiten los CHECK de `schema/ideas.sql` a propósito: aquí sirven para que el
@@ -42,6 +42,7 @@ app.add_middleware(
         "http://tauri.localhost",
     ],
     allow_methods=["GET", "POST", "PATCH", "DELETE"],
+    expose_headers=["Last-Event-ID"],
     allow_headers=["content-type"],
 )
 
@@ -109,6 +110,16 @@ class Repo(BaseModel):
 
     repo: str
     db_path: str
+
+
+class Evento(BaseModel):
+    """El sobre del evento (F1): lo estable; `payload` es JSON libre."""
+
+    id: int
+    ts: str
+    type: str
+    payload: dict | str
+    dedupe_key: str | None = None
 
 
 class ErrorDetail(BaseModel):
@@ -277,3 +288,35 @@ def get_map(repo: RepoParam) -> dict[str, Any]:
 def get_revision(repo: RepoParam) -> dict[str, Any]:
     """Sondeo de cambio: la UI lo pide cada par de segundos, sin traerse el mapa."""
     return ideas.revision(repo)
+
+
+# --- Eventos del log externo (F1) ---
+#
+# Sobre abierto: `type` libre y `payload` JSON libre. La UI usa renderers por
+# tipo con fallback genérico. Sin fichero no hay eventos: no se crea el log.
+
+
+@app.get("/eventos", response_model=list[Evento], tags=["eventos"], responses=RESPUESTAS_ERROR)
+def get_eventos(
+    repo: RepoParam,
+    desde: Annotated[int, Query(ge=0, description="Cursor: solo eventos con id mayor")] = 0,
+    limite: Annotated[int, Query(ge=1, le=1000)] = eventos.LIMITE_POR_DEFECTO,
+) -> list[dict[str, Any]]:
+    """Tail por cursor: backfill histórico con `id > desde`."""
+    return eventos.tail(repo, desde, limite)
+
+
+@app.get("/eventos/stream", tags=["eventos"], responses=RESPUESTAS_ERROR)
+def stream_eventos(request: Request, repo: RepoParam) -> StreamingResponse:
+    """SSE en vivo: primero el backfill hasta el último y luego lo que llegue.
+
+    Sin `Last-Event-ID` se empieza desde el principio (backfill histórico);
+    con él, se reanuda tras ese id —el mismo cursor del tail, sin huecos.
+    """
+    ultimo = request.headers.get("last-event-id")
+    desde = int(ultimo) if ultimo and ultimo.isdigit() else 0
+    return StreamingResponse(
+        eventos.generar_streamo(repo, desde),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

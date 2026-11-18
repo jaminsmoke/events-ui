@@ -72,12 +72,18 @@ por qué:
   arbitrario.
 - `id` deja de ser la identidad pública. En la UI y en las URLs se usa `uid`.
 
-## Pendiente de pactar
+## Enmienda — F1: la tabla `event` vive en cada `EUI_DATABASE`
 
-- ¿La tabla de eventos vivirá en el mismo `EUI_DATABASE` de cada repo, o en un log
-  central aparte? Cambia si `.EUI` es "el repo" o también "el log".
-- ¿Hace falta `repo` como columna cuando un `EUI_DATABASE` agregue varios repos? Hoy
-  sobra porque el fichero ya implica el repo.
+F1 deja resuelto lo pendiente: no hay log central. Cada `EUI_DATABASE` lleva su
+tabla `event` (`schema/eventos.sql` para el almacén que nace y
+`migraciones/0005_eventos.sql` para el que ya existía) y el tail —`GET
+/eventos` y `GET /eventos/stream`— la lee del repo que se le pida. Sin columna
+`repo`: el fichero ya implica el repo, y si un día agregan varios repos por
+fichero, la columna entra entonces.
+
+La app sigue sin crear el log: el productor externo lo escribe y el core solo
+lo abre en `mode=ro`. Un almacén sin tabla no inventa eventos: `/eventos` devuelve
+vacío.
 
 ## Enmienda — el repo se direcciona por ruta, no por nombre
 

@@ -32,9 +32,12 @@ SCHEMA_DIR = Path(__file__).with_name("schema")
 # Los pasos que llevan un almacén viejo hasta aquí. `schema/` es el estado final:
 # un almacén que nace hoy se crea con él y no ejecuta ninguna migración.
 MIGRATIONS_DIR = Path(__file__).with_name("migraciones")
-# Se aplican todos los `schema/*.sql` en orden: un fichero nuevo no obliga a tocar
-# este módulo. `PRAGMA user_version` dice cuál hay aplicado en cada almacén.
-SCHEMA_VERSION = 4
+# Se aplican los `schema/*.sql` de ideas y conexiones en orden: un fichero nuevo
+# no obliga a tocar este módulo. `PRAGMA user_version` dice cuál hay aplicado en
+# cada almacén. La tabla `event` de `schema/eventos.sql` no entra aquí: el log
+# lo escribe otro proceso y a un almacén existente llega por migración (ver
+# `migraciones/0005_eventos.sql`).
+SCHEMA_VERSION = 5
 
 REPOS_ROOT_ENV_VAR = "EVENTSUI_REPOS_ROOT"
 BUSY_TIMEOUT_MS = 5_000
@@ -151,8 +154,15 @@ def _ignorar_auxiliares(db_file: Path) -> None:
 
 
 def aplicar_esquema(conn: sqlite3.Connection) -> None:
-    """Aplica `schema/*.sql` y marca la versión. Idempotente: todo es IF NOT EXISTS."""
+    """Aplica los `schema/*.sql` de ideas/conexiones y marca la versión.
+
+    `schema/eventos.sql` no entra: el log lo escribe otro proceso y a un
+    almacén existente llega por `migraciones/0005_eventos.sql`. Idempotente:
+    todo es IF NOT EXISTS.
+    """
     for script in sorted(SCHEMA_DIR.glob("*.sql")):
+        if script.name == "eventos.sql":
+            continue
         conn.executescript(script.read_text(encoding="utf-8"))
     conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
@@ -199,8 +209,10 @@ def _migrar_esquema(db_file: Path) -> None:
 
         if version == 0:
             # Almacén de antes de que existiera la versión: no se sabe de dónde
-            # parte, así que se le pone el esquema base (idempotente) y se marca
-            # como al día. Los pasos ya están reflejados en él.
+            # parte, así que se le pone el esquema base de ideas/conexiones
+            # (idempotente) y se marca como al día. Los pasos 3-5 ya están
+            # reflejados en él, pero la tabla `event` no: el log lo escribe
+            # otro proceso y no se crea desde la app. Se marca al día sin ella.
             aplicar_esquema(conn)
             conn.commit()
             return

@@ -29,6 +29,9 @@ export type RepoListado = Schemas["Repo"];
 export type IdeaCreate = Schemas["IdeaCreate"];
 export type IdeaUpdate = Schemas["IdeaUpdate"];
 
+/** El sobre del evento del log externo (F1): `payload` es JSON libre. */
+export type Evento = Schemas["Evento"];
+
 /** El cuerpo de los errores 400/404 del core (`{"detail": ...}`), tal como
  *  lo declaran los exception handlers y ahora el propio OpenAPI. */
 export type ErrorDetalle = Schemas["ErrorDetail"];

@@ -6,7 +6,9 @@ export function AvisoError({ mensaje }: { mensaje: string }) {
       <p className="mono">{mensaje}</p>
       <p className="hint">
         ¿Está el core en marcha? En dev lo levanta solo <code>pnpm dev</code> /{" "}
-        <code>pnpm dev:web</code>; suelto, <code>corepack pnpm core:dev</code>.
+        <code>pnpm dev:web</code>; suelto, <code>corepack pnpm core:dev</code>. Lo que
+        ya está en marcha puede ser anterior a los últimos cambios: reinícialo para
+        que cargue el core nuevo.
       </p>
     </section>
   );

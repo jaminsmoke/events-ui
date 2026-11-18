@@ -1,7 +1,9 @@
 import { useLayoutEffect, useState } from "react";
 import type { Ref } from "react";
+import { createPortal } from "react-dom";
 
 import type { Idea, IdeaUpdate } from "../core/api";
+import { EditorIdea } from "../pantalla/EditorIdea";
 import type { TreeNode } from "./arbol";
 import type { TonoPulso } from "./animaciones";
 import type { Vuelo } from "./vuelos";
@@ -38,8 +40,7 @@ function NodeRow({
   onEditar?: (uid: string, cambios: IdeaUpdate) => Promise<void>;
   onBorrar?: (uid: string) => Promise<void>;
   onConectar?: (parentUid: string, childUid: string) => Promise<void>;
-  onDesconectar?: (id: number) => Promise<void>;
-  onCargarIdea?: (uid: string) => Promise<{ kind?: string; tags?: string[] }>;
+  onDesconectar?: (id: number) => Promise<void>;    onCargarIdea?: (uid: string) => Promise<{ kind?: string; tags?: string[] | null } | null>;
   ideas?: Idea[];
   enlacesNuevos?: { parentUid: string; childUid: string }[];
 }) {
@@ -49,12 +50,6 @@ function NodeRow({
   const [expandido, setExpandido] = useState(tiene);
   const uid = node.idea?.uid;
   const [editando, setEditando] = useState(false);
-  const [titulo, setTitulo] = useState(node.title);
-  const [descripcion, setDescripcion] = useState(node.idea?.description ?? "");
-  // `kind`/`tags` no vienen en el mapa (`MapIdea`): se leen de la idea
-  // completa al abrir el editor, porque el sondeo no los trae.
-  const [kind, setKind] = useState<string>("idea");
-  const [tags, setTags] = useState("");
   const [confirmando, setConfirmando] = useState(false);
   const [conectando, setConectando] = useState(false);
   const [hijo, setHijo] = useState("");
@@ -114,24 +109,7 @@ function NodeRow({
         </button>
       )}
       {node.idea && onEditar && (
-        <button
-          type="button"
-          className="btn ghost mover"
-          onClick={async () => {
-            // El mapa no trae `kind`/`tags`: se piden al abrir el editor.
-            if (!editando && uid && onCargarIdea) {
-              try {
-                const completa = await onCargarIdea(uid);
-                setKind(completa.kind ?? "idea");
-                setTags((completa.tags ?? []).join(", "));
-              } catch {
-                setKind("idea");
-                setTags("");
-              }
-            }
-            setEditando((v) => !v);
-          }}
-        >
+        <button type="button" className="btn ghost mover" onClick={() => setEditando(true)}>
           Editar
         </button>
       )}
@@ -156,55 +134,19 @@ function NodeRow({
         </button>
       )}
 
-      {node.idea && editando && onEditar && (
-        <form
-          className="fila-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!titulo.trim()) return;
-            hacer(
-              () =>
-                onEditar(uid!, {
-                  title: titulo.trim(),
-                  description: descripcion.trim(),
-                  kind: kind as IdeaUpdate["kind"],
-                  tags: tags
-                    .split(",")
-                    .map((t: string) => t.trim())
-                    .filter(Boolean),
-                }),
-              () => setEditando(false),
-            );
-          }}
-        >
-          <input value={titulo} onChange={(e) => setTitulo(e.target.value)} aria-label="Título" />
-          <input
-            value={descripcion}
-            onChange={(e) => setDescripcion(e.target.value)}
-            placeholder="Descripción"
-            aria-label="Descripción"
-          />
-          <select value={kind} onChange={(e) => setKind(e.target.value)} aria-label="Tipo">
-            <option value="idea">idea</option>
-            <option value="adr">adr</option>
-            <option value="note">note</option>
-          </select>
-          <input
-            value={tags}
-            onChange={(e) => setTags(e.target.value)}
-            placeholder="tags, separados por comas"
-            aria-label="Tags"
-          />
-          <span className="fila-acciones">
-            <button className="btn ghost mover" type="submit" disabled={trabajando}>
-              Guardar
-            </button>
-            <button className="btn ghost mover" type="button" onClick={() => setEditando(false)}>
-              Cancelar
-            </button>
-          </span>
-        </form>
-      )}
+      {node.idea && editando && onEditar &&
+        // Portal al body: dentro del mapa (transformado) un `fixed` dejaría de
+        // ser relativo a la ventana y el diálogo se metería en medio del nodo.
+        createPortal(
+          <EditorIdea
+            titulo={node.title}
+            descripcion={node.idea.description}
+            onCargar={() => onCargarIdea?.(uid!) ?? Promise.resolve({})}
+            onGuardar={(cambios) => onEditar(uid!, cambios)}
+            onCerrar={() => setEditando(false)}
+          />,
+          document.body,
+        )}
 
       {node.idea && confirmando && onBorrar && (
         <span className="fila-acciones">
@@ -311,8 +253,7 @@ export function NodeBox({
   onEditar?: (uid: string, cambios: IdeaUpdate) => Promise<void>;
   onBorrar?: (uid: string) => Promise<void>;
   onConectar?: (parentUid: string, childUid: string) => Promise<void>;
-  onDesconectar?: (id: number) => Promise<void>;
-  onCargarIdea?: (uid: string) => Promise<{ kind?: string; tags?: string[] }>;
+  onDesconectar?: (id: number) => Promise<void>;    onCargarIdea?: (uid: string) => Promise<{ kind?: string; tags?: string[] | null } | null>;
   ideas?: Idea[];
   enlacesNuevos?: { parentUid: string; childUid: string }[];
 }) {

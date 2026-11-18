@@ -10,6 +10,7 @@ import { useCamara } from "./mapa/camara";
 import type { LaneId } from "./mapa/carriles";
 import { NodeBox, VueloFila } from "./mapa/nodos";
 import { useVuelos } from "./mapa/vuelos";
+import { useEventos, resumenEvento } from "./core/useEventos";
 import { AvisoError } from "./pantalla/AvisoError";
 import { BarraRepo } from "./pantalla/BarraRepo";
 import { Bienvenida } from "./pantalla/Bienvenida";
@@ -46,6 +47,8 @@ export default function App({ elegirCarpeta }: { elegirCarpeta?: ElegirCarpeta }
     () => (ideas ? buildTree(ideas, links) : null),
     [ideas, links],
   );
+  // F1: el log del repo en vivo (cada `EUI_DATABASE` lleva el suyo).
+  const { eventos, conectado } = useEventos(repo);
 
   const boardRef = useRef<HTMLElement | null>(null);
   const mapRef = useRef<HTMLDivElement | null>(null);
@@ -174,6 +177,23 @@ export default function App({ elegirCarpeta }: { elegirCarpeta?: ElegirCarpeta }
       )}
 
       {falloAccion && <AvisoError mensaje={falloAccion} />}
+
+      <section className="card eventos" aria-label="Actividad del log">
+        <h2>
+          Actividad {conectado && <span className="dot" aria-label="en vivo" />}
+        </h2>
+        {eventos.length === 0 ? (
+          <p className="hint">Sin eventos todavía. El log se lee, no se escribe.</p>
+        ) : (
+          <ul className="eventos-lista">
+            {eventos.map((e) => (
+              <li key={e.id}>
+                <strong>#{e.id}</strong> {resumenEvento(e)}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {error && !ideas && <AvisoError mensaje={error} />}
 

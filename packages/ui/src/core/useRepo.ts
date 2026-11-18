@@ -89,7 +89,7 @@ export function useRepo(repo: string | null) {
   // editor de la fila la pide al abrirse.
   const cargarIdea = useCallback(
     async (uid: string) => {
-      if (!repo) return { kind: undefined, tags: undefined };
+      if (!repo) return null;
       return unwrap(
         api.GET("/ideas/{uid}", { params: { path: { uid }, query: { repo } } }),
       );

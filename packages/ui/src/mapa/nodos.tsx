@@ -14,6 +14,24 @@ function Arrow({ open }: { open: boolean }) {
   return <span className="arrow">{open ? "▾" : "▸"}</span>;
 }
 
+/** Palabra del estado para la fila, en español: el contrato habla `draft`/
+ *  `rejected` pero la fila se lee en español. */
+const ETIQUETA_ESTADO: Record<string, string> = {
+  draft: "En cola",
+  proposed: "Propuesta",
+  accepted: "Completada",
+  rejected: "Descartada",
+  superseded: "Reemplazada",
+};
+
+/** Fecha corta del sistema: el ISO crudo (`…T07:15:01+00:00`) no se lee. */
+function fechaCorta(iso: string): string {
+  const f = new Date(iso);
+  return Number.isNaN(f.getTime())
+    ? iso
+    : f.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+}
+
 /** Una fila del nodo: solo título, contador y su botón de expandir.
  *  Al expandirla aparece un panel con los detalles (descripción, estado) y
  *  los botones de la idea —mover, completar, editar, borrar y, en el cajón
@@ -89,9 +107,9 @@ function NodeRow({
       {expandido && node.idea && (
         <div className="fila-detalle">
           <p className="fila-descripcion">{node.idea.description || "Sin descripción"}</p>
-          <span className="fila-estado">{node.idea.status}</span>
+          <span className="fila-estado">{ETIQUETA_ESTADO[node.idea.status] ?? node.idea.status}</span>
       {node.idea.rejected_at && <p className="fila-rechazo">
-        Rechazada el {node.idea.rejected_at}
+        Rechazada el {fechaCorta(node.idea.rejected_at)}
         {node.idea.rejected_description ? ` — ${node.idea.rejected_description}` : ""}
       </p>}
       {node.idea && onMover && (nodo === "cola" || nodo === "descartadas") && (

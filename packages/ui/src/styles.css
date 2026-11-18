@@ -369,9 +369,16 @@ header > div {
   padding: 0;
   list-style: none;
   font-size: 12px;
+  /* Sin tope, el panel de actividad empuja el mapa fuera de la pantalla:
+     con scroll, el board conserva su sitio. */
+  max-height: 168px;
+  overflow-y: auto;
 }
 
 .eventos-lista li {
+  /* Sin esto el flex los encoge al alto limitado del scroll y el texto
+     se solapa; cada fila mide lo suyo y el scroll lo lleva la lista. */
+  flex: none;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

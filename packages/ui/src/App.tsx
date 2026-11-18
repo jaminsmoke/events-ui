@@ -192,7 +192,12 @@ export default function App({
         {/* Una sola entrada al selector: en vacío lo lleva el hero de abajo, así
             que la barra solo aparece cuando ya hay repo elegido. */}
         {repo && (
-          <BarraRepo repo={repo} ocupado={busy} onCambiar={() => setSelectorAbierto(true)} />
+          <BarraRepo
+            repo={repo}
+            ruta={proyeccion?.repo}
+            ocupado={busy}
+            onCambiar={() => setSelectorAbierto(true)}
+          />
         )}
         {repo && (
           <button className="btn" onClick={() => setNuevaAbierta(true)}>

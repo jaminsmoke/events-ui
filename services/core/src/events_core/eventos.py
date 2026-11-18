@@ -214,6 +214,12 @@ async def generar_streamo(
             yield ": ping\n\n"
             continue
         version = firma
-        for evento in tail(repo, cursor):
-            cursor = max(cursor, int(evento["id"]))
-            yield f"id: {evento['id']}\nevent: evento\ndata: {json.dumps(evento)}\n\n"
+        # El tail va por páginas: una ráfaga mayor que `LIMITE_POR_DEFECTO` deja
+        # eventos esperando y, sin otra escritura, la firma ya no cambia. Se
+        # drena el log entero, no solo la primera página.
+        lote = tail(repo, cursor)
+        while lote:
+            for evento in lote:
+                cursor = max(cursor, int(evento["id"]))
+                yield f"id: {evento['id']}\nevent: evento\ndata: {json.dumps(evento)}\n\n"
+            lote = tail(repo, cursor)

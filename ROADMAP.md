@@ -85,6 +85,10 @@ con el motivo, para no reabrirlo cada semana.
   armarla como URI (`uri_lectura`), así que una carpeta `carpeta#1` no se parte
   en fragmento y `/mapa`, `/revision` y el log abren su almacén. Cubierto en
   `services/core/tests/test_rutas.py`.
+- **Ráfagas en el stream**: al cambiar la firma, el vivo drena el log por
+  páginas hasta vaciarlo; una transacción de 250 eventos entrega los 250 en
+  orden aunque no haya otra escritura. Cubierto en
+  `services/core/tests/test_sse.py`.
 - **CI**: `pnpm check` global en cada push a main y en PRs
   (`.github/workflows/ci.yml`). Batería e2e y builds de Tauri quedan fuera
   del CI a propósito (navegador y puertos; se corren en local).
@@ -103,7 +107,6 @@ las relaciones y el alcance de las comprobaciones locales.
 
 ### Historial y almacenamiento
 
-- [ ] **Ráfagas en el stream.** Una transacción con 250 eventos entrega 200 a un cliente conectado. Comprobar que recibe los 250 IDs, en orden, aunque no haya otra escritura.
 - [ ] **Primer uso del historial.** Un almacén recién creado admite altas sin tabla `event` y pierde sus eventos de idea. El E2E actual crea la tabla a mano. Definir quién la inicializa y comprobar, desde una carpeta vacía, que se puede consultar el primer `idea.created`.
 - [ ] **Cursor tras vaciar el log.** Tras leer los eventos 1 y 2, reiniciar el laboratorio y crear otro, SQLite reutiliza el ID 1. Un cliente con cursor 2 omite el alta. Cubrir la conexión en vivo y la reconexión tras el vaciado.
 - [ ] **Compatibilidad de tipos históricos.** Una v9 con `kind='adr'` llega a v13 y se ve en el mapa, pero el listado y la ficha devuelven 500. Acordar cómo conservar los tipos históricos `adr` y `note` y comprobar ambos recorridos con sus datos originales.

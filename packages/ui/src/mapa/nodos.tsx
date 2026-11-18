@@ -25,6 +25,7 @@ function NodeRow({
   onEditar,
   onBorrar,
   onConectar,
+  onDesconectar,
   ideas,
 }: {
   node: TreeNode;
@@ -36,6 +37,7 @@ function NodeRow({
   onEditar?: (uid: string, cambios: IdeaUpdate) => Promise<void>;
   onBorrar?: (uid: string) => Promise<void>;
   onConectar?: (parentUid: string, childUid: string) => Promise<void>;
+  onDesconectar?: (id: number) => Promise<void>;
   ideas?: Idea[];
 }) {
   const tiene = node.kids.length > 0;
@@ -102,6 +104,16 @@ function NodeRow({
       {node.idea && onConectar && nodo === "root" && (
         <button type="button" className="btn ghost mover" onClick={() => setConectando((v) => !v)}>
           Conectar
+        </button>
+      )}
+      {node.idea && node.linkId !== undefined && onDesconectar && (
+        <button
+          type="button"
+          className="btn ghost mover"
+          title="Quitar esta idea de su padre (la idea queda)"
+          onClick={() => hacer(() => onDesconectar(node.linkId!))}
+        >
+          Desconectar
         </button>
       )}
 
@@ -198,6 +210,7 @@ function NodeRow({
               onEditar={onEditar}
               onBorrar={onBorrar}
               onConectar={onConectar}
+              onDesconectar={onDesconectar}
               ideas={ideas}
             />
           ))}
@@ -219,6 +232,7 @@ export function NodeBox({
   onEditar,
   onBorrar,
   onConectar,
+  onDesconectar,
   ideas,
 }: {
   node: TreeNode;
@@ -231,6 +245,7 @@ export function NodeBox({
   onEditar?: (uid: string, cambios: IdeaUpdate) => Promise<void>;
   onBorrar?: (uid: string) => Promise<void>;
   onConectar?: (parentUid: string, childUid: string) => Promise<void>;
+  onDesconectar?: (id: number) => Promise<void>;
   ideas?: Idea[];
 }) {
   const tiene = node.kids.length > 0;
@@ -266,6 +281,7 @@ export function NodeBox({
               onEditar={onEditar}
               onBorrar={onBorrar}
               onConectar={onConectar}
+              onDesconectar={onDesconectar}
               ideas={ideas}
             />
           ))}

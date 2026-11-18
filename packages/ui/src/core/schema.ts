@@ -100,6 +100,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/connections/{connection_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove Connection */
+        delete: operations["remove_connection_connections__connection_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/mapa": {
         parameters: {
             query?: never;
@@ -752,6 +769,56 @@ export interface operations {
                 };
             };
             /** @description No existe el repo o la idea */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_connection_connections__connection_id__delete: {
+        parameters: {
+            query: {
+                /** @description Carpeta del repo: ruta absoluta o nombre en el lab */
+                repo: string;
+            };
+            header?: never;
+            path: {
+                connection_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Petición inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description No existe la conexión */
             404: {
                 headers: {
                     [name: string]: unknown;

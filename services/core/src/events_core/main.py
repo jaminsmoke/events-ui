@@ -153,7 +153,8 @@ def _peticion_invalida(_request: Request, exc: ideas.InvalidInput) -> JSONRespon
 
 @app.exception_handler(KeyError)
 def _sin_idea(_request: Request, exc: KeyError) -> JSONResponse:
-    return JSONResponse(status_code=404, content={"detail": f"no existe la idea {exc.args[0]}"})
+    que = "conexión" if isinstance(exc.args[0], int) else "idea"
+    return JSONResponse(status_code=404, content={"detail": f"no existe la {que} {exc.args[0]}"})
 
 
 @app.get("/health", response_model=Health)
@@ -250,6 +251,20 @@ def get_connections(
 )
 def post_connection(body: ConnectionCreate, repo: RepoParam) -> dict[str, Any]:
     return ideas.create_connection(repo, **body.model_dump())
+
+
+@app.delete(
+    "/connections/{connection_id}",
+    status_code=204,
+    tags=["connections"],
+    responses={
+        **RESPUESTAS_ERROR,
+        404: {"model": ErrorDetail, "description": "No existe la conexión"},
+    },
+)
+def remove_connection(connection_id: int, repo: RepoParam) -> None:
+    if not ideas.delete_connection(repo, connection_id):
+        raise KeyError(connection_id)
 
 
 @app.get("/mapa", response_model=MapSnapshot, tags=["connections"], responses=RESPUESTAS_ERROR)

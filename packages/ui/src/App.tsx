@@ -30,7 +30,8 @@ export default function App({ elegirCarpeta }: { elegirCarpeta?: ElegirCarpeta }
   // Lo plegado, no lo abierto: por defecto el flujo se ve entero.
   const [cerrados, setCerrados] = useState<ReadonlySet<string>>(() => new Set());
 
-  const { ideas, links, error, crear, mover, editar, borrar, conectar } = useRepo(repo);
+  const { ideas, links, error, crear, mover, editar, borrar, conectar, desconectar } =
+    useRepo(repo);
   const tree = useMemo(
     () => (ideas ? buildTree(ideas, links) : null),
     [ideas, links],
@@ -207,6 +208,7 @@ export default function App({ elegirCarpeta }: { elegirCarpeta?: ElegirCarpeta }
                 onEditar={editar}
                 onBorrar={borrar}
                 onConectar={conectar}
+                onDesconectar={desconectar}
                 ideas={ideas ?? []}
               />
 
@@ -225,6 +227,7 @@ export default function App({ elegirCarpeta }: { elegirCarpeta?: ElegirCarpeta }
                     onMover={alMover}
                     onEditar={editar}
                     onBorrar={borrar}
+                    onDesconectar={desconectar}
                   />
                 ))}
               </div>

@@ -27,6 +27,9 @@ export type TreeNode = {
   total: number;
   kids: TreeNode[];
   idea?: Idea;
+  /** La conexión `child` que lo cuelga de su padre, si la tiene: se usa para
+   *  desconectarla desde la fila hija. */
+  linkId?: number;
   tone?: "root" | LaneId;
 };
 
@@ -36,6 +39,7 @@ export function buildTree(ideas: Idea[], links: Connection[]): Tree {
 
   const hijos = new Map<string, string[]>();
   const conPadre = new Set<string>();
+  const linkPorHijo = new Map<string, number>();
   for (const link of links) {
     if (link.kind !== "child") continue;
     const carrilPadre = carrilPorUid.get(link.parent_uid);
@@ -45,6 +49,7 @@ export function buildTree(ideas: Idea[], links: Connection[]): Tree {
     lista.push(link.child_uid);
     hijos.set(link.parent_uid, lista);
     conPadre.add(link.child_uid);
+    linkPorHijo.set(link.child_uid, link.id);
   }
 
   /* Una idea y lo que cuelga de ella. `camino` corta los ciclos: la API ya los
@@ -58,7 +63,14 @@ export function buildTree(ideas: Idea[], links: Connection[]): Tree {
       .map((kid) => rama(kid, siguiente))
       .filter((nodo): nodo is TreeNode => nodo !== null);
 
-    return { key: uid, title: idea.title, total: kids.length, kids, idea };
+    return {
+      key: uid,
+      title: idea.title,
+      total: kids.length,
+      kids,
+      idea,
+      linkId: linkPorHijo.get(uid),
+    };
   };
 
   // El cajón: todas las ideas, planas. Aquí entra todo, aún sin carril.

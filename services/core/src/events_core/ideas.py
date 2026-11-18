@@ -445,6 +445,19 @@ def _list_connections(
     return [dict(row) for row in rows]
 
 
+def delete_connection(repo: str, connection_id: int) -> bool:
+    """Quita una conexión por su `id` (el que devuelve el POST).
+
+    No borra ideas: descolgar una hija no la borra, solo deja de anidarse.
+    El id viaja en la ruta (`/connections/{id}`), igual que el `uid` en
+    `/ideas/{uid}`, porque dos ideas pueden estar unidas de varios modos.
+    """
+    with closing(connect(ensure_repo(repo))) as conn:
+        cursor = conn.execute("DELETE FROM connections WHERE id = ?", (connection_id,))
+        conn.commit()
+    return cursor.rowcount > 0
+
+
 def map_snapshot(repo: str) -> dict[str, Any]:
     """Lee el mapa entero en una sola transacción de lectura."""
     with closing(open_read_only(ensure_repo(repo))) as conn:

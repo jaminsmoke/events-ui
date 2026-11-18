@@ -2,6 +2,7 @@
 
 UI reactiva sobre un log de eventos en SQLite, para monitorizar repositorios en
 tiempo real. Decisiones de arquitectura en [`docs/0001-arquitectura.md`](docs/0001-arquitectura.md).
+Plan vivo en [`ROADMAP.md`](ROADMAP.md): qué hay hecho, qué va ahora y qué no se hace.
 
 **Idea central:** la app **no produce eventos**. Un proceso externo escribe el log;
 esta app lo abre en solo lectura, detecta novedades baratas con `PRAGMA data_version`
@@ -118,6 +119,7 @@ corepack pnpm core:dev           # Swagger en http://127.0.0.1:8765/docs
 | GET / PATCH / DELETE | `/ideas/{uid}?repo=<ruta>` |
 | GET | `/connections?repo=<ruta>` (filtro `parent_uid`) |
 | POST | `/connections?repo=<ruta>` |
+| DELETE | `/connections/{id}?repo=<ruta>` |
 | GET | `/mapa?repo=<ruta>` — todas las ideas del visor y sus conexiones en una sola lectura |
 | GET | `/revision?repo=<ruta>` — firma barata (`PRAGMA data_version` + conteos) para el refresco en vivo |
 

@@ -116,6 +116,19 @@ export function useRepo(repo: string | null) {
     [repo],
   );
 
+  // Quita la conexión por su `id`: la idea queda, solo deja de anidarse.
+  const desconectar = useCallback(
+    async (id: number) => {
+      if (!repo) return;
+      await unwrapVacio(
+        api.DELETE("/connections/{connection_id}", {
+          params: { path: { connection_id: id }, query: { repo } },
+        }),
+      );
+    },
+    [repo],
+  );
+
   const fresco = cargado && cargado.repo === repo ? cargado : null;
 
   return {
@@ -128,5 +141,6 @@ export function useRepo(repo: string | null) {
     editar,
     borrar,
     conectar,
+    desconectar,
   };
 }

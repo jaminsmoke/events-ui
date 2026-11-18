@@ -168,6 +168,15 @@ class EventosCompactados(BaseModel):
     vacuum: bool
 
 
+class Reinicio(BaseModel):
+    """Respuesta de `POST /reiniciar` (LAB): cuántas filas se vaciaron."""
+
+    repo: str
+    ideas_eliminadas: int
+    conexiones_eliminadas: int
+    eventos_eliminados: int
+
+
 class ErrorDetail(BaseModel):
     """Lo que devuelven los exception handlers de abajo: `{"detail": ...}`.
 
@@ -282,6 +291,14 @@ def patch_idea(uid: str, body: IdeaUpdate, repo: RepoParam) -> dict[str, Any]:
 def remove_idea(uid: str, repo: RepoParam) -> None:
     if not ideas.delete_idea(repo, uid):
         raise KeyError(uid)
+
+
+@app.post("/reiniciar", response_model=Reinicio, tags=["ideas"], responses=RESPUESTAS_ERROR)
+def post_reiniciar(repo: RepoParam) -> dict[str, Any]:
+    """Reinicio de laboratorio: el almacén queda vacío (ideas, cola, fichas,
+    conexiones y eventos). Solo lo llama el lanzador de pruebas del desktop
+    (`puedeProbar`): no es parte del CRUD de producto."""
+    return ideas.reiniciar(repo)
 
 
 @app.get(

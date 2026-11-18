@@ -35,6 +35,9 @@ export type Evento = Schemas["Evento"];
 /** F2: la proyección `repo_state` con su identidad de repo. */
 export type ProyeccionRepo = Schemas["ProyeccionRepo"];
 
+/** La respuesta de POST /reiniciar (LAB): cuántas filas se vaciaron. */
+export type Reinicio = Schemas["Reinicio"];
+
 /** El cuerpo de los errores 400/404 del core (`{"detail": ...}`), tal como
  *  lo declaran los exception handlers y ahora el propio OpenAPI. */
 export type ErrorDetalle = Schemas["ErrorDetail"];

@@ -61,6 +61,7 @@ export default function App({
     editar,
     borrar,
     cargarIdea,
+    reiniciar,
   } = useRepo(repo);
   const tree = useMemo(
     () => (ideas ? buildTree(ideas, links) : null),
@@ -259,6 +260,7 @@ export default function App({
           mover={mover}
           editar={editar}
           borrar={borrar}
+          reiniciar={reiniciar}
           onCerrar={() => setPruebasAbiertas(false)}
         />
       )}

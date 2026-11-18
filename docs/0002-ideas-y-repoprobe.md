@@ -145,6 +145,32 @@ divergido. Lo que había, con el síntoma:
   (el upsert solo entraba al cambiar de carril); ahora también entra cuando
   vienen campos de rechazo.
 
+## Enmienda — la cola es estado real: `idea_cola` (migración 0009)
+
+La 0006 dejó el carril como historial de pasos (`idea_lane_log`): el carril
+actual era la última fila y la cola no era una lista, era una vista sobre el
+último paso. El síntoma se vio en el laboratorio: `proposed` y `draft`
+colapsaban en el mismo carril (`cola`), así que una idea recién creada y una
+que ya estaba en cola leían lo mismo al volver de la API y el cajón de la UI
+no se vaciaba nunca, porque mover a En cola no cambiaba la fila que la UI
+miraba.
+
+La 0009 parte la diferencia: el historial de movimientos ya vive en `event`
+(ahí lo cuenta cada transición), así que el estado pasa a fichas:
+
+- `idea_cola`: una fila por idea en cola, con `posicion` (ordenable) y
+  `entered_at`. Estar en cola es tener fila; no estar es no tenerla.
+- `idea_completada`: la ficha de la idea hecha, con la misma responsabilidad
+  que `idea_rejected`.
+- Sin fila en ninguna de las tres, la idea está en el cajón (`draft`): la
+  recién creada, que aún no entró en ninguna lista.
+
+La migración pobla `idea_cola` con el orden de entrada que decía el log,
+traslada los `completada` a `idea_completada` y retira `idea_lane_log`. Y el
+lanzador de pruebas ganó `POST /reiniciar` (LAB, solo desktop): vacía ideas,
+cola, fichas, conexiones y eventos para dejar el proyecto limpio tras una
+prueba.
+
 ## Enmienda — las conexiones son arquitectura, no edición manual
 
 Las conexiones no se hacen a mano: ni la UI ni la API las crean o las borran.

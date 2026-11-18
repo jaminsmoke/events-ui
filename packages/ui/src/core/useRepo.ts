@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { api, unwrap } from "./api";
-import type { Connection, IdeaCreate, IdeaUpdate, Mapa, ProyeccionRepo } from "./api";
+import type { Connection, IdeaCreate, IdeaUpdate, Mapa, ProyeccionRepo, Reinicio } from "./api";
 import { STORAGE_KEY } from "./repo";
 
 const SIN_CABLES: Connection[] = [];
@@ -115,6 +115,16 @@ export function useRepo(repo: string | null) {
     [repo],
   );
 
+  // LAB (solo Pruebas): vacía el almacén entero (ideas, cola, fichas,
+  // conexiones y eventos). No borra una idea: deja el proyecto limpio.
+  const reiniciar = useCallback(
+    async (): Promise<Reinicio | null> => {
+      if (!repo) return null;
+      return unwrap(api.POST("/reiniciar", { params: { query: { repo } } }));
+    },
+    [repo],
+  );
+
   // Las conexiones son de la arquitectura (ADR 0002): inmutables desde la
   // UI y la API. Solo se leen, dentro del mapa.
 
@@ -167,5 +177,6 @@ export function useRepo(repo: string | null) {
     editar,
     borrar,
     cargarIdea,
+    reiniciar,
   };
 }

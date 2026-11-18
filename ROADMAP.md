@@ -45,6 +45,10 @@ Lo hecho se mueve a *Hecho* con su commit; lo que no va, va a *No se hace
 - **`idea_rejected`** (migración 0007): la ficha del descarte —`rejected_at`,
   `rejected_description`, `rejected_by`, `superseded_by_uid`— se crea al entrar
   en descartadas, se retira al salir, y la UI pide el motivo al descartar.
+- **`idea_cola`** (migración 0009): la cola deja de ser un paso de historial
+  (`idea_lane_log` se retira) y pasa a ser estado real y ordenable; el cajón
+  es lo que no tiene fila. `POST /reiniciar` (LAB, solo Pruebas) vacía el
+  almacén entero.
 - **F1 — motor en vivo por repo**: sobre de evento (`id`, `ts`, `type`,
   `payload`, `dedupe_key`) en la tabla `event` de cada `EUI_DATABASE`
   (migración 0005), conexión RO, tail `WHERE id > :last` y SSE con backfill

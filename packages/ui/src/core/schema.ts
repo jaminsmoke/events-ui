@@ -82,6 +82,28 @@ export interface paths {
         patch: operations["patch_idea_ideas__uid__patch"];
         trace?: never;
     };
+    "/reiniciar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Reiniciar
+         * @description Reinicio de laboratorio: el almacén queda vacío (ideas, cola, fichas,
+         *     conexiones y eventos). Solo lo llama el lanzador de pruebas del desktop
+         *     (`puedeProbar`): no es parte del CRUD de producto.
+         */
+        post: operations["post_reiniciar_reiniciar_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/connections": {
         parameters: {
             query?: never;
@@ -480,6 +502,20 @@ export interface components {
             ultima_actividad?: string | null;
         };
         /**
+         * Reinicio
+         * @description Respuesta de `POST /reiniciar` (LAB): cuántas filas se vaciaron.
+         */
+        Reinicio: {
+            /** Repo */
+            repo: string;
+            /** Ideas Eliminadas */
+            ideas_eliminadas: number;
+            /** Conexiones Eliminadas */
+            conexiones_eliminadas: number;
+            /** Eventos Eliminados */
+            eventos_eliminados: number;
+        };
+        /**
          * Repo
          * @description Una carpeta del laboratorio ya sembrada, tal como la ofrece `GET /repos`.
          */
@@ -800,6 +836,56 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Idea"];
+                };
+            };
+            /** @description Petición inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description No existe el repo o la idea */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_reiniciar_reiniciar_post: {
+        parameters: {
+            query: {
+                /** @description Carpeta del repo: ruta absoluta o nombre en el lab */
+                repo: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Reinicio"];
                 };
             };
             /** @description Petición inválida */

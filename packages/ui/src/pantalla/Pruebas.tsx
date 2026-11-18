@@ -6,8 +6,8 @@ import type { IdeaCreate, IdeaUpdate } from "../core/api";  /** Lanzador de prue
  *  Cada prueba es una lista de pasos que se ejecutan en orden contra la API
  *  del core, con pausa entre ellos para que el tablero se vea repartirse en
  *  vivo. La 1 es el ciclo mínimo: 10 ideas creadas en el cajón (Ideas), de
- *  las que 7 pasan a En cola y 3 se descartan con motivo. «Limpiar» borra las
- *  ideas que creó la prueba y deja la base sin ideas. */
+ *  las que 7 pasan a En cola y 3 se descartan con motivo. «Limpiar» reinicia
+ *  el proyecto completo (ideas, cola, descartadas, conexiones y eventos). */
 
 type Acciones = {
   crear: (body: IdeaCreate) => Promise<{ uid: string } | null>;
@@ -34,8 +34,8 @@ const PRUEBAS: Prueba[] = [
     descripcion:
       "Crea 10 ideas en el cajón de Ideas, poco a poco, y va vaciándolo: " +
       "manda 7 a En cola y descarta 3 con motivo. Estado final: Ideas vacío, " +
-      "7 en En cola y 3 en Descartadas. Después, «Limpiar» borra las 10 y " +
-      "deja la base sin ideas.",
+      "7 en En cola y 3 en Descartadas. Después, «Limpiar» reinicia el proyecto " +
+      "completo: ideas, cola, descartadas, conexiones y eventos a cero.",
     construir: ({ crear, mover, editar }) => {
       const creadas: string[] = [];
       const pasos: Paso[] = [];
@@ -129,6 +129,7 @@ export function Pruebas({
   mover,
   editar,
   borrar,
+  reiniciar,
   onCerrar,
 }: {
   repo: string;
@@ -136,6 +137,7 @@ export function Pruebas({
   mover: Acciones["mover"];
   editar: Acciones["editar"];
   borrar: Acciones["borrar"];
+  reiniciar: () => Promise<unknown>;
   onCerrar: () => void;
 }) {
   const [seleccionada, setSeleccionada] = useState(PRUEBAS[0]?.id ?? "");
@@ -145,27 +147,17 @@ export function Pruebas({
   const [duracion, setDuracion] = useState<string | null>(null);
   const [limpiando, setLimpiando] = useState(false);
   const cancelar = useRef(false);
-  /** Ideas creadas por la prueba, para poder limpiarlas al terminar. */
-  const [creadas, setCreadas] = useState<{ uid: string; title: string }[]>([]);
-
-  const registrar = (body: IdeaCreate) =>
-    crear(body).then((idea) => {
-      if (idea) {
-        setCreadas((prev) => [...prev, { uid: idea.uid, title: body.title }]);
-      }
-      return idea;
-    });
 
   const prueba = PRUEBAS.find((p) => p.id === seleccionada) ?? PRUEBAS[0];
   const pasos = prueba
-    ? prueba.construir({ crear: registrar, mover, editar, borrar })
+    ? prueba.construir({ crear, mover, editar, borrar })
     : [];
   const corriendo = estado === "corriendo";
   const totales = `${hechos.filter(Boolean).length}/${pasos.length}`;
 
   const lanzar = () => {
     if (!prueba || corriendo || limpiando) return;
-    const lista = prueba.construir({ crear: registrar, mover, editar, borrar });
+    const lista = prueba.construir({ crear, mover, editar, borrar });
     cancelar.current = false;
     setEstado("corriendo");
     setHechos(Array.from({ length: lista.length }, () => false));
@@ -263,31 +255,35 @@ export function Pruebas({
               Detener
             </button>
           )}
-          {creadas.length > 0 && !corriendo && (
+          {hechos.length > 0 && !corriendo && (
             <button
               type="button"
               className="btn ghost"
               disabled={limpiando}
               onClick={() => {
-                const lista: Paso[] = creadas.map((c) => ({
-                  texto: `Borrar «${c.title}»`,
-                  ejecutar: async () => {
-                    await borrar(c.uid).catch(() => {
-                      // Ya borrada a mano: limpiar no debe fallar por eso.
-                    });
-                  },
-                }));
+                setFallo(null);
+                if (
+                  !window.confirm(
+                    "Reiniciar el proyecto: se borran ideas, cola, descartadas, conexiones y eventos. ¿Seguro?",
+                  )
+                ) {
+                  return;
+                }
                 setLimpiando(true);
-                void ejecutar(lista, () => false, () => {}).then(() => {
-                  setCreadas([]);
-                  setLimpiando(false);
-                  setHechos([]);
-                  setDuracion(null);
-                  setEstado("parada");
-                });
+                void reiniciar()
+                  .then(() => {
+                    setLimpiando(false);
+                    setHechos([]);
+                    setDuracion(null);
+                    setEstado("parada");
+                  })
+                  .catch((err: unknown) => {
+                    setLimpiando(false);
+                    setFallo(err instanceof Error ? err.message : String(err));
+                  });
               }}
             >
-              {limpiando ? "Limpiando…" : "Limpiar"}
+              {limpiando ? "Reiniciando…" : "Limpiar"}
             </button>
           )}
           <button type="button" className="btn ghost" onClick={onCerrar}>

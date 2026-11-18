@@ -60,12 +60,17 @@ def repo_estado_actual(repo: str) -> dict[str, Any]:
         eventos = conteo(conn, "SELECT count(*) FROM event")
         por_estado: dict[str, int] = {}
         try:
-            # Desde la 0006 el estado es el último carril del log. Una idea sin
-            # fila de carril no cuenta en ningún estado (antes salía la clave
-            # literal "None").
+            # La cola y las fichas son filas reales (0009): el conteo por
+            # estado es una CASE sobre ellas. Una idea sin fila en ninguna es
+            # el cajón y no cuenta (antes salía la clave literal "None").
             for estado, n in conn.execute(
-                "SELECT (SELECT lane FROM idea_lane_log WHERE uid = idea_entry.uid"
-                " ORDER BY id DESC LIMIT 1), count(*) FROM idea_entry GROUP BY 1"
+                "SELECT CASE"
+                " WHEN EXISTS (SELECT 1 FROM idea_rejected r WHERE r.uid = idea_entry.uid)"
+                " THEN 'descartadas'"
+                " WHEN EXISTS (SELECT 1 FROM idea_completada c WHERE c.uid = idea_entry.uid)"
+                " THEN 'completada'"
+                " WHEN EXISTS (SELECT 1 FROM idea_cola q WHERE q.uid = idea_entry.uid)"
+                " THEN 'cola' END, count(*) FROM idea_entry GROUP BY 1"
             ):
                 if estado is not None:
                     por_estado[str(estado)] = int(n)

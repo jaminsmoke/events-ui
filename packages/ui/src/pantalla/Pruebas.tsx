@@ -181,9 +181,9 @@ export function Pruebas({
 
   return (
     <div className="modal-fondo" role="presentation" onClick={onCerrar}>
-      <dialog
+      <div
         className="modal"
-        open
+        role="dialog"
         aria-label="Pruebas del laboratorio"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.key === "Escape" && onCerrar()}
@@ -290,7 +290,7 @@ export function Pruebas({
             Cerrar
           </button>
         </div>
-      </dialog>
+      </div>
     </div>
   );
 }

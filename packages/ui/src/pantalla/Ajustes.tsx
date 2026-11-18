@@ -25,9 +25,9 @@ export function Ajustes({
 
   return (
     <div className="modal-fondo" role="presentation" onClick={onCerrar}>
-      <dialog
+      <div
         className="modal"
-        open
+        role="dialog"
         aria-label="Ajustes de avisos"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.key === "Escape" && onCerrar()}
@@ -69,7 +69,7 @@ export function Ajustes({
             </button>
           </div>
         </form>
-      </dialog>
+      </div>
     </div>
   );
 }

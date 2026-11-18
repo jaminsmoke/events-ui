@@ -39,7 +39,7 @@ app = FastAPI(title="Events UI Core", version="0.2.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:5173",  # desktop (Vite)
+        "http://localhost:5175",  # desktop (Vite)
         "http://localhost:5174",  # web (Vite)
         "tauri://localhost",
         "http://tauri.localhost",

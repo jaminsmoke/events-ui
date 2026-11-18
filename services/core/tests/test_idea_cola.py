@@ -1,6 +1,6 @@
 """La cola es estado real y ordenable (`idea_cola`), no una vista del log.
 
-Cubre: fresco en v15 sin `idea_lane_log`, estados desde la cola/revisión
+Cubre: fresco en v16 sin `idea_lane_log`, estados desde la cola/revisión
 aprobada/rechazada (la entrada es no tener fila), el orden de la cola y la
 migración 0009 desde un almacén v8 con historial.
 """
@@ -114,7 +114,7 @@ def _comprobar_historico(client, repo):  # noqa: ANN001, ANN202
         tablas = {
             row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 15
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 16
         assert "ideas" not in tablas
         assert conn.execute("SELECT count(*) FROM idea_entry").fetchone()[0] == 4
         assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
@@ -160,7 +160,7 @@ def test_fresco_sin_lane_log(client, repo):  # noqa: ANN001, ANN202
     db = ideas.ensure_repo(repo)
     conn = sqlite3.connect(str(db))
     tablas = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 15
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 16
     assert "idea_cola" in tablas
     assert "idea_roadmap" in tablas
     assert "idea_verificacion" in tablas
@@ -269,7 +269,7 @@ def test_reiniciar_vacia_todo(client, repo):  # noqa: ANN001, ANN202
         "connections",
     ):
         assert conn.execute(f"SELECT count(*) FROM {tabla}").fetchone()[0] == 0
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 15
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 16
 
 
 def test_migracion_0009_solo_estado_final(client, repo):  # noqa: ANN001, ANN202
@@ -312,7 +312,7 @@ def test_migracion_0009_solo_estado_final(client, repo):  # noqa: ANN001, ANN202
 
     conn = sqlite3.connect(str(db))
     conn.execute("PRAGMA foreign_keys = ON")
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 15
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 16
     tablas = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert "idea_lane_log" not in tablas
     assert "idea_completada" not in tablas
@@ -359,7 +359,7 @@ def test_historico_ya_marcado_se_recupera(client, repo):  # noqa: ANN001, ANN202
     _esquema_inicial(conn)
     ideas.aplicar_esquema(conn)  # lo que hacía el código anterior
     conn.commit()
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 15
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 16
     assert conn.execute("SELECT count(*) FROM idea_entry").fetchone()[0] == 0
     assert conn.execute("SELECT count(*) FROM ideas").fetchone()[0] == 4
     conn.close()

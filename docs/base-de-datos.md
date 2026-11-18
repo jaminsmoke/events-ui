@@ -2,7 +2,7 @@
 
 Cada repositorio guarda sus ideas, relaciones y protocolos en
 `.EUI/EUI_DATABASE.sqlite`. El core activa WAL y las claves foráneas en sus
-conexiones de escritura. La versión del esquema de ideas es 15. El registro
+conexiones de escritura. La versión del esquema de ideas es 16. El registro
 operativo de la aplicación vive en otro fichero y abarca varios repositorios.
 
 ## Tablas y relaciones
@@ -22,8 +22,9 @@ operativo de la aplicación vive en otro fichero y abarca varios repositorios.
 
 Las cinco fichas de estado referencian `idea_entry.uid` con borrado en cascada.
 Una idea sin ficha está en entrada. La unicidad del UID dentro de cada ficha es
-una restricción de SQLite. La exclusividad entre fichas la mantiene el core al
-mover la idea. Los extremos de `connections` también se borran en cascada y un
+una restricción de SQLite. La exclusividad entre fichas la mantienen el core al
+mover la idea y los triggers del almacén (migración 0016), que rechazan
+cualquier inserción que deje la idea en dos fichas o dos ideas en roadmap. Los extremos de `connections` también se borran en cascada y un
 `CHECK` impide que sean iguales. La referencia opcional a una idea sustituta
 impide borrarla mientras exista el vínculo.
 

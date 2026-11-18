@@ -78,6 +78,21 @@ def test_migracion_0010_rellena_origen(client, repo):  # noqa: ANN001, ANN202
         " kind TEXT NOT NULL DEFAULT 'idea', tags TEXT NOT NULL DEFAULT '[]',"
         " created_at TEXT NOT NULL, updated_at TEXT NOT NULL)"
     )
+    # La 0009 ya creó la cola en un v9 real y la 0007 el descarte; los
+    # triggers de la 0016 miran las dos.
+    conn.execute(
+        "CREATE TABLE idea_cola ("
+        " uid TEXT PRIMARY KEY REFERENCES idea_entry (uid) ON DELETE CASCADE,"
+        " posicion INTEGER NOT NULL UNIQUE, entered_at TEXT NOT NULL)"
+    )
+    conn.execute(
+        "CREATE TABLE idea_rejected ("
+        " uid TEXT PRIMARY KEY REFERENCES idea_entry (uid) ON DELETE CASCADE,"
+        " rejected_at TEXT NOT NULL,"
+        " rejected_description TEXT NOT NULL DEFAULT '',"
+        " rejected_by TEXT NOT NULL DEFAULT 'usuario',"
+        " superseded_by_uid TEXT REFERENCES idea_entry (uid))"
+    )
     conn.execute(EVENTOS_VIEJO)
     conn.execute(
         "INSERT INTO event (ts, type, payload) VALUES ('2026-11-18T00:00:00Z',"
@@ -94,7 +109,7 @@ def test_migracion_0010_rellena_origen(client, repo):  # noqa: ANN001, ANN202
     ideas.ensure_repo(repo)
 
     conn = sqlite3.connect(str(db))
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 15
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 16
     columnas = [r[1] for r in conn.execute("PRAGMA table_info(event)")]
     assert "origen" in columnas
     filas = conn.execute("SELECT type, origen FROM event ORDER BY id").fetchall()
@@ -116,6 +131,21 @@ def test_migracion_0010_sin_tabla_event_crea_acceso(client, repo):  # noqa: ANN0
         " kind TEXT NOT NULL DEFAULT 'idea', tags TEXT NOT NULL DEFAULT '[]',"
         " created_at TEXT NOT NULL, updated_at TEXT NOT NULL)"
     )
+    # La 0009 ya creó la cola en un v9 real y la 0007 el descarte; los
+    # triggers de la 0016 miran las dos.
+    conn.execute(
+        "CREATE TABLE idea_cola ("
+        " uid TEXT PRIMARY KEY REFERENCES idea_entry (uid) ON DELETE CASCADE,"
+        " posicion INTEGER NOT NULL UNIQUE, entered_at TEXT NOT NULL)"
+    )
+    conn.execute(
+        "CREATE TABLE idea_rejected ("
+        " uid TEXT PRIMARY KEY REFERENCES idea_entry (uid) ON DELETE CASCADE,"
+        " rejected_at TEXT NOT NULL,"
+        " rejected_description TEXT NOT NULL DEFAULT '',"
+        " rejected_by TEXT NOT NULL DEFAULT 'usuario',"
+        " superseded_by_uid TEXT REFERENCES idea_entry (uid))"
+    )
     conn.execute("PRAGMA user_version = 9")
     conn.commit()
     conn.close()
@@ -123,7 +153,7 @@ def test_migracion_0010_sin_tabla_event_crea_acceso(client, repo):  # noqa: ANN0
     ideas.ensure_repo(repo)
 
     conn = sqlite3.connect(str(db))
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 15
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 16
     assert conn.execute("SELECT count(*) FROM event").fetchone()[0] == 0
     columnas = [r[1] for r in conn.execute("PRAGMA table_info(event)")]
     assert "origen" in columnas

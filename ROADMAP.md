@@ -115,6 +115,10 @@ con el motivo, para no reabrirlo cada semana.
   (`datetime(ts) < datetime('now', …)`), así un evento de la mañana del día de
   corte ya no sobrevive a la retención; probado en ambos lados del corte para
   `event` y `registro` en `services/core/tests/test_retencion.py`.
+- **Exclusividad de fichas**: la idea no puede estar en dos fichas a la vez y
+  el roadmap no admite dos activas; los triggers del almacén (migración 0016)
+  lo imponen a cualquier escritor y una inserción rechazada deja el estado
+  anterior intacto. Cubierto en `services/core/tests/test_exclusividad.py`.
 - **CI**: `pnpm check` global en cada push a main y en PRs
   (`.github/workflows/ci.yml`). Batería e2e y builds de Tauri quedan fuera
   del CI a propósito (navegador y puertos; se corren en local).
@@ -138,7 +142,6 @@ las relaciones y el alcance de las comprobaciones locales.
 
 Estos casos se reprodujeron con datos de prueba y claves foráneas activadas.
 
-- [ ] **Exclusividad de fichas.** SQLite admite dos ideas en roadmap y una idea en cola y roadmap a la vez. Definir dónde imponer estas reglas para todos los escritores y comprobar que una escritura rechazada deja intacto el estado anterior.
 - [ ] **Ciclos en el árbol.** Dos enlaces `child` recíprocos son válidos en SQLite. En el mismo carril, ambas ideas tienen padre y el visor las excluye de las raíces. Cubrir la importación y la visualización de ese caso manteniendo el soporte de varios padres.
 - [ ] **Formato de etiquetas.** El esquema acepta `{}` como JSON válido y después `GET /ideas` devuelve 500. Validar una lista de cadenas y contemplar la recuperación de filas existentes con otro formato.
 - [ ] **Ruta del registro operativo.** Al arrancar desde dos directorios se resuelve `data/registro.sqlite` en ubicaciones distintas. Unificar el destino predeterminado, conservar el override y verificar que ambos arranques consultan el mismo historial.

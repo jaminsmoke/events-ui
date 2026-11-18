@@ -45,9 +45,10 @@ MIGRATIONS_DIR = Path(__file__).with_name("migraciones")
 # en la 0011 (`protocolo_flujo`), las completadas salieron del flujo en
 # la 0012, el flujo completo (roadmap, verificación y revisión aprobada)
 # llegó en la 0013, la 0014 llevó los intentos de verificación a la entrada
-# para que sobrevivan a la ficha, y la 0015 sembró la tabla `event` en los
-# almacenes que nacieron sin log.
-SCHEMA_VERSION = 15
+# para que sobrevivan a la ficha, la 0015 sembró la tabla `event` en los
+# almacenes que nacieron sin log y la 0016 puso en triggers la exclusividad de
+# fichas y el roadmap único, para todos los escritores.
+SCHEMA_VERSION = 16
 
 REPOS_ROOT_ENV_VAR = "EVENTSUI_REPOS_ROOT"
 BUSY_TIMEOUT_MS = 5_000
@@ -1148,6 +1149,15 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
             )
             conn.commit()
         except sqlite3.IntegrityError as exc:
+            mensaje = str(exc)
+            if "otra ficha" in mensaje:
+                raise InvalidInput(
+                    "la idea ya está en otra ficha: retírala antes de moverla"
+                ) from exc
+            if "un item activo" in mensaje:
+                raise InvalidInput(
+                    "roadmap solo admite un item activo: ya hay uno en curso"
+                ) from exc
             # `superseded_by_uid` apunta a una idea que no existe: es un dato
             # mal puesto (400), no un fallo del servidor (500).
             raise InvalidInput("superseded_by_uid apunta a una idea que no existe") from exc

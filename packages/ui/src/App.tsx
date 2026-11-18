@@ -21,6 +21,7 @@ import { NuevaIdea } from "./pantalla/NuevaIdea";
 import { SelectorRepo } from "./pantalla/SelectorRepo";
 import { AvisoRecorte, Controles } from "./pantalla/Controles";
 import { Pruebas } from "./pantalla/Pruebas";
+import { Registro } from "./pantalla/Registro";
 
 /* *  El mapa: se pliega, se encuadra y se mueve; el almacén se toca solo por
  *  la API del core (crear, mover, editar y borrar ideas). Las conexiones
@@ -50,6 +51,7 @@ export default function App({
   const [ajustes, setAjustes] = useState<Ajustes>(cargarAjustes);
   const [ajustesAbiertos, setAjustesAbiertos] = useState(false);
   const [pruebasAbiertas, setPruebasAbiertas] = useState(false);
+  const [registroAbierto, setRegistroAbierto] = useState(false);
 
   const {
     ideas,
@@ -215,6 +217,9 @@ export default function App({
             Ajustes
           </button>
         )}
+        <button className="btn ghost" onClick={() => setRegistroAbierto(true)}>
+          Registro
+        </button>
         {repo && puedeProbar && (
           <button className="btn ghost" onClick={() => setPruebasAbiertas(true)}>
             Pruebas
@@ -252,6 +257,8 @@ export default function App({
           <NuevaIdea onCrear={crear} onCerrar={() => setNuevaAbierta(false)} />
         </section>
       )}
+
+      {registroAbierto && <Registro onCerrar={() => setRegistroAbierto(false)} />}
 
       {repo && pruebasAbiertas && puedeProbar && (
         <Pruebas

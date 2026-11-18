@@ -20,6 +20,8 @@ import sys
 
 import uvicorn
 
+from . import registro
+
 HOST = "127.0.0.1"
 PORT = 8765
 
@@ -46,6 +48,7 @@ def main() -> int:
         )
         return 1
 
+    registro.escribir("info", "Core arrancado")
     uvicorn.run("events_core.main:app", host=HOST, port=PORT, reload=False)
     return 0
 

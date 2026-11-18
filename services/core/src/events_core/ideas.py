@@ -20,6 +20,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from . import registro
 from .db import data_version, open_read_only
 
 EUI_DIR = ".EUI"
@@ -141,6 +142,7 @@ def init_repo(repo: str) -> Path:
         aplicar_esquema(conn)
         conn.commit()
 
+    registro.escribir("info", f"Almacén sembrado en {directory}")
     _ignorar_auxiliares(db_file)
     return db_file
 

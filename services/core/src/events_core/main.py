@@ -21,7 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
-from . import eventos, ideas, proyeccion
+from . import eventos, ideas, proyeccion, registro
 from .db import data_version, db_path, journal_mode, open_read_only
 
 # Se repiten los CHECK de `schema/ideas.sql` a propósito: aquí sirven para que el
@@ -177,6 +177,23 @@ class Reinicio(BaseModel):
     eventos_eliminados: int
 
 
+class EntradaLog(BaseModel):
+    """Una línea del registro operativo (`GET /log`): de la app, no del repo."""
+
+    id: int
+    ts: str
+    nivel: Literal["info", "aviso", "error"]
+    origen: str
+    mensaje: str
+
+
+class RegistroPurgado(BaseModel):
+    """Respuesta de `POST /log/purgar`: qué se llevó la retención."""
+
+    eliminadas_por_edad: int
+    eliminadas_por_conteo: int
+
+
 class ErrorDetail(BaseModel):
     """Lo que devuelven los exception handlers de abajo: `{"detail": ...}`.
 
@@ -221,6 +238,17 @@ def _peticion_invalida(_request: Request, exc: ideas.InvalidInput) -> JSONRespon
 def _sin_idea(_request: Request, exc: KeyError) -> JSONResponse:
     que = "conexión" if isinstance(exc.args[0], int) else "idea"
     return JSONResponse(status_code=404, content={"detail": f"no existe la {que} {exc.args[0]}"})
+
+
+@app.exception_handler(Exception)
+def _error_interno(_request: Request, exc: Exception) -> JSONResponse:
+    """Nada que no tengan ya su handler: queda en el registro y 500.
+
+    La búsqueda es por clase (MRO): los 400/404/422 de arriba tienen su
+    propio handler y llegan antes que este, así que aquí solo cae lo
+    inesperado (un `sqlite3.Error` que no fuera el pensado, un bug)."""
+    registro.escribir("error", f"Error interno no capturado: {exc}")
+    return JSONResponse(status_code=500, content={"detail": "error interno"})
 
 
 @app.get("/health", response_model=Health)
@@ -298,7 +326,14 @@ def post_reiniciar(repo: RepoParam) -> dict[str, Any]:
     """Reinicio de laboratorio: el almacén queda vacío (ideas, cola, fichas,
     conexiones y eventos). Solo lo llama el lanzador de pruebas del desktop
     (`puedeProbar`): no es parte del CRUD de producto."""
-    return ideas.reiniciar(repo)
+    resultado = ideas.reiniciar(repo)
+    registro.escribir(
+        "info",
+        f"Reinicio de laboratorio en {repo}: {resultado['ideas_eliminadas']} ideas, "
+        f"{resultado['conexiones_eliminadas']} conexiones, "
+        f"{resultado['eventos_eliminados']} eventos",
+    )
+    return resultado
 
 
 @app.get(
@@ -374,7 +409,31 @@ def post_compactar(
     ] = eventos.MAX_EVENTOS_RETENCION,
 ) -> dict[str, Any]:
     """Recorta el log a la política de retención; el resto se conserva."""
-    return eventos.compactar(repo, dias=dias, max_eventos=max_eventos)
+    resultado = eventos.compactar(repo, dias=dias, max_eventos=max_eventos)
+    registro.escribir(
+        "info",
+        f"Compactación del log de {repo}: {resultado['eliminados_por_edad']} por edad, "
+        f"{resultado['eliminados_por_conteo']} por conteo",
+    )
+    return resultado
+
+
+# --- Registro operativo de la app (no de los repos) ---
+
+
+@app.get("/log", response_model=list[EntradaLog], tags=["log"])
+def get_log(
+    limite: Annotated[int, Query(ge=1, le=1000)] = 200,
+    nivel: Literal["info", "aviso", "error"] | None = None,
+) -> list[dict[str, Any]]:
+    """Las últimas entradas del registro de la app (la más nueva primero)."""
+    return registro.listar(limite, nivel)
+
+
+@app.post("/log/purgar", response_model=RegistroPurgado, tags=["log"])
+def post_purgar_log() -> dict[str, Any]:
+    """Aplica ya la retención del registro (también pasa sola al escribir)."""
+    return registro.purgar()
 
 
 # --- F2: proyecciones con nombre, sin SQL libre ---

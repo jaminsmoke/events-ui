@@ -224,6 +224,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Log
+         * @description Las últimas entradas del registro de la app (la más nueva primero).
+         */
+        get: operations["get_log_log_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/log/purgar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Purgar Log
+         * @description Aplica ya la retención del registro (también pasa sola al escribir).
+         */
+        post: operations["post_purgar_log_log_purgar_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/proyecciones/repo": {
         parameters: {
             query?: never;
@@ -269,6 +309,25 @@ export interface components {
             kind: "child" | "related" | "supersedes";
             /** Created At */
             created_at: string;
+        };
+        /**
+         * EntradaLog
+         * @description Una línea del registro operativo (`GET /log`): de la app, no del repo.
+         */
+        EntradaLog: {
+            /** Id */
+            id: number;
+            /** Ts */
+            ts: string;
+            /**
+             * Nivel
+             * @enum {string}
+             */
+            nivel: "info" | "aviso" | "error";
+            /** Origen */
+            origen: string;
+            /** Mensaje */
+            mensaje: string;
         };
         /**
          * ErrorDetail
@@ -500,6 +559,16 @@ export interface components {
             };
             /** Ultima Actividad */
             ultima_actividad?: string | null;
+        };
+        /**
+         * RegistroPurgado
+         * @description Respuesta de `POST /log/purgar`: qué se llevó la retención.
+         */
+        RegistroPurgado: {
+            /** Eliminadas Por Edad */
+            eliminadas_por_edad: number;
+            /** Eliminadas Por Conteo */
+            eliminadas_por_conteo: number;
         };
         /**
          * Reinicio
@@ -1222,6 +1291,58 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_log_log_get: {
+        parameters: {
+            query?: {
+                limite?: number;
+                nivel?: ("info" | "aviso" | "error") | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntradaLog"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_purgar_log_log_purgar_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegistroPurgado"];
                 };
             };
         };

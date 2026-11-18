@@ -388,6 +388,47 @@ header > div {
   font-style: normal;
 }
 
+/* Visor del registro operativo (modal): mismas filas compactas que actividad. */
+.registro-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.registro-linea {
+  flex: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.registro-linea strong {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.reg-info span {
+  color: var(--accent);
+}
+
+.reg-aviso span {
+  color: var(--warn);
+}
+
+.reg-error {
+  color: var(--bad);
+}
+
+.reg-error span {
+  color: var(--bad);
+}
+
 .eventos h2 .dot {
   display: inline-block;
   margin-left: 6px;

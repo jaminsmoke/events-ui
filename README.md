@@ -72,6 +72,11 @@ verdad están `build:web` (Vite) y `build` (bundle Tauri).
 
 El core apunta a `data/events.db` por defecto; cámbialo con `EVENTSUI_DB=/ruta/al/log.db`.
 
+El registro operativo de la app (arranques, errores y operaciones) vive en su
+propio SQLite, `data/registro.sqlite` (`EVENTSUI_REGISTRO_DB` para cambiarlo);
+se ve con `GET /log` y su purga —90 días / 2.000 entradas, automática al
+escribir— también se puede forzar por `POST /log/purgar`.
+
 Los tipos TS del cliente no se escriben a mano: se generan del OpenAPI del
 core con [`openapi-typescript`](https://openapi-ts.dev/) y las llamadas van
 por [`openapi-fetch`](https://openapi-ts.dev/openapi-fetch), tipado por esos

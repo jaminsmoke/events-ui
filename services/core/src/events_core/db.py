@@ -98,8 +98,11 @@ def barridos_retencion(
 
     Primero la antigüedad (`ts` anterior a hace `dias` días) y luego el conteo
     (se dejan solo los `maximo` más nuevos); el segundo nunca resucita lo ya
-    borrado. `tabla` es un nombre interno constante (`event`, `registro`),
-    nunca entrada del usuario.
+    borrado. La edad se compara como instante (`datetime(ts)`), no como texto:
+    `ts` se guarda ISO-8601 con `T`, y contra el espacio de `datetime('now', …)`
+    una comparación textual dejaba dentro lo del mismo día anterior al corte.
+    `tabla` es un nombre interno constante (`event`, `registro`), nunca entrada
+    del usuario.
 
     `dias` y `maximo` tienen que ser al menos 1: con 0 o negativo, el primer
     barrido se llevaría la tabla entera.
@@ -107,7 +110,7 @@ def barridos_retencion(
     if dias < 1 or maximo < 1:
         raise ValueError("dias y maximo tienen que ser al menos 1")
     cursor_edad = conn.execute(
-        f"DELETE FROM {tabla} WHERE ts < datetime('now', ?)", (f"-{dias} days",)
+        f"DELETE FROM {tabla} WHERE datetime(ts) < datetime('now', ?)", (f"-{dias} days",)
     )
     cursor_conteo = conn.execute(
         f"DELETE FROM {tabla} WHERE id NOT IN (SELECT id FROM {tabla} ORDER BY id DESC LIMIT ?)",

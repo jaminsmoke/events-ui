@@ -111,6 +111,10 @@ con el motivo, para no reabrirlo cada semana.
   auxiliares y comprueba `integrity_check`; verificado desde una copia limpia
   en `services/core/tests/test_instantanea.py` y documentado en
   `docs/base-de-datos.md`.
+- **Límite de retención**: la edad se compara como instante
+  (`datetime(ts) < datetime('now', …)`), así un evento de la mañana del día de
+  corte ya no sobrevive a la retención; probado en ambos lados del corte para
+  `event` y `registro` en `services/core/tests/test_retencion.py`.
 - **CI**: `pnpm check` global en cada push a main y en PRs
   (`.github/workflows/ci.yml`). Batería e2e y builds de Tauri quedan fuera
   del CI a propósito (navegador y puertos; se corren en local).
@@ -129,7 +133,6 @@ las relaciones y el alcance de las comprobaciones locales.
 
 ### Historial y almacenamiento
 
-- [ ] **Límite de retención.** La comparación textual mezcla fechas ISO con `T` y el espacio de `datetime('now', …)`. Un evento anterior al corte, pero del mismo día, se conserva. Probar ambos lados del instante de corte en eventos y registro.
 
 ### Integridad de las escrituras SQL
 

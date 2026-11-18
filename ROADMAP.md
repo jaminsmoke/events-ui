@@ -19,6 +19,12 @@ con el motivo, para no reabrirlo cada semana.
   Las conexiones no se gestionan desde la UI: son arquitectura.
 - **Estado por idea**. El core mueve la idea entre fichas en una transacción.
   La entrada se representa con la ausencia de ficha y la cola tiene posición propia.
+- **Dependencias entre ideas** (0018): `idea_entry.depende_de` guarda los uids
+  que bloquean el avance. El core valida que existan, rechaza auto-dependencias
+  y ciclos, limpia el uid al borrar y frena roadmap/verificación/revisión
+  aprobada mientras alguna no esté aprobada. La fila del mapa enseña a quién
+  espera y permite añadir o quitar dependencias. `connections` sigue en pie:
+  su `child` es la única jerarquía del mapa y el mapa plano falta por consensuar.
 - **F1 — motor en vivo por repo**: sobre de evento (`id`, `ts`, `type`,
   `payload`, `dedupe_key`) en la tabla `event` de cada `EUI_DATABASE`
   (migración 0005), conexión RO, tail `WHERE id > :last` y SSE con backfill

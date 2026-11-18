@@ -2,14 +2,14 @@
 
 Cada repositorio guarda sus ideas, relaciones y protocolos en
 `.EUI/EUI_DATABASE.sqlite`. El core activa WAL y las claves foráneas en sus
-conexiones de escritura. La versión del esquema de ideas es 17. El registro
+conexiones de escritura. La versión del esquema de ideas es 18. El registro
 operativo de la aplicación vive en otro fichero y abarca varios repositorios.
 
 ## Tablas y relaciones
 
 | Tabla | Identidad y relación | Qué representa |
 | --- | --- | --- |
-| `idea_entry` | `id` local y `uid` único | Identidad estable, título, descripción, contenido, tipo, etiquetas, intentos acumulados de verificación y fechas de la idea. Las relaciones usan el UID. |
+| `idea_entry` | `id` local y `uid` único | Identidad estable, título, descripción, contenido, tipo, etiquetas, intentos acumulados de verificación, fechas de la idea y sus dependencias (`depende_de`, migración 0018). Las relaciones usan el UID. |
 | `idea_cola` | Una ficha por UID y una posición única | Orden de la cola y fecha de entrada. Una idea que vuelve desde verificación recibe una posición nueva. |
 | `idea_roadmap` | Una ficha por UID | Inicio, resultado y referencia del trabajo en curso. El core comprueba que haya como máximo una idea activa en el repo. |
 | `idea_verificacion` | Una ficha por UID | Inicio, intentos acumulados, último resultado, comentario y fecha de finalización del roadmap previo. |
@@ -27,6 +27,13 @@ mover la idea y los triggers del almacén (migración 0016), que rechazan
 cualquier inserción que deje la idea en dos fichas o dos ideas en roadmap. Los extremos de `connections` también se borran en cascada y un
 `CHECK` impide que sean iguales. La referencia opcional a una idea sustituta
 impide borrarla mientras exista el vínculo.
+
+Las dependencias viven en `idea_entry.depende_de`, una lista JSON de uids: SQLite no
+admite una FK dentro de un JSON, así que el core valida que cada uid exista,
+rechaza ciclos y auto-dependencias, y retira el uid de las listas ajenas al
+borrar la idea. Un ítem no entra en roadmap, verificación ni revisión aprobada
+mientras alguna dependencia no esté en `revision_aprobada`; descartarse y
+editarse sí se permite, para que un ítem bloqueado tenga salida.
 
 La posición única indexa la cola. Las conexiones tienen índices por cada extremo
 y el log por `(origen, id)`. El cursor general usa la clave entera de `event`.

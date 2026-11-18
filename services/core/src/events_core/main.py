@@ -66,6 +66,8 @@ class IdeaCreate(BaseModel):
     kind: Kind = "idea"
     status: Status = "draft"
     tags: list[str] = Field(default_factory=list)
+    # Uids de ideas que tienen que estar aprobadas para que esta avance.
+    depende_de: list[str] = Field(default_factory=list)
 
 
 class IdeaUpdate(BaseModel):
@@ -83,6 +85,7 @@ class IdeaUpdate(BaseModel):
     kind: Kind | None = None
     status: Status | None = None
     tags: list[str] | None = None
+    depende_de: list[str] | None = None
     rejected_description: str | None = None
     rejected_by: Literal["usuario", "agente", "sistema"] | None = None
     superseded_by_uid: str | None = None
@@ -139,6 +142,9 @@ class MapIdea(BaseModel):
     title: str
     description: str
     status: Status
+    # Las dependencias viajan al mapa para que la fila enseñe a quién espera
+    # (solo uids: los títulos los resuelve la UI con el resto del mapa).
+    depende_de: list[str] = Field(default_factory=list)
     # La ficha del descarte en el mapa, para que la fila la enseñe.
     rejected_at: str | None = None
     rejected_description: str = ""

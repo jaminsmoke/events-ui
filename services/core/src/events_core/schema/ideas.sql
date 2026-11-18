@@ -50,6 +50,14 @@ CREATE TABLE IF NOT EXISTS idea_entry (
     verificacion_intentos INTEGER NOT NULL DEFAULT 0
                 CHECK (verificacion_intentos >= 0),
 
+    -- Dependencias (0018): uids de otros ítems que tienen que estar en
+    -- revisión aprobada para que este avance de carril. Es una lista JSON
+    -- porque SQLite no admite FK dentro de un JSON: el core valida que cada
+    -- uid exista, rechaza ciclos y la limpia al borrar una idea. No es la
+    -- jerarquía del mapa ni las fases: eso será `padre_uid` en su tabla.
+    depende_de  TEXT    NOT NULL DEFAULT '[]'
+                CHECK (json_valid(depende_de) AND json_type(depende_de) = 'array'),
+
     created_at  TEXT    NOT NULL,
     updated_at  TEXT    NOT NULL
 );

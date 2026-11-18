@@ -662,6 +662,56 @@ header > div {
   font-size: 10.5px;
 }
 
+/* Dependencias del ítem (0018): a quién espera antes de avanzar. Una
+ * dependencia aprobada se ve en verde; la que sigue pendiente, en ámbar. */
+.fila-depende {
+  flex: 1 1 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.chip-depende {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border: 1px solid #6e4a1f;
+  border-radius: 99px;
+  color: #f0a44a;
+  font-size: 10.5px;
+}
+
+.chip-depende.aprobada {
+  border-color: #2f6f45;
+  color: #7ee2a8;
+}
+
+.chip-quitar {
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.select-depende {
+  flex: 1 1 100%;
+  max-width: 220px;
+  padding: 2px 6px;
+  border: 1px solid #33465e;
+  border-radius: 6px;
+  background: #0d1117;
+  color: var(--muted);
+  font-size: 11px;
+}
+
 .manual {
   display: flex;
   gap: 8px;

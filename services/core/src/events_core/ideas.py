@@ -48,8 +48,9 @@ MIGRATIONS_DIR = Path(__file__).with_name("migraciones")
 # para que sobrevivan a la ficha, la 0015 sembró la tabla `event` en los
 # almacenes que nacieron sin log, la 0016 puso en triggers la exclusividad de
 # fichas y el roadmap único, para todos los escritores, y la 0017 endureció
-# `tags` a lista JSON de cadenas.
-SCHEMA_VERSION = 17
+# `tags` a lista JSON de cadenas, y la 0018 añadió `depende_de`: las ideas
+# que tienen que estar aprobadas para que esta avance de carril.
+SCHEMA_VERSION = 18
 
 REPOS_ROOT_ENV_VAR = "EVENTSUI_REPOS_ROOT"
 BUSY_TIMEOUT_MS = 5_000
@@ -64,7 +65,7 @@ _GITIGNORE_VIEJO = {f"{LEGACY_DB_FILENAME}-wal", f"{LEGACY_DB_FILENAME}-shm"}
 # es un UPDATE de la entrada, es añadir o quitar filas de `idea_cola`,
 # `idea_roadmap`, `idea_verificacion`, `idea_revision` o `idea_rejected`.
 # Los campos del descarte tampoco: los gestiona la transición del propio `status`.
-UPDATABLE = ("title", "description", "content", "kind", "tags")
+UPDATABLE = ("title", "description", "content", "kind", "tags", "depende_de")
 
 # Campos del descarte que el PATCH acepta junto al `status` (ver `update_idea`).
 REJECT_FIELDS = ("rejected_description", "rejected_by", "superseded_by_uid")
@@ -268,6 +269,19 @@ def _migrar_esquema(db_file: Path) -> None:
         if version >= 13 and _esquema_0013_incompleto(conn):
             conn.isolation_level = None
             _aplicar_paso(conn, 13, MIGRATIONS_DIR / "0013_estado_completo.sql")
+            conn.execute(f"PRAGMA user_version = {version}")
+
+        # Un «v18» firmado por `aplicar_esquema` sobre un almacén viejo no
+        # tiene `depende_de`: la columna la añade la 0018, que se salta por ir
+        # ya en esa versión. Se aplica aquí, como la 0013, en vez de fiarse
+        # del número.
+        if (
+            version >= 18
+            and _existe(conn, "idea_entry")
+            and not _columna(conn, "idea_entry", "depende_de")
+        ):
+            conn.isolation_level = None
+            _aplicar_paso(conn, 18, MIGRATIONS_DIR / "0018_dependencias.sql")
             conn.execute(f"PRAGMA user_version = {version}")
 
         if version >= SCHEMA_VERSION:
@@ -664,6 +678,81 @@ def _tags_json(texto: str | None) -> list[str]:
     return [elemento for elemento in valor if isinstance(elemento, str)]
 
 
+# Estados a los que un ítem no puede entrar con una dependencia sin aprobar.
+# Volver a cola, quedarse en la entrada o descartarse sí se permite: si no,
+# una idea bloqueada no tendría salida.
+AVANCE = ("roadmap", "verificacion", "revision_aprobada")
+
+
+def _depende_de(conn: sqlite3.Connection, uid: str) -> list[str]:
+    """Los uids que bloquean a esta idea (`depende_de`, 0018)."""
+    fila = conn.execute("SELECT depende_de FROM idea_entry WHERE uid = ?", (uid,)).fetchone()
+    return _tags_json(fila[0]) if fila else []
+
+
+def _validar_dependencias(conn: sqlite3.Connection, uid: str, deps: list[str]) -> list[str]:
+    """Comprueba que las dependencias existen y que el grafo no tiene ciclos.
+
+    SQLite no puede poner una FK dentro de una lista JSON, así que la regla
+    vive aquí: se deduplica, se rechaza la auto-dependencia, se comprueba que
+    cada uid esté en el repo y se sigue el grafo para que A→B→A no cuele.
+    """
+    limpias: list[str] = []
+    for dep in deps:
+        if dep not in limpias:
+            limpias.append(dep)
+    if uid in limpias:
+        raise InvalidInput("una idea no puede depender de sí misma")
+    if limpias:
+        marcas = ",".join("?" for _ in limpias)
+        existentes = {
+            str(fila[0])
+            for fila in conn.execute(f"SELECT uid FROM idea_entry WHERE uid IN ({marcas})", limpias)
+        }
+        faltan = [dep for dep in limpias if dep not in existentes]
+        if faltan:
+            raise InvalidInput(f"depende_de apunta a ideas que no existen: {', '.join(faltan)}")
+
+    pila = list(limpias)
+    visto: set[str] = set()
+    while pila:
+        actual = pila.pop()
+        if actual == uid:
+            raise InvalidInput("depende_de forma un ciclo: una idea no puede bloquearse a sí misma")
+        if actual in visto:
+            continue
+        visto.add(actual)
+        pila.extend(_depende_de(conn, actual))
+    return limpias
+
+
+def _sin_aprobar(conn: sqlite3.Connection, deps: list[str]) -> list[str]:
+    """Títulos de las dependencias que aún no están en `revision_aprobada`."""
+    pendientes: list[str] = []
+    for dep in deps:
+        fila = conn.execute("SELECT title FROM idea_entry WHERE uid = ?", (dep,)).fetchone()
+        if _estado(conn, dep) != "revision_aprobada":
+            pendientes.append(str(fila[0]) if fila else dep)
+    return pendientes
+
+
+def _comprobar_dependencias(
+    conn: sqlite3.Connection, uid: str, destino: str, deps: list[str] | None = None
+) -> None:
+    """Frena el avance mientras alguna dependencia no esté aprobada.
+
+    Una dependencia descartada no libera: el ítem queda bloqueado y el
+    mensaje lo dice, en vez de dejar el movimiento a medias.
+    """
+    if destino not in AVANCE:
+        return
+    pendientes = _sin_aprobar(conn, _depende_de(conn, uid) if deps is None else deps)
+    if pendientes:
+        raise InvalidInput(
+            f"no puede pasar a {destino}: depende de {', '.join(pendientes)}, sin revisión aprobada"
+        )
+
+
 def _fila(
     row: sqlite3.Row,
     en_cola: bool,
@@ -679,6 +768,7 @@ def _fila(
     """
     idea = dict(row)
     idea["tags"] = _tags_json(idea["tags"])
+    idea["depende_de"] = _tags_json(idea["depende_de"])
     idea["status"] = _estado_de(
         rechazo is not None,
         roadmap is not None,
@@ -987,15 +1077,29 @@ def create_idea(
     kind: str = "idea",
     status: str = "draft",
     tags: Iterable[str] = (),
+    depende_de: Iterable[str] = (),
 ) -> dict[str, Any]:
     uid = uuid.uuid4().hex
     ts = now_iso()
     with closing(connect(ensure_repo(repo))) as conn:
+        deps = _validar_dependencias(conn, uid, list(depende_de))
+        _comprobar_dependencias(conn, uid, status, deps)
         conn.execute(
             "INSERT INTO idea_entry"
-            " (uid, title, description, content, kind, tags, created_at, updated_at)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (uid, title, description, content, kind, json.dumps(list(tags)), ts, ts),
+            " (uid, title, description, content, kind, tags, depende_de,"
+            " created_at, updated_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                uid,
+                title,
+                description,
+                content,
+                kind,
+                json.dumps(list(tags)),
+                json.dumps(deps),
+                ts,
+                ts,
+            ),
         )
         # El estado de la entrada nace con ella, en la misma transacción: con
         # `draft` no escribe nada (es el cajón); con otro, su fila de cola o
@@ -1133,6 +1237,12 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
         actual = _estado(conn, uid)
         destino = nuevo_estado or actual
         _validar_campos_ficha(detalle_ficha, destino)
+        # Las dependencias se validan antes del UPDATE: se deduplican, tienen
+        # que existir y no pueden cerrar un ciclo. La lista se guarda en JSON.
+        deps_nuevas: list[str] | None = None
+        if "depende_de" in clean:
+            deps_nuevas = _validar_dependencias(conn, uid, list(clean["depende_de"]))
+            clean["depende_de"] = json.dumps(deps_nuevas)
         # Un cambio de estado no es un UPDATE de la entrada: crea o retira la
         # fila de cola, de roadmap, de verificación, de revisión aprobada o
         # de descartada. Sin cambio (o reafirmando el mismo), se edita la
@@ -1146,6 +1256,8 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
                     f"el protocolo no permite el flujo {actual} → "
                     f"{nuevo_estado}: esa unión no está en `protocolo_flujo`"
                 )
+            if cambiado_estado:
+                _comprobar_dependencias(conn, uid, nuevo_estado, deps_nuevas)
             cursor = conn.execute(
                 f"UPDATE idea_entry SET {assignments} WHERE uid = :uid",
                 {**clean, "uid": uid},
@@ -1213,6 +1325,16 @@ def delete_idea(repo: str, uid: str) -> bool:
                 f"no se puede borrar {uid}: otra ficha la referencia en `superseded_by_uid`"
             ) from exc
         if cursor.rowcount > 0:
+            # `depende_de` es una lista JSON, sin FK que la limpie: se retira
+            # el uid de las listas ajenas para que nadie quede bloqueado por
+            # una idea que ya no existe.
+            for fila in conn.execute("SELECT uid, depende_de FROM idea_entry").fetchall():
+                deps = _tags_json(fila[1])
+                if uid in deps:
+                    conn.execute(
+                        "UPDATE idea_entry SET depende_de = ? WHERE uid = ?",
+                        (json.dumps([otra for otra in deps if otra != uid]), fila[0]),
+                    )
             _emitir(conn, "idea.deleted", {"uid": uid, "title": titulo_row[0]})
         conn.commit()
     return cursor.rowcount > 0
@@ -1272,6 +1394,7 @@ def map_snapshot(repo: str) -> dict[str, Any]:
         conn.execute("BEGIN")
         rows = conn.execute(
             "SELECT idea_entry.uid, idea_entry.title, idea_entry.description,"
+            " idea_entry.depende_de,"
             " idea_rejected.rejected_at, idea_rejected.rejected_description"
             " FROM idea_entry"
             " LEFT JOIN idea_rejected ON idea_rejected.uid = idea_entry.uid"
@@ -1310,6 +1433,7 @@ def map_snapshot(repo: str) -> dict[str, Any]:
                     str(row["uid"]) in revisiones,
                     str(row["uid"]) in colas,
                 ),
+                "depende_de": _tags_json(row["depende_de"]),
                 # El JOIN da `NULL` sin ficha; el contrato dice texto.
                 "rejected_description": row["rejected_description"] or "",
             }
@@ -1326,6 +1450,11 @@ def map_snapshot(repo: str) -> dict[str, Any]:
 _VIGILANTES_LOCK = threading.RLock()
 # Un vigilante nuevo puede empezar por la misma versión aunque cambió el mapa.
 _REVISION_INSTANCE = uuid.uuid4().hex
+
+
+def _columna(conn: sqlite3.Connection, tabla: str, columna: str) -> bool:
+    """¿Tiene la tabla esa columna? Sirve para reparar un esquema mal firmado."""
+    return any(fila[1] == columna for fila in conn.execute(f"PRAGMA table_info({tabla})"))
 
 
 def _existe(conn: sqlite3.Connection, tabla: str) -> bool:

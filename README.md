@@ -176,6 +176,11 @@ devolver al final de la cola. El core admite un ítem activo en roadmap y consul
 reglas con `GET /protocolos`. Las conexiones entre ideas se escriben mediante
 herramientas SQL y se consultan desde el mapa.
 
+Una idea puede declarar `depende_de` (uids de otras ideas del repo): el core no
+la deja entrar en roadmap, verificación ni revisión aprobada mientras alguna de
+ellas no esté en `revision_aprobada`. Se edita con el `PATCH` del ítem y la fila
+del mapa enseña a quién espera; las dependencias descartadas no liberan.
+
 Para actualizar un almacén v12 existente, ábrelo desde la aplicación o ejecuta
 `core:seed`: en los dos casos se aplica la migración que falte. Si un almacén
 quedó marcado como v13 por el fallo anterior de `core:seed`, al abrirlo se

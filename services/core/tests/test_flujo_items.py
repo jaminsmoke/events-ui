@@ -256,3 +256,83 @@ def test_filtros_por_estado_nuevo(client, repo):  # noqa: ANN001, ANN202
     for estado, uid in esperados.items():
         r = client.get("/ideas", params={"repo": repo, "status": estado})
         assert [i["uid"] for i in r.json()] == [uid]
+
+
+def test_dependencia_bloquea_hasta_la_revision_aprobada(client, repo):  # noqa: ANN001, ANN202
+    """Un ítem no entra en roadmap mientras otra idea de la que depende no esté
+    aprobada; al aprobarse, el mismo movimiento pasa."""
+    base = _crear(client, repo, title="Base")
+    dependiente = _crear(client, repo, title="Dependiente", status="proposed")
+
+    r = client.patch(f"/ideas/{dependiente}", params={"repo": repo}, json={"depende_de": [base]})
+    assert r.status_code == 200, r.json()
+    assert r.json()["depende_de"] == [base]
+
+    r = client.patch(f"/ideas/{dependiente}", params={"repo": repo}, json={"status": "roadmap"})
+    assert r.status_code == 400
+    assert "Base" in r.json()["detail"]
+    assert "revisión aprobada" in r.json()["detail"]
+    assert client.get(f"/ideas/{dependiente}", params={"repo": repo}).json()["status"] == (
+        "proposed"
+    )
+
+    _paso(client, repo, base, "proposed")
+    _paso(client, repo, base, "roadmap")
+    _paso(client, repo, base, "verificacion")
+    _paso(client, repo, base, "revision_aprobada")
+
+    assert _paso(client, repo, dependiente, "roadmap")["status"] == "roadmap"
+
+
+def test_dependencia_descartada_no_libera(client, repo):  # noqa: ANN001, ANN202
+    base = _crear(client, repo, title="Base", status="proposed")
+    dependiente = _crear(client, repo, title="Dependiente", status="proposed")
+    client.patch(f"/ideas/{dependiente}", params={"repo": repo}, json={"depende_de": [base]})
+
+    _paso(client, repo, base, "rejected", rejected_description="no va")
+    r = client.patch(f"/ideas/{dependiente}", params={"repo": repo}, json={"status": "roadmap"})
+    assert r.status_code == 400
+    assert "Base" in r.json()["detail"]
+
+
+def test_dependencias_validan_uid_y_ciclos(client, repo):  # noqa: ANN001, ANN202
+    a = _crear(client, repo, title="A")
+    b = _crear(client, repo, title="B")
+
+    r = client.patch(f"/ideas/{a}", params={"repo": repo}, json={"depende_de": ["no-existe"]})
+    assert r.status_code == 400
+    assert "no existen" in r.json()["detail"]
+
+    r = client.patch(f"/ideas/{a}", params={"repo": repo}, json={"depende_de": [a]})
+    assert r.status_code == 400
+    assert "sí misma" in r.json()["detail"]
+
+    assert (
+        client.patch(f"/ideas/{a}", params={"repo": repo}, json={"depende_de": [b]}).status_code
+        == 200
+    )
+    r = client.patch(f"/ideas/{b}", params={"repo": repo}, json={"depende_de": [a]})
+    assert r.status_code == 400
+    assert "ciclo" in r.json()["detail"]
+
+    # Crear con dependencias: se guardan y el avance se frena igual.
+    nueva = client.post(
+        "/ideas", params={"repo": repo}, json={"title": "C", "depende_de": [a]}
+    ).json()
+    assert nueva["depende_de"] == [a]
+    r = client.post(
+        "/ideas",
+        params={"repo": repo},
+        json={"title": "D", "status": "roadmap", "depende_de": [a]},
+    )
+    assert r.status_code == 400
+    assert "sin revisión aprobada" in r.json()["detail"]
+
+
+def test_borrar_una_idea_la_quita_de_las_dependencias(client, repo):  # noqa: ANN001, ANN202
+    a = _crear(client, repo, title="A")
+    b = _crear(client, repo, title="B")
+    client.patch(f"/ideas/{b}", params={"repo": repo}, json={"depende_de": [a]})
+
+    assert client.delete(f"/ideas/{a}", params={"repo": repo}).status_code == 204
+    assert client.get(f"/ideas/{b}", params={"repo": repo}).json()["depende_de"] == []

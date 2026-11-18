@@ -464,6 +464,8 @@ export interface components {
             status: "draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "rejected" | "superseded";
             /** Tags */
             tags?: string[];
+            /** Depende De */
+            depende_de?: string[];
             /** Uid */
             uid: string;
             /** Created At */
@@ -558,6 +560,8 @@ export interface components {
             status: "draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "rejected" | "superseded";
             /** Tags */
             tags?: string[];
+            /** Depende De */
+            depende_de?: string[];
         };
         /**
          * IdeaUpdate
@@ -581,6 +585,8 @@ export interface components {
             status?: ("draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "rejected" | "superseded") | null;
             /** Tags */
             tags?: string[] | null;
+            /** Depende De */
+            depende_de?: string[] | null;
             /** Rejected Description */
             rejected_description?: string | null;
             /** Rejected By */
@@ -613,6 +619,8 @@ export interface components {
              * @enum {string}
              */
             status: "draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "rejected" | "superseded";
+            /** Depende De */
+            depende_de?: string[];
             /** Rejected At */
             rejected_at?: string | null;
             /**

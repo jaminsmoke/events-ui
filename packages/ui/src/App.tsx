@@ -416,6 +416,7 @@ export default function App({
                     onBorrar={borrar}
                     enlacesNuevos={enlacesNuevos}
                     puedeIr={puedeIr}
+                    catalogo={ideas ?? []}
                   />
                   {tree.carriles.map((lane, i) => (
                     <NodeBox
@@ -436,6 +437,7 @@ export default function App({
                       onBorrar={borrar}
                       enlacesNuevos={enlacesNuevos}
                       puedeIr={puedeIr}
+                      catalogo={ideas ?? []}
                     />
                   ))}
                 </div>

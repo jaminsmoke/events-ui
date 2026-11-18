@@ -2,7 +2,7 @@ import { useLayoutEffect, useState } from "react";
 import type { Ref } from "react";
 import { createPortal } from "react-dom";
 
-import type { IdeaUpdate } from "../core/api";
+import type { Idea, IdeaUpdate } from "../core/api";
 import type { PuedeIr } from "../core/useProtocolos";
 import { DescartaIdea } from "../pantalla/DescartaIdea";
 import type { TreeNode } from "./arbol";
@@ -77,6 +77,7 @@ function NodeRow({
   onBorrar,
   enlacesNuevos = [],
   puedeIr,
+  catalogo = [],
 }: {
   node: TreeNode;
   nodo: string;
@@ -92,6 +93,9 @@ function NodeRow({
    *  un traslado que el core rechazaría (las descartadas no vuelven a cola,
    *  p. ej.). Sin él se ofrece todo y el core manda. */
   puedeIr?: PuedeIr;
+  /** Todas las ideas del repo: resuelve títulos de las dependencias y
+   *  ofrece las que aún no lo son. */
+  catalogo?: readonly Idea[];
 }) {
   const tiene = node.kids.length > 0;
   // Una sola expansión por fila: detalles, botones e hijos. Las filas con
@@ -100,6 +104,7 @@ function NodeRow({
   const uid = node.idea?.uid;
   const estado = node.idea?.status;
   const descripcion = node.idea?.description ?? "";
+  const deps = node.idea?.depende_de ?? [];
   const [descartando, setDescartando] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
   const [fallo, setFallo] = useState<string | null>(null);
@@ -141,6 +146,58 @@ function NodeRow({
         Rechazada el {fechaCorta(node.idea.rejected_at)}
         {node.idea.rejected_description ? ` — ${node.idea.rejected_description}` : ""}
       </p>}
+      {deps.length > 0 && (
+        <p className="fila-depende">
+          Espera a:{" "}
+          {deps.map((dep) => {
+            const otra = catalogo.find((i) => i.uid === dep);
+            const aprobada = otra?.status === "revision_aprobada";
+            return (
+              <span key={dep} className={`chip-depende${aprobada ? " aprobada" : ""}`}>
+                {otra?.title ?? dep}
+                {onEditar && (
+                  <button
+                    type="button"
+                    className="chip-quitar"
+                    title="Quitar dependencia"
+                    onClick={() =>
+                      hacer(() =>
+                        onEditar(uid!, {
+                          depende_de: deps.filter((otro) => otro !== dep),
+                        }),
+                      )
+                    }
+                  >
+                    ×
+                  </button>
+                )}
+              </span>
+            );
+          })}
+        </p>
+      )}
+      {onEditar && (
+        <select
+          className="select-depende"
+          value=""
+          disabled={trabajando}
+          aria-label="Añadir dependencia"
+          onChange={(e) => {
+            const dep = e.target.value;
+            if (!dep) return;
+            hacer(() => onEditar(uid!, { depende_de: [...deps, dep] }));
+          }}
+        >
+          <option value="">Añadir dependencia…</option>
+          {catalogo
+            .filter((otra) => otra.uid !== uid && !deps.includes(otra.uid))
+            .map((otra) => (
+              <option key={otra.uid} value={otra.uid}>
+                {otra.title}
+              </option>
+            ))}
+        </select>
+      )}
       {node.idea &&
         estado &&
         onMover &&
@@ -225,6 +282,7 @@ function NodeRow({
               onBorrar={onBorrar}
               enlacesNuevos={enlacesNuevos}
               puedeIr={puedeIr}
+              catalogo={catalogo}
             />
           ))}
         </div>
@@ -247,6 +305,7 @@ export function NodeBox({
   onBorrar,
   enlacesNuevos = [],
   puedeIr,
+  catalogo = [],
 }: {
   node: TreeNode;
   cerrados: ReadonlySet<string>;
@@ -260,6 +319,7 @@ export function NodeBox({
   onBorrar?: (uid: string) => Promise<void>;
   enlacesNuevos?: { parentUid: string; childUid: string }[];
   puedeIr?: PuedeIr;
+  catalogo?: readonly Idea[];
 }) {
   const tiene = node.kids.length > 0;
   const abierto = tiene && !cerrados.has(node.key);
@@ -294,6 +354,7 @@ export function NodeBox({
               onBorrar={onBorrar}
               enlacesNuevos={enlacesNuevos}
               puedeIr={puedeIr}
+              catalogo={catalogo}
             />
           ))}
         </div>

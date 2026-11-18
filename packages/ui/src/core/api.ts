@@ -59,7 +59,9 @@ function esErrorDetalle(error: unknown): error is ErrorDetalle {
 
 /** Desenvuelve una respuesta de `openapi-fetch`: si el core respondió un
  *  error, su `detail` tipado es el mensaje; si la petición no llegó, el
- *  error de red sale tal cual. */
+ *  error de red sale tal cual. Un 204 (DELETE) no trae cuerpo: ahí `data` es
+ *  `undefined`, y el éxito es simplemente que no hay `error` —se devuelve
+ *  `undefined` tipado como `void`, sin una segunda función para ello. */
 export async function unwrap<T, E>(
   peticion: Promise<{ data?: T; error?: E; response: Response }>,
 ): Promise<T> {
@@ -67,17 +69,10 @@ export async function unwrap<T, E>(
   if (error !== undefined) {
     throw new Error(esErrorDetalle(error) ? error.detail : `HTTP ${response.status}`);
   }
-  if (data === undefined) throw new Error(`HTTP ${response.status} sin cuerpo`);
-  return data;
-}
-
-/** Como `unwrap`, pero para un 204 sin cuerpo (DELETE): ahí el éxito es que
- *  no hay `error`, y no hay `data` que devolver. */
-export async function unwrapVacio(
-  peticion: Promise<{ error?: unknown; response: Response }>,
-): Promise<void> {
-  const { error, response } = await peticion;
-  if (error !== undefined) {
-    throw new Error(esErrorDetalle(error) ? error.detail : `HTTP ${response.status}`);
+  // `undefined` solo es éxito en un 204: en el resto sería un cuerpo que
+  // falta, y eso sí es un error.
+  if (data === undefined && response.status !== 204) {
+    throw new Error(`HTTP ${response.status} sin cuerpo`);
   }
+  return data as T;
 }

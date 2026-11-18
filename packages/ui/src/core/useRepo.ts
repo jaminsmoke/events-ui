@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { api, unwrap, unwrapVacio } from "./api";
+import { api, unwrap } from "./api";
 import type { Connection, IdeaCreate, IdeaUpdate, Mapa } from "./api";
 import { STORAGE_KEY } from "./repo";
 
@@ -108,7 +108,7 @@ export function useRepo(repo: string | null) {
   const borrar = useCallback(
     async (uid: string) => {
       if (!repo) return;
-      await unwrapVacio(api.DELETE("/ideas/{uid}", { params: { path: { uid }, query: { repo } } }));
+      await unwrap(api.DELETE("/ideas/{uid}", { params: { path: { uid }, query: { repo } } }));
     },
     [repo],
   );
@@ -132,7 +132,7 @@ export function useRepo(repo: string | null) {
   const desconectar = useCallback(
     async (id: number) => {
       if (!repo) return;
-      await unwrapVacio(
+      await unwrap(
         api.DELETE("/connections/{connection_id}", {
           params: { path: { connection_id: id }, query: { repo } },
         }),

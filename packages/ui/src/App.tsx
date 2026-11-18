@@ -24,6 +24,7 @@ import { AvisoRecorte, Controles } from "./pantalla/Controles";
 import { EditorIdea } from "./pantalla/EditorIdea";
 import { PanelLog } from "./pantalla/PanelLog";
 import { Pruebas } from "./pantalla/Pruebas";
+import { pruebaPendiente, soltar } from "./pantalla/pruebaEnCurso";
 
 /* *  El mapa: se pliega, se encuadra y se mueve; el almacén se toca solo por
  *  la API del core (crear, mover, editar y borrar ideas). Las conexiones
@@ -54,6 +55,7 @@ export default function App({
   const [ajustesAbiertos, setAjustesAbiertos] = useState(false);
   const [pruebaEnCurso, setPruebaEnCurso] = useState(false);
   const [pruebasAbiertas, setPruebasAbiertas] = useState(false);
+  const [avisoRecuperacion, setAvisoRecuperacion] = useState<string | null>(null);
   // El editor de la fila vive aquí, no dentro de la fila: la fila le monta
   // un `createPortal` a body y con el ratón sus clics no llegaban (Guardar/
   // Cancelar morían). En la raíz, como Registro/Pruebas, todo funciona.
@@ -100,6 +102,30 @@ export default function App({
   // Los protocolos de flujo: las uniones permitidas entre carriles. La fila
   // no ofrece traslados prohibidos; el core los rechaza si llegan igual.
   const puedeIr = useProtocolos(repo);
+
+  // Una prueba que murió con la app deja su marca sin latido: al reabrir el
+  // mismo laboratorio se cobra el vaciado que quedó pendiente. Con latido
+  // fresco hay otra ejecución viva y no se toca nada.
+  const recuperado = useRef<string | null>(null);
+  useEffect(() => {
+    if (!repo || !puedeProbar || !proyeccion?.laboratorio) return;
+    if (recuperado.current === repo) return;
+    const pendiente = pruebaPendiente(repo);
+    if (!pendiente) return;
+    recuperado.current = repo;
+    void reiniciar().then(
+      () => {
+        soltar(repo, pendiente.ejecucion);
+        setVersionLog((v) => v + 1);
+        setAvisoRecuperacion("Se cerró la app durante una prueba: el laboratorio quedó vacío.");
+      },
+      (err: unknown) => {
+        setAvisoRecuperacion(
+          `Quedó una prueba sin limpiar y no se pudo vaciar: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      },
+    );
+  }, [repo, puedeProbar, proyeccion?.laboratorio, reiniciar]);
 
   // Avisos del sistema (F3): solo eventos *nuevos* (ids por encima del último
   // visto) y solo si el usuario lo quiere ver; el primer lote del SSE es el
@@ -320,6 +346,11 @@ export default function App({
             {error && (
               <p className="aviso-refresco" role="status" title={error}>
                 No se pudo actualizar. Reintentando…
+              </p>
+            )}
+            {avisoRecuperacion && (
+              <p className="aviso-refresco" role="status">
+                {avisoRecuperacion}
               </p>
             )}
             {busy && <p className="hint">Cargando…</p>}

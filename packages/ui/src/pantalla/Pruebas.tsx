@@ -1,6 +1,7 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { IdeaCreate, IdeaUpdate } from "../core/api";
+import { latir, pruebaVigente, soltar, tomar } from "./pruebaEnCurso";
 
 type Acciones = {
   crear: (body: IdeaCreate) => Promise<{ uid: string } | null>;
@@ -18,6 +19,8 @@ type Prueba = {
 };
 
 const ESPERA_ENTRE_PASOS_MS = 1100;
+/** Mientras la prueba corre se deja constancia de que sigue viva. */
+const LATIDO_MS = 3000;
 
 const PRUEBAS: Prueba[] = [
   {
@@ -140,6 +143,22 @@ export function Pruebas({
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const [errorLimpieza, setErrorLimpieza] = useState<string | null>(null);
   const cancelar = useRef(false);
+  const ejecucion = useRef<string | null>(null);
+  const latido = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [avisoArranque, setAvisoArranque] = useState<string | null>(null);
+
+  const pararLatido = () => {
+    if (latido.current !== null) {
+      clearInterval(latido.current);
+      latido.current = null;
+    }
+  };
+
+  // Cerrar el diálogo no libera la marca: la ejecución sigue. Al desmontar
+  // (cambio de repo) tampoco: si murió a mitad, el próximo arranque la cobra.
+  useEffect(() => () => {
+    if (latido.current !== null) clearInterval(latido.current);
+  }, []);
 
   const prueba = PRUEBAS.find((p) => p.id === seleccionada) ?? PRUEBAS[0];
   const pasos = prueba?.construir({ crear, mover, editar }) ?? [];
@@ -151,6 +170,10 @@ export function Pruebas({
     setErrorLimpieza(null);
     try {
       await reiniciar();
+      if (ejecucion.current) {
+        soltar(repo, ejecucion.current);
+        ejecucion.current = null;
+      }
       setFase("parada");
     } catch (err) {
       setErrorLimpieza(err instanceof Error ? err.message : String(err));
@@ -162,6 +185,17 @@ export function Pruebas({
 
   const lanzar = async () => {
     if (!prueba || fase !== "parada") return;
+    // Otra ventana con la prueba viva manda: su latido es reciente.
+    const otra = ejecucion.current ? null : pruebaVigente(repo);
+    if (otra) {
+      setAvisoArranque(`Otra ejecución de ${otra.prueba} está en curso en este laboratorio.`);
+      return;
+    }
+    setAvisoArranque(null);
+    const marca = tomar(repo, prueba.id);
+    ejecucion.current = marca.ejecucion;
+    pararLatido();
+    latido.current = setInterval(() => latir(repo, marca.ejecucion), LATIDO_MS);
     onActividad(true);
     cancelar.current = false;
     setFase("corriendo");
@@ -176,6 +210,7 @@ export function Pruebas({
       await new Promise<void>((resolve) => setTimeout(resolve, 6000));
     }
     await limpiar();
+    pararLatido();
   };
 
   // Ocultar el diálogo permite mirar el tablero y volver a abrir el progreso.
@@ -225,6 +260,7 @@ export function Pruebas({
         </ol>
 
         {resultado?.fallo && <p className="hint error">{resultado.fallo}</p>}
+        {avisoArranque && <p className="hint error">{avisoArranque}</p>}
         {errorLimpieza && <p className="hint error">Limpieza pendiente. {errorLimpieza}</p>}
         <div role="status" className="hint">
           {fase === "mostrando" && "Reparto listo. El laboratorio se vaciará en seis segundos."}

@@ -160,6 +160,13 @@ los anteriores a la prueba. Detenerla o fallar un paso también activa la limpie
 Se conservan las reglas del repo, el esquema y el registro operativo de la app.
 Si el core falla durante el vaciado, el diálogo ofrece **Reintentar limpieza**.
 
+Si la app se cierra a mitad de la prueba, al reabrir el mismo laboratorio se
+cobra el vaciado pendiente: la ejecución deja una marca con latido en
+`localStorage`, y una marca con latido reciente (otra ejecución viva en ese
+laboratorio) se respeta. La batería E2E corre en sus propios puertos: si 18765
+o 15175 están ocupados por la app, el runner elige otros libres;
+`--core-port`/`--ui-port` los fijan.
+
 ### Flujo de carriles
 
 El recorrido por defecto es **entrada → cola → roadmap → verificación → revisión aprobada**.

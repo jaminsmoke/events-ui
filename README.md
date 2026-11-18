@@ -67,7 +67,8 @@ corepack pnpm fix          # aplica ruff --fix + ruff format + eslint --fix
 `openapi.json`/`schema.ts` no coinciden con el core: cambiar la API sin
 `gen:api` no pasa), `check:ui` (`tsc --noEmit` y ESLint en desktop, web y la UI
 compartida), `check:py` (`ruff check` y `ruff format --check`, config en
-`services/core/pyproject.toml`) y `check:rust` (`cargo check`). Para compilar de
+`services/core/pyproject.toml`), `check:test` (`pytest` en `services/core/tests`,
+semántica de cola y migración 0009) y `check:rust` (`cargo check`). Para compilar de
 verdad están `build:web` (Vite) y `build` (bundle Tauri).
 
 El core apunta a `data/events.db` por defecto; cámbialo con `EVENTSUI_DB=/ruta/al/log.db`.

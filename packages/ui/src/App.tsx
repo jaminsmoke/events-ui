@@ -30,8 +30,18 @@ export default function App({ elegirCarpeta }: { elegirCarpeta?: ElegirCarpeta }
   // Lo plegado, no lo abierto: por defecto el flujo se ve entero.
   const [cerrados, setCerrados] = useState<ReadonlySet<string>>(() => new Set());
 
-  const { ideas, links, error, crear, mover, editar, borrar, conectar, desconectar } =
-    useRepo(repo);
+  const {
+    ideas,
+    links,
+    error,
+    crear,
+    mover,
+    editar,
+    borrar,
+    conectar,
+    desconectar,
+    cargarIdea,
+  } = useRepo(repo);
   const tree = useMemo(
     () => (ideas ? buildTree(ideas, links) : null),
     [ideas, links],
@@ -48,7 +58,19 @@ export default function App({ elegirCarpeta }: { elegirCarpeta?: ElegirCarpeta }
     boardRef,
     mapRef,
   });
-  const { cables, recortado } = useCables({
+  const enlacesLaterales = useMemo(
+    () =>
+      links
+        .filter((l) => l.kind === "related" || l.kind === "supersedes")
+        .map((l) => ({
+          id: l.id,
+          kind: l.kind as "related" | "supersedes",
+          parentUid: l.parent_uid,
+          childUid: l.child_uid,
+        })),
+    [links],
+  );
+  const { cables, recortado, enlaces: trazosEnlace } = useCables({
     tree,
     cerrados,
     vista,
@@ -56,9 +78,10 @@ export default function App({ elegirCarpeta }: { elegirCarpeta?: ElegirCarpeta }
     mapRef,
     cajonRef,
     carrilRefs,
+    enlaces: enlacesLaterales,
   });
   const { vuelos, volando, aterrizado } = useVuelos({ repo, ideas, cerrados, vista, mapRef });
-  const { chispas, pulsos, pulsoCajon } = useAnimaciones(repo, ideas);
+  const { chispas, pulsos, pulsoCajon, enlacesNuevos } = useAnimaciones(repo, ideas, links);
 
   const abrir = useCallback(
     (path: string) => {
@@ -200,6 +223,9 @@ export default function App({ elegirCarpeta }: { elegirCarpeta?: ElegirCarpeta }
                 {cables[0] && (
                   <circle className="junction" cx={cables[0].x1} cy={cables[0].y1} r={4} />
                 )}
+                {trazosEnlace.map((t) => (
+                  <path key={t.id} d={t.d} className={`enlace ${t.kind}`} />
+                ))}
                 {chispas.map((chispa) => {
                   const cable = cables.find((c) => c.lane === chispa.lane);
                   return cable ? (
@@ -222,7 +248,9 @@ export default function App({ elegirCarpeta }: { elegirCarpeta?: ElegirCarpeta }
                 onBorrar={borrar}
                 onConectar={conectar}
                 onDesconectar={desconectar}
+                onCargarIdea={cargarIdea}
                 ideas={ideas ?? []}
+                enlacesNuevos={enlacesNuevos}
               />
 
               <div className="lanes">
@@ -242,6 +270,8 @@ export default function App({ elegirCarpeta }: { elegirCarpeta?: ElegirCarpeta }
                     onEditar={editar}
                     onBorrar={borrar}
                     onDesconectar={desconectar}
+                    onCargarIdea={cargarIdea}
+                    enlacesNuevos={enlacesNuevos}
                   />
                 ))}
               </div>

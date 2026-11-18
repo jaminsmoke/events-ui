@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import type { Idea } from "../core/api";
+import type { Connection, Idea } from "../core/api";
 import { laneOf } from "./carriles";
 import type { LaneId } from "./carriles";
 
@@ -23,17 +23,24 @@ const PRIORIDAD: Record<TonoPulso, number> = { azul: 1, rojo: 2, verde: 3 };
 
 /** Señala entradas y salidas aunque dos ideas se crucen y los totales coincidan.
  *  El pulso va al nodo (borde y contador), la chispa al cable del carril. */
-export function useAnimaciones(repo: string | null, ideas: Idea[] | null) {
+export function useAnimaciones(
+  repo: string | null,
+  ideas: Idea[] | null,
+  links: Connection[] | null = null,
+) {
   const [actividad, setActividad] = useState<{
     repo: string;
     chispas: Animacion[];
     pulsos: { lane: LaneId; tono: TonoPulso }[];
     cajon?: TonoPulso;
+    /** Enlaces laterales recién creados: pulsan azul en sus dos extremos. */
+    enlaces: { parentUid: string; childUid: string }[];
   } | null>(null);
   const anterior = useRef<{
     repo: string;
     estados: Map<string, Idea["status"]>;
     carriles: Map<string, LaneId>;
+    enlaces: Map<number, { parentUid: string; childUid: string }>;
   } | null>(null);
   const secuencia = useRef(0);
 
@@ -42,7 +49,10 @@ export function useAnimaciones(repo: string | null, ideas: Idea[] | null) {
     const previo = anterior.current;
     const estados = new Map(ideas.map((idea) => [idea.uid, idea.status]));
     const carriles = new Map(ideas.map((idea) => [idea.uid, laneOf(idea.status)]));
-    anterior.current = { repo, estados, carriles };
+    const enlaces = new Map(
+      (links ?? []).map((l) => [l.id, { parentUid: l.parent_uid, childUid: l.child_uid }]),
+    );
+    anterior.current = { repo, estados, carriles, enlaces };
     if (previo?.repo !== repo) return;
 
     const pulsos = new Map<LaneId, TonoPulso>();
@@ -83,7 +93,13 @@ export function useAnimaciones(repo: string | null, ideas: Idea[] | null) {
         cambian.add(lane);
       }
     }
-    if (cambian.size === 0) return;
+    // Un enlace lateral nuevo (`related`/`supersedes`) pulsa en azul en los
+    // dos nodos que une, aunque no cambie ningún carril.
+    const enlacesNuevos: { parentUid: string; childUid: string }[] = [];
+    for (const [id, extremos] of enlaces) {
+      if (!previo.enlaces.has(id)) enlacesNuevos.push(extremos);
+    }
+    if (cambian.size === 0 && enlacesNuevos.length === 0) return;
 
     const chispas = Array.from(cambian, (lane) => ({ lane, id: ++secuencia.current }));
     const raf = requestAnimationFrame(() => {
@@ -92,10 +108,11 @@ export function useAnimaciones(repo: string | null, ideas: Idea[] | null) {
         chispas,
         pulsos: Array.from(pulsos, ([lane, tono]) => ({ lane, tono })),
         cajon,
+        enlaces: enlacesNuevos,
       });
     });
     return () => cancelAnimationFrame(raf);
-  }, [repo, ideas]);
+  }, [repo, ideas, links]);
 
   useEffect(() => {
     if (!actividad) return;
@@ -108,5 +125,6 @@ export function useAnimaciones(repo: string | null, ideas: Idea[] | null) {
     chispas: visible?.chispas ?? [],
     pulsos: visible?.pulsos ?? [],
     pulsoCajon: visible?.cajon,
+    enlacesNuevos: visible?.enlaces ?? [],
   };
 }

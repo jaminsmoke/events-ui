@@ -27,7 +27,9 @@ function NodeRow({
   onBorrar,
   onConectar,
   onDesconectar,
+  onCargarIdea,
   ideas,
+  enlacesNuevos = [],
 }: {
   node: TreeNode;
   cerrados: ReadonlySet<string>;
@@ -40,7 +42,9 @@ function NodeRow({
   onBorrar?: (uid: string) => Promise<void>;
   onConectar?: (parentUid: string, childUid: string) => Promise<void>;
   onDesconectar?: (id: number) => Promise<void>;
+  onCargarIdea?: (uid: string) => Promise<{ kind?: string; tags?: string[] }>;
   ideas?: Idea[];
+  enlacesNuevos?: { parentUid: string; childUid: string }[];
 }) {
   const tiene = node.kids.length > 0;
   const abierto = tiene && !cerrados.has(node.key);
@@ -48,6 +52,10 @@ function NodeRow({
   const [editando, setEditando] = useState(false);
   const [titulo, setTitulo] = useState(node.title);
   const [descripcion, setDescripcion] = useState(node.idea?.description ?? "");
+  // `kind`/`tags` no vienen en el mapa (`MapIdea`): se leen de la idea
+  // completa al abrir el editor, porque el sondeo no los trae.
+  const [kind, setKind] = useState<string>("idea");
+  const [tags, setTags] = useState("");
   const [confirmando, setConfirmando] = useState(false);
   const [conectando, setConectando] = useState(false);
   const [hijo, setHijo] = useState("");
@@ -67,7 +75,7 @@ function NodeRow({
     <div
       className={`row${node.tone ? ` lane-${node.tone}` : ""}${
         uid && volando(uid, nodo) ? " volando" : ""
-      }`}
+      }${uid && enlacesNuevos.some((e) => e.parentUid === uid || e.childUid === uid) ? " enlace-nuevo" : ""}`}
       data-uid={uid}
       data-nodo={nodo}
     >
@@ -104,7 +112,24 @@ function NodeRow({
         </button>
       )}
       {node.idea && onEditar && (
-        <button type="button" className="btn ghost mover" onClick={() => setEditando((v) => !v)}>
+        <button
+          type="button"
+          className="btn ghost mover"
+          onClick={async () => {
+            // El mapa no trae `kind`/`tags`: se piden al abrir el editor.
+            if (!editando && uid && onCargarIdea) {
+              try {
+                const completa = await onCargarIdea(uid);
+                setKind(completa.kind ?? "idea");
+                setTags((completa.tags ?? []).join(", "));
+              } catch {
+                setKind("idea");
+                setTags("");
+              }
+            }
+            setEditando((v) => !v);
+          }}
+        >
           Editar
         </button>
       )}
@@ -136,7 +161,16 @@ function NodeRow({
             e.preventDefault();
             if (!titulo.trim()) return;
             hacer(
-              () => onEditar(uid!, { title: titulo.trim(), description: descripcion.trim() }),
+              () =>
+                onEditar(uid!, {
+                  title: titulo.trim(),
+                  description: descripcion.trim(),
+                  kind: kind as IdeaUpdate["kind"],
+                  tags: tags
+                    .split(",")
+                    .map((t: string) => t.trim())
+                    .filter(Boolean),
+                }),
               () => setEditando(false),
             );
           }}
@@ -147,6 +181,17 @@ function NodeRow({
             onChange={(e) => setDescripcion(e.target.value)}
             placeholder="Descripción"
             aria-label="Descripción"
+          />
+          <select value={kind} onChange={(e) => setKind(e.target.value)} aria-label="Tipo">
+            <option value="idea">idea</option>
+            <option value="adr">adr</option>
+            <option value="note">note</option>
+          </select>
+          <input
+            value={tags}
+            onChange={(e) => setTags(e.target.value)}
+            placeholder="tags, separados por comas"
+            aria-label="Tags"
           />
           <span className="fila-acciones">
             <button className="btn ghost mover" type="submit" disabled={trabajando}>
@@ -224,7 +269,9 @@ function NodeRow({
               onBorrar={onBorrar}
               onConectar={onConectar}
               onDesconectar={onDesconectar}
+              onCargarIdea={onCargarIdea}
               ideas={ideas}
+              enlacesNuevos={enlacesNuevos}
             />
           ))}
         </div>
@@ -247,7 +294,9 @@ export function NodeBox({
   onBorrar,
   onConectar,
   onDesconectar,
+  onCargarIdea,
   ideas,
+  enlacesNuevos = [],
 }: {
   node: TreeNode;
   cerrados: ReadonlySet<string>;
@@ -261,7 +310,9 @@ export function NodeBox({
   onBorrar?: (uid: string) => Promise<void>;
   onConectar?: (parentUid: string, childUid: string) => Promise<void>;
   onDesconectar?: (id: number) => Promise<void>;
+  onCargarIdea?: (uid: string) => Promise<{ kind?: string; tags?: string[] }>;
   ideas?: Idea[];
+  enlacesNuevos?: { parentUid: string; childUid: string }[];
 }) {
   const tiene = node.kids.length > 0;
   const abierto = tiene && !cerrados.has(node.key);
@@ -298,7 +349,9 @@ export function NodeBox({
               onBorrar={onBorrar}
               onConectar={onConectar}
               onDesconectar={onDesconectar}
+              onCargarIdea={onCargarIdea}
               ideas={ideas}
+              enlacesNuevos={enlacesNuevos}
             />
           ))}
         </div>

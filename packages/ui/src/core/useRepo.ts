@@ -85,6 +85,18 @@ export function useRepo(repo: string | null) {
     [repo],
   );
 
+  // La idea completa (`kind`, `tags`…): el mapa no los trae, así que el
+  // editor de la fila la pide al abrirse.
+  const cargarIdea = useCallback(
+    async (uid: string) => {
+      if (!repo) return { kind: undefined, tags: undefined };
+      return unwrap(
+        api.GET("/ideas/{uid}", { params: { path: { uid }, query: { repo } } }),
+      );
+    },
+    [repo],
+  );
+
   const editar = useCallback(
     async (uid: string, cambios: IdeaUpdate) => {
       if (!repo) return;
@@ -142,5 +154,6 @@ export function useRepo(repo: string | null) {
     borrar,
     conectar,
     desconectar,
+    cargarIdea,
   };
 }

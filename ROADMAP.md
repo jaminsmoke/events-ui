@@ -29,6 +29,10 @@ Lo hecho se mueve a *Hecho* con su commit; lo que no va, va a *No se hace
 - **Pulso también en el cajón** de Ideas (azul al crear, rojo al borrar;
   sin chispa, que va por el cable del carril) y botón **Completar** en la
   fila, con su pulso verde (`accepted`).
+- **Enlaces laterales en el mapa**: `related` (punteado) y `supersedes`
+  (púrpura) unen filas sin anidarlas, con pulso azul en ambos extremos al
+  crearlos. **Editar completo** en la fila: `kind` y `tags` además de título
+  y descripción.
 
 ## Ahora
 
@@ -37,10 +41,9 @@ Lo hecho se mueve a *Hecho* con su commit; lo que no va, va a *No se hace
 ## Backlog
 
 - *(Hecho: botón Completar en la fila con pulso verde.)*
-- Edición completa en la fila: `kind` y `tags`, no solo título/descripción.
+- *(Hecho: `kind` y `tags` se editan en la fila.)*
 - Formulario de edición como diálogo modal en vez de en línea en la fila.
-- Pintar las conexiones `related`/`supersedes` (la API las acepta y crea;
-  `buildTree` solo anida `child`).
+- *(Hecho: `related`/`supersedes` se pintan como enlaces con pulso.)*
 - Quitar la duplicación `unwrap`/`unwrapVacio` en `api.ts` (manejo de error
   en un solo sitio).
 - Empezar F1: esquema del sobre de evento, conexión RO, tail + SSE.

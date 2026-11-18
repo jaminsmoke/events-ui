@@ -85,6 +85,41 @@ def test_flujo_completo_con_campos_y_regreso_a_cola(client, repo):  # noqa: ANN0
     conn.close()
 
 
+def test_editar_ficha_activa_sin_cambiar_estado(client, repo):  # noqa: ANN001, ANN202
+    uid = _crear(client, repo, status="proposed")
+    _paso(client, repo, uid, "roadmap", roadmap_resultado="Hecho", roadmap_referencia="commit abc")
+
+    r = client.patch(
+        f"/ideas/{uid}",
+        params={"repo": repo},
+        json={"roadmap_resultado": "Hecho dos"},
+    )
+    assert r.status_code == 200, r.json()
+    assert r.json()["roadmap_resultado"] == "Hecho dos"
+
+    r = client.get(f"/ideas/{uid}", params={"repo": repo})
+    assert r.json()["roadmap_resultado"] == "Hecho dos"
+    assert r.json()["roadmap_referencia"] == "commit abc"
+
+
+def test_campos_de_otra_ficha_se_rechazan(client, repo):  # noqa: ANN001, ANN202
+    uid = _crear(client, repo, status="proposed")
+    _paso(client, repo, uid, "roadmap", roadmap_resultado="Hecho")
+
+    r = client.patch(
+        f"/ideas/{uid}",
+        params={"repo": repo},
+        json={"verificacion_resultado": "Todavía no"},
+    )
+    assert r.status_code == 400
+    assert "verificacion_resultado" in r.json()["detail"]
+    assert "roadmap" in r.json()["detail"]
+
+    r = client.get(f"/ideas/{uid}", params={"repo": repo})
+    assert r.json()["roadmap_resultado"] == "Hecho"
+    assert r.json()["verificacion_ultimo_resultado"] == ""
+
+
 def test_transiciones_no_listadas_se_rechazan(client, repo):  # noqa: ANN001, ANN202
     uid = _crear(client, repo)
     for destino in ("roadmap", "verificacion", "revision_aprobada"):

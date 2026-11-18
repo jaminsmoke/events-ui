@@ -76,6 +76,15 @@ STATE_FIELDS = (
     "revision_nota",
 )
 
+# Qué campos de ficha valen en cada estado (sin `status`, se aplican a la
+# ficha activa; con `status`, a la ficha destino). Fuera de ahí, un campo de
+# ficha es incompatible y se rechaza en vez de perderse en silencio.
+CAMPOS_FICHA = {
+    "roadmap": {"roadmap_resultado", "roadmap_referencia"},
+    "verificacion": {"verificacion_resultado", "verificacion_comentario"},
+    "revision_aprobada": {"approved_by", "revision_nota"},
+}
+
 # El estado que enseña la fila (`status` en el contrato) se calcula a partir
 # de en cuál de las cinco fichas vive la idea: descarte, revisión aprobada,
 # verificación, roadmap o cola, y en ese orden. Si no vive en ninguna, está
@@ -257,6 +266,8 @@ def _migrar_esquema(db_file: Path) -> None:
                     SCHEMA_VERSION,
                     MIGRATIONS_DIR / "0013_estado_completo.sql",
                 )
+            if _existe(conn, "ideas"):
+                _copiar_ideas_historicas(conn)
             return
 
         if version == 0:
@@ -264,9 +275,14 @@ def _migrar_esquema(db_file: Path) -> None:
             # parte, así que se le pone el esquema base de ideas/conexiones
             # (idempotente) y se marca como al día. Los pasos 3-5 ya están
             # reflejados en él, pero la tabla `event` no: el log lo escribe
-            # otro proceso y no se crea desde la app. Se marca al día sin ella.
+            # otro proceso y no se crea desde la app.
+            #
+            # Si además trae la tabla histórica `ideas`, su contenido no está
+            # en el esquema fresco: hay que copiarlo antes de marcar al día.
             aplicar_esquema(conn)
             conn.commit()
+            if _existe(conn, "ideas"):
+                _copiar_ideas_historicas(conn)
             return
 
         conn.isolation_level = None  # las transacciones las llevamos nosotros
@@ -293,6 +309,124 @@ def _esquema_0013_incompleto(conn: sqlite3.Connection) -> bool:
     definicion = fila[0] or ""
     carriles = ("roadmap", "verificacion", "revision_aprobada")
     return any(carril not in definicion for carril in carriles)
+
+
+def _copiar_ideas_historicas(conn: sqlite3.Connection) -> None:
+    """Pasa la tabla antigua `ideas` al esquema actual, si sigue viva.
+
+    Es el caso del almacén anterior a `user_version`: el esquema fresco crea
+    `idea_entry` pero no mueve las filas que ya había en `ideas`. Aquí se
+    copia la identidad (`uid` incluido), el estado viejo va a su ficha
+    actual (`proposed` -> cola, `accepted` -> revisión aprobada,
+    `rejected`/`superseded` -> descartada) y `connections` se reconstruye
+    para apuntar a `idea_entry` en vez de a la tabla vieja. Si el fichero
+    ya quedó marcado como v13 por abrirlo sin esto, la misma copia lo
+    recupera al siguiente `ensure_repo`.
+    """
+    if not _existe(conn, "ideas"):
+        return
+
+    conn.isolation_level = None
+    conn.execute("PRAGMA foreign_keys = OFF")
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO idea_entry
+                    (id, uid, title, description, content, kind, tags, created_at, updated_at)
+                SELECT id, uid, title, description, content, kind,
+                       CASE WHEN json_valid(tags) THEN tags ELSE '[]' END,
+                       created_at, updated_at
+                FROM ideas
+                """
+            )
+            # Una fila histórica que no entra (p. ej. un `kind` que el
+            # esquema actual ya no admite) no puede perderse en silencio.
+            faltan = conn.execute(
+                "SELECT uid FROM ideas WHERE uid NOT IN (SELECT uid FROM idea_entry)"
+            ).fetchall()
+            if faltan:
+                raise RuntimeError(
+                    "no se pudieron migrar las ideas históricas "
+                    f"{', '.join(str(f[0]) for f in faltan)}"
+                )
+
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO idea_cola (uid, posicion, entered_at)
+                SELECT uid,
+                       (SELECT COALESCE(MAX(posicion), 0) FROM idea_cola)
+                           + ROW_NUMBER() OVER (ORDER BY created_at, id),
+                       updated_at
+                FROM ideas
+                WHERE status = 'proposed'
+                  AND uid IN (SELECT uid FROM idea_entry)
+                  AND uid NOT IN (SELECT uid FROM idea_cola)
+                """
+            )
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO idea_revision (uid, approved_at)
+                SELECT uid, updated_at FROM ideas WHERE status = 'accepted'
+                """
+            )
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO idea_rejected (uid, rejected_at)
+                SELECT uid, updated_at FROM ideas
+                WHERE status IN ('rejected', 'superseded')
+                """
+            )
+
+            fila_conexiones = conn.execute(
+                "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'connections'"
+            ).fetchone()
+            definicion_conexiones = fila_conexiones[0] if fila_conexiones else ""
+            if definicion_conexiones and "REFERENCES ideas" in definicion_conexiones:
+                conn.execute("DROP TABLE IF EXISTS connections_nueva")
+                conn.execute(
+                    """
+                    CREATE TABLE connections_nueva (
+                        id         INTEGER PRIMARY KEY,
+                        parent_uid TEXT NOT NULL REFERENCES idea_entry (uid) ON DELETE CASCADE,
+                        child_uid  TEXT NOT NULL REFERENCES idea_entry (uid) ON DELETE CASCADE,
+                        kind       TEXT NOT NULL DEFAULT 'child'
+                                   CHECK (kind IN ('child', 'related', 'supersedes')),
+                        created_at TEXT NOT NULL,
+                        UNIQUE (parent_uid, child_uid, kind),
+                        CHECK (parent_uid <> child_uid)
+                    )
+                    """
+                )
+                conn.execute(
+                    """
+                    INSERT INTO connections_nueva
+                        (id, parent_uid, child_uid, kind, created_at)
+                    SELECT id, parent_uid, child_uid, kind, created_at FROM connections
+                    """
+                )
+                conn.execute("DROP TABLE connections")
+                conn.execute("ALTER TABLE connections_nueva RENAME TO connections")
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_connections_child_uid"
+                    " ON connections (child_uid)"
+                )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_connections_parent ON connections (parent_uid)"
+                )
+
+            conn.execute("DROP TABLE ideas")
+            conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+            huerfanas = conn.execute("PRAGMA foreign_key_check").fetchall()
+            if huerfanas:
+                raise RuntimeError(f"la copia histórica deja {len(huerfanas)} filas huérfanas")
+            conn.execute("COMMIT")
+        except (sqlite3.Error, RuntimeError):
+            conn.execute("ROLLBACK")
+            raise
+    finally:
+        conn.execute("PRAGMA foreign_keys = ON")
 
 
 def _pasos(version: int) -> list[tuple[int, Path]]:
@@ -854,6 +988,90 @@ def _escribir_rechazo(conn: sqlite3.Connection, uid: str, detalle: dict[str, Any
     )
 
 
+def _validar_campos_ficha(detalle: dict[str, Any], estado: str) -> None:
+    """Un campo de ficha solo vale en su estado.
+
+    Sin esta comprobación, enviar `verificacion_resultado` estando en
+    roadmap dejaba el PATCH en 200 sin tocar nada: el caller creía editar
+    y no pasaba nada. Mejor un 400 que diga qué campo y en qué ficha vale.
+    """
+    for campo in detalle:
+        if campo in REJECT_FIELDS:
+            if estado not in ("rejected", "superseded"):
+                raise InvalidInput(
+                    f"El campo {campo} solo vale para la ficha de descartadas, no para {estado}."
+                )
+        elif campo not in CAMPOS_FICHA.get(estado, set()):
+            raise InvalidInput(f"El campo {campo} no pertenece a la ficha de {estado}.")
+
+
+def _actualizar_ficha_activa(
+    conn: sqlite3.Connection, uid: str, estado: str, detalle: dict[str, Any]
+) -> None:
+    """Edita solo los campos dados de la ficha en la que ya vive la idea.
+
+    Es el PATCH sin `status` (o reafirmándolo): antes esos campos se
+    descartaban y el 200 devolvía el valor viejo.
+    """
+    if not detalle:
+        return
+    if estado == "roadmap":
+        asignaciones = []
+        params: dict[str, Any] = {"uid": uid}
+        if "roadmap_resultado" in detalle:
+            asignaciones.append("resultado = :roadmap_resultado")
+            params["roadmap_resultado"] = detalle["roadmap_resultado"]
+        if "roadmap_referencia" in detalle:
+            asignaciones.append("referencia = :roadmap_referencia")
+            params["roadmap_referencia"] = detalle["roadmap_referencia"]
+        if asignaciones:
+            conn.execute(
+                f"UPDATE idea_roadmap SET {', '.join(asignaciones)} WHERE uid = :uid", params
+            )
+    elif estado == "verificacion":
+        asignaciones = []
+        params = {"uid": uid}
+        if "verificacion_resultado" in detalle:
+            asignaciones.append("ultimo_resultado = :verificacion_resultado")
+            params["verificacion_resultado"] = detalle["verificacion_resultado"]
+        if "verificacion_comentario" in detalle:
+            asignaciones.append("comentario = :verificacion_comentario")
+            params["verificacion_comentario"] = detalle["verificacion_comentario"]
+        if asignaciones:
+            conn.execute(
+                f"UPDATE idea_verificacion SET {', '.join(asignaciones)} WHERE uid = :uid", params
+            )
+    elif estado == "revision_aprobada":
+        asignaciones = []
+        params = {"uid": uid}
+        if "approved_by" in detalle:
+            asignaciones.append("approved_by = :approved_by")
+            params["approved_by"] = detalle["approved_by"]
+        if "revision_nota" in detalle:
+            asignaciones.append("nota = :revision_nota")
+            params["revision_nota"] = detalle["revision_nota"]
+        if asignaciones:
+            conn.execute(
+                f"UPDATE idea_revision SET {', '.join(asignaciones)} WHERE uid = :uid", params
+            )
+    elif estado in ("rejected", "superseded"):
+        asignaciones = []
+        params = {"uid": uid}
+        if "rejected_description" in detalle:
+            asignaciones.append("rejected_description = :rejected_description")
+            params["rejected_description"] = detalle["rejected_description"]
+        if "rejected_by" in detalle:
+            asignaciones.append("rejected_by = :rejected_by")
+            params["rejected_by"] = detalle["rejected_by"]
+        if "superseded_by_uid" in detalle:
+            asignaciones.append("superseded_by_uid = :superseded_by_uid")
+            params["superseded_by_uid"] = detalle["superseded_by_uid"]
+        if asignaciones:
+            conn.execute(
+                f"UPDATE idea_rejected SET {', '.join(asignaciones)} WHERE uid = :uid", params
+            )
+
+
 def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
     """Actualiza solo los campos presentes. Los `None` no se escriben."""
     clean = {k: v for k, v in changes.items() if v is not None and k in UPDATABLE}
@@ -866,34 +1084,40 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
         clean["tags"] = json.dumps(list(clean["tags"]))
     clean["updated_at"] = now_iso()
 
+    nuevo_estado = changes["status"] if changes.get("status") is not None else None
+    detalle_ficha = {**rechazo, **estado_detalle}
     assignments = ", ".join(f"{column} = :{column}" for column in clean)
     with closing(connect(ensure_repo(repo))) as conn:
-        cursor = conn.execute(
-            f"UPDATE idea_entry SET {assignments} WHERE uid = :uid",
-            {**clean, "uid": uid},
-        )
-        if cursor.rowcount == 0:
+        # La ficha activa (y el destino, si cambia el estado) decide qué
+        # campos de ficha tienen sentido; se comprueba antes de escribir.
+        if conn.execute("SELECT 1 FROM idea_entry WHERE uid = ?", (uid,)).fetchone() is None:
             raise KeyError(uid)
+        actual = _estado(conn, uid)
+        destino = nuevo_estado or actual
+        _validar_campos_ficha(detalle_ficha, destino)
         # Un cambio de estado no es un UPDATE de la entrada: crea o retira la
         # fila de cola, de roadmap, de verificación, de revisión aprobada o
-        # de descartada. La ficha del descarte entra y sale con los estados
-        # `rejected`/`superseded`.
+        # de descartada. Sin cambio (o reafirmando el mismo), se edita la
+        # ficha activa.
         try:
-            cambiado_estado = False
-            if "status" in changes and changes["status"] is not None:
-                # Reafirmar el mismo estado no es un traslado: la cola no se
-                # reordena (su posición se conserva) y el evento que se emite
-                # es de edición, no de cambio de estado.
-                actual = _estado(conn, uid)
-                cambiado_estado = actual != changes["status"]
-                # Los protocolos mandan sobre el flujo: una unión no listada
-                # se rechaza (400) y no escribe nada.
-                if cambiado_estado and not _protocolo_ok(conn, actual, changes["status"]):
-                    raise InvalidInput(
-                        f"el protocolo no permite el flujo {actual} → "
-                        f"{changes['status']}: esa unión no está en `protocolo_flujo`"
-                    )
-                _escribir_estado(conn, uid, changes["status"], {**rechazo, **estado_detalle})
+            cambiado_estado = nuevo_estado is not None and nuevo_estado != actual
+            # Los protocolos mandan sobre el flujo: una unión no listada
+            # se rechaza (400) y no escribe nada.
+            if cambiado_estado and not _protocolo_ok(conn, actual, nuevo_estado):
+                raise InvalidInput(
+                    f"el protocolo no permite el flujo {actual} → "
+                    f"{nuevo_estado}: esa unión no está en `protocolo_flujo`"
+                )
+            cursor = conn.execute(
+                f"UPDATE idea_entry SET {assignments} WHERE uid = :uid",
+                {**clean, "uid": uid},
+            )
+            if cursor.rowcount == 0:
+                raise KeyError(uid)
+            if cambiado_estado:
+                _escribir_estado(conn, uid, nuevo_estado, detalle_ficha)
+            else:
+                _actualizar_ficha_activa(conn, uid, actual, detalle_ficha)
             idea = _row(
                 conn,
                 conn.execute("SELECT * FROM idea_entry WHERE uid = ?", (uid,)).fetchone(),

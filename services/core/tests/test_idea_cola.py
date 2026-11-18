@@ -49,6 +49,79 @@ def _esquema_v8(conn: sqlite3.Connection) -> None:
     )
 
 
+def _esquema_inicial(conn: sqlite3.Connection) -> None:
+    """El fichero histórico: `ideas` (con `status`), conexiones a `ideas` y sin versión."""
+    conn.executescript(
+        """
+        CREATE TABLE ideas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, uid TEXT NOT NULL UNIQUE,
+            title TEXT NOT NULL, description TEXT NOT NULL DEFAULT '',
+            content TEXT NOT NULL DEFAULT '',
+            kind TEXT NOT NULL DEFAULT 'idea'
+                CHECK (kind IN ('idea', 'adr', 'note')),
+            status TEXT NOT NULL DEFAULT 'draft'
+                CHECK (status IN ('draft', 'proposed', 'accepted', 'rejected', 'superseded')),
+            tags TEXT NOT NULL DEFAULT '[]',
+            created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+        CREATE TABLE connections (
+            id INTEGER PRIMARY KEY,
+            parent_uid TEXT NOT NULL REFERENCES ideas (uid) ON DELETE CASCADE,
+            child_uid TEXT NOT NULL REFERENCES ideas (uid) ON DELETE CASCADE,
+            kind TEXT NOT NULL DEFAULT 'child', created_at TEXT NOT NULL,
+            UNIQUE (parent_uid, child_uid, kind));
+        INSERT INTO ideas
+            (uid, title, description, content, kind, status, tags, created_at, updated_at) VALUES
+            ('vieja', 'Vieja', 'Desc', 'Cuerpo', 'idea', 'proposed', '["old"]',
+             '2025-01-01T00:00:00Z', '2025-01-02T00:00:00Z'),
+            ('hija', 'Hija', '', '', 'idea', 'draft', '[]',
+             '2025-01-01T00:00:00Z', '2025-01-01T00:00:00Z'),
+            ('aceptada', 'Aceptada', '', '', 'idea', 'accepted', '[]',
+             '2025-01-01T00:00:00Z', '2025-01-04T00:00:00Z'),
+            ('rechazada', 'Rechazada', '', '', 'idea', 'rejected', '[]',
+             '2025-01-01T00:00:00Z', '2025-01-05T00:00:00Z');
+        INSERT INTO connections (parent_uid, child_uid, kind, created_at)
+            VALUES ('vieja', 'hija', 'child', '2025-01-03T00:00:00Z');
+        PRAGMA user_version = 0;
+        """
+    )
+
+
+def _comprobar_historico(client, repo):  # noqa: ANN001, ANN202
+    r = client.get("/mapa", params={"repo": repo})  # <- migra aquí
+    assert r.status_code == 200
+    ideas_mapa = {i["uid"]: i for i in r.json()["ideas"]}
+    assert ideas_mapa["vieja"]["status"] == "proposed"
+    assert ideas_mapa["hija"]["status"] == "draft"
+    assert ideas_mapa["aceptada"]["status"] == "revision_aprobada"
+    assert ideas_mapa["rechazada"]["status"] == "rejected"
+    assert r.json()["connections"] == [
+        {
+            "id": 1,
+            "parent_uid": "vieja",
+            "child_uid": "hija",
+            "kind": "child",
+            "created_at": "2025-01-03T00:00:00Z",
+        }
+    ]
+    ficha = client.get("/ideas/vieja", params={"repo": repo}).json()
+    assert ficha["title"] == "Vieja"
+    assert ficha["description"] == "Desc"
+    assert ficha["content"] == "Cuerpo"
+    assert ficha["tags"] == ["old"]
+
+    conn = sqlite3.connect(str(ideas.db_file_for(repo)))
+    try:
+        tablas = {
+            row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 13
+        assert "ideas" not in tablas
+        assert conn.execute("SELECT count(*) FROM idea_entry").fetchone()[0] == 4
+        assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
+    finally:
+        conn.close()
+
+
 def test_fresco_sin_lane_log(client, repo):  # noqa: ANN001, ANN202
     db = ideas.ensure_repo(repo)
     conn = sqlite3.connect(str(db))
@@ -225,3 +298,35 @@ def test_migracion_0009_solo_estado_final(client, repo):  # noqa: ANN001, ANN202
         "D": "proposed",
         "E": "draft",
     }
+
+
+def test_historico_sin_version_conserva_ideas_y_conexiones(client, repo):  # noqa: ANN001, ANN202
+    """Un fichero anterior a `user_version` trae `ideas`, no `idea_entry`.
+
+    Abrirlo no puede marcar v13 dejando la fila en la tabla vieja: el mapa
+    tiene que conservar el UID, los campos, el estado y la conexión.
+    """
+    db = ideas.db_file_for(repo)
+    db.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(db))
+    _esquema_inicial(conn)
+    conn.commit()
+    conn.close()
+
+    _comprobar_historico(client, repo)
+
+
+def test_historico_ya_marcado_v13_se_recupera(client, repo):  # noqa: ANN001, ANN202
+    """El fichero ya abierto una vez: v13 con la fila en `ideas` y cero en `idea_entry`."""
+    db = ideas.db_file_for(repo)
+    db.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(db))
+    _esquema_inicial(conn)
+    ideas.aplicar_esquema(conn)  # lo que hacía el código anterior
+    conn.commit()
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 13
+    assert conn.execute("SELECT count(*) FROM idea_entry").fetchone()[0] == 0
+    assert conn.execute("SELECT count(*) FROM ideas").fetchone()[0] == 4
+    conn.close()
+
+    _comprobar_historico(client, repo)

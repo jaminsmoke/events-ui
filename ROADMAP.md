@@ -59,6 +59,16 @@ con el motivo, para no reabrirlo cada semana.
   por número en vez de reaplicar el esquema fresco; la segunda ejecución no
   toca nada y un v13 firmado sin migrar termina la 0013 al abrirse. Cubierto
   por `services/core/tests/test_seed_migracion.py`.
+- **Almacenes anteriores a `user_version`**: un fichero histórico con la
+  tabla `ideas` se copia a `idea_entry` conservando UID, campos y estado
+  (`proposed` a cola, `accepted` a revisión aprobada, `rejected`/`superseded`
+  a descartada), y `connections` se reconstruye apuntando a la entrada.
+  También se recupera un v13 que ya quedó marcado con la fila en la tabla
+  vieja. Cubierto en `services/core/tests/test_idea_cola.py`.
+- **Edición de la ficha activa**: un PATCH sin `status` (o reafirmándolo)
+  actualiza la ficha en la que ya vive la idea (roadmap, verificación,
+  revisión aprobada o descarte); un campo de otra ficha recibe un 400
+  claro. Cubierto en `services/core/tests/test_flujo_items.py`.
 - **CI**: `pnpm check` global en cada push a main y en PRs
   (`.github/workflows/ci.yml`). Batería e2e y builds de Tauri quedan fuera
   del CI a propósito (navegador y puertos; se corren en local).
@@ -71,11 +81,9 @@ las relaciones y el alcance de las comprobaciones locales.
 
 ### Prioridad alta
 
-- [ ] **Almacenes anteriores a `user_version`.** Al abrir el esquema inicial con una idea, el core marcó v13 con una fila en `ideas` y cero en `idea_entry`. Migrar un fichero histórico y verificar que el mapa conserva el UID, los campos y el estado.
 
 ### Flujo y visor
 
-- [ ] **Edición de la ficha activa.** Cambiar el resultado de roadmap devuelve 200 y conserva el valor anterior. Comprobar el valor con un GET posterior y que los campos incompatibles reciben un error claro.
 - [ ] **Protocolos personalizados.** La migración 0013 vuelve a insertar permisos antiguos que el repo había retirado. Migrar una v12 con `draft → rejected` deshabilitado y verificar que sigue deshabilitado junto a las nuevas transiciones.
 - [ ] **Orden de cola.** El mapa ordena por creación y la API de cola por posición. Tras devolver una idea desde verificación, comprobar que ambos sitúan la misma idea al final.
 - [ ] **Intentos de verificación.** Una segunda vuelta por cola y roadmap vuelve a mostrar un intento. Probar dos vueltas de la misma idea y comprobar que el contador llega a dos.

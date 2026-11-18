@@ -117,9 +117,7 @@ corepack pnpm core:dev           # Swagger en http://127.0.0.1:8765/docs
 | GET | `/ideas?repo=<ruta>` (filtros `status`, `kind`, `limit`, `offset`) |
 | POST | `/ideas?repo=<ruta>` |
 | GET / PATCH / DELETE | `/ideas/{uid}?repo=<ruta>` |
-| GET | `/connections?repo=<ruta>` (filtro `parent_uid`) |
-| POST | `/connections?repo=<ruta>` |
-| DELETE | `/connections/{id}?repo=<ruta>` |
+| GET | `/connections?repo=<ruta>` (filtro `parent_uid`) — solo lectura: las conexiones son de la arquitectura, inmutables (ADR 0002) |
 | GET | `/mapa?repo=<ruta>` — todas las ideas del mapa y sus conexiones en una sola lectura |
 | GET | `/revision?repo=<ruta>` — firma barata (`PRAGMA data_version` + conteos) para el refresco en vivo |
 
@@ -158,4 +156,6 @@ cabecera y el runner apaga las claves foráneas antes de abrir la transacción
   título/descripción y borrar desde la fila, mover entre carriles y conectar ideas
   del cajón como padre (`POST /connections`). Todo por `openapi-fetch` tipado por
   el OpenAPI generado, con los errores 400/404 declarados en el contrato.
-- **F1 (siguiente):** esquema del sobre de evento, conexión RO, tail + SSE.
+- **F1–F3 (hecho):** sobre de evento + SSE en vivo (F1), proyección de repo (F2) y
+  empaquetado con sidecar Python en la desktop, bandeja y avisos (F3).
+  El instalador firmado queda fuera (cuesta dinero). Ver `ROADMAP.md` y ADRs.

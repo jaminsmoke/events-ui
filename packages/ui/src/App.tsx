@@ -96,7 +96,7 @@ export default function App({
   const { eventos, conectado } = useEventos(repo, versionLog);
   // Los protocolos de flujo: las uniones permitidas entre carriles. La fila
   // no ofrece traslados prohibidos; el core los rechaza si llegan igual.
-  const { puedeIr, exigeFases, exigeFasesListas } = useProtocolos(repo);
+  const { puedeIr, exigeFases, exigeFasesListas, exigeFasesCompletas } = useProtocolos(repo);
 
   // Una prueba que murió con la app deja su marca sin latido: al reabrir el
   // mismo laboratorio se cobra el vaciado que quedó pendiente. Con latido
@@ -396,6 +396,7 @@ export default function App({
                     puedeIr={puedeIr}
                     exigeFases={exigeFases}
                     exigeFasesListas={exigeFasesListas}
+                    exigeFasesCompletas={exigeFasesCompletas}
                     catalogo={ideas ?? []}
                   />
                   {tree.carriles.map((lane, i) => (
@@ -416,6 +417,9 @@ export default function App({
                       onEditar={editar}
                       onBorrar={borrar}
                       puedeIr={puedeIr}
+                      exigeFases={exigeFases}
+                      exigeFasesListas={exigeFasesListas}
+                      exigeFasesCompletas={exigeFasesCompletas}
                       catalogo={ideas ?? []}
                     />
                   ))}

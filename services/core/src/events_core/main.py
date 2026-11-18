@@ -194,6 +194,8 @@ class Protocolo(BaseModel):
     exige_fases: bool = False
     # ¿Exige que no queden fases pendientes ni fallidas? (0022).
     exige_fases_listas: bool = False
+    # ¿Exige que todas estén completadas? (0023): rechazada no vale.
+    exige_fases_completas: bool = False
 
 
 class MapSnapshot(BaseModel):

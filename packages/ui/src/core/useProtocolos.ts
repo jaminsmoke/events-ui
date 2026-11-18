@@ -28,6 +28,7 @@ const Union = z.object({
   destino: Grupo,
   exige_fases: z.boolean(),
   exige_fases_listas: z.boolean(),
+  exige_fases_completas: z.boolean(),
 });
 const Protocolos = z.array(Union);
 
@@ -54,6 +55,8 @@ export type ProtocolosFlujo = {
   exigeFases: PuedeIr;
   /** ¿Exige el protocolo que no queden fases abiertas al cruzar? */
   exigeFasesListas: PuedeIr;
+  /** ¿Exige el protocolo que todas estén completadas al cruzar? */
+  exigeFasesCompletas: PuedeIr;
 };
 
 export function useProtocolos(repo: string | null): ProtocolosFlujo {
@@ -64,6 +67,7 @@ export function useProtocolos(repo: string | null): ProtocolosFlujo {
     pares: ReadonlySet<string>;
     exigen: ReadonlySet<string>;
     exigenListas: ReadonlySet<string>;
+    exigenCompletas: ReadonlySet<string>;
   } | null>(null);
 
   useEffect(() => {
@@ -85,6 +89,11 @@ export function useProtocolos(repo: string | null): ProtocolosFlujo {
             ),
             exigenListas: new Set(
               filas.filter((f) => f.exige_fases_listas).map((f) => `${f.origen}→${f.destino}`),
+            ),
+            exigenCompletas: new Set(
+              filas
+                .filter((f) => f.exige_fases_completas)
+                .map((f) => `${f.origen}→${f.destino}`),
             ),
           });
         }
@@ -116,6 +125,10 @@ export function useProtocolos(repo: string | null): ProtocolosFlujo {
     exigeFasesListas: (origen, destino) => {
       if (cargado === null) return false;
       return cargado.exigenListas.has(`${A_GRUPO[origen]}→${A_GRUPO[destino]}`);
+    },
+    exigeFasesCompletas: (origen, destino) => {
+      if (cargado === null) return false;
+      return cargado.exigenCompletas.has(`${A_GRUPO[origen]}→${A_GRUPO[destino]}`);
     },
   };
 }

@@ -161,14 +161,19 @@ CREATE TABLE IF NOT EXISTS protocolo_flujo (
     -- ¿Exige que no queden fases pendientes ni fallidas? (0022). "Cerrada" es
     -- completada o rechazada: rechazar una fase también la cierra.
     exige_fases_listas INTEGER NOT NULL DEFAULT 0 CHECK (exige_fases_listas IN (0, 1)),
+    -- ¿Exige que todas las fases estén completadas? (0023). Aquí rechazada no
+    -- vale: aprobar la revisión es dar el trabajo por hecho, no por descartado.
+    exige_fases_completas INTEGER NOT NULL DEFAULT 0
+               CHECK (exige_fases_completas IN (0, 1)),
     PRIMARY KEY (origen, destino)
 );
 
-INSERT OR IGNORE INTO protocolo_flujo (origen, destino, exige_fases, exige_fases_listas) VALUES
-    ('draft', 'proposed', 0, 0),
-    ('draft', 'rejected', 0, 0),
-    ('proposed', 'roadmap', 1, 0),
-    ('proposed', 'rejected', 0, 0),
-    ('roadmap', 'verificacion', 0, 1),
-    ('verificacion', 'proposed', 0, 0),
-    ('verificacion', 'revision_aprobada', 0, 0);
+INSERT OR IGNORE INTO protocolo_flujo
+    (origen, destino, exige_fases, exige_fases_listas, exige_fases_completas) VALUES
+    ('draft', 'proposed', 0, 0, 0),
+    ('draft', 'rejected', 0, 0, 0),
+    ('proposed', 'roadmap', 1, 0, 0),
+    ('proposed', 'rejected', 0, 0, 0),
+    ('roadmap', 'verificacion', 0, 1, 0),
+    ('verificacion', 'proposed', 0, 0, 0),
+    ('verificacion', 'revision_aprobada', 0, 0, 1);

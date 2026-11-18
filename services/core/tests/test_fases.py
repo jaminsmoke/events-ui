@@ -171,13 +171,62 @@ def test_salir_de_roadmap_exige_fases_cerradas(client, repo):  # noqa: ANN001, A
     assert r.json()["verificacion_intentos"] == 1
 
 
+def test_aprobar_revision_exige_todas_completadas(client, repo):  # noqa: ANN001, ANN202
+    uid = _crear(client, repo, status="proposed")
+    r = client.patch(
+        f"/ideas/{uid}",
+        params={"repo": repo},
+        json={"status": "roadmap", "fases": [{"titulo": "Una"}, {"titulo": "Dos"}]},
+    )
+    assert r.status_code == 200, r.json()
+
+    # Rechazar Dos basta para salir de roadmap, pero no para aprobar.
+    r = client.patch(
+        f"/ideas/{uid}",
+        params={"repo": repo},
+        json={
+            "status": "verificacion",
+            "fases": [
+                {"orden": 1, "titulo": "Una", "estado": "completada"},
+                {"orden": 2, "titulo": "Dos", "estado": "rechazada"},
+            ],
+        },
+    )
+    assert r.status_code == 200, r.json()
+
+    r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": "revision_aprobada"})
+    assert r.status_code == 400
+    assert "sin completar" in r.json()["detail"]
+    assert "Dos" in r.json()["detail"]
+    assert client.get(f"/ideas/{uid}", params={"repo": repo}).json()["status"] == "verificacion"
+
+    # Completarla en el mismo PATCH deja aprobar.
+    r = client.patch(
+        f"/ideas/{uid}",
+        params={"repo": repo},
+        json={
+            "status": "revision_aprobada",
+            "fases": [
+                {"orden": 1, "titulo": "Una", "estado": "completada"},
+                {"orden": 2, "titulo": "Dos", "estado": "completada"},
+            ],
+        },
+    )
+    assert r.status_code == 200, r.json()
+    assert r.json()["status"] == "revision_aprobada"
+
+
 def test_protocolos_publican_el_requisito(client, repo):  # noqa: ANN001, ANN202
     filas = client.get("/protocolos", params={"repo": repo}).json()
     exigidas = {(f["origen"], f["destino"]) for f in filas if f["exige_fases"]}
     assert exigidas == {("proposed", "roadmap")}
     listas = {(f["origen"], f["destino"]) for f in filas if f["exige_fases_listas"]}
     assert listas == {("roadmap", "verificacion")}
+    completas = {(f["origen"], f["destino"]) for f in filas if f["exige_fases_completas"]}
+    assert completas == {("verificacion", "revision_aprobada")}
     assert all(
-        isinstance(f["exige_fases"], bool) and isinstance(f["exige_fases_listas"], bool)
+        isinstance(f["exige_fases"], bool)
+        and isinstance(f["exige_fases_listas"], bool)
+        and isinstance(f["exige_fases_completas"], bool)
         for f in filas
     )

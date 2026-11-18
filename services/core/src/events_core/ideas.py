@@ -57,8 +57,9 @@ MIGRATIONS_DIR = Path(__file__).with_name("migraciones")
 # descompone la idea en fases (`idea_fase`) y hace que el protocolo pueda
 # exigirlas para cruzar una unión (`exige_fases`). La 0022 añade el otro
 # requisito del protocolo: no salir de un carril con fases abiertas
-# (`exige_fases_listas`).
-SCHEMA_VERSION = 22
+# (`exige_fases_listas`) y la 0023 exige todas completadas para aprobar
+# (`exige_fases_completas`).
+SCHEMA_VERSION = 23
 
 REPOS_ROOT_ENV_VAR = "EVENTSUI_REPOS_ROOT"
 BUSY_TIMEOUT_MS = 5_000
@@ -1306,6 +1307,15 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
                         f"no puede pasar a {nuevo_estado}: quedan fases sin cerrar: "
                         + ", ".join(abiertas)
                     )
+            if cambiado_estado and _exige_fases_completas(conn, actual, nuevo_estado):
+                incompletas = [
+                    fase["titulo"] for fase in fases_quedan if fase["estado"] != "completada"
+                ]
+                if incompletas:
+                    raise InvalidInput(
+                        f"no puede pasar a {nuevo_estado}: hay fases sin completar: "
+                        + ", ".join(incompletas)
+                    )
             cursor = conn.execute(
                 f"UPDATE idea_data SET {assignments} WHERE uid = :uid",
                 {**clean, "uid": uid},
@@ -1408,6 +1418,20 @@ def _exige_fases_listas(conn: sqlite3.Connection, actual: str, nuevo: str) -> bo
     return bool(fila and fila[0])
 
 
+def _exige_fases_completas(conn: sqlite3.Connection, actual: str, nuevo: str) -> bool:
+    """¿Exige el protocolo que toda fase esté completada? (0023).
+
+    `rechazada` no vale: aprobar la revisión es dar el trabajo por hecho.
+    """
+    if _grupo(actual) == _grupo(nuevo):
+        return False
+    fila = conn.execute(
+        "SELECT exige_fases_completas FROM protocolo_flujo WHERE origen = ? AND destino = ?",
+        (_grupo(actual), _grupo(nuevo)),
+    ).fetchone()
+    return bool(fila and fila[0])
+
+
 def _protocolo_ok(conn: sqlite3.Connection, actual: str, nuevo: str) -> bool:
     """¿Permite el protocolo ir de `actual` a `nuevo`?
 
@@ -1433,7 +1457,7 @@ def listar_protocolos(repo: str) -> list[dict[str, Any]]:
     """
     with closing(connect(ensure_repo(repo))) as conn:
         filas = conn.execute(
-            "SELECT origen, destino, exige_fases, exige_fases_listas"
+            "SELECT origen, destino, exige_fases, exige_fases_listas, exige_fases_completas"
             " FROM protocolo_flujo ORDER BY origen, destino"
         ).fetchall()
     return [
@@ -1442,6 +1466,7 @@ def listar_protocolos(repo: str) -> list[dict[str, Any]]:
             "destino": fila[1],
             "exige_fases": bool(fila[2]),
             "exige_fases_listas": bool(fila[3]),
+            "exige_fases_completas": bool(fila[4]),
         }
         for fila in filas
     ]

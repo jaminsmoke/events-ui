@@ -1338,3 +1338,41 @@ code {
   font-size: 12px;
   padding: 2px 6px;
 }
+
+/* Ficha de fases: detalle de solo lectura, con estado, nota y fecha. */
+.ficha-fases {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+  max-height: 50vh;
+  overflow: auto;
+}
+.ficha-fase {
+  display: grid;
+  gap: 2px;
+  padding: 6px 8px;
+  border-left: 3px solid var(--linea, #444);
+}
+.ficha-fase.estado-completada {
+  border-left-color: #4ea36b;
+}
+.ficha-fase.estado-fallida {
+  border-left-color: #c25555;
+}
+.ficha-fase.estado-rechazada {
+  border-left-color: #8a6bb5;
+}
+.ficha-fase-titulo {
+  font-size: 13px;
+}
+.ficha-fase-nota {
+  margin: 0;
+  font-size: 12px;
+  opacity: 0.8;
+}
+.ficha-fase-fecha {
+  font-size: 11px;
+  opacity: 0.6;
+}

@@ -80,10 +80,20 @@ function FasesIdea({
   const [nuevo, setNuevo] = useState("");
   const [fallo, setFallo] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
+  // Copia optimista: el mapa tarda en refrescar y dos cambios seguidos no
+  // pueden reenviar la lista vieja (el PATCH reemplaza la lista entera). Vale
+  // solo mientras la prop sea la misma; cuando el mapa trae otra lista, manda
+  // el mapa. Sin efecto: comparar identidad no dispara renders en cascada.
+  const [optimista, setOptimista] = useState<{
+    base: readonly Fase[];
+    fases: readonly Fase[];
+  } | null>(null);
+  const vista = optimista?.base === fases ? optimista.fases : fases;
 
   const guardar = (siguientes: readonly Fase[]) => {
     setGuardando(true);
     setFallo(null);
+    setOptimista({ base: fases, fases: siguientes });
     onEditar(uid, {
       fases: siguientes.map(({ orden, titulo, estado, nota }) => ({
         orden,
@@ -92,7 +102,10 @@ function FasesIdea({
         nota,
       })),
     })
-      .catch((err: unknown) => setFallo(err instanceof Error ? err.message : String(err)))
+      .catch((err: unknown) => {
+        setOptimista(null);
+        setFallo(err instanceof Error ? err.message : String(err));
+      })
       .finally(() => setGuardando(false));
   };
 
@@ -100,17 +113,17 @@ function FasesIdea({
     e.preventDefault();
     const titulo = nuevo.trim();
     if (!titulo) return;
-    const orden = Math.max(0, ...fases.map((fase) => fase.orden)) + 1;
-    guardar([...fases, { orden, titulo, estado: "pendiente", nota: "", entered_at: "" }]);
+    const orden = Math.max(0, ...vista.map((fase) => fase.orden)) + 1;
+    guardar([...vista, { orden, titulo, estado: "pendiente", nota: "", entered_at: "" }]);
     setNuevo("");
   };
 
   return (
     <div className="fases">
       <p className="fases-cabecera">
-        Fases {fases.filter((fase) => fase.estado === "completada").length}/{fases.length}
+        Fases {vista.filter((fase) => fase.estado === "completada").length}/{vista.length}
       </p>
-      {fases.map((fase) => (
+      {vista.map((fase) => (
         <div className="fase" key={fase.orden}>
           <span className="fase-titulo">{fase.titulo}</span>
           <select
@@ -120,7 +133,7 @@ function FasesIdea({
             aria-label={`Estado de ${fase.titulo}`}
             onChange={(e) =>
               guardar(
-                fases.map((otra) =>
+                vista.map((otra) =>
                   otra.orden === fase.orden
                     ? { ...otra, estado: e.target.value as Fase["estado"] }
                     : otra,
@@ -139,7 +152,7 @@ function FasesIdea({
             className="chip-quitar"
             title="Quitar fase"
             disabled={guardando}
-            onClick={() => guardar(fases.filter((otra) => otra.orden !== fase.orden))}
+            onClick={() => guardar(vista.filter((otra) => otra.orden !== fase.orden))}
           >
             ×
           </button>
@@ -161,6 +174,62 @@ function FasesIdea({
   );
 }
 
+/** Nombre de cada estado de fase para la ficha, en español. */
+const ETIQUETA_FASE: Record<string, string> = {
+  pendiente: "Pendiente",
+  completada: "Completada",
+  fallida: "Fallida",
+  rechazada: "Rechazada",
+};
+
+/** La ficha de fases: el detalle completo (estado, nota y fecha), que la
+ *  fila no enseña para no crecer. Solo lectura: editar es cosa de la fila. */
+function FichaFases({
+  titulo,
+  fases,
+  onCerrar,
+}: {
+  titulo: string;
+  fases: readonly Fase[];
+  onCerrar: () => void;
+}) {
+  const hechas = fases.filter((fase) => fase.estado === "completada").length;
+  return createPortal(
+    <div className="modal-fondo" role="presentation" onClick={onCerrar}>
+      <div
+        className="modal"
+        role="dialog"
+        aria-label="Fases de la idea"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.key === "Escape" && onCerrar()}
+      >
+        <h2>Fases de «{titulo}»</h2>
+        <p className="hint">
+          {hechas} de {fases.length} completadas
+        </p>
+        <ol className="ficha-fases">
+          {fases.map((fase) => (
+            <li key={fase.orden} className={`ficha-fase estado-${fase.estado}`}>
+              <span className="ficha-fase-titulo">{fase.titulo}</span>
+              <span className="fila-estado">{ETIQUETA_FASE[fase.estado] ?? fase.estado}</span>
+              {fase.nota && <p className="ficha-fase-nota">{fase.nota}</p>}
+              <time className="ficha-fase-fecha" dateTime={fase.entered_at}>
+                {fechaCorta(fase.entered_at)}
+              </time>
+            </li>
+          ))}
+        </ol>
+        <div className="modal-acciones">
+          <button className="btn" type="button" onClick={onCerrar}>
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 /** Una fila del nodo: solo título, contador y su botón de expandir.
  *  Al expandirla aparece un panel con los detalles (descripción, estado) y
  *  los botones de la idea —mover, completar, editar, borrar—, más sus hijos,
@@ -178,6 +247,7 @@ function NodeRow({
   puedeIr,
   exigeFases,
   exigeFasesListas,
+  exigeFasesCompletas,
   catalogo = [],
 }: {
   node: TreeNode;
@@ -198,6 +268,8 @@ function NodeRow({
   exigeFases?: PuedeIr;
   /** ¿Exige el protocolo que no queden fases abiertas al cruzar? (0022). */
   exigeFasesListas?: PuedeIr;
+  /** ¿Exige el protocolo que todas estén completadas? (0023). */
+  exigeFasesCompletas?: PuedeIr;
   /** Todas las ideas del repo: resuelve títulos de las dependencias y
    *  ofrece las que aún no lo son. */
   catalogo?: readonly Idea[];
@@ -233,12 +305,20 @@ function NodeRow({
     ) {
       return `Cierra las fases pendientes o fallidas (${abiertas})`;
     }
+    if (
+      destino === "revision_aprobada" &&
+      !fases.every((fase) => fase.estado === "completada") &&
+      exigeFasesCompletas?.(estado, "revision_aprobada")
+    ) {
+      return "Completa todas las fases para aprobar la revisión";
+    }
     return null;
   };
   const [descartando, setDescartando] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
   const [fallo, setFallo] = useState<string | null>(null);
   const [trabajando, setTrabajando] = useState(false);
+  const [fichaFases, setFichaFases] = useState(false);
 
   const hacer = (fn: () => Promise<void>, alOk?: () => void) => {
     setTrabajando(true);
@@ -371,6 +451,13 @@ function NodeRow({
             Cierra las fases pendientes o fallidas para pasar a verificación.
           </span>
         )}
+      {estado === "verificacion" &&
+        !fases.every((fase) => fase.estado === "completada") &&
+        exigeFasesCompletas?.(estado, "revision_aprobada") && (
+          <span className="hint">
+            Completa todas las fases para aprobar la revisión.
+          </span>
+        )}
       {node.idea && onPideEditar && (
         <button
           type="button"
@@ -378,6 +465,15 @@ function NodeRow({
           onClick={() => onPideEditar(uid!, node.title, descripcion)}
         >
           Editar
+        </button>
+      )}
+      {node.idea && fases.length > 0 && (
+        <button
+          type="button"
+          className="btn ghost mover"
+          onClick={() => setFichaFases(true)}
+        >
+          Fases · {hechas}/{fases.length}
         </button>
       )}
       {node.idea && onBorrar && !confirmando && (
@@ -399,6 +495,9 @@ function NodeRow({
         )}
 
 
+      {node.idea && fichaFases && (
+        <FichaFases titulo={node.title} fases={fases} onCerrar={() => setFichaFases(false)} />
+      )}
       {node.idea && confirmando && onBorrar && (
         <span className="fila-acciones">
           ¿Borrar?
@@ -435,6 +534,7 @@ function NodeRow({
               puedeIr={puedeIr}
               exigeFases={exigeFases}
               exigeFasesListas={exigeFasesListas}
+              exigeFasesCompletas={exigeFasesCompletas}
               catalogo={catalogo}
             />
           ))}
@@ -459,6 +559,7 @@ export function NodeBox({
   puedeIr,
   exigeFases,
   exigeFasesListas,
+  exigeFasesCompletas,
   catalogo = [],
 }: {
   node: TreeNode;
@@ -474,6 +575,7 @@ export function NodeBox({
   puedeIr?: PuedeIr;
   exigeFases?: PuedeIr;
   exigeFasesListas?: PuedeIr;
+  exigeFasesCompletas?: PuedeIr;
   catalogo?: readonly Idea[];
 }) {
   const tiene = node.kids.length > 0;
@@ -510,6 +612,7 @@ export function NodeBox({
               puedeIr={puedeIr}
               exigeFases={exigeFases}
               exigeFasesListas={exigeFasesListas}
+              exigeFasesCompletas={exigeFasesCompletas}
               catalogo={catalogo}
             />
           ))}

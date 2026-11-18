@@ -109,7 +109,7 @@ def test_migracion_0010_rellena_origen(client, repo):  # noqa: ANN001, ANN202
     ideas.ensure_repo(repo)
 
     conn = sqlite3.connect(str(db))
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 22
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 23
     columnas = [r[1] for r in conn.execute("PRAGMA table_info(event)")]
     assert "origen" in columnas
     filas = conn.execute("SELECT type, origen FROM event ORDER BY id").fetchall()
@@ -153,7 +153,7 @@ def test_migracion_0010_sin_tabla_event_crea_acceso(client, repo):  # noqa: ANN0
     ideas.ensure_repo(repo)
 
     conn = sqlite3.connect(str(db))
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 22
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 23
     assert conn.execute("SELECT count(*) FROM event").fetchone()[0] == 0
     columnas = [r[1] for r in conn.execute("PRAGMA table_info(event)")]
     assert "origen" in columnas

@@ -25,6 +25,9 @@ def _paso(client, repo, uid, status, **detalle):  # noqa: ANN001, ANN202
     # estados intermedios, así que se cierran en el mismo paso.
     if status == "verificacion" and "fases" not in detalle:
         detalle["fases"] = [{"titulo": "Fase única", "estado": "completada"}]
+    # Aprobar exige todas completadas (0023).
+    if status == "revision_aprobada" and "fases" not in detalle:
+        detalle["fases"] = [{"titulo": "Fase única", "estado": "completada"}]
     r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": status, **detalle})
     assert r.status_code == 200, r.json()
     return r.json()

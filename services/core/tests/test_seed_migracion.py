@@ -105,7 +105,7 @@ def _comprobar_migrado(client, repo, esperados=_ESPERADOS):  # noqa: ANN001, ANN
     db = ideas.db_file_for(repo)
     conn = sqlite3.connect(str(db))
     try:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 14
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 15
         tablas = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         assert "idea_completada" not in tablas
         assert conn.execute("SELECT uid, approved_at FROM idea_revision").fetchall() == [
@@ -152,7 +152,7 @@ def test_un_v13_mal_migrado_se_repara_al_abrir(client, repo):  # noqa: ANN001, A
     try:
         ideas.aplicar_esquema(conn)
         conn.commit()
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 14
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 15
         assert conn.execute("SELECT count(*) FROM idea_revision").fetchone()[0] == 0
     finally:
         conn.close()

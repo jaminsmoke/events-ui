@@ -2,7 +2,7 @@
 
 Cada repositorio guarda sus ideas, relaciones y protocolos en
 `.EUI/EUI_DATABASE.sqlite`. El core activa WAL y las claves foráneas en sus
-conexiones de escritura. La versión del esquema de ideas es 14. El registro
+conexiones de escritura. La versión del esquema de ideas es 15. El registro
 operativo de la aplicación vive en otro fichero y abarca varios repositorios.
 
 ## Tablas y relaciones
@@ -17,7 +17,7 @@ operativo de la aplicación vive en otro fichero y abarca varios repositorios.
 | `idea_rejected` | Una ficha por UID y una referencia opcional a otro UID | Fecha, motivo y autor del descarte. `superseded_by_uid` identifica la idea sustituta. |
 | `connections` | Dos FK a `idea_entry.uid` | Aristas entre ideas. La combinación de padre, hijo y tipo es única. Se admiten varios padres. Los tipos son `child`, `related` y `supersedes`. |
 | `protocolo_flujo` | Clave compuesta `(origen, destino)` | Transiciones permitidas entre grupos. Es configuración del repo y se conserva al reiniciar el laboratorio. |
-| `event` | `id` entero para el cursor y `dedupe_key` opcional única | Historial por repo con fecha, tipo, origen y payload. Su presencia depende de cómo se creó o actualizó el almacén. |
+| `event` | `id` entero para el cursor y `dedupe_key` opcional única | Historial por repo con fecha, tipo, origen y payload. Se siembra con el almacén y la migración 0015 lo añade a los que nacieron sin él. |
 | `registro` | `id` entero en un SQLite independiente | Fecha, nivel, origen y mensaje de operaciones del core. `EVENTSUI_REGISTRO_DB` permite elegir el fichero. |
 
 Las cinco fichas de estado referencian `idea_entry.uid` con borrado en cascada.

@@ -15,9 +15,8 @@
 // igual con el nombre del escenario y la causa.
 
 import { spawn, spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, readdir, readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir } from "node:fs/promises";
 import os from "node:os";
-import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -203,23 +202,9 @@ async function main() {
     if (!(await esperarUrl(`${CORE}/health`))) throw new Error("el core no respondió /health");
     // La lista de la UI (`/repos`) solo enseña carpetas ya sembradas: el
     // escenario clásico abre `lab`, así que se siembra aquí mismo para que
-    // el botón exista desde el primer fotograma. Y la tabla `event` la crea
-    // el runner una vez, con el esquema final: en producción la crea el
-    // productor externo (un almacén fresco de ideas no la tiene), y los
-    // escenarios de eventos necesitan que exista.
+    // el botón exista desde el primer fotograma. El log lo siembra el core
+    // con el almacén: el runner no crea tablas a mano.
     await fetch(`${CORE}/mapa?repo=lab`).catch(() => {});
-    {
-      const db = new DatabaseSync(
-        path.join(tmp, "repos", "lab", ".EUI", "EUI_DATABASE.sqlite"),
-      );
-      db.exec(
-        await readFile(
-          path.join(ROOT, "services", "core", "src", "events_core", "schema", "eventos.sql"),
-          "utf-8",
-        ),
-      );
-      db.close();
-    }
     if (!(await esperarUrl(`${UI}/`))) throw new Error("Vite no respondió en 15175");
 
     browser = await chromium.launch();

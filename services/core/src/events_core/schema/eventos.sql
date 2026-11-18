@@ -8,8 +8,10 @@
 -- registro de renderers y un fallback genérico, así un tipo desconocido
 -- nunca rompe la vista.
 --
--- El log nunca se crea desde la app: si este fichero no existe, no hay eventos
--- y /health lo dice (`degraded`); nunca se crea una BD vacía en su sitio.
+-- Este esquema se aplica al sembrar el almacén del repo: el core emite ahí
+-- sus `idea.*` y los primeros no pueden perderse. La BD de eventos del
+-- productor (`EVENTSUI_DB`) sigue sin crearse desde la app: si no existe, no
+-- hay eventos y `/health` lo dice (`degraded`).
 CREATE TABLE IF NOT EXISTS event (
     id         INTEGER PRIMARY KEY,
     -- ISO-8601 con segundo, como el resto del core (`ideas.now_iso`).

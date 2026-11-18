@@ -33,20 +33,21 @@ SCHEMA_DIR = Path(__file__).with_name("schema")
 # Los pasos que llevan un almacén viejo hasta aquí. `schema/` es el estado final:
 # un almacén que nace hoy se crea con él y no ejecuta ninguna migración.
 MIGRATIONS_DIR = Path(__file__).with_name("migraciones")
-# Se aplican los `schema/*.sql` de ideas y conexiones en orden: un fichero nuevo
-# no obliga a tocar este módulo. `PRAGMA user_version` dice cuál hay aplicado en
-# cada almacén. La tabla `event` de `schema/eventos.sql` no entra aquí: el log
-# lo escribe otro proceso y a un almacén existente llega por migración (ver
-# `migraciones/0005_eventos.sql`). La tabla `ideas` pasó a `idea_entry` +
+# Se aplican los `schema/*.sql` de ideas, conexiones y log en orden: un fichero
+# nuevo no obliga a tocar este módulo. `PRAGMA user_version` dice cuál hay
+# aplicado en cada almacén. La tabla `event` del repo se siembra con él porque
+# el core emite ahí sus `idea.*`; a los almacenes anteriores les llegó por la
+# 0005 y la 0015. La tabla `ideas` pasó a `idea_entry` +
 # `idea_lane_log` en la 0006, la ficha del descarte a `idea_rejected` en la
 # 0007, `connections` se igualó con el esquema fresco en la 0008, la cola
 # pasó a estado real y ordenable (`idea_cola`) en la 0009, el `origen` del
 # evento se hizo explícito en la 0010, los protocolos de flujo llegaron
 # en la 0011 (`protocolo_flujo`), las completadas salieron del flujo en
 # la 0012, el flujo completo (roadmap, verificación y revisión aprobada)
-# llegó en la 0013, y la 0014 llevó los intentos de verificación a la entrada
-# para que sobrevivan a la ficha.
-SCHEMA_VERSION = 14
+# llegó en la 0013, la 0014 llevó los intentos de verificación a la entrada
+# para que sobrevivan a la ficha, y la 0015 sembró la tabla `event` en los
+# almacenes que nacieron sin log.
+SCHEMA_VERSION = 15
 
 REPOS_ROOT_ENV_VAR = "EVENTSUI_REPOS_ROOT"
 BUSY_TIMEOUT_MS = 5_000
@@ -203,15 +204,13 @@ def _ignorar_auxiliares(db_file: Path) -> None:
 
 
 def aplicar_esquema(conn: sqlite3.Connection) -> None:
-    """Aplica los `schema/*.sql` de ideas/conexiones y marca la versión.
+    """Aplica los `schema/*.sql` de ideas, conexiones y log, y marca la versión.
 
-    `schema/eventos.sql` no entra: el log lo escribe otro proceso y a un
-    almacén existente llega por `migraciones/0005_eventos.sql`. Idempotente:
-    todo es IF NOT EXISTS.
+    El log entra aquí porque el core emite sus `idea.*` en él: un almacén
+    recién sembrado que naciera sin `event` perdería justo los primeros.
+    Idempotente: todo es IF NOT EXISTS.
     """
     for script in sorted(SCHEMA_DIR.glob("*.sql")):
-        if script.name == "eventos.sql":
-            continue
         conn.executescript(script.read_text(encoding="utf-8"))
     conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 

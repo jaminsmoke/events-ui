@@ -93,11 +93,18 @@ def compactar(
     (`ts` anterior a hace `dias` días) y luego el conteo (se dejan solo los
     `max_eventos` más nuevos); el segundo nunca resucita lo ya borrado.
 
+    `dias` y `max_eventos` tienen que ser al menos 1: con 0 o negativo, el
+    primer barrido se llevaría el log entero. La API ya lo valida; aquí se
+    guarda por si entra por otra vía (CLI, tests).
+
     Después, si el hueco es bastante, se recompacta el fichero con `VACUUM`:
     el `DELETE` solo libera páginas, no devuelve espacio al disco. El `VACUUM`
     es exclusivo y no puede ir en transacción; si otro proceso lo bloquea
     (el productor existe), se salta sin fallar —el recorte ya está hecho—.
     """
+    if dias < 1 or max_eventos < 1:
+        raise ValueError("dias y max_eventos tienen que ser al menos 1")
+
     db_file = ensure_repo(repo)
     try:
         with closing(connect(db_file)) as conn:

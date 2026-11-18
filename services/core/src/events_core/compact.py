@@ -20,6 +20,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--max", type=int, default=eventos.MAX_EVENTOS_RETENCION)
     args = parser.parse_args(argv)
 
+    if args.dias < 1 or args.max < 1:
+        parser.error("--dias y --max tienen que ser al menos 1")
+
     try:
         resumen = eventos.compactar(args.repo, dias=args.dias, max_eventos=args.max)
     except FileNotFoundError as exc:

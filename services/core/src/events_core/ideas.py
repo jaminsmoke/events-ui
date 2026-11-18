@@ -587,30 +587,35 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
             raise KeyError(uid)
         # Un cambio de estado es una fila nueva del log, no un UPDATE. La ficha
         # del descarte entra y sale con el carril `descartadas`.
-        if "status" in changes and changes["status"] is not None:
-            antes = _carril_actual(conn, uid)
-            lane = CARRIL_DE_ESTADO[changes["status"]]
-            _escribir_carril(conn, uid, lane)
-            if lane == "descartadas" and (antes != "descartadas" or rechazo):
-                # Entrar en descartadas crea la ficha; re-PATCHear el rechazo de
-                # una idea ya descartada (con motivo nuevo) la actualiza: el
-                # upsert ya vive para eso. Sin motivo nuevo también se upserta
-                # al entrar, así la ficha nunca falta en `descartadas`.
-                _escribir_rechazo(conn, uid, rechazo)
-            elif lane != "descartadas" and antes == "descartadas":
-                conn.execute("DELETE FROM idea_rejected WHERE uid = ?", (uid,))
-        idea = _row(
-            conn,
-            conn.execute("SELECT * FROM idea_entry WHERE uid = ?", (uid,)).fetchone(),
-        )
-        _emitir(
-            conn,
-            "idea.status"
-            if "status" in changes and changes["status"] is not None
-            else "idea.updated",
-            {"uid": uid, "title": idea["title"], "status": idea["status"]},
-        )
-        conn.commit()
+        try:
+            if "status" in changes and changes["status"] is not None:
+                antes = _carril_actual(conn, uid)
+                lane = CARRIL_DE_ESTADO[changes["status"]]
+                _escribir_carril(conn, uid, lane)
+                if lane == "descartadas" and (antes != "descartadas" or rechazo):
+                    # Entrar en descartadas crea la ficha; re-PATCHear el rechazo
+                    # de una idea ya descartada (con motivo nuevo) la actualiza:
+                    # el upsert ya vive para eso. Sin motivo nuevo también se
+                    # upserta al entrar, así la ficha nunca falta.
+                    _escribir_rechazo(conn, uid, rechazo)
+                elif lane != "descartadas" and antes == "descartadas":
+                    conn.execute("DELETE FROM idea_rejected WHERE uid = ?", (uid,))
+            idea = _row(
+                conn,
+                conn.execute("SELECT * FROM idea_entry WHERE uid = ?", (uid,)).fetchone(),
+            )
+            _emitir(
+                conn,
+                "idea.status"
+                if "status" in changes and changes["status"] is not None
+                else "idea.updated",
+                {"uid": uid, "title": idea["title"], "status": idea["status"]},
+            )
+            conn.commit()
+        except sqlite3.IntegrityError as exc:
+            # `superseded_by_uid` apunta a una idea que no existe: es un dato
+            # mal puesto (400), no un fallo del servidor (500).
+            raise InvalidInput("superseded_by_uid apunta a una idea que no existe") from exc
     return idea
 
 
@@ -713,6 +718,10 @@ def create_connection(
             )
             conn.commit()
         except sqlite3.IntegrityError as exc:
+            # La FK dice que una de las dos ideas no está; el resto (duplicado
+            # y `UNIQUE`) se deja como lo dice SQLite.
+            if "FOREIGN KEY" in str(exc):
+                raise InvalidInput("una de las dos ideas no existe") from exc
             raise InvalidInput(str(exc)) from exc
         row = conn.execute("SELECT * FROM connections WHERE id = ?", (cursor.lastrowid,)).fetchone()
     return dict(row)

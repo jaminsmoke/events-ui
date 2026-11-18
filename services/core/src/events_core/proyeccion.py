@@ -14,21 +14,14 @@ de ellos.
 
 from __future__ import annotations
 
+import sqlite3
 import subprocess
 from contextlib import closing
 from pathlib import Path
 from typing import Any
 
 from .db import open_read_only
-from .ideas import ensure_repo, resolve_repo
-
-
-def _existe(conn: object, tabla: str) -> bool:
-    return bool(
-        conn.execute(  # type: ignore[attr-defined]
-            "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (tabla,)
-        ).fetchone()
-    )
+from .ideas import _existe, ensure_repo, resolve_repo
 
 
 def _git(carpeta: Path, *args: str) -> str | None:
@@ -53,10 +46,10 @@ def repo_estado_actual(repo: str) -> dict[str, Any]:
     carpeta = resolve_repo(repo)
     db_file = ensure_repo(repo)
 
-    def conteo(conn, sql: str, *params: Any) -> int:
+    def conteo(conn: sqlite3.Connection, sql: str, *params: Any) -> int:
         try:
             return int(conn.execute(sql, params).fetchone()[0])
-        except Exception:  # tabla que aún no existe en este almacén
+        except (sqlite3.Error, TypeError):  # tabla que aún no existe en este almacén
             return 0
 
     with closing(open_read_only(db_file)) as conn:
@@ -67,18 +60,21 @@ def repo_estado_actual(repo: str) -> dict[str, Any]:
         eventos = conteo(conn, "SELECT count(*) FROM event")
         por_estado: dict[str, int] = {}
         try:
-            # Desde la 0006 el estado es el último carril del log.
+            # Desde la 0006 el estado es el último carril del log. Una idea sin
+            # fila de carril no cuenta en ningún estado (antes salía la clave
+            # literal "None").
             for estado, n in conn.execute(
                 "SELECT (SELECT lane FROM idea_lane_log WHERE uid = idea_entry.uid"
                 " ORDER BY id DESC LIMIT 1), count(*) FROM idea_entry GROUP BY 1"
             ):
-                por_estado[str(estado)] = int(n)
-        except Exception:
+                if estado is not None:
+                    por_estado[str(estado)] = int(n)
+        except sqlite3.Error:
             pass
         try:
             fila = conn.execute("SELECT max(ts) FROM event").fetchone()
             ultima = fila[0] if fila else None
-        except Exception:
+        except sqlite3.Error:
             ultima = None
 
     return {

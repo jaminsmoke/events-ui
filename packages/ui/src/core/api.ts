@@ -10,7 +10,7 @@ type Schemas = components["schemas"];
  *
  *  La UI lee el mapa (`MapSnapshot`), así que su idea es `MapIdea` —los mismos
  *  campos que consume la fila: `uid`, `title`, `description`, `status`— y el
- *  resto (`kind`, `tags`…) llega al editar, por la `Idea` del CRUD. */
+ *  resto (`tags`…) llega al editar, por la `Idea` del CRUD. */
 export type Idea = Schemas["MapIdea"];
 
 /** Espejo de GET /connections: qué idea cuelga de cuál. */

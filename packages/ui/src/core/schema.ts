@@ -419,9 +419,9 @@ export interface components {
             /**
              * Kind
              * @default idea
-             * @enum {string}
+             * @constant
              */
-            kind: "idea" | "adr" | "note";
+            kind: "idea";
             /**
              * Status
              * @default draft
@@ -469,9 +469,9 @@ export interface components {
             /**
              * Kind
              * @default idea
-             * @enum {string}
+             * @constant
              */
-            kind: "idea" | "adr" | "note";
+            kind: "idea";
             /**
              * Status
              * @default draft
@@ -497,7 +497,7 @@ export interface components {
             /** Content */
             content?: string | null;
             /** Kind */
-            kind?: ("idea" | "adr" | "note") | null;
+            kind?: "idea" | null;
             /** Status */
             status?: ("draft" | "proposed" | "accepted" | "rejected" | "superseded") | null;
             /** Tags */
@@ -681,7 +681,7 @@ export interface operations {
                 /** @description Carpeta del repo: ruta absoluta o nombre en el lab */
                 repo: string;
                 status?: ("draft" | "proposed" | "accepted" | "rejected" | "superseded") | null;
-                kind?: ("idea" | "adr" | "note") | null;
+                kind?: "idea" | null;
                 limit?: number;
                 offset?: number;
             };

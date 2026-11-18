@@ -20,6 +20,7 @@ import { Bienvenida } from "./pantalla/Bienvenida";
 import { NuevaIdea } from "./pantalla/NuevaIdea";
 import { SelectorRepo } from "./pantalla/SelectorRepo";
 import { AvisoRecorte, Controles } from "./pantalla/Controles";
+import { EditorIdea } from "./pantalla/EditorIdea";
 import { Pruebas } from "./pantalla/Pruebas";
 import { Registro } from "./pantalla/Registro";
 
@@ -52,6 +53,14 @@ export default function App({
   const [ajustesAbiertos, setAjustesAbiertos] = useState(false);
   const [pruebasAbiertas, setPruebasAbiertas] = useState(false);
   const [registroAbierto, setRegistroAbierto] = useState(false);
+  // El editor de la fila vive aquí, no dentro de la fila: la fila le monta
+  // un `createPortal` a body y con el ratón sus clics no llegaban (Guardar/
+  // Cancelar morían). En la raíz, como Registro/Pruebas, todo funciona.
+  const [editando, setEditando] = useState<{
+    uid: string;
+    titulo: string;
+    descripcion: string;
+  } | null>(null);
 
   const {
     ideas,
@@ -260,6 +269,16 @@ export default function App({
 
       {registroAbierto && <Registro onCerrar={() => setRegistroAbierto(false)} />}
 
+      {editando && (
+        <EditorIdea
+          titulo={editando.titulo}
+          descripcion={editando.descripcion}
+          onCargar={() => cargarIdea(editando.uid)}
+          onGuardar={(cambios) => editar(editando.uid, cambios)}
+          onCerrar={() => setEditando(null)}
+        />
+      )}
+
       {repo && pruebasAbiertas && puedeProbar && (
         <Pruebas
           repo={repo}
@@ -387,9 +406,11 @@ export default function App({
                 volando={volando}
                 pulso={pulsoCajon}
                 onCompletar={alCompletar}
+                onPideEditar={(uid, titulo, descripcion) =>
+                  setEditando({ uid, titulo, descripcion })
+                }
                 onEditar={editar}
                 onBorrar={borrar}
-                onCargarIdea={cargarIdea}
                 enlacesNuevos={enlacesNuevos}
               />
 
@@ -407,9 +428,11 @@ export default function App({
                     pulso={pulsos.find((p) => p.lane === lane.tone)?.tono}
                     onMover={alMover}
                     onCompletar={alCompletar}
+                    onPideEditar={(uid, titulo, descripcion) =>
+                      setEditando({ uid, titulo, descripcion })
+                    }
                     onEditar={editar}
                     onBorrar={borrar}
-                    onCargarIdea={cargarIdea}
                     enlacesNuevos={enlacesNuevos}
                   />
                 ))}

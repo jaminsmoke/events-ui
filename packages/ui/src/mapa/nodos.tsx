@@ -4,7 +4,6 @@ import { createPortal } from "react-dom";
 
 import type { IdeaUpdate } from "../core/api";
 import { DescartaIdea } from "../pantalla/DescartaIdea";
-import { EditorIdea } from "../pantalla/EditorIdea";
 import type { TreeNode } from "./arbol";
 import type { TonoPulso } from "./animaciones";
 import type { Vuelo } from "./vuelos";
@@ -44,9 +43,9 @@ function NodeRow({
   volando,
   onMover,
   onCompletar,
+  onPideEditar,
   onEditar,
   onBorrar,
-  onCargarIdea,
   enlacesNuevos = [],
 }: {
   node: TreeNode;
@@ -54,9 +53,11 @@ function NodeRow({
   volando: (uid: string, nodo: string) => boolean;
   onMover?: (uid: string, lane: "cola" | "descartadas") => void;
   onCompletar?: (uid: string) => void;
+  /** Pedir edición: monta el editor en la raíz (App), no aquí —las filas
+   *  van portaleadas y los clics del ratón en el portal no llegaban. */
+  onPideEditar?: (uid: string, titulo: string, descripcion: string) => void;
   onEditar?: (uid: string, cambios: IdeaUpdate) => Promise<void>;
   onBorrar?: (uid: string) => Promise<void>;
-  onCargarIdea?: (uid: string) => Promise<{ kind?: string; tags?: string[] | null } | null>;
   enlacesNuevos?: { parentUid: string; childUid: string }[];
 }) {
   const tiene = node.kids.length > 0;
@@ -64,7 +65,7 @@ function NodeRow({
   // hijos arrancan abiertas para que se vea la rama; las hoja, cerradas.
   const [expandido, setExpandido] = useState(tiene);
   const uid = node.idea?.uid;
-  const [editando, setEditando] = useState(false);
+  const descripcion = node.idea?.description ?? "";
   const [descartando, setDescartando] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
   const [fallo, setFallo] = useState<string | null>(null);
@@ -131,8 +132,12 @@ function NodeRow({
           Completar
         </button>
       )}
-      {node.idea && onEditar && (
-        <button type="button" className="btn ghost mover" onClick={() => setEditando(true)}>
+      {node.idea && onPideEditar && (
+        <button
+          type="button"
+          className="btn ghost mover"
+          onClick={() => onPideEditar(uid!, node.title, descripcion)}
+        >
           Editar
         </button>
       )}
@@ -154,19 +159,6 @@ function NodeRow({
           document.body,
         )}
 
-      {node.idea && editando && onEditar &&
-        // Portal al body: dentro del mapa (transformado) un `fixed` dejaría de
-        // ser relativo a la ventana y el diálogo se metería en medio del nodo.
-        createPortal(
-          <EditorIdea
-            titulo={node.title}
-            descripcion={node.idea.description}
-            onCargar={() => onCargarIdea?.(uid!) ?? Promise.resolve({})}
-            onGuardar={(cambios) => onEditar(uid!, cambios)}
-            onCerrar={() => setEditando(false)}
-          />,
-          document.body,
-        )}
 
       {node.idea && confirmando && onBorrar && (
         <span className="fila-acciones">
@@ -199,9 +191,9 @@ function NodeRow({
               volando={volando}
               onMover={onMover}
               onCompletar={onCompletar}
+              onPideEditar={onPideEditar}
               onEditar={onEditar}
               onBorrar={onBorrar}
-              onCargarIdea={onCargarIdea}
               enlacesNuevos={enlacesNuevos}
             />
           ))}
@@ -221,9 +213,9 @@ export function NodeBox({
   pulso,
   onMover,
   onCompletar,
+  onPideEditar,
   onEditar,
   onBorrar,
-  onCargarIdea,
   enlacesNuevos = [],
 }: {
   node: TreeNode;
@@ -234,9 +226,9 @@ export function NodeBox({
   pulso?: TonoPulso;
   onMover?: (uid: string, lane: "cola" | "descartadas") => void;
   onCompletar?: (uid: string) => void;
+  onPideEditar?: (uid: string, titulo: string, descripcion: string) => void;
   onEditar?: (uid: string, cambios: IdeaUpdate) => Promise<void>;
   onBorrar?: (uid: string) => Promise<void>;
-  onCargarIdea?: (uid: string) => Promise<{ kind?: string; tags?: string[] | null } | null>;
   enlacesNuevos?: { parentUid: string; childUid: string }[];
 }) {
   const tiene = node.kids.length > 0;
@@ -268,9 +260,9 @@ export function NodeBox({
               volando={volando}
               onMover={onMover}
               onCompletar={onCompletar}
+              onPideEditar={onPideEditar}
               onEditar={onEditar}
               onBorrar={onBorrar}
-              onCargarIdea={onCargarIdea}
               enlacesNuevos={enlacesNuevos}
             />
           ))}

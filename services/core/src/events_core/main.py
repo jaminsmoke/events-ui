@@ -26,7 +26,10 @@ from .db import data_version, db_path, journal_mode, open_read_only
 
 # Se repiten los CHECK de `schema/ideas.sql` a propósito: aquí sirven para que el
 # contrato OpenAPI publique los enums y la UI no tenga que adivinarlos.
-Kind = Literal["idea", "adr", "note"]
+# Solo hay un tipo de ítem: la idea. Nota/ADR no han sido pensados todavía,
+# así que el contrato no los ofrece (la columna `kind` dentro del almacén se
+# queda, pero siempre vale `idea`).
+Kind = Literal["idea"]
 Status = Literal["draft", "proposed", "accepted", "rejected", "superseded"]
 
 app = FastAPI(title="Events UI Core", version="0.2.0")

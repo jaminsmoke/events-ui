@@ -32,9 +32,10 @@ CREATE TABLE IF NOT EXISTS idea_entry (
     -- Cuerpo completo en markdown.
     content     TEXT    NOT NULL DEFAULT '',
 
-    -- La tabla sirve para las dos cosas: una idea suelta o un ADR formal.
+    -- De momento solo hay un tipo: la idea. Nota/ADR no han sido pensados;
+    -- la columna existe y siempre vale 'idea' (el contrato ya no crea otros).
     kind        TEXT    NOT NULL DEFAULT 'idea'
-                CHECK (kind IN ('idea', 'adr', 'note')),
+                CHECK (kind = 'idea'),
 
     -- Tags en texto JSON; ver el comentario histórico en la migración 0004.
     tags        TEXT    NOT NULL DEFAULT '[]' CHECK (json_valid(tags)),

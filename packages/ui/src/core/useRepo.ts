@@ -87,8 +87,8 @@ export function useRepo(repo: string | null) {
     [repo],
   );
 
-  // La idea completa (`kind`, `tags`…): el mapa no los trae, así que el
-  // editor de la fila la pide al abrirse.
+  // La idea completa (`tags`…): el mapa no los trae, así que el editor de
+  // la fila la pide al abrirse.
   const cargarIdea = useCallback(
     async (uid: string) => {
       if (!repo) return null;

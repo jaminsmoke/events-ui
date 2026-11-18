@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 
 import type { IdeaUpdate } from "../core/api";
 
-/** Diálogo de edición de una idea: título, descripción, `kind` y `tags`.
+/** Diálogo de edición de una idea: título, descripción y `tags`.
  *
- *  `kind`/`tags` no vienen en el mapa, así que al abrirse se pide la idea
- *  completa (`onCargar`) y se precarga el formulario. Cerrar es cancelar:
+ *  Solo hay un tipo —la idea—: no hay selector de tipo (nota/ADR no han
+ *  sido pensados). Las `tags` no vienen en el mapa, así que al abrirse se
+ *  pide la idea completa (`onCargar`) y se precargan. Cerrar es cancelar:
  *  sin guardar no se toca nada.
  */
 export function EditorIdea({
@@ -17,13 +18,12 @@ export function EditorIdea({
 }: {
   titulo: string;
   descripcion: string;
-  onCargar: () => Promise<{ kind?: string; tags?: string[] | null } | null>; 
+  onCargar: () => Promise<{ tags?: string[] | null } | null>; 
   onGuardar: (cambios: IdeaUpdate) => Promise<void>;
   onCerrar: () => void;
 }) {
   const [tituloLocal, setTituloLocal] = useState(titulo);
   const [descripcionLocal, setDescripcionLocal] = useState(descripcion);
-  const [kind, setKind] = useState<string>("idea");
   const [tags, setTags] = useState("");
   const [cargada, setCargada] = useState(false);
   const [fallo, setFallo] = useState<string | null>(null);
@@ -34,12 +34,11 @@ export function EditorIdea({
     onCargar()
       .then((completa) => {
         if (!viva || !completa) return;
-        setKind(completa.kind ?? "idea");
         setTags((completa.tags ?? []).join(", "));
         setCargada(true);
       })
       .catch(() => {
-        if (viva) setFallo("No se pudo cargar el tipo y las tags; se abre con valores vacíos.");
+        if (viva) setFallo("No se pudo cargar la idea; se abre con valores vacíos.");
       });
     return () => {
       viva = false;
@@ -55,7 +54,6 @@ export function EditorIdea({
       await onGuardar({
         title: tituloLocal.trim(),
         description: descripcionLocal.trim(),
-        kind: kind as IdeaUpdate["kind"],
         tags: tags
           .split(",")
           .map((t) => t.trim())
@@ -69,18 +67,22 @@ export function EditorIdea({
     }
   };
 
+  // `div` con role="dialog", no el elemento `<dialog>`: con `open` y sin
+  // `showModal()` Chrome pinta el cuadro bien pero el hit-test del ratón se
+  // rompe (mousedown sobre el botón, mouseup fuera del diálogo) y Guardar/
+  // Cancelar morían sin hacer nada. Los otros modales ya usan esta forma.
   return (
     <div className="modal-fondo" role="presentation" onClick={onCerrar}>
-      <dialog
+      <div
         className="modal"
-        open
+        role="dialog"
         aria-label="Editar idea"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.key === "Escape" && onCerrar()}
       >
         <form onSubmit={guardar}>
           <h2>Editar idea</h2>
-          {!cargada && <p className="hint">Cargando tipo y tags…</p>}
+          {!cargada && <p className="hint">Cargando tags…</p>}
           <label>
             Título
             <input
@@ -98,14 +100,6 @@ export function EditorIdea({
               placeholder="Descripción"
               aria-label="Descripción"
             />
-          </label>
-          <label>
-            Tipo
-            <select value={kind} onChange={(e) => setKind(e.target.value)} aria-label="Tipo">
-              <option value="idea">idea</option>
-              <option value="adr">adr</option>
-              <option value="note">note</option>
-            </select>
           </label>
           <label>
             Tags
@@ -126,7 +120,7 @@ export function EditorIdea({
             </button>
           </div>
         </form>
-      </dialog>
+      </div>
     </div>
   );
 }

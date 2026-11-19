@@ -307,6 +307,17 @@ con el motivo, para no reabrirlo cada semana.
   los adjuntos). `pnpm release` sigue subiendo la versión y creando el tag en
   local; la prueba con `workflow_dispatch` y `publicar: false` salió en verde
   sin tocar la release publicada.
+- **El Mapa de Git enseña el historial**: `GET /git/commits` devuelve los
+  últimos commits (`hash` abreviado, asunto, autor y fecha ISO) con `git log`;
+  sin work tree o sin commits responde `[]`, que no es un error. El nodo
+  **Commits** los lista bajo Git y Cambios, a todo el ancho de la línea y con
+  scroll a partir de 20.
+- **Los cambios vuelan a su commit**: cuando cambia HEAD y había cambios sin
+  commit, sus filas salen del nodo de Cambios y aterrizan en la cabecera de
+  Commits (~0,85 s, máximo 8 fichas), sin hooks: lo detecta el sondeo. El
+  historial se pide al cambiar el hash, no en cada latido. Cubierto por
+  `e2e/escenarios/vuelo-commit.mjs`, que comprueba que no quedan fichas
+  colgadas; la revisión a ojo destapó que `.node` topaba el nodo en 340 px.
 - **Runtime fijado a 3.12**: `.python-version` y el CI apuntan a 3.12 y
   `requires-python` cierra el techo en `<3.14`, así que `uv` deja de resolver
   contra el 3.14 del sistema, donde las pruebas síncronas de `starlette` se han

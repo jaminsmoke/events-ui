@@ -277,6 +277,11 @@ con el motivo, para no reabrirlo cada semana.
   mirando el inodo viejo y `data_version` dejaba de subir), tras cinco minutos
   inactiva y con `cerrar_vigilantes()`. `test_db_vigilante.py` cubre
   reutilizar, recrear, caducar y soltar.
+- **Un solo sondeo para el mapa**: `core/sondeo.ts` mantiene un temporizador
+  común cada 2 s —antes tres, de 2 s, 5 s y 5 s—, se para con `document.hidden`
+  y avisa al instante al volver. La proyección y los protocolos se piden uno de
+  cada tres latidos (~6 s) y cada hook se salta el turno si ya tiene una
+  lectura en vuelo.
 - **Runtime fijado a 3.12**: `.python-version` y el CI apuntan a 3.12 y
   `requires-python` cierra el techo en `<3.14`, así que `uv` deja de resolver
   contra el 3.14 del sistema, donde las pruebas síncronas de `starlette` se han
@@ -302,11 +307,6 @@ con el motivo, para no reabrirlo cada semana.
 Revisión del 19 de noviembre de 2026, segunda pasada, por orden de daño y no
 de esfuerzo.
 
-- **Hay tres sondeos permanentes por repo.** `/revision` cada 2 s,
-  `/protocolos` y `/proyecciones/repo` cada 5 s, cada uno con su temporizador y
-  ninguno se pausa con la ventana oculta. No es un fallo, pero son tres
-  peticiones por ciclo cuando el mapa ya está al día. Se puede unificar el
-  ciclo o pararlo con `document.hidden`.
 - **El presupuesto por fase cuenta caracteres, no bytes.** `archivos.contenidos`
   suma `len(texto)` contra `LIMITE_TOTAL` (512 KiB), así que un árbol de texto
   no ASCII puede pasarse del tope en disco; el tope global nuevo sí cuenta

@@ -17,6 +17,7 @@ export const LANES = [
   { id: "roadmap", title: "En roadmap" },
   { id: "verificacion", title: "En verificación" },
   { id: "revision_aprobada", title: "Revisión aprobada" },
+  { id: "historial", title: "Historial" },
   { id: "descartadas", title: "Descartadas" },
 ] as const;
 
@@ -28,5 +29,6 @@ export function laneOf(status: Status): LaneId | null {
   if (status === "roadmap") return "roadmap";
   if (status === "verificacion") return "verificacion";
   if (status === "revision_aprobada") return "revision_aprobada";
+  if (status === "historial") return "historial";
   return null;
 }

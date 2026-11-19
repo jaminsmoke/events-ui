@@ -2,7 +2,7 @@
 
 Cada repositorio guarda sus ideas, relaciones y protocolos en
 `.EUI/EUI_DATABASE.sqlite`. El core activa WAL y las claves foráneas en sus
-conexiones de escritura. La versión del esquema de ideas es 24. El registro
+conexiones de escritura. La versión del esquema de ideas es 26. El registro
 operativo de la aplicación vive en otro fichero y abarca varios repositorios.
 
 ## Tablas y relaciones
@@ -11,10 +11,10 @@ operativo de la aplicación vive en otro fichero y abarca varios repositorios.
 | --- | --- | --- |
 | `idea_data` | `id` local y `uid` único | Qué es la idea: título, descripción, contenido, tipo, etiquetas, intentos acumulados de verificación, fechas y sus dependencias (`depende_de`, migración 0018). Las relaciones usan el UID. |
 | `idea_fase` | Una fila por fase y orden | Descomposición de la idea en trabajo: título, estado (`pendiente`, `completada`, `fallida`, `rechazada`), nota y cuándo entró en ese estado. Cuelga de `idea_data`, así que sobrevive a los cambios de carril. |
-| `idea_node` | Una fila por UID | Dónde está: `estado`, `posicion` (solo en cola) y `entered_at`, la fecha de entrada en el carril actual. La entrada (`draft`) es un estado más. |
+| `idea_node` | Una fila por UID | Dónde está: `estado`, `posicion` (solo en cola) y `entered_at`, la fecha de entrada en el carril actual. La entrada (`draft`) es un estado más; el historial es terminal. |
 | `roadmap_node` | Una fila por UID mientras dura | Resultado y referencia del trabajo en curso. Un índice parcial impide dos ideas en roadmap. |
 | `verificacion_node` | Una fila por UID mientras dura | Intentos de la estancia, último resultado, comentario y fecha de finalización del roadmap previo. |
-| `revision_node` | Una fila por UID mientras dura | Autor y nota de la aprobación. La fecha es `entered_at` del nodo. La migración 0013 copia aquí las antiguas completadas. |
+| `revision_node` | Una fila por UID, conservada al archivar | Autor y nota de la aprobación. La fecha es `entered_at` del nodo. Al aprobar, la idea pasa a `historial` y esta firma se conserva. La migración 0013 copia aquí las antiguas completadas. |
 | `rejected_node` | Una fila por UID mientras dura y una referencia opcional a otro UID | Motivo y autor del descarte. `superseded_by_uid` identifica la idea sustituta. |
 | `protocolo_flujo` | Clave compuesta `(origen, destino)` | Transiciones permitidas entre grupos y, con `exige_fases` (0021 y 0024), las que exigen al menos una fase, ninguna abierta (0022) o todas completadas (0023). Es configuración del repo y se conserva al reiniciar el laboratorio. |
 | `event` | `id` entero para el cursor y `dedupe_key` opcional única | Historial por repo con fecha, tipo, origen y payload. Se siembra con el almacén y la migración 0015 lo añade a los que nacieron sin él. |
@@ -31,9 +31,11 @@ exista el vínculo.
 Las dependencias viven en `idea_data.depende_de`, una lista JSON de uids: SQLite no
 admite una FK dentro de un JSON, así que el core valida que cada uid exista,
 rechaza ciclos y auto-dependencias, y retira el uid de las listas ajenas al
-borrar la idea. Un ítem no entra en roadmap, verificación ni revisión aprobada
-mientras alguna dependencia no esté en `revision_aprobada`; descartarse y
-editarse sí se permite, para que un ítem bloqueado tenga salida.
+borrar la idea. Un ítem no entra en roadmap, verificación, revisión aprobada ni historial
+mientras alguna dependencia no esté aprobada (`revision_aprobada` o
+`historial`); descartarse y editarse sí se permite, para que un ítem bloqueado
+tenga salida. El historial cuenta como aprobado: archivar no vuelve a bloquear
+a las ideas que dependen de ella.
 
 Las fases viven en `idea_fase`, colgadas de `idea_data` y no de `idea_node`:
 no son una estancia, sobreviven al paso por verificación y a la vuelta a la
@@ -45,7 +47,10 @@ la revisión, que además no cuele el caso vacío) y
 `exige_fases_listas` las que no se cruzan con fases `pendiente` o `fallida`
 (hoy, pasar a verificación); `rechazada` cuenta como cerrada. Para aprobar la
 revisión, `exige_fases_completas` pide todas en `completada`: aquí rechazar no
-vale, porque aprobar es dar el trabajo por hecho.
+vale, porque aprobar es dar el trabajo por hecho. Además, todos los requisitos
+de todas las fases tienen que estar hechos: el core comprueba la lista que
+quedará y, al aprobar, archiva la idea en `historial` en la misma transacción,
+conservando la firma de `revision_node`.
 
 La posición única indexa la cola y el log tiene índice por `(origen, id)`. Las
 migraciones 0019 y 0020 retiraron `connections` y `idea_cola` junto con sus

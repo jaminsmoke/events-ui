@@ -186,15 +186,16 @@ o 15175 están ocupados por la app, el runner elige otros libres;
 
 ### Flujo de carriles
 
-El recorrido por defecto es **entrada → cola → roadmap → verificación → revisión aprobada**.
+El recorrido por defecto es **entrada → cola → roadmap → verificación → revisión aprobada → historial**.
 Desde entrada o cola se puede descartar una idea. Desde verificación se puede
-devolver al final de la cola. El core admite un ítem activo en roadmap y consulta
+devolver al final de la cola. Aprobar archiva: la idea cae en historial con sus
+fases y ya no se mueve ni se edita desde el mapa. El core admite un ítem activo en roadmap y consulta
 `protocolo_flujo` para autorizar los traslados entre grupos. La UI obtiene esas
 reglas con `GET /protocolos`.
 
 Una idea puede declarar `depende_de` (uids de otras ideas del repo): el core no
-la deja entrar en roadmap, verificación ni revisión aprobada mientras alguna de
-ellas no esté en `revision_aprobada`. Se edita con el `PATCH` del ítem y la fila
+la deja entrar en roadmap, verificación, revisión aprobada ni historial mientras
+alguna de ellas no esté aprobada (`revision_aprobada` o `historial`). Se edita con el `PATCH` del ítem y la fila
 del mapa enseña a quién espera; las dependencias descartadas no liberan.
 
 Para actualizar un almacén v12 existente, ábrelo desde la aplicación o ejecuta
@@ -254,7 +255,12 @@ y el detalle por `ON DELETE CASCADE`. El paso `0004` es el ejemplo: reconstruye
   entrar en roadmap y al aprobar la revisión, 0024) y ninguna abierta para salir de él a verificación
   (`exige_fases_listas`, 0022), y todas completadas para aprobar la revisión
   (`exige_fases_completas`, 0023). La lista viaja en el `PATCH` y se reemplaza
-  en la misma transacción que el traslado.
+  en la misma transacción que el traslado. Al aprobar se exige además que todos
+  los requisitos estén hechos y la idea se archiva en historial.
+- **Historial (0026)**. Aprobar es la compuerta: el core guarda la firma en
+  `revision_node` y deja la idea en `historial` con sus fases y requisitos. El
+  carril es terminal y se lee sin editar. La migración archiva las aprobadas
+  existentes y conserva su firma.
 - **Flujo de ideas (0013)**. La migración incorpora roadmap, verificación y
   revisión aprobada, y traslada las fichas históricas de completadas a `revision_node`.
 - **Log con pestañas:** un solo flyout con `Eventos` (timeline del repo, por

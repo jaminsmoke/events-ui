@@ -37,9 +37,9 @@ export default {
       await selector.or(pruebas).first().waitFor();
       if (await selector.isVisible()) await selector.click();
       await pruebas.waitFor();
-      await esperar(() => page.locator(".wire").count().then((n) => n === 5), "los cinco cables");
+      await esperar(() => page.locator(".wire").count().then((n) => n === 6), "los seis cables");
       const inicial = await geometria(page);
-      expect(inicial.cabeceras.length === 6, "seis nodos");
+      expect(inicial.cabeceras.length === 7, "siete nodos");
       await pruebas.click();
       const boton = (name) => page.getByRole("dialog", { name: "Pruebas del laboratorio" }).getByRole("button", { name, exact: true });
       await boton("Lanzar").click();
@@ -68,7 +68,7 @@ export default {
       await page.screenshot({ path: resultado("prueba-1-limpia.png") });
 
       // Los datos anteriores al lanzamiento también se retiran al detener la prueba.
-      for (const status of ["roadmap", "verificacion", "revision_aprobada"]) {
+      for (const status of ["roadmap", "verificacion", "revision_aprobada", "historial"]) {
         const r = await api("/ideas?repo=lab", { method: "POST", headers: { "content-type": "application/json" },
           body: JSON.stringify({ title: "Dato anterior", status }) });
         expect(r.status === 201, "sembrar las fichas anteriores");

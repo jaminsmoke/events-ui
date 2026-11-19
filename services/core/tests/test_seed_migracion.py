@@ -100,7 +100,7 @@ def _comprobar_migrado(client, repo, esperados=_ESPERADOS):  # noqa: ANN001, ANN
     # La API es la que abre el repo: en el caso del v13 mal migrado, esta
     # lectura es la que tiene que terminar la 0013 antes de leer el mapa.
     mapa = client.get("/mapa", params={"repo": repo}).json()
-    assert {i["uid"]: i["status"] for i in mapa["ideas"]} == {"hecha": "revision_aprobada"}
+    assert {i["uid"]: i["status"] for i in mapa["ideas"]} == {"hecha": "historial"}
 
     db = ideas.db_file_for(repo)
     conn = sqlite3.connect(str(db))
@@ -108,9 +108,14 @@ def _comprobar_migrado(client, repo, esperados=_ESPERADOS):  # noqa: ANN001, ANN
         assert conn.execute("PRAGMA user_version").fetchone()[0] == ideas.SCHEMA_VERSION
         tablas = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         assert "idea_completada" not in tablas
+        # La completada histórica se archiva, pero conserva su firma.
         assert conn.execute(
-            "SELECT uid, entered_at FROM idea_node WHERE estado = 'revision_aprobada'"
+            "SELECT uid, entered_at FROM idea_node WHERE estado = 'historial'"
         ).fetchall() == [("hecha", "2026-01-02T00:00:00Z")]
+        assert (
+            conn.execute("SELECT count(*) FROM revision_node WHERE uid = 'hecha'").fetchone()[0]
+            == 1
+        )
         protocolos = set(conn.execute("SELECT origen, destino FROM protocolo_flujo").fetchall())
         assert protocolos == esperados
     finally:

@@ -14,8 +14,9 @@
 --   carril, `posicion` ordena la cola (solo ahí) y `entered_at` es cuándo entró
 --   en el nodo actual. La entrada (`draft`) es un nodo más, no una ausencia.
 -- El detalle de la estancia vive en `roadmap_node`, `verificacion_node`,
--- `revision_node` y `rejected_node`; solo existe mientras dura. El historial
--- de movimientos vive en `event`.
+-- `revision_node` y `rejected_node`; solo existe mientras dura. `revision_node`
+-- es la excepción: la firma se conserva al archivar la idea en `historial`.
+-- El historial de movimientos vive en `event`.
 
 CREATE TABLE IF NOT EXISTS idea_data (
     -- Rowid normal, sin AUTOINCREMENT: eso solo añade la tabla `sqlite_sequence`
@@ -66,7 +67,7 @@ CREATE TABLE IF NOT EXISTS idea_node (
     uid         TEXT    PRIMARY KEY REFERENCES idea_data (uid) ON DELETE CASCADE,
     estado      TEXT    NOT NULL
                 CHECK (estado IN ('draft', 'proposed', 'roadmap', 'verificacion',
-                                  'revision_aprobada', 'rejected')),
+                                  'revision_aprobada', 'historial', 'rejected')),
     -- Solo la cola tiene orden. `posicion` es única por carril, no por repo:
     -- una idea fuera de la cola no ocupa sitio.
     posicion    INTEGER,
@@ -106,7 +107,9 @@ CREATE TABLE IF NOT EXISTS verificacion_node (
     roadmap_completed_at TEXT
 );
 
--- El detalle de la revisión aprobada, estado final del flujo por ahora.
+-- La firma de la revisión aprobada. Al aprobar, la idea se archiva en
+-- `historial`, pero esta fila se conserva: el historial no perdería quién
+-- aprobó ni cuándo.
 CREATE TABLE IF NOT EXISTS revision_node (
     uid         TEXT    PRIMARY KEY REFERENCES idea_node (uid) ON DELETE CASCADE,
     approved_by TEXT    NOT NULL DEFAULT 'usuario'
@@ -162,8 +165,9 @@ CREATE TABLE IF NOT EXISTS idea_requisito (
 
 -- Los protocolos de flujo: qué carriles pueden unirse a cuáles. Una allowlist:
 -- solo las parejas listadas están permitidas; el resto se prohíbe. Las
--- descartadas y la revisión aprobada son terminales: no hay fila que salga
--- de ellas. La revisión puede volver a cola una vez más, pero no al cajón.
+-- descartadas y el historial son terminales: no hay fila que salga de ellas.
+-- Revisión aprobada no retiene ideas: al aprobar se archivan en historial, así
+-- que su única salida es automática y no se ofrece como traslado.
 -- `superseded` comparte grupo con `rejected` para mover (el detalle lo
 -- distingue, el carril no), así que no lleva filas propias: el grupo manda.
 -- Se siembra aquí para los almacenes nuevos; a los existentes les llega por

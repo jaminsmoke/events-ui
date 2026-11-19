@@ -277,7 +277,8 @@ def test_aprobar_revision_exige_todas_completadas(client, repo):  # noqa: ANN001
         },
     )
     assert r.status_code == 200, r.json()
-    assert r.json()["status"] == "revision_aprobada"
+    assert r.json()["status"] == "historial"
+    assert [fase["estado"] for fase in r.json()["fases"]] == ["completada", "completada"]
 
 
 def test_aprobar_revision_exige_al_menos_una_fase(client, repo):  # noqa: ANN001, ANN202
@@ -333,7 +334,7 @@ def test_aprobar_revision_exige_al_menos_una_fase(client, repo):  # noqa: ANN001
         },
     )
     assert r.status_code == 200, r.json()
-    assert r.json()["status"] == "revision_aprobada"
+    assert r.json()["status"] == "historial"
 
 
 def test_fuera_de_roadmap_las_fases_estan_pendientes(client, repo):  # noqa: ANN001, ANN202
@@ -655,9 +656,7 @@ def test_una_fase_sin_requisitos_no_vale(client, repo):  # noqa: ANN001, ANN202
 
 
 def test_una_fase_fallida_exige_motivo(client, repo):  # noqa: ANN001, ANN202
-    uid, _ = _crear_roadmap(
-        client, repo, [{"titulo": "Diseño", "requisitos": [{"titulo": "Uno"}]}]
-    )
+    uid, _ = _crear_roadmap(client, repo, [{"titulo": "Diseño", "requisitos": [{"titulo": "Uno"}]}])
     r = client.patch(
         f"/ideas/{uid}",
         params={"repo": repo},

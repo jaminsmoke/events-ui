@@ -102,9 +102,9 @@ const PRUEBAS: Prueba[] = [
     id: "mapa-completo",
     nombre: "Mapa completo por carriles",
     descripcion:
-      "Siembra ideas en todos los carriles —entrada, cola, roadmap, verificación, aprobadas y descartadas— " +
-      "para ver los cinco cables, sus compuertas y el grosor según la presión. Después vacía el laboratorio.",
-    construir: ({ crear }) => {
+      "Siembra ideas en todos los carriles —entrada, cola, roadmap, verificación, aprobadas, historial y descartadas— " +
+      "para ver los seis cables, sus compuertas y el grosor según la presión. Después vacía el laboratorio.",
+    construir: ({ crear, editar }) => {
       const lotes: {
         prefijo: string;
         cuantos: number;
@@ -115,7 +115,8 @@ const PRUEBAS: Prueba[] = [
         { prefijo: "Cola", cuantos: 3, status: "proposed", donde: "En cola" },
         { prefijo: "Roadmap", cuantos: 1, status: "roadmap", donde: "roadmap" },
         { prefijo: "Verificación", cuantos: 2, status: "verificacion", donde: "verificación" },
-        { prefijo: "Aprobada", cuantos: 3, status: "revision_aprobada", donde: "revisión aprobada" },
+        { prefijo: "Aprobada", cuantos: 2, status: "revision_aprobada", donde: "revisión aprobada" },
+        { prefijo: "Historial", cuantos: 3, status: "historial", donde: "el historial" },
         { prefijo: "Descartada", cuantos: 3, status: "rejected", donde: "Descartadas" },
       ];
       return lotes.flatMap(({ prefijo, cuantos, status, donde }) =>
@@ -132,6 +133,21 @@ const PRUEBAS: Prueba[] = [
                 status,
               });
               if (!idea) throw new Error("El core no devolvió la idea creada.");
+              // El historial se siembra ya cerrado: así el carril enseña lo
+              // que archiva la aprobación, con su fase completada.
+              if (status === "historial") {
+                await editar(idea.uid, {
+                  fases: [
+                    {
+                      orden: 1,
+                      titulo: "Cierre",
+                      estado: "completada",
+                      nota: "",
+                      requisitos: [{ orden: 1, titulo: "Comprobado", hecho: true }],
+                    },
+                  ],
+                });
+              }
             },
           };
         }),
@@ -236,8 +252,8 @@ const PRUEBAS: Prueba[] = [
     id: "fases-aprobacion",
     nombre: "Fases hasta aprobar",
     descripcion:
-      "Una idea con la fase «Diseño» recorre cola, roadmap, verificación y aprobación: " +
-      "se ve la compuerta pedir una fase, después exigirla completada y el pulso verde al aprobar.",
+      "Una idea con la fase «Diseño» recorre cola, roadmap, verificación, aprobación y archivo: " +
+      "se ve la compuerta pedir una fase, después exigirla completada y el pulso verde al llegar al historial.",
     construir: ({ crear, mover, editar }) => {
       let uid: string | null = null;
       const conUid = () => {
@@ -295,7 +311,7 @@ const PRUEBAS: Prueba[] = [
           },
         },
         {
-          texto: "Aprobar la revisión (todas completadas)",
+          texto: "Aprobar y archivar en historial (todo completado)",
           ejecutar: async () => {
             await mover(conUid(), "revision_aprobada");
           },

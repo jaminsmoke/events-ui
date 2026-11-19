@@ -59,8 +59,9 @@ MIGRATIONS_DIR = Path(__file__).with_name("migraciones")
 # requisito del protocolo: no salir de un carril con fases abiertas
 # (`exige_fases_listas`) y la 0023 exige todas completadas para aprobar
 # (`exige_fases_completas`); la 0024 reutiliza `exige_fases` para que aprobar
-# exija al menos una; la 0025 añade los requisitos de cada fase (`idea_requisito`).
-SCHEMA_VERSION = 25
+# exija al menos una; la 0025 añade los requisitos de cada fase (`idea_requisito`);
+# la 0026 añade el historial: aprobar archiva y deja la firma en `revision_node`.
+SCHEMA_VERSION = 26
 
 REPOS_ROOT_ENV_VAR = "EVENTSUI_REPOS_ROOT"
 BUSY_TIMEOUT_MS = 5_000
@@ -387,7 +388,9 @@ def _copiar_ideas_historicas(conn: sqlite3.Connection) -> None:
                 INSERT OR IGNORE INTO idea_node (uid, estado, posicion, entered_at)
                 SELECT uid,
                        CASE
-                           WHEN status = 'accepted' THEN 'revision_aprobada'
+                           -- En los almacenes anteriores «accepted» era el
+                           -- final: se archiva, conservando su firma abajo.
+                           WHEN status = 'accepted' THEN 'historial'
                            WHEN status IN ('rejected', 'superseded') THEN 'rejected'
                            WHEN status = 'proposed' THEN 'proposed'
                            ELSE 'draft'
@@ -701,8 +704,9 @@ def _tags_json(texto: str | None) -> list[str]:
 
 # Estados a los que un ítem no puede entrar con una dependencia sin aprobar.
 # Volver a cola, quedarse en la entrada o descartarse sí se permite: si no,
-# una idea bloqueada no tendría salida.
-AVANCE = ("roadmap", "verificacion", "revision_aprobada")
+# una idea bloqueada no tendría salida. El historial también es avance, pero
+# una idea solo llega archivada desde la aprobación, que ya lo comprobó.
+AVANCE = ("roadmap", "verificacion", "revision_aprobada", "historial")
 
 # Columnas con las que se lee una idea: su composición y su nodo. Listar, leer
 # una ficha y devolver el resultado de un PATCH usan siempre esta forma.
@@ -752,11 +756,15 @@ def _validar_dependencias(conn: sqlite3.Connection, uid: str, deps: list[str]) -
 
 
 def _sin_aprobar(conn: sqlite3.Connection, deps: list[str]) -> list[str]:
-    """Títulos de las dependencias que aún no están en `revision_aprobada`."""
+    """Títulos de las dependencias que aún no están aprobadas.
+
+    El historial cuenta como aprobado: archivar una idea no puede desbloquear
+    ni volver a bloquear a las que dependen de ella.
+    """
     pendientes: list[str] = []
     for dep in deps:
         fila = conn.execute("SELECT title FROM idea_data WHERE uid = ?", (dep,)).fetchone()
-        if _estado(conn, dep) != "revision_aprobada":
+        if _estado(conn, dep) not in ("revision_aprobada", "historial"):
             pendientes.append(str(fila[0]) if fila else dep)
     return pendientes
 
@@ -811,7 +819,8 @@ def _fila(
     idea["verificacion_intentos"] = int(row["verificacion_intentos"]) if verificacion else 0
     idea["verificacion_ultimo_resultado"] = verificacion["ultimo_resultado"] if verificacion else ""
     idea["verificacion_comentario"] = verificacion["comentario"] if verificacion else ""
-    idea["revision_approved_at"] = entrada if estado == "revision_aprobada" else None
+    # La firma vive en `revision_node`; el historial la conserva al archivar.
+    idea["revision_approved_at"] = entrada if estado in ("revision_aprobada", "historial") else None
     idea["revision_approved_by"] = revision["approved_by"] if revision else "usuario"
     idea["revision_nota"] = revision["nota"] if revision else ""
     idea["rejected_at"] = entrada if estado == "rejected" else None
@@ -1261,6 +1270,36 @@ def _validar_fases_completadas(fases: list[dict[str, Any]]) -> None:
             )
 
 
+def _validar_aprobacion_total(fases: list[dict[str, Any]]) -> None:
+    """Aprobar es dar el trabajo por hecho: todo cerrado y comprobado.
+
+    El protocolo ya exige todas las fases completadas y una fase completada no
+    puede dejar requisitos pendientes, pero la aprobación es el cierre del
+    flujo: se mira también la lista que quedará, sin depender de que el cliente
+    la reenvíe. Así una idea con una fase completada a mano y un requisito
+    pendiente no se archiva.
+    """
+    if not fases:
+        raise InvalidInput("no se puede aprobar sin fases: la idea no tiene ninguna")
+    for fase in fases:
+        if fase["estado"] != "completada":
+            raise InvalidInput(
+                f"no se puede aprobar: la fase «{fase['titulo']}» no está completada"
+            )
+        if not fase["requisitos"]:
+            raise InvalidInput(
+                f"no se puede aprobar: la fase «{fase['titulo']}» no tiene requisitos"
+            )
+        pendientes = [
+            requisito["titulo"] for requisito in fase["requisitos"] if not requisito["hecho"]
+        ]
+        if pendientes:
+            raise InvalidInput(
+                f"no se puede aprobar «{fase['titulo']}»: quedan requisitos sin completar: "
+                + ", ".join(pendientes)
+            )
+
+
 def _normalizar_requisitos(pedidos: Any, existentes: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Valida los requisitos de una fase y conserva `done_at` si no cambian.
 
@@ -1494,6 +1533,8 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
                         f"no puede pasar a {nuevo_estado}: hay fases sin completar: "
                         + ", ".join(incompletas)
                     )
+            if cambiado_estado and _grupo(nuevo_estado) in ("revision_aprobada", "historial"):
+                _validar_aprobacion_total(fases_quedan)
             cursor = conn.execute(
                 f"UPDATE idea_data SET {assignments} WHERE uid = :uid",
                 {**clean, "uid": uid},
@@ -1502,6 +1543,14 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
                 raise KeyError(uid)
             if cambiado_estado:
                 _escribir_estado(conn, uid, nuevo_estado, detalle_ficha)
+                # Aprobar archiva: la firma se queda en `revision_node` y la
+                # idea pasa a `historial` en la misma transacción. El carril
+                # aprobado es la compuerta, no un sitio donde esperar.
+                if nuevo_estado == "revision_aprobada":
+                    conn.execute(
+                        "UPDATE idea_node SET estado = 'historial', posicion = NULL WHERE uid = ?",
+                        (uid,),
+                    )
             else:
                 _actualizar_ficha_activa(conn, uid, actual, detalle_ficha)
             if fases_finales is not None:

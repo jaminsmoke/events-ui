@@ -93,7 +93,7 @@ def _comprobar_historico(client, repo):  # noqa: ANN001, ANN202
     ideas_mapa = {i["uid"]: i for i in r.json()["ideas"]}
     assert ideas_mapa["vieja"]["status"] == "proposed"
     assert ideas_mapa["hija"]["status"] == "draft"
-    assert ideas_mapa["aceptada"]["status"] == "revision_aprobada"
+    assert ideas_mapa["aceptada"]["status"] == "historial"
     assert ideas_mapa["rechazada"]["status"] == "rejected"
     assert "connections" not in r.json()
     ficha = client.get("/ideas/vieja", params={"repo": repo}).json()
@@ -259,7 +259,15 @@ def test_revision_aprobada_es_terminal(client, repo):  # noqa: ANN001, ANN202
 
 
 def test_reiniciar_vacia_todo(client, repo):  # noqa: ANN001, ANN202
-    estados = ["draft", "proposed", "roadmap", "verificacion", "revision_aprobada", "rejected"]
+    estados = [
+        "draft",
+        "proposed",
+        "roadmap",
+        "verificacion",
+        "revision_aprobada",
+        "historial",
+        "rejected",
+    ]
     [
         client.post("/ideas", params={"repo": repo}, json={"title": s, "status": s}).json()["uid"]
         for s in estados
@@ -274,8 +282,8 @@ def test_reiniciar_vacia_todo(client, repo):  # noqa: ANN001, ANN202
         assert r.status_code == 200
         assert r.json() == {
             "repo": repo,
-            "ideas_eliminadas": 6,
-            "eventos_eliminados": 6,
+            "ideas_eliminadas": 7,
+            "eventos_eliminados": 7,
         }
         for tabla in (
             "idea_data",
@@ -361,7 +369,7 @@ def test_migracion_0009_solo_estado_final(client, repo):  # noqa: ANN001, ANN202
     assert estados == {
         "A": "rejected",
         "B": "proposed",
-        "C": "revision_aprobada",
+        "C": "historial",
         "D": "proposed",
         "E": "draft",
     }

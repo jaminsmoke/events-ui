@@ -19,7 +19,7 @@ export default {
     await selector.or(pruebas).first().waitFor();
     if (await selector.isVisible()) await selector.click();
     await page.getByText("Fases E2E", { exact: true }).waitFor();
-    await esperar(() => page.locator(".wire").count().then((n) => n === 5), "los cinco cables");
+    await esperar(() => page.locator(".wire").count().then((n) => n === 6), "los seis cables");
 
     /** La fila del carril que toque; el mapa la remonta al cambiar de nodo. */
     const filaEn = (carril) =>

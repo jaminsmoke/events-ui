@@ -37,6 +37,7 @@ Status = Literal[
     "roadmap",
     "verificacion",
     "revision_aprobada",
+    "historial",
     "rejected",
     "superseded",
 ]

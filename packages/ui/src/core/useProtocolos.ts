@@ -19,6 +19,7 @@ const Grupo = z.enum([
   "roadmap",
   "verificacion",
   "revision_aprobada",
+  "historial",
   "rejected",
 ]);
 // `exige_fases` (0021): la unión no se cruza sin al menos una fase. Es dato
@@ -42,6 +43,7 @@ const A_GRUPO: Record<Status, Grupo> = {
   roadmap: "roadmap",
   verificacion: "verificacion",
   revision_aprobada: "revision_aprobada",
+  historial: "historial",
   rejected: "rejected",
   superseded: "rejected",
 };

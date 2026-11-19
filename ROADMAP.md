@@ -135,6 +135,12 @@ con el motivo, para no reabrirlo cada semana.
   `roadmap → verificacion`, y `exige_fases_completas` la que pide todas en
   `completada`, hoy `verificacion → revision_aprobada`. La lista viaja en el
   `PATCH` y se reemplaza en la misma transacción que el traslado. Cubierto en `services/core/tests/test_fases.py`.
+- **Historial (0026)**: aprobar archiva. `revision_aprobada` es la compuerta;
+  al cruzarla, la firma se queda en `revision_node` y la idea pasa a `historial`
+  en la misma transacción, con sus fases y todos sus requisitos hechos. El
+  carril es terminal y la UI lo enseña de lectura. Las aprobadas existentes se
+  archivan en la migración. Cubierto en `services/core/tests/test_flujo_items.py`
+  y `e2e/escenarios/historial-aprobacion.mjs`.
 - **Formato de etiquetas**: `tags` es una lista JSON de cadenas en el
   esquema (migración 0017, que sanea `{}` y los elementos no textuales) y en
   la API (422 con valores que no son cadenas); una fila antigua se lee como

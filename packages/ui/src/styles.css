@@ -1062,7 +1062,7 @@ header > div {
    * acciones. Con 300 entra el caso normal sin desplazarse. */
   --altura-cola: 300px;
   display: grid;
-  grid-template-columns: repeat(5, clamp(232px, 18vw, 340px));
+  grid-template-columns: repeat(6, clamp(232px, 18vw, 340px));
   /* El hueco de la rejilla *es* el cable. Con 56 px el chevrón, el nudo y la
    * compuerta quedaban apiñados; un mínimo de 72 px y algo de aire según la
    * ventana los dejan respirar sin comerse los nodos. */
@@ -1150,6 +1150,13 @@ header > div {
 .chevron.revision_aprobada,
 .compuerta.revision_aprobada {
   --wire: #3fb950;
+}
+
+/* Archivo: el cable de la aprobación se apaga hacia un verde gastado. */
+.wire.historial,
+.chevron.historial,
+.compuerta.historial {
+  --wire: #5f8a72;
 }
 
 .wire.descartadas,
@@ -1299,6 +1306,12 @@ header > div {
   border-color: #2b5c3f;
 }
 
+.node.lane-historial {
+  --tinte: #7f9b8b;
+  --pulso: #7f9b8b55;
+  border-color: #3a5348;
+}
+
 .node.lane-descartadas {
   --tinte: #f0883e;
   --pulso: #f0883e44;
@@ -1319,6 +1332,10 @@ header > div {
 
 .node.lane-revision_aprobada > .node-head {
   background: #122719;
+}
+
+.node.lane-historial > .node-head {
+  background: #17231d;
 }
 
 .node.lane-descartadas > .node-head {
@@ -1557,6 +1574,11 @@ header > div {
 .lane-revision_aprobada .dot,
 .vuelo.revision_aprobada .dot {
   background: #3fb950;
+}
+
+.lane-historial .dot,
+.vuelo.historial .dot {
+  background: #7f9b8b;
 }
 
 .lane-descartadas .dot,

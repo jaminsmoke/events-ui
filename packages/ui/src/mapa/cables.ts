@@ -127,6 +127,7 @@ export function useCables({
         ["cola", "roadmap"],
         ["roadmap", "verificacion"],
         ["verificacion", "revision_aprobada"],
+        ["revision_aprobada", "historial"],
       ];
       for (const [origen, destino] of secuencia) {
         const desde = cajas.get(origen);

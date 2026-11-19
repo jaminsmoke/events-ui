@@ -471,7 +471,7 @@ export interface components {
              * @default draft
              * @enum {string}
              */
-            status: "draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "rejected" | "superseded";
+            status: "draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "historial" | "rejected" | "superseded";
             /** Tags */
             tags?: string[];
             /** Depende De */
@@ -569,7 +569,7 @@ export interface components {
              * @default draft
              * @enum {string}
              */
-            status: "draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "rejected" | "superseded";
+            status: "draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "historial" | "rejected" | "superseded";
             /** Tags */
             tags?: string[];
             /** Depende De */
@@ -594,7 +594,7 @@ export interface components {
             /** Kind */
             kind?: "idea" | null;
             /** Status */
-            status?: ("draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "rejected" | "superseded") | null;
+            status?: ("draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "historial" | "rejected" | "superseded") | null;
             /** Tags */
             tags?: string[] | null;
             /** Depende De */
@@ -632,7 +632,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "rejected" | "superseded";
+            status: "draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "historial" | "rejected" | "superseded";
             /** Depende De */
             depende_de?: string[];
             /** Rejected At */
@@ -861,7 +861,7 @@ export interface operations {
             query: {
                 /** @description Carpeta del repo: ruta absoluta o nombre en el lab */
                 repo: string;
-                status?: ("draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "rejected" | "superseded") | null;
+                status?: ("draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "historial" | "rejected" | "superseded") | null;
                 kind?: "idea" | null;
                 limit?: number;
                 offset?: number;

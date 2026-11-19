@@ -25,6 +25,7 @@ const ETIQUETA_ESTADO: Record<string, string> = {
   roadmap: "En roadmap",
   verificacion: "En verificación",
   revision_aprobada: "Revisión aprobada",
+  historial: "En historial",
   rejected: "Descartada",
   superseded: "Reemplazada",
 };
@@ -49,6 +50,7 @@ const ACCIONES_ESTADO: Record<
     { estado: "revision_aprobada", etiqueta: "Aprobar revisión" },
   ],
   revision_aprobada: [],
+  historial: [],
   rejected: [],
   superseded: [],
 };
@@ -604,6 +606,7 @@ function seAbreSola(estado: Status | undefined): boolean | undefined {
   if (
     estado === "draft" ||
     estado === "proposed" ||
+    estado === "historial" ||
     estado === "rejected" ||
     estado === "superseded"
   ) {
@@ -722,6 +725,8 @@ function NodeRow({
   // La ficha nace de lectura: Editar enseña los campos y Listo los retira.
   const [editando, setEditando] = useState(false);
   const soloLectura = !editando;
+  // El historial es un archivo: ni se edita, ni se mueve, ni se borra.
+  const enHistorial = estado === "historial";
 
   const hacer = (fn: () => Promise<void>, alOk?: () => void) => {
     setTrabajando(true);
@@ -781,7 +786,8 @@ function NodeRow({
               )}
             </div>
           </div>
-      {(deps.length > 0 || (!soloLectura && onEditar && candidatas.length > 0)) && (
+      {(deps.length > 0 ||
+        (!enHistorial && !soloLectura && onEditar && candidatas.length > 0)) && (
         <div className="fila-bloque">
           <span className="fila-rotulo">Dependencias</span>
           {deps.length > 0 && (
@@ -793,7 +799,7 @@ function NodeRow({
                 return (
                   <span key={dep} className={`chip-depende${aprobada ? " aprobada" : ""}`}>
                     {otra?.title ?? dep}
-                    {onEditar && !soloLectura && (
+                    {onEditar && !soloLectura && !enHistorial && (
                       <button
                         type="button"
                         className="chip-quitar"
@@ -814,7 +820,7 @@ function NodeRow({
               })}
             </p>
           )}
-          {onEditar && !soloLectura && candidatas.length > 0 && (
+          {onEditar && !soloLectura && !enHistorial && candidatas.length > 0 && (
             <select
               className="select-depende"
               value=""
@@ -842,7 +848,7 @@ function NodeRow({
             fases={vistaFases}
             estado={estado}
             alGuardar={guardarFases}
-            soloLectura={soloLectura}
+            soloLectura={soloLectura || enHistorial}
           />
           {estado === "proposed" && fases.length === 0 && exigeFases?.(estado, "roadmap") && (
             <p className="fila-aviso">
@@ -909,7 +915,7 @@ function NodeRow({
               })}
         </div>
         <div className="fila-secundaria">
-          {onEditar && (
+          {onEditar && !enHistorial && (
             <button
               type="button"
               className="btn ghost mover"
@@ -924,7 +930,7 @@ function NodeRow({
               {editando ? "Listo" : "Editar"}
             </button>
           )}
-          {onPideEditar && editando && (
+          {onPideEditar && editando && !enHistorial && (
             <button
               type="button"
               className="btn ghost mover"
@@ -938,12 +944,12 @@ function NodeRow({
               Fases · {hechas}/{fases.length}
             </button>
           )}
-          {onBorrar && !confirmando && (
+          {onBorrar && !enHistorial && !confirmando && (
             <button type="button" className="btn ghost mover" onClick={() => setConfirmando(true)}>
               Borrar
             </button>
           )}
-          {onBorrar && confirmando && (
+          {onBorrar && !enHistorial && confirmando && (
             <span className="fila-acciones">
               ¿Borrar?
               <button
@@ -984,7 +990,7 @@ function NodeRow({
           estado={node.idea.status}
           titulo={node.title}
           fases={vistaFases}
-          alGuardar={onEditar && editando ? guardarFases : undefined}
+          alGuardar={onEditar && editando && !enHistorial ? guardarFases : undefined}
           onCerrar={() => setFichaFases(false)}
         />
       )}

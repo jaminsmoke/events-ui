@@ -8,6 +8,9 @@ const UNION: Record<Exclude<LaneId, "descartadas">, [Status, Status]> = {
   roadmap: ["proposed", "roadmap"],
   verificacion: ["roadmap", "verificacion"],
   revision_aprobada: ["verificacion", "revision_aprobada"],
+  // Archivar es el desenlace automático de aprobar: no hay fila de protocolo,
+  // así que el cable se dibuja sin compuerta.
+  historial: ["revision_aprobada", "historial"],
 };
 
 /** El protocolo del cable, ya resuelto para pintar su compuerta. En la rama
@@ -102,6 +105,9 @@ export function Compuerta({
   angulo: number;
   lane: LaneId;
 }) {
+  // Archivar no es una unión de protocolo: la hace el core al aprobar, así
+  // que el cable del historial no lleva compuerta (ni un aspa de prohibida).
+  if (lane === "historial") return null;
   const paso = pasoDeCable(lane, protocolo);
   if (!paso) return null;
   const barras = paso.exige.length;

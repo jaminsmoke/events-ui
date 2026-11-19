@@ -20,9 +20,7 @@ def _paso(client, repo, uid, status, **detalle):  # noqa: ANN001, ANN202
     # Entrar en roadmap exige al menos una fase (0021); estas pruebas son del
     # flujo, no de las fases, así que se añade una salvo que digan otra cosa.
     if status == "roadmap" and "fases" not in detalle:
-        detalle["fases"] = [
-            {"titulo": "Fase única", "requisitos": [{"titulo": "Comprobar"}]}
-        ]
+        detalle["fases"] = [{"titulo": "Fase única", "requisitos": [{"titulo": "Comprobar"}]}]
     # Salir de roadmap exige las fases cerradas (0022) y una fase completada
     # exige sus requisitos hechos (0025); el flujo no prueba estados
     # intermedios, así que se cierran en el mismo paso.
@@ -86,10 +84,13 @@ def test_flujo_completo_con_campos_y_regreso_a_cola(client, repo):  # noqa: ANN0
         approved_by="agente",
         revision_nota="Correcta",
     )
-    assert aprobada["status"] == "revision_aprobada"
+    # Aprobar archiva: la idea queda en historial, con su firma y sus fases.
+    assert aprobada["status"] == "historial"
     assert aprobada["revision_approved_at"] is not None
     assert aprobada["revision_approved_by"] == "agente"
     assert aprobada["revision_nota"] == "Correcta"
+    assert aprobada["fases"][0]["estado"] == "completada"
+    assert aprobada["fases"][0]["requisitos"][0]["hecho"] is True
 
     conn = sqlite3.connect(str(ideas.db_file_for(repo)))
     for tabla in ("roadmap_node", "verificacion_node"):
@@ -100,6 +101,27 @@ def test_flujo_completo_con_campos_y_regreso_a_cola(client, repo):  # noqa: ANN0
     ]
     assert revision == 1
     conn.close()
+
+
+def test_aprobar_exige_todos_los_requisitos(client, repo):  # noqa: ANN001, ANN202
+    """Una fase completada a mano no basta: sus requisitos son el criterio."""
+    uid = _crear(client, repo, status="proposed")
+    _paso(client, repo, uid, "roadmap")
+    _paso(client, repo, uid, "verificacion")
+
+    # Se simula una fase marcada completada con un requisito pendiente, algo
+    # que la API no deja escribir pero un almacén antiguo podría traer.
+    conn = sqlite3.connect(str(ideas.db_file_for(repo)))
+    try:
+        conn.execute("UPDATE idea_requisito SET hecho = 0 WHERE idea_uid = ?", (uid,))
+        conn.commit()
+    finally:
+        conn.close()
+
+    r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": "revision_aprobada"})
+    assert r.status_code == 400
+    assert "requisitos sin completar" in r.json()["detail"]
+    assert client.get(f"/ideas/{uid}", params={"repo": repo}).json()["status"] == "verificacion"
 
 
 def test_intentos_cuentan_las_vueltas(client, repo):  # noqa: ANN001, ANN202
@@ -281,7 +303,9 @@ def test_dependencia_bloquea_hasta_la_revision_aprobada(client, repo):  # noqa: 
     _paso(client, repo, base, "proposed")
     _paso(client, repo, base, "roadmap")
     _paso(client, repo, base, "verificacion")
-    _paso(client, repo, base, "revision_aprobada")
+    aprobada = _paso(client, repo, base, "revision_aprobada")
+    # El historial sigue contando como aprobado para las dependencias.
+    assert aprobada["status"] == "historial"
 
     assert _paso(client, repo, dependiente, "roadmap")["status"] == "roadmap"
 

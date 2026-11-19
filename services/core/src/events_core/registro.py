@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import threading
 from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path
@@ -62,13 +63,14 @@ def ruta() -> Path:
     return DEFAULT_REGISTRO_PATH
 
 
-def conectar() -> sqlite3.Connection:
-    """Abre (creándolo si falta) el SQLite del registro, ya con la tabla."""
-    destino = ruta()
-    destino.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(destino, timeout=BUSY_TIMEOUT_MS / 1000)
-    conn.row_factory = sqlite3.Row
-    conn.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
+# Ficheros cuyo esquema ya se preparó en este proceso. Antes, cada línea
+# escrita pagaba su `CREATE TABLE/INDEX IF NOT EXISTS`; con la tabla hecha basta.
+_PREPARADOS: set[Path] = set()
+_PREPARADOS_LOCK = threading.Lock()
+
+
+def _preparar(conn: sqlite3.Connection) -> None:
+    """Crea la tabla del registro y su índice; idempotente."""
     conn.execute(
         "CREATE TABLE IF NOT EXISTS registro ("
         " id INTEGER PRIMARY KEY,"
@@ -80,6 +82,34 @@ def conectar() -> sqlite3.Connection:
         ")"
     )
     conn.execute("CREATE INDEX IF NOT EXISTS idx_registro_id ON registro (id)")
+    # Si esta conexión solo iba a leer, el DDL no puede quedar en el aire: sin
+    # commit, cerrar desharía la creación y la marca diría que ya estaba.
+    conn.commit()
+
+
+def _preparado(conn: sqlite3.Connection, destino: Path) -> None:
+    """Prepara el fichero una vez por proceso (dos hilos no se pisan)."""
+    with _PREPARADOS_LOCK:
+        if destino in _PREPARADOS:
+            return
+        _preparar(conn)
+        _PREPARADOS.add(destino)
+
+
+def _olvidar(destino: Path) -> None:
+    """Deja de dar por preparado un fichero (p. ej. si lo recrearon)."""
+    with _PREPARADOS_LOCK:
+        _PREPARADOS.discard(destino)
+
+
+def conectar() -> sqlite3.Connection:
+    """Abre (creándolo si falta) el SQLite del registro, ya con la tabla."""
+    destino = ruta()
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(destino, timeout=BUSY_TIMEOUT_MS / 1000)
+    conn.row_factory = sqlite3.Row
+    conn.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
+    _preparado(conn, destino)
     return conn
 
 
@@ -87,23 +117,36 @@ def _ahora() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
 
 
+def _anotar(conn: sqlite3.Connection, nivel: str, mensaje: str, origen: str) -> None:
+    conn.execute(
+        "INSERT INTO registro (ts, nivel, origen, mensaje) VALUES (?, ?, ?, ?)",
+        (_ahora(), nivel, origen, mensaje),
+    )
+    barridos_retencion(conn, tabla="registro", dias=DIAS_RETENCION, maximo=MAX_ENTRADAS)
+    conn.commit()
+
+
 def escribir(nivel: str, mensaje: str, origen: str = "core") -> None:
     """Añade una entrada al registro (y purga lo que sobre).
 
     Semilla blanda, a propósito: escribir un log no debe tumbar la app. Si el
     disco está lleno o el fichero no se puede abrir, se pierde la línea de
-    registro y nada más —como `_emitir` con la tabla `event` ausente.
+    registro y nada más —como `_emitir` con la tabla `event` ausente. La tabla
+    se prepara una vez por proceso; si el fichero se recreó por debajo, se
+    olvida la marca y se reintenta una vez.
     """
     try:
         with closing(conectar()) as conn:
-            conn.execute(
-                "INSERT INTO registro (ts, nivel, origen, mensaje) VALUES (?, ?, ?, ?)",
-                (_ahora(), nivel, origen, mensaje),
-            )
-            barridos_retencion(conn, tabla="registro", dias=DIAS_RETENCION, maximo=MAX_ENTRADAS)
-            conn.commit()
-    except sqlite3.Error:
-        pass
+            _anotar(conn, nivel, mensaje, origen)
+    except sqlite3.Error as exc:
+        if "no such table" not in str(exc):
+            return
+        _olvidar(ruta())
+        try:
+            with closing(conectar()) as conn:
+                _anotar(conn, nivel, mensaje, origen)
+        except sqlite3.Error:
+            pass
 
 
 def purgar(dias: int = DIAS_RETENCION, max_entradas: int = MAX_ENTRADAS) -> dict[str, Any]:

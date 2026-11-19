@@ -194,8 +194,11 @@ con el motivo, para no reabrirlo cada semana.
   utilidades comunes); `modelo/` tiene las reglas del flujo (estados y fichas,
   dependencias y compuertas de fases y protocolos); `trabajo/` el desglose
   (fases, requisitos y anotación de archivos); y `consulta.py`/`crud.py` son las
-  dos caras de la API. `__init__.py` es la fachada. Cubierto por los 108 tests
-  existentes, sin tocarlos.
+  dos caras de la API. `__init__.py` es la fachada. Después salieron las
+  migraciones a `base/migraciones.py` (el historial de versiones ya no sepulta
+  la creación del almacén) y `tests/test_capas.py` vigila que nadie importe
+  hacia arriba: recorre los imports de cada módulo y falla si uno mira a una
+  capa superior. Cubierto por los tests del core, sin tocarlos.
 - **CI**: `pnpm check` global en cada push a main y en PRs
   (`.github/workflows/ci.yml`). Batería e2e y builds de Tauri quedan fuera
   del CI a propósito (navegador y puertos; se corren en local).
@@ -204,8 +207,8 @@ con el motivo, para no reabrirlo cada semana.
   contra el 3.14 del sistema, donde las pruebas síncronas de `starlette` se han
   visto quedarse colgadas en Windows. Ruff ya compilaba a `py312`. El aviso de
   `starlette.testclient` con `httpx` no venía del intérprete: lo emite
-  `starlette` 1.10 y sigue saliendo en 3.12; si molesta, se va por `httpx2` o
-  fijando `starlette`, no bajando Python.
+  `starlette` 1.10, y no se arregla bajando Python: se fue instalando `httpx2`
+  en las dependencias de desarrollo.
 
 - **Nodos y cables estables.** Las seis cabeceras mantienen su posición al llenar o plegar el mapa. Los cables se trazan en ángulo recto, como pistas de circuito impreso. Los cables de etapa se anclan a las cabeceras; la rama de Descartadas nace de un nudo en mitad del cable Entrada↔En cola y la de rechazo, del nudo del cable Verificación→Revisión aprobada.
 - **Limpieza de la prueba manual.** La Prueba 1 deja ver el reparto y después vacía el laboratorio en una transacción, también al detenerla o fallar un paso. El E2E compara coordenadas y trazados, consulta las siete tablas operativas y comprueba los protocolos antes de que el runner haga su propia limpieza.
@@ -221,6 +224,49 @@ con el motivo, para no reabrirlo cada semana.
 
 ## Pendientes
 
+Revisión del 19 de noviembre de 2026, por orden de daño y no de esfuerzo.
+
+- **Cada petición abre dos conexiones al almacén.** `ensure_repo` llama a
+  `_migrar_esquema` en cada lectura —abre SQLite y mira `user_version`— y
+  `consulta`/`crud` vuelven a abrir para leer o escribir; de paso se relee el
+  `.gitignore` de `.EUI`. Un almacén que ya está al día podría recordarse
+  (versión + `mtime` del fichero) y ahorrarse el viaje. Medir antes de tocar:
+  el mapa hace varias lecturas por refresco.
+- **El registro operativo se prepara entero en cada línea.** `registro.escribir`
+  crea la tabla y el índice (`IF NOT EXISTS`), inserta y purga en una conexión
+  nueva cada vez. Con el log del core en marcha son muchas aperturas por minuto;
+  basta con una conexión por proceso o recordar la ruta ya preparada.
+- **El sidecar no se vigila.** En release `lib.rs` arranca `events-core` una
+  vez y guarda el `Child`; si el core muere (crash, puerto tomado, disco lleno)
+  la UI se queda sin API hasta cerrar y reabrir, sin aviso ni reintento. Toca
+  esperar `/health` al arrancar y reintentar (o avisar en la bandeja) si el hijo
+  sale.
+- **`packages/ui/src/styles.css` son 2.324 líneas.** Los comentarios ya marcan
+  las zonas (frame, selector, fila, ficha, log, mapa, compuertas, Git). Partirlo
+  en `styles/` por zona, importadas desde un índice, deja los cambios de una
+  pantalla en un solo fichero.
+- **`mapa/nodos.tsx` son 1.469 líneas.** Fila, ficha, archivos anotados y fases
+  viven en el mismo módulo; el corte de `ideas.py` sirve de patrón: componentes
+  por fichero con el mismo dominio y sin cambiar props.
+- **`pantalla/Pruebas.tsx` son 1.194 líneas**, y buena parte es la lista de
+  pasos de las pruebas manuales. Los guiones pueden ser datos en su propio
+  módulo y el componente quedarse con el motor (latido, limpieza, reintento).
+- **`main.py` es 618 líneas de rutas** de cuatro dominios (ideas, eventos, log,
+  git). Un grupo por dominio dejaría el `app` en la fábrica; sin prisa, porque
+  el contrato manda y regenerarlo es un comando.
+- **La documentación se ha desfasado del esquema.** `docs/base-de-datos.md`
+  dice que la versión es 26 (van 29), su comprobación local sigue en v13 y sus
+  tablas no listan `idea_requisito`, `idea_fase_archivo` ni `idea_foto`. El
+  README, en la sección de e2e, aún dice que el runner «se niega a arrancar»
+  con los puertos ocupados, cuando ahora elige otros libres.
+- **El CI solo corre en Linux** y el desarrollo es Windows: un job
+  `windows-latest` con `check:py` y `check:ui` cazaría lo que solo se rompe
+  aquí (rutas con unidad, `#` en el nombre del repo, venv de otra plataforma).
+- **Los parches anotados no tienen tope por almacén.** El parche de cada archivo
+  se acota por tamaño, pero `idea_fase_archivo` acumula una fila por archivo y
+  fase: un repo con muchas fases y binarios grandes engorda
+  `.EUI/EUI_DATABASE.sqlite` sin límite. Falta un tope global —o purgar los
+  parches de las fases viejas— y medir cuánto ocupa hoy.
 
 ## No se hace (por ahora)
 

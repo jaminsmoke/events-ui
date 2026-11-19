@@ -7,9 +7,12 @@ para no competir con él por el bloqueo.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import sqlite3
 import threading
+import time
+from dataclasses import dataclass
 from pathlib import Path
 
 DB_ENV_VAR = "EVENTSUI_DB"
@@ -67,16 +70,63 @@ def data_version(conn: sqlite3.Connection) -> int:
 # `compartida` marca si la usa el pool de hilos de uvicorn (`revision()`): sin
 # ella, sqlite3 no permite usar la conexión desde otro hilo. Las dos variantes
 # tienen su propia conexión por almacén, para no mezclar contextos de uso.
-_VIGILANTES: dict[tuple[Path, bool], sqlite3.Connection] = {}
+#
+# Se sueltan solas: a los `_VIGILANTE_TTL` segundos sin usarse y en cuanto el
+# fichero desaparece o se recrea. Sin eso, cada repo abierto dejaba una
+# conexión viva para siempre (descriptores acumulados y, en Windows, el `.EUI`
+# bloqueado) y, tras recrear el almacén, la conexión vieja seguía mirando el
+# inodo anterior: `data_version` ya no subía y `/revision` no despertaba.
+_VIGILANTE_TTL = 300.0
 _VIGILANTES_LOCK = threading.RLock()
+
+
+@dataclass
+class _Vigilante:
+    conn: sqlite3.Connection
+    # (st_dev, st_ino) del fichero al abrirla: si cambia, se recreó.
+    fichero: tuple[int, int] | None
+    usado: float
+
+
+_VIGILANTES: dict[tuple[Path, bool], _Vigilante] = {}
+
+
+def _identidad(path: Path) -> tuple[int, int] | None:
+    """El inodo del fichero, o `None` si ya no existe."""
+    try:
+        st = path.stat()
+    except OSError:
+        return None
+    return (st.st_dev, st.st_ino)
+
+
+def _soltar(clave: tuple[Path, bool]) -> None:
+    entrada = _VIGILANTES.pop(clave, None)
+    if entrada is not None:
+        with contextlib.suppress(sqlite3.Error):
+            entrada.conn.close()
+
+
+def cerrar_vigilantes() -> None:
+    """Suelta todas las conexiones vigilantes (al apagar el core)."""
+    with _VIGILANTES_LOCK:
+        for clave in list(_VIGILANTES):
+            _soltar(clave)
 
 
 def vigilante(db_file: Path, *, compartida: bool = False) -> sqlite3.Connection:
     """Conexión de solo lectura reutilizada que solo lee `data_version` y conteos."""
     clave = (db_file, compartida)
     with _VIGILANTES_LOCK:
-        conn = _VIGILANTES.get(clave)
-        if conn is None:
+        ahora = time.monotonic()
+        for otra, entrada in list(_VIGILANTES.items()):
+            if ahora - entrada.usado > _VIGILANTE_TTL:
+                _soltar(otra)
+        entrada = _VIGILANTES.get(clave)
+        if entrada is not None and entrada.fichero != _identidad(db_file):
+            _soltar(clave)
+            entrada = None
+        if entrada is None:
             if compartida:
                 conn = sqlite3.connect(
                     uri_lectura(db_file),
@@ -87,8 +137,10 @@ def vigilante(db_file: Path, *, compartida: bool = False) -> sqlite3.Connection:
             else:
                 conn = open_read_only(db_file)
             conn.row_factory = sqlite3.Row
-            _VIGILANTES[clave] = conn
-        return conn
+            entrada = _Vigilante(conn, _identidad(db_file), ahora)
+            _VIGILANTES[clave] = entrada
+        entrada.usado = ahora
+        return entrada.conn
 
 
 def barridos_retencion(

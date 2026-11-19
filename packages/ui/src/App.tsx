@@ -349,19 +349,24 @@ export default function App({
                   {cables.map((cable) => {
                     const t = cable.presion / maximo;
                     const entrada = cable.lane === "cola";
+                    // Solo se abre en guiones el cable que una chispa recorre.
+                    const enMarcha = chispas.some((chispa) => chispa.lane === cable.lane);
                     return (
                       <path
                         key={cable.lane}
                         d={cable.d}
-                        className={`wire ${cable.lane}${t >= 0.66 ? " fuerte" : ""}`}
+                        className={`wire ${cable.lane}${t >= 0.66 ? " fuerte" : ""}${
+                          enMarcha ? " marcha" : ""
+                        }`}
                         style={{
-                          // La entrada se queda más fina y apagada que las
-                          // etapas, pero sin desvanecerse sobre el fondo.
+                          // La entrada se queda más fina que las etapas. En
+                          // reposo todo va apagado; en marcha, a plena luz.
                           strokeWidth: entrada ? 1.3 + 1.5 * t : 1.8 + 2.2 * t,
-                          opacity: entrada ? 0.5 + 0.35 * t : 0.6 + 0.4 * t,
-                          ...(entrada
-                            ? { animationDuration: `${4.4 - 1.6 * t}s` }
-                            : {}),
+                          opacity: enMarcha
+                            ? 1
+                            : entrada
+                              ? 0.34 + 0.32 * t
+                              : 0.42 + 0.34 * t,
                         }}
                       />
                     );

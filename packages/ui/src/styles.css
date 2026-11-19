@@ -953,10 +953,10 @@ header > div {
  *
  *  Se miden del DOM porque los nodos crecen al desplegarse. Cada cable une
  *  una etapa con la siguiente de la línea; Descartadas no cuelga de un nodo:
- *  su rama sale de un nudo en medio del cable Entrada↔En cola. La entrada es
- *  la única frontera discontinua y en marcha; las etapas van continuas y el
- *  movimiento es un evento (la chispa). El grosor mide lo que espera en el
- *  origen, y cada cable brilla con su propio color.
+ *  su rama sale de un nudo en medio del cable Entrada↔En cola. Todos los
+ *  cables van continuos y apagados en reposo; se abren en guiones solo
+ *  mientras algo los recorre (la chispa de llegada). El grosor mide lo que
+ *  espera en el origen, y cada cable brilla con su propio color.
  */
 
 .cables {
@@ -1013,16 +1013,11 @@ header > div {
   --wire: #c0704a;
 }
 
-/* La entrada es la única frontera: trazo discontinuo y lento. Dentro del
- * pipeline la línea es continua y el movimiento es un evento (la chispa). */
-.wire.cola {
+/* En marcha: el cable se abre en guiones y corre mientras lo cruza una chispa.
+ *  Así el discontinuo significa movimiento de verdad y no un adorno fijo. */
+.wire.marcha {
   stroke-dasharray: 6 7;
-  animation: fluir 4s linear infinite;
-}
-
-/* Descartadas no es una etapa: sale punteada, apagada y sin brillo. */
-.wire.descartadas {
-  stroke-dasharray: 2 5;
+  animation: fluir 0.5s linear infinite;
 }
 
 /* Carril cargado: el cable brilla con su propio color, no en azul. */
@@ -1041,7 +1036,7 @@ header > div {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .wire.cola {
+  .wire.marcha {
     animation: none;
   }
 

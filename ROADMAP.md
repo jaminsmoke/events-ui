@@ -227,6 +227,11 @@ con el motivo, para no reabrirlo cada semana.
   cambian ni un import. El corte es mecánico —mismas reglas y mismo orden— y se
   comprobó que la suma de las zonas cuenta las mismas líneas que el fichero
   original.
+- **`nodos.tsx` partido por componentes**: las 1.469 líneas pasan a `mapa/fila`
+  (fila, cabecera y acciones), `fases` (editor de fases), `ficha-fases` (detalle
+  y parches), `nodos-git` (estado, cambios y puente), `fase` (tipo y etiquetas)
+  y `formato` (fechas); `nodos.tsx` queda como fachada con `NodeBox`,
+  `VueloFila` y los tres nodos de Git, así que `App.tsx` no cambia ni un import.
 - **CI**: `pnpm check` global en cada push a main y en PRs
   (`.github/workflows/ci.yml`). Batería e2e y builds de Tauri quedan fuera
   del CI a propósito (navegador y puertos; se corren en local).
@@ -254,9 +259,6 @@ con el motivo, para no reabrirlo cada semana.
 
 Revisión del 19 de noviembre de 2026, por orden de daño y no de esfuerzo.
 
-- **`mapa/nodos.tsx` son 1.469 líneas.** Fila, ficha, archivos anotados y fases
-  viven en el mismo módulo; el corte de `ideas.py` sirve de patrón: componentes
-  por fichero con el mismo dominio y sin cambiar props.
 - **`pantalla/Pruebas.tsx` son 1.194 líneas**, y buena parte es la lista de
   pasos de las pruebas manuales. Los guiones pueden ser datos en su propio
   módulo y el componente quedarse con el motor (latido, limpieza, reintento).

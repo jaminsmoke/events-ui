@@ -921,7 +921,10 @@ header > div {
   --altura-cola: 264px;
   display: grid;
   grid-template-columns: repeat(5, clamp(232px, 18vw, 340px));
-  column-gap: 56px;
+  /* El hueco de la rejilla *es* el cable. Con 56 px el chevrón, el nudo y la
+   * compuerta quedaban apiñados; un mínimo de 72 px y algo de aire según la
+   * ventana los dejan respirar sin comerse los nodos. */
+  column-gap: clamp(72px, 6.5vw, 104px);
   align-items: start;
 }
 

@@ -20,14 +20,20 @@ def _paso(client, repo, uid, status, **detalle):  # noqa: ANN001, ANN202
     # Entrar en roadmap exige al menos una fase (0021); estas pruebas son del
     # flujo, no de las fases, así que se añade una salvo que digan otra cosa.
     if status == "roadmap" and "fases" not in detalle:
-        detalle["fases"] = [{"titulo": "Fase única"}]
-    # Salir de roadmap exige las fases cerradas (0022); el flujo no prueba
-    # estados intermedios, así que se cierran en el mismo paso.
-    if status == "verificacion" and "fases" not in detalle:
-        detalle["fases"] = [{"titulo": "Fase única", "estado": "completada"}]
-    # Aprobar exige todas completadas (0023).
-    if status == "revision_aprobada" and "fases" not in detalle:
-        detalle["fases"] = [{"titulo": "Fase única", "estado": "completada"}]
+        detalle["fases"] = [
+            {"titulo": "Fase única", "requisitos": [{"titulo": "Comprobar"}]}
+        ]
+    # Salir de roadmap exige las fases cerradas (0022) y una fase completada
+    # exige sus requisitos hechos (0025); el flujo no prueba estados
+    # intermedios, así que se cierran en el mismo paso.
+    if status in ("verificacion", "revision_aprobada") and "fases" not in detalle:
+        detalle["fases"] = [
+            {
+                "titulo": "Fase única",
+                "estado": "completada",
+                "requisitos": [{"titulo": "Comprobar", "hecho": True}],
+            }
+        ]
     r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": status, **detalle})
     assert r.status_code == 200, r.json()
     return r.json()
@@ -227,7 +233,10 @@ def test_roadmap_solo_un_activo(client, repo):  # noqa: ANN001, ANN202
     r = client.patch(
         f"/ideas/{segunda}",
         params={"repo": repo},
-        json={"status": "roadmap", "fases": [{"titulo": "Fase única"}]},
+        json={
+            "status": "roadmap",
+            "fases": [{"titulo": "Fase única", "requisitos": [{"titulo": "Comprobar"}]}],
+        },
     )
     assert r.status_code == 400
     assert "solo admite un item activo" in r.json()["detail"]

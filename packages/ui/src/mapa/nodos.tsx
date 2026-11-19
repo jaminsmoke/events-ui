@@ -96,8 +96,12 @@ function FasesIdea({
   alGuardar: (siguientes: readonly Fase[]) => Promise<void>;
 }) {
   const [nuevo, setNuevo] = useState("");
+  const [primerRequisito, setPrimerRequisito] = useState("");
   const [fallo, setFallo] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
+  // Al fallar sin motivo no se guarda: se pide aquí y se manda con el estado.
+  const [motivoPendiente, setMotivoPendiente] = useState<number | null>(null);
+  const [motivoNuevo, setMotivoNuevo] = useState("");
   // En roadmap y verificación los requisitos se abren solos, que es donde se
   // trabajan; en entrada, cola y descartadas se quedan plegados. El clic deja
   // una excepción por fase (abrir en cola, cerrar en roadmap) que dura hasta
@@ -122,10 +126,22 @@ function FasesIdea({
   const anadir = (e: React.FormEvent) => {
     e.preventDefault();
     const titulo = nuevo.trim();
-    if (!titulo) return;
+    const primer = primerRequisito.trim();
+    if (!titulo || !primer) return;
     const orden = Math.max(0, ...vista.map((fase) => fase.orden)) + 1;
-    guardar([...vista, { orden, titulo, estado: "pendiente", nota: "", entered_at: "" }]);
+    guardar([
+      ...vista,
+      {
+        orden,
+        titulo,
+        estado: "pendiente",
+        nota: "",
+        entered_at: "",
+        requisitos: [{ orden: 1, titulo: primer, hecho: false, done_at: null }],
+      },
+    ]);
     setNuevo("");
+    setPrimerRequisito("");
   };
 
   return (
@@ -163,7 +179,52 @@ function FasesIdea({
               {hechosReq}/{requisitos.length}{" "}
               {requisitos.length === 1 ? "requisito" : "requisitos"}
             </button>
-            {estado === "roadmap" && (fase.estado === "fallida" || fase.estado === "rechazada") ? (
+            {motivoPendiente === fase.orden ? (
+              <form
+                className="fase-motivo-form"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const nota = motivoNuevo.trim();
+                  if (!nota) return;
+                  guardar(
+                    vista.map((otra) =>
+                      otra.orden === fase.orden
+                        ? { ...otra, estado: "fallida", nota }
+                        : otra,
+                    ),
+                  );
+                  setMotivoPendiente(null);
+                  setMotivoNuevo("");
+                }}
+              >
+                <input
+                  autoFocus
+                  className="fase-motivo"
+                  value={motivoNuevo}
+                  onChange={(e) => setMotivoNuevo(e.target.value)}
+                  placeholder="Motivo del fallo…"
+                  aria-label={`Motivo del fallo de ${fase.titulo}`}
+                  disabled={guardando}
+                />
+                <div className="fase-motivo-acciones">
+                  <button
+                    className="btn ghost"
+                    type="submit"
+                    disabled={guardando || !motivoNuevo.trim()}
+                  >
+                    Fallar
+                  </button>
+                  <button
+                    className="btn ghost"
+                    type="button"
+                    disabled={guardando}
+                    onClick={() => setMotivoPendiente(null)}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </form>
+            ) : estado === "roadmap" && (fase.estado === "fallida" || fase.estado === "rechazada") ? (
               <input
                 key={fase.nota}
                 className="fase-motivo"
@@ -199,15 +260,19 @@ function FasesIdea({
                   ? `Cierra ${pendientesReq} requisito(s) para completar`
                   : undefined
               }
-              onChange={(e) =>
+              onChange={(e) => {
+                const siguiente = e.target.value as Fase["estado"];
+                if (siguiente === "fallida" && !fase.nota.trim()) {
+                  setMotivoPendiente(fase.orden);
+                  setMotivoNuevo("");
+                  return;
+                }
                 guardar(
                   vista.map((otra) =>
-                    otra.orden === fase.orden
-                      ? { ...otra, estado: e.target.value as Fase["estado"] }
-                      : otra,
+                    otra.orden === fase.orden ? { ...otra, estado: siguiente } : otra,
                   ),
-                )
-              }
+                );
+              }}
             >
               {ESTADOS_FASE.map((otro) => (
                 <option
@@ -270,8 +335,12 @@ function FasesIdea({
                 <button
                   type="button"
                   className="chip-quitar"
-                  title="Quitar requisito"
-                  disabled={guardando}
+                  title={
+                    requisitos.length === 1
+                      ? "Una fase necesita al menos un requisito"
+                      : "Quitar requisito"
+                  }
+                  disabled={guardando || requisitos.length === 1}
                   onClick={(e) => {
                     e.preventDefault();
                     guardar(
@@ -333,12 +402,24 @@ function FasesIdea({
       })}
       <form className="fase-nueva" onSubmit={anadir}>
         <input
+          className="fase-nueva-titulo"
           value={nuevo}
           onChange={(e) => setNuevo(e.target.value)}
           placeholder="Nueva fase…"
           aria-label="Nueva fase"
         />
-        <button className="btn ghost" type="submit" disabled={guardando}>
+        <input
+          className="fase-nueva-requisito"
+          value={primerRequisito}
+          onChange={(e) => setPrimerRequisito(e.target.value)}
+          placeholder="Primer requisito…"
+          aria-label="Primer requisito"
+        />
+        <button
+          className="btn ghost"
+          type="submit"
+          disabled={guardando || !nuevo.trim() || !primerRequisito.trim()}
+        >
           Añadir
         </button>
       </form>

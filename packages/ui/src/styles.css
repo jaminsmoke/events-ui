@@ -1669,6 +1669,19 @@ code {
   padding: 0 4px;
   font-size: 10.5px;
 }
+/* Fallar sin motivo no se guarda: el motivo se pide aquí y va con el estado. */
+.fase-motivo-form {
+  display: grid;
+  gap: 3px;
+}
+.fase-motivo-acciones {
+  display: flex;
+  gap: 4px;
+}
+.fase-motivo-acciones .btn {
+  padding: 0 6px;
+  font-size: 10.5px;
+}
 .fase-grupo {
   display: grid;
   gap: 2px;
@@ -1737,6 +1750,17 @@ code {
   min-width: 0;
   font-size: 12px;
   padding: 2px 6px;
+}
+/* La fase nace con su primer requisito: el título y el botón arriba,
+ * el requisito a lo ancho debajo. */
+.fase-nueva-titulo {
+  grid-area: 1 / 1;
+}
+.fase-nueva .btn {
+  grid-area: 1 / 2;
+}
+.fase-nueva-requisito {
+  grid-area: 2 / 1 / 3 / 3;
 }
 
 /* Ficha de fases: detalle con estado, nota y fecha; el motivo se edita ahí

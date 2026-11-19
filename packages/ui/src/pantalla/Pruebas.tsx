@@ -152,13 +152,19 @@ const PRUEBAS: Prueba[] = [
         return uid;
       };
       // Con la fase completada pasan las compuertas de roadmap y verificación.
-      // Volver a la cola es la única forma de repetir un cable ya visto.
-      const saltos: { destino: IdeaCreate["status"]; texto: string }[] = [
-        { destino: "roadmap", texto: "Mover a roadmap" },
-        { destino: "verificacion", texto: "Mover a verificación" },
-        { destino: "proposed", texto: "Volver a En cola" },
-        { destino: "roadmap", texto: "Mover otra vez a roadmap" },
-        { destino: "verificacion", texto: "Mover otra vez a verificación" },
+      // Volver a la cola es la única forma de repetir un cable ya visto, pero
+      // allí la fase se reinicia: hay que volver a cerrarla para el segundo
+      // salto a verificación.
+      const fase = (estado: "pendiente" | "completada") => [
+        {
+          orden: 1,
+          titulo: "Diseño",
+          estado,
+          nota: "",
+          requisitos: [
+            { orden: 1, titulo: "Comprobar", hecho: estado === "completada" },
+          ],
+        },
       ];
       return [
         {
@@ -176,19 +182,53 @@ const PRUEBAS: Prueba[] = [
           },
         },
         {
-          texto: "Añadir la fase «Diseño» completada",
+          texto: "Añadir la fase «Diseño» (pendiente)",
           ejecutar: async () => {
-            await editar(conUid(), {
-              fases: [{ orden: 1, titulo: "Diseño", estado: "completada", nota: "" }],
-            });
+            await editar(conUid(), { fases: fase("pendiente") });
           },
         },
-        ...saltos.map(({ destino, texto }) => ({
-          texto,
+        {
+          texto: "Mover a roadmap",
           ejecutar: async () => {
-            await mover(conUid(), destino);
+            await mover(conUid(), "roadmap");
           },
-        })),
+        },
+        {
+          texto: "Completar la fase «Diseño»",
+          ejecutar: async () => {
+            await editar(conUid(), { fases: fase("completada") });
+          },
+        },
+        {
+          texto: "Mover a verificación",
+          ejecutar: async () => {
+            await mover(conUid(), "verificacion");
+          },
+        },
+        {
+          texto: "Volver a En cola",
+          ejecutar: async () => {
+            await mover(conUid(), "proposed");
+          },
+        },
+        {
+          texto: "Mover otra vez a roadmap",
+          ejecutar: async () => {
+            await mover(conUid(), "roadmap");
+          },
+        },
+        {
+          texto: "Completar «Diseño» otra vez",
+          ejecutar: async () => {
+            await editar(conUid(), { fases: fase("completada") });
+          },
+        },
+        {
+          texto: "Mover otra vez a verificación",
+          ejecutar: async () => {
+            await mover(conUid(), "verificacion");
+          },
+        },
       ];
     },
   },
@@ -205,7 +245,15 @@ const PRUEBAS: Prueba[] = [
         return uid;
       };
       const fases = (estado: "pendiente" | "completada") => [
-        { orden: 1, titulo: "Diseño", estado, nota: "" },
+        {
+          orden: 1,
+          titulo: "Diseño",
+          estado,
+          nota: "",
+          requisitos: [
+            { orden: 1, titulo: "Comprobar", hecho: estado === "completada" },
+          ],
+        },
       ];
       return [
         {
@@ -268,13 +316,25 @@ const PRUEBAS: Prueba[] = [
         if (!uid) throw new Error("Falta el uid de la idea creada.");
         return uid;
       };
-      // Se reenvía la lista entera en cada paso: el PATCH la reemplaza.
-      let fases: FaseTaller[] = [];
-      const anotar = (fase: FaseTaller) => {
+      // Se reenvía la lista entera en cada paso: el PATCH la reemplaza. Cada
+      // fase nace con un requisito; al completarla se marca hecho.
+      let fases: FaseTallerConRequisitos[] = [];
+      const anotar = (fase: FaseTallerConRequisitos) => {
         fases = [...fases, fase];
       };
-      const cambiar = (orden: number, estado: FaseTaller["estado"]) => {
-        fases = fases.map((fase) => (fase.orden === orden ? { ...fase, estado } : fase));
+      const cambiar = (orden: number, estado: FaseTallerConRequisitos["estado"]) => {
+        fases = fases.map((fase) =>
+          fase.orden === orden
+            ? {
+                ...fase,
+                estado,
+                requisitos: fase.requisitos.map((requisito) => ({
+                  ...requisito,
+                  hecho: estado === "completada" ? true : requisito.hecho,
+                })),
+              }
+            : fase,
+        );
       };
       const guardar = () => editar(conUid(), { fases });
       return [
@@ -295,28 +355,52 @@ const PRUEBAS: Prueba[] = [
         {
           texto: "Añadir «Diseño» (pendiente)",
           ejecutar: async () => {
-            anotar({ orden: 1, titulo: "Diseño", estado: "pendiente", nota: "" });
+            anotar({
+              orden: 1,
+              titulo: "Diseño",
+              estado: "pendiente",
+              nota: "",
+              requisitos: [{ orden: 1, titulo: "Listo", hecho: false }],
+            });
             await guardar();
           },
         },
         {
           texto: "Añadir «Pruebas» (pendiente)",
           ejecutar: async () => {
-            anotar({ orden: 2, titulo: "Pruebas", estado: "pendiente", nota: "" });
+            anotar({
+              orden: 2,
+              titulo: "Pruebas",
+              estado: "pendiente",
+              nota: "",
+              requisitos: [{ orden: 1, titulo: "Listo", hecho: false }],
+            });
             await guardar();
           },
         },
         {
           texto: "Añadir «Revisión» (pendiente)",
           ejecutar: async () => {
-            anotar({ orden: 3, titulo: "Revisión", estado: "pendiente", nota: "" });
+            anotar({
+              orden: 3,
+              titulo: "Revisión",
+              estado: "pendiente",
+              nota: "",
+              requisitos: [{ orden: 1, titulo: "Listo", hecho: false }],
+            });
             await guardar();
           },
         },
         {
           texto: "Añadir «Publicar» (pendiente)",
           ejecutar: async () => {
-            anotar({ orden: 4, titulo: "Publicar", estado: "pendiente", nota: "" });
+            anotar({
+              orden: 4,
+              titulo: "Publicar",
+              estado: "pendiente",
+              nota: "",
+              requisitos: [{ orden: 1, titulo: "Listo", hecho: false }],
+            });
             await guardar();
           },
         },
@@ -338,9 +422,13 @@ const PRUEBAS: Prueba[] = [
           },
         },
         {
-          texto: "Fallar «Pruebas»",
+          texto: "Fallar «Pruebas» (no pasa la carga)",
           ejecutar: async () => {
-            cambiar(2, "fallida");
+            fases = fases.map((fase) =>
+              fase.orden === 2
+                ? { ...fase, estado: "fallida", nota: "No pasa la carga" }
+                : fase,
+            );
             await guardar();
           },
         },
@@ -402,7 +490,13 @@ const PRUEBAS: Prueba[] = [
         return uid;
       };
       const motivo = "No cubre el caso borde";
-      const fase: FaseTaller = { orden: 1, titulo: "Revisar", estado: "pendiente", nota: "" };
+      const fase: FaseTallerConRequisitos = {
+        orden: 1,
+        titulo: "Revisar",
+        estado: "pendiente",
+        nota: "",
+        requisitos: [{ orden: 1, titulo: "Comprobar", hecho: false }],
+      };
       return [
         {
           texto: "Crear «Motivo · fases» en En cola",
@@ -562,7 +656,15 @@ const PRUEBAS: Prueba[] = [
         if (!uid) throw new Error("Falta el uid de la idea creada.");
         return uid;
       };
-      const fase = [{ orden: 1, titulo: "Verificar", estado: "pendiente" as const, nota: "" }];
+      const fase = [
+        {
+          orden: 1,
+          titulo: "Verificar",
+          estado: "pendiente" as const,
+          nota: "",
+          requisitos: [{ orden: 1, titulo: "Comprobar", hecho: false }],
+        },
+      ];
       return [
         {
           texto: "Crear la idea en En cola",
@@ -594,7 +696,15 @@ const PRUEBAS: Prueba[] = [
           texto: "Completar la fase «Verificar»",
           ejecutar: async () => {
             await editar(conUid(), {
-              fases: [{ orden: 1, titulo: "Verificar", estado: "completada", nota: "" }],
+              fases: [
+                {
+                  orden: 1,
+                  titulo: "Verificar",
+                  estado: "completada",
+                  nota: "",
+                  requisitos: [{ orden: 1, titulo: "Comprobar", hecho: true }],
+                },
+              ],
             });
           },
         },

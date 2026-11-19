@@ -37,7 +37,13 @@ def test_entrar_en_roadmap_exige_una_fase(client, repo):  # noqa: ANN001, ANN202
     r = client.patch(
         f"/ideas/{uid}",
         params={"repo": repo},
-        json={"status": "roadmap", "fases": [{"titulo": "Diseño"}, {"titulo": "Prueba"}]},
+        json={
+            "status": "roadmap",
+            "fases": [
+                {"titulo": "Diseño", "requisitos": [{"titulo": "Cubre el borde"}]},
+                {"titulo": "Prueba", "requisitos": [{"titulo": "Pasa lint"}]},
+            ],
+        },
     )
     assert r.status_code == 200, r.json()
     ficha = r.json()
@@ -57,7 +63,13 @@ def test_fases_conservan_su_fecha_al_editar(client, repo):  # noqa: ANN001, ANN2
     r = client.patch(
         f"/ideas/{uid}",
         params={"repo": repo},
-        json={"status": "roadmap", "fases": [{"titulo": "Una"}, {"titulo": "Dos"}]},
+        json={
+            "status": "roadmap",
+            "fases": [
+                {"titulo": "Una", "requisitos": [{"titulo": "Comprobar"}]},
+                {"titulo": "Dos", "requisitos": [{"titulo": "Comprobar"}]},
+            ],
+        },
     )
     fechas = [f["entered_at"] for f in r.json()["fases"]]
 
@@ -67,7 +79,12 @@ def test_fases_conservan_su_fecha_al_editar(client, repo):  # noqa: ANN001, ANN2
         params={"repo": repo},
         json={
             "fases": [
-                {"orden": 1, "titulo": "Una", "estado": "completada"},
+                {
+                    "orden": 1,
+                    "titulo": "Una",
+                    "estado": "completada",
+                    "requisitos": [{"orden": 1, "titulo": "Comprobar", "hecho": True}],
+                },
                 {"orden": 2, "titulo": "Dos", "estado": "pendiente"},
             ]
         },
@@ -86,7 +103,7 @@ def test_fases_conservan_su_fecha_al_editar(client, repo):  # noqa: ANN001, ANN2
             "fases": [
                 {"orden": 1, "titulo": "Una", "estado": "completada"},
                 {"orden": 2, "titulo": "Dos", "estado": "pendiente"},
-                {"titulo": "Tres"},
+                {"titulo": "Tres", "requisitos": [{"titulo": "Comprobar"}]},
             ]
         },
     )
@@ -102,6 +119,7 @@ def test_fases_invalidas_no_escriben(client, repo):  # noqa: ANN001, ANN202
         ([{"titulo": "A", "estado": "hecha"}], 422),
         ([{"titulo": "A", "orden": 1}, {"titulo": "B", "orden": 1}], 400),
         ([{"titulo": "A", "orden": 0}], 422),
+        ([{"titulo": "A"}], 400),
     ):
         r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"fases": fases})
         assert r.status_code == codigo, fases
@@ -133,7 +151,13 @@ def test_salir_de_roadmap_exige_fases_cerradas(client, repo):  # noqa: ANN001, A
     r = client.patch(
         f"/ideas/{uid}",
         params={"repo": repo},
-        json={"status": "roadmap", "fases": [{"titulo": "Una"}, {"titulo": "Dos"}]},
+        json={
+            "status": "roadmap",
+            "fases": [
+                {"titulo": "Una", "requisitos": [{"titulo": "Comprobar"}]},
+                {"titulo": "Dos", "requisitos": [{"titulo": "Comprobar"}]},
+            ],
+        },
     )
     assert r.status_code == 200, r.json()
 
@@ -150,8 +174,18 @@ def test_salir_de_roadmap_exige_fases_cerradas(client, repo):  # noqa: ANN001, A
         json={
             "status": "verificacion",
             "fases": [
-                {"orden": 1, "titulo": "Una", "estado": "completada"},
-                {"orden": 2, "titulo": "Dos", "estado": "fallida"},
+                {
+                    "orden": 1,
+                    "titulo": "Una",
+                    "estado": "completada",
+                    "requisitos": [{"orden": 1, "titulo": "Comprobar", "hecho": True}],
+                },
+                {
+                    "orden": 2,
+                    "titulo": "Dos",
+                    "estado": "fallida",
+                    "nota": "No pasa la carga",
+                },
             ],
         },
     )
@@ -165,7 +199,12 @@ def test_salir_de_roadmap_exige_fases_cerradas(client, repo):  # noqa: ANN001, A
         json={
             "status": "verificacion",
             "fases": [
-                {"orden": 1, "titulo": "Una", "estado": "completada"},
+                {
+                    "orden": 1,
+                    "titulo": "Una",
+                    "estado": "completada",
+                    "requisitos": [{"orden": 1, "titulo": "Comprobar", "hecho": True}],
+                },
                 {"orden": 2, "titulo": "Dos", "estado": "rechazada"},
             ],
         },
@@ -180,7 +219,13 @@ def test_aprobar_revision_exige_todas_completadas(client, repo):  # noqa: ANN001
     r = client.patch(
         f"/ideas/{uid}",
         params={"repo": repo},
-        json={"status": "roadmap", "fases": [{"titulo": "Una"}, {"titulo": "Dos"}]},
+        json={
+            "status": "roadmap",
+            "fases": [
+                {"titulo": "Una", "requisitos": [{"titulo": "Comprobar"}]},
+                {"titulo": "Dos", "requisitos": [{"titulo": "Comprobar"}]},
+            ],
+        },
     )
     assert r.status_code == 200, r.json()
 
@@ -191,7 +236,12 @@ def test_aprobar_revision_exige_todas_completadas(client, repo):  # noqa: ANN001
         json={
             "status": "verificacion",
             "fases": [
-                {"orden": 1, "titulo": "Una", "estado": "completada"},
+                {
+                    "orden": 1,
+                    "titulo": "Una",
+                    "estado": "completada",
+                    "requisitos": [{"orden": 1, "titulo": "Comprobar", "hecho": True}],
+                },
                 {"orden": 2, "titulo": "Dos", "estado": "rechazada"},
             ],
         },
@@ -211,8 +261,18 @@ def test_aprobar_revision_exige_todas_completadas(client, repo):  # noqa: ANN001
         json={
             "status": "revision_aprobada",
             "fases": [
-                {"orden": 1, "titulo": "Una", "estado": "completada"},
-                {"orden": 2, "titulo": "Dos", "estado": "completada"},
+                {
+                    "orden": 1,
+                    "titulo": "Una",
+                    "estado": "completada",
+                    "requisitos": [{"orden": 1, "titulo": "Comprobar", "hecho": True}],
+                },
+                {
+                    "orden": 2,
+                    "titulo": "Dos",
+                    "estado": "completada",
+                    "requisitos": [{"orden": 1, "titulo": "Comprobar", "hecho": True}],
+                },
             ],
         },
     )
@@ -225,7 +285,10 @@ def test_aprobar_revision_exige_al_menos_una_fase(client, repo):  # noqa: ANN001
     r = client.patch(
         f"/ideas/{uid}",
         params={"repo": repo},
-        json={"status": "roadmap", "fases": [{"titulo": "Una"}]},
+        json={
+            "status": "roadmap",
+            "fases": [{"titulo": "Una", "requisitos": [{"titulo": "Comprobar"}]}],
+        },
     )
     assert r.status_code == 200, r.json()
     r = client.patch(
@@ -233,7 +296,14 @@ def test_aprobar_revision_exige_al_menos_una_fase(client, repo):  # noqa: ANN001
         params={"repo": repo},
         json={
             "status": "verificacion",
-            "fases": [{"orden": 1, "titulo": "Una", "estado": "completada"}],
+            "fases": [
+                {
+                    "orden": 1,
+                    "titulo": "Una",
+                    "estado": "completada",
+                    "requisitos": [{"orden": 1, "titulo": "Comprobar", "hecho": True}],
+                }
+            ],
         },
     )
     assert r.status_code == 200, r.json()
@@ -253,7 +323,13 @@ def test_aprobar_revision_exige_al_menos_una_fase(client, repo):  # noqa: ANN001
         params={"repo": repo},
         json={
             "status": "revision_aprobada",
-            "fases": [{"titulo": "Una", "estado": "completada"}],
+            "fases": [
+                {
+                    "titulo": "Una",
+                    "estado": "completada",
+                    "requisitos": [{"titulo": "Comprobar", "hecho": True}],
+                }
+            ],
         },
     )
     assert r.status_code == 200, r.json()
@@ -266,7 +342,15 @@ def test_fuera_de_roadmap_las_fases_estan_pendientes(client, repo):  # noqa: ANN
     r = client.patch(
         f"/ideas/{uid}",
         params={"repo": repo},
-        json={"fases": [{"titulo": "Una", "estado": "completada"}]},
+        json={
+            "fases": [
+                {
+                    "titulo": "Una",
+                    "estado": "completada",
+                    "requisitos": [{"titulo": "Comprobar"}],
+                }
+            ]
+        },
     )
     assert r.status_code == 400
     assert "pendientes" in r.json()["detail"]
@@ -277,13 +361,25 @@ def test_fuera_de_roadmap_las_fases_estan_pendientes(client, repo):  # noqa: ANN
     r = client.patch(
         f"/ideas/{uid}",
         params={"repo": repo},
-        json={"status": "roadmap", "fases": [{"titulo": "Una"}]},
+        json={
+            "status": "roadmap",
+            "fases": [{"titulo": "Una", "requisitos": [{"titulo": "Comprobar"}]}],
+        },
     )
     assert r.status_code == 200, r.json()
     r = client.patch(
         f"/ideas/{uid}",
         params={"repo": repo},
-        json={"fases": [{"orden": 1, "titulo": "Una", "estado": "completada"}]},
+        json={
+            "fases": [
+                {
+                    "orden": 1,
+                    "titulo": "Una",
+                    "estado": "completada",
+                    "requisitos": [{"orden": 1, "titulo": "Comprobar", "hecho": True}],
+                }
+            ]
+        },
     )
     assert r.status_code == 200, r.json()
     r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": "verificacion"})
@@ -296,7 +392,13 @@ def test_volver_a_la_cola_reinicia_las_fases(client, repo):  # noqa: ANN001, ANN
     r = client.patch(
         f"/ideas/{uid}",
         params={"repo": repo},
-        json={"status": "roadmap", "fases": [{"titulo": "Una"}, {"titulo": "Dos"}]},
+        json={
+            "status": "roadmap",
+            "fases": [
+                {"titulo": "Una", "requisitos": [{"titulo": "Comprobar"}]},
+                {"titulo": "Dos", "requisitos": [{"titulo": "Comprobar"}]},
+            ],
+        },
     )
     assert r.status_code == 200, r.json()
     r = client.patch(
@@ -304,7 +406,12 @@ def test_volver_a_la_cola_reinicia_las_fases(client, repo):  # noqa: ANN001, ANN
         params={"repo": repo},
         json={
             "fases": [
-                {"orden": 1, "titulo": "Una", "estado": "completada"},
+                {
+                    "orden": 1,
+                    "titulo": "Una",
+                    "estado": "completada",
+                    "requisitos": [{"orden": 1, "titulo": "Comprobar", "hecho": True}],
+                },
                 {"orden": 2, "titulo": "Dos", "estado": "rechazada"},
             ]
         },
@@ -333,7 +440,10 @@ def test_volver_a_la_cola_conserva_el_motivo(client, repo):  # noqa: ANN001, ANN
     r = client.patch(
         f"/ideas/{uid}",
         params={"repo": repo},
-        json={"status": "roadmap", "fases": [{"titulo": "Revisar"}]},
+        json={
+            "status": "roadmap",
+            "fases": [{"titulo": "Revisar", "requisitos": [{"titulo": "Comprobar"}]}],
+        },
     )
     assert r.status_code == 200, r.json()
     r = client.patch(
@@ -447,14 +557,15 @@ def test_sin_requisitos_en_el_patch_se_conservan(client, repo):  # noqa: ANN001,
     assert r.status_code == 200, r.json()
     assert [q["titulo"] for q in r.json()["fases"][0]["requisitos"]] == ["Uno", "Dos"]
 
-    # Una lista vacía sí los retira.
+    # Una lista vacía tampoco vale: toda fase necesita al menos un requisito.
     r = client.patch(
         f"/ideas/{uid}",
         params={"repo": repo},
         json={"fases": [{"orden": 1, "titulo": "Diseño", "requisitos": []}]},
     )
-    assert r.status_code == 200, r.json()
-    assert r.json()["fases"][0]["requisitos"] == []
+    assert r.status_code == 400
+    assert "al menos un requisito" in r.json()["detail"]
+    assert [q["titulo"] for q in _fases(client, repo, uid)[0]["requisitos"]] == ["Uno", "Dos"]
 
 
 def test_volver_a_la_cola_reinicia_los_requisitos(client, repo):  # noqa: ANN001, ANN202
@@ -529,6 +640,49 @@ def test_requisitos_invalidos_no_escriben(client, repo):  # noqa: ANN001, ANN202
         assert r.status_code == codigo, requisitos
 
     assert [q["titulo"] for q in _fases(client, repo, uid)[0]["requisitos"]] == ["Uno"]
+
+
+def test_una_fase_sin_requisitos_no_vale(client, repo):  # noqa: ANN001, ANN202
+    uid = _crear(client, repo, status="proposed")
+    r = client.patch(
+        f"/ideas/{uid}",
+        params={"repo": repo},
+        json={"status": "roadmap", "fases": [{"titulo": "Diseño"}]},
+    )
+    assert r.status_code == 400
+    assert "al menos un requisito" in r.json()["detail"]
+    assert _fases(client, repo, uid) == []
+
+
+def test_una_fase_fallida_exige_motivo(client, repo):  # noqa: ANN001, ANN202
+    uid, _ = _crear_roadmap(
+        client, repo, [{"titulo": "Diseño", "requisitos": [{"titulo": "Uno"}]}]
+    )
+    r = client.patch(
+        f"/ideas/{uid}",
+        params={"repo": repo},
+        json={"fases": [{"orden": 1, "titulo": "Diseño", "estado": "fallida"}]},
+    )
+    assert r.status_code == 400
+    assert "motivo" in r.json()["detail"]
+
+    r = client.patch(
+        f"/ideas/{uid}",
+        params={"repo": repo},
+        json={
+            "fases": [
+                {
+                    "orden": 1,
+                    "titulo": "Diseño",
+                    "estado": "fallida",
+                    "nota": "No pasa la carga",
+                }
+            ]
+        },
+    )
+    assert r.status_code == 200, r.json()
+    assert r.json()["fases"][0]["estado"] == "fallida"
+    assert r.json()["fases"][0]["nota"] == "No pasa la carga"
 
 
 def test_protocolos_publican_el_requisito(client, repo):  # noqa: ANN001, ANN202

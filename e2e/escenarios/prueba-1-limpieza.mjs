@@ -3,7 +3,7 @@ import path from "node:path";
 
 const tablasOperativas = [
   "idea_data", "idea_node", "rejected_node", "roadmap_node", "verificacion_node",
-  "revision_node", "idea_fase", "event",
+  "revision_node", "idea_fase", "idea_requisito", "event",
 ];
 
 async function geometria(page) {

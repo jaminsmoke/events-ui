@@ -1245,8 +1245,8 @@ def _validar_fases_completadas(fases: list[dict[str, Any]]) -> None:
     """Una fase completada no puede dejar requisitos sin completar.
 
     Los requisitos son su criterio de hecho: si la fase se da por hecha con
-    uno pendiente, el checklist no significa nada. Una fase sin requisitos se
-    completa igual (el vacío no bloquea), como el resto de gates.
+    uno pendiente, el checklist no significa nada. Las fases sin requisitos no
+    llegan aquí: no se aceptan al escribir (ver `_normalizar_fases`).
     """
     for fase in fases:
         if fase["estado"] != "completada":
@@ -1341,20 +1341,29 @@ def _normalizar_fases(fases: Any, existentes: list[dict[str, Any]]) -> list[dict
             raise InvalidInput(f"el orden de fase {orden} está repetido")
         vistas.add(orden)
         previa = previas.get(orden)
+        requisitos = _normalizar_requisitos(
+            item.get("requisitos"), (previa or {}).get("requisitos", [])
+        )
+        # Toda fase necesita al menos un requisito: es su criterio de hecho y
+        # una fase sin nada que comprobar no se puede cerrar con sentido.
+        if not requisitos:
+            raise InvalidInput(f"la fase «{titulo}» necesita al menos un requisito")
+        nota = str(item.get("nota") or "")
+        # Fallar sin motivo no explica nada: la nota es obligatoria al fallar.
+        if estado == "fallida" and not nota.strip():
+            raise InvalidInput(f"la fase «{titulo}» está fallida sin motivo")
         normalizadas.append(
             {
                 "orden": orden,
                 "titulo": titulo,
                 "estado": estado,
-                "nota": str(item.get("nota") or ""),
+                "nota": nota,
                 "entered_at": (
                     previa["entered_at"]
                     if previa is not None and previa["estado"] == estado
                     else now_iso()
                 ),
-                "requisitos": _normalizar_requisitos(
-                    item.get("requisitos"), (previa or {}).get("requisitos", [])
-                ),
+                "requisitos": requisitos,
             }
         )
     return sorted(normalizadas, key=lambda fase: fase["orden"])

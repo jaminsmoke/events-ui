@@ -39,6 +39,7 @@ export default {
     // Las fases se añaden desde la fila, no por la API.
     const anadir = async (titulo, cuantas) => {
       await actual.getByLabel("Nueva fase").fill(titulo);
+      await actual.getByLabel("Primer requisito").fill(`Requisito de ${titulo}`);
       await actual.getByRole("button", { name: "Añadir", exact: true }).click();
       await esperar(
         () => actual.locator(".fase").count().then((n) => n === cuantas),
@@ -74,6 +75,16 @@ export default {
       () => actual.locator(".fase-estado").count().then((n) => n === 2),
       "los dos selectores de fase",
     );
+    // Cada fase nace con su requisito y las checklists se abren solas en
+    // roadmap: se marcan antes de completar, o «completada» está apagada.
+    await esperar(
+      () => actual.locator(".requisito input").count().then((n) => n === 2),
+      "los dos requisitos",
+    );
+    await actual.locator(".requisito input").nth(0).check();
+    await esperar(async () => (await idea()).fases[0].requisitos[0].hecho === true, "el primero hecho");
+    await actual.locator(".requisito input").nth(1).check();
+    await esperar(async () => (await idea()).fases[1].requisitos[0].hecho === true, "el segundo hecho");
     await actual.locator(".fase-estado").nth(0).selectOption("completada");
     await esperar(async () => (await idea()).fases[0].estado === "completada", "la primera completada");
     // El selector refleja el estado antes de tocar el segundo: si no, el PATCH
@@ -123,8 +134,6 @@ export default {
     }
     const aprobar = actual.getByRole("button", { name: "Aprobar revisión", exact: true });
     await esperar(() => aprobar.isDisabled(), "Aprobar revisión bloqueado sin fases");
-    await actual
-      .getByText("Añade al menos una fase para aprobar la revisión.")
-      .waitFor();
+    await actual.getByText("Añade una fase para aprobar.").waitFor();
   },
 };

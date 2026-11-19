@@ -16,11 +16,19 @@ export default {
     const uid = creada.data.uid;
 
     // La compuerta de roadmap exige al menos una fase; se añade antes de mover.
+    // En cola la fase solo puede estar pendiente (0021): se completa en roadmap.
     const conFase = await api(`/ideas/${uid}?repo=lab`, {
       method: "PATCH",
       headers: cabeceras,
       body: JSON.stringify({
-        fases: [{ orden: 1, titulo: "Lista", estado: "completada", nota: "" }],
+        fases: [
+          {
+            orden: 1,
+            titulo: "Lista",
+            nota: "",
+            requisitos: [{ orden: 1, titulo: "Comprobar", hecho: false }],
+          },
+        ],
       }),
     });
     expect(conFase.status === 200, `no se pudo añadir la fase: ${conFase.status}`);

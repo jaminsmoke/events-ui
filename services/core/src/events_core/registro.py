@@ -36,13 +36,27 @@ def _raiz_del_repo() -> Path:
 
     `src/events_core/registro.py` está a cuatro niveles de la raíz. El marcador
     `services/core` evita confundirla con el temporal donde PyInstaller
-    descomprime el paquete: allí no se reconoce y se usa el directorio de
-    trabajo, como antes de anclar la ruta.
+    descomprime el paquete: allí no se reconoce y el estado va al directorio de
+    datos del usuario (`%LOCALAPPDATA%/EventsUI`), no al de trabajo.
     """
     padres = Path(__file__).resolve().parents
     if len(padres) > 4 and (padres[4] / "services" / "core").is_dir():
         return padres[4]
-    return Path.cwd()
+    return _raiz_datos_usuario()
+
+
+def _raiz_datos_usuario() -> Path:
+    """Dónde dejar el estado cuando no hay raíz de proyecto (sidecar congelado).
+
+    El binario instalado no reconoce `services/core` y su directorio de trabajo
+    es el que herede del lanzador (un acceso directo puede dejarlo en
+    `System32`): no sirve para guardar el registro. Se usa el directorio de
+    datos del usuario, que existe y es escribible en cualquier instalación.
+    """
+    base = os.environ.get("LOCALAPPDATA") or os.environ.get("XDG_STATE_HOME")
+    if base:
+        return Path(base) / "EventsUI"
+    return Path.home() / ".eventsui"
 
 
 RAIZ_PROYECTO = _raiz_del_repo()

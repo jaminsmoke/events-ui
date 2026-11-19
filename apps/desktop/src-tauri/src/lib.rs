@@ -43,7 +43,14 @@ fn arrancar(app: &AppHandle) -> bool {
     .ok()
     .and_then(|exe| exe.parent().map(|dir| dir.join(nombre)));
   let hijo = ruta.and_then(|ruta| {
-    Command::new(ruta)
+    // Sin `current_dir` hereda el del lanzador (un acceso directo puede
+    // dejarlo en `System32`): el registro y el `/health` del core acabarían
+    // apuntando a carpetas impredecibles. Junto al ejecutable es estable.
+    let mut comando = Command::new(&ruta);
+    if let Some(carpeta) = ruta.parent() {
+      comando.current_dir(carpeta);
+    }
+    comando
       .stdin(Stdio::null())
       .stdout(Stdio::null())
       .stderr(Stdio::null())

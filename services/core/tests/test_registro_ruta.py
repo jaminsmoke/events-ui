@@ -26,3 +26,12 @@ def test_el_override_sigue_mandando(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
 
     assert registro.ruta() == destino.resolve()
+
+
+def test_sin_raiz_de_proyecto_usa_los_datos_del_usuario(tmp_path, monkeypatch) -> None:
+    # El sidecar congelado no ve `services/core`: no puede usar el CWD, que es
+    # el que herede del lanzador.
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    monkeypatch.delenv("XDG_STATE_HOME", raising=False)
+
+    assert registro._raiz_datos_usuario() == tmp_path / "EventsUI"

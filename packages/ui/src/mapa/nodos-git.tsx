@@ -1,8 +1,10 @@
 /** Los nodos de Git del mapa: estado, cambios y el puente. */
 
+import { useEffect, useState } from "react";
 import type { Ref } from "react";
 
 import type { CommitGit } from "../core/api";
+import type { FilaVueloCommit } from "./vuelos-git";
 
 /** El primer nodo del Mapa de Git: los cambios que aún no tienen commit.
  *  No es un carril de ideas; solo enseña lo que Git ve en el árbol de trabajo. */
@@ -14,12 +16,15 @@ function rutaVisible(cambio: { ruta: string; origen?: string | null }): string {
 export function NodoCambios({
   activo,
   cambios,
+  boxRef,
 }: {
   activo: boolean;
   cambios: readonly { estado: string; ruta: string; origen?: string | null }[];
+  boxRef?: Ref<HTMLElement>;
 }) {
   return (
     <section
+      ref={boxRef}
       className={`node nodo-cambios ${activo ? "activo" : "apagado"}`}
       aria-label="Cambios sin commit"
     >
@@ -64,12 +69,15 @@ function fechaCommit(iso: string): string {
 export function NodoCommits({
   activo,
   commits,
+  boxRef,
 }: {
   activo: boolean;
   commits: readonly CommitGit[];
+  boxRef?: Ref<HTMLElement>;
 }) {
   return (
     <section
+      ref={boxRef}
       className={`node nodo-commits ${activo ? "activo" : "apagado"}`}
       aria-label="Últimos commits"
     >
@@ -209,5 +217,44 @@ export function NodoPuenteGit({
         </button>
       )}
     </section>
+  );
+}
+
+/** Una fila del vuelo al commit. El `setTimeout` es la red por si
+ *  `transitionend` no llega (movimiento reducido): la ficha no se queda pegada
+ *  al mapa. */
+export function VueloCambio({
+  fila,
+  onDone,
+}: {
+  fila: FilaVueloCommit;
+  onDone: (id: string) => void;
+}) {
+  const [enVuelo, setEnVuelo] = useState(false);
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setEnVuelo(true));
+    const timer = setTimeout(() => onDone(fila.id), 1100);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+    };
+  }, [fila.id, onDone]);
+
+  return (
+    <div
+      className={`vuelo-cambio${enVuelo ? " en-vuelo" : ""}`}
+      style={{
+        left: fila.x,
+        top: fila.y,
+        width: fila.w,
+        transform: enVuelo ? `translate(${fila.dx}px, ${fila.dy}px)` : "none",
+      }}
+      onTransitionEnd={(e) => {
+        if (e.propertyName === "transform") onDone(fila.id);
+      }}
+    >
+      <span className="vuelo-cambio-estado">{fila.estado}</span>
+      <span className="vuelo-cambio-ruta">{fila.ruta}</span>
+    </div>
   );
 }

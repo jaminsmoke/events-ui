@@ -11,7 +11,16 @@ import { duracionChispa, useCables } from "./mapa/cables";
 import { Compuerta, LeyendaCompuertas } from "./mapa/compuertas";
 import { useCamara } from "./mapa/camara";
 import type { LaneId, Status } from "./mapa/carriles";
-import { NodeBox, NodoCambios, NodoCommits, NodoGit, NodoPuenteGit, VueloFila } from "./mapa/nodos";
+import {
+  NodeBox,
+  NodoCambios,
+  NodoCommits,
+  NodoGit,
+  NodoPuenteGit,
+  VueloCambio,
+  VueloFila,
+} from "./mapa/nodos";
+import { useVueloCommit } from "./mapa/vuelos-git";
 import { useVuelos } from "./mapa/vuelos";
 import { useEventos, resumenEvento } from "./core/useEventos";
 import { useProtocolos } from "./core/useProtocolos";
@@ -171,6 +180,8 @@ export default function App({
   const cajonRef = useRef<HTMLElement | null>(null);
   const carrilRefs = useRef<(HTMLElement | null)[]>([]);
   const gitRef = useRef<HTMLElement | null>(null);
+  const cambiosRef = useRef<HTMLElement | null>(null);
+  const commitsRef = useRef<HTMLElement | null>(null);
 
   const { vista, arrastrando, encuadrar, zoom, reset, olvidar, mano } = useCamara({
     repo,
@@ -191,6 +202,14 @@ export default function App({
     gitRef,
   });
   const { vuelos, volando, aterrizado } = useVuelos({ repo, mapa, ideas, cerrados, vista, mapRef });
+  const { filas: vuelosGit, aterrizado: aterrizadoGit } = useVueloCommit({
+    repo,
+    proyeccion,
+    vista,
+    mapRef,
+    cambiosRef,
+    commitsRef,
+  });
   const { chispas, pulsos, pulsoCajon } = useAnimaciones(repo, ideas);
 
   /* Un carril puede tener cable de ida y de vuelta (verificación↔cola,
@@ -451,6 +470,13 @@ export default function App({
                   ))}
                 </div>
                 )}
+                {mapa === "git" && vuelosGit.length > 0 && (
+                <div className="vuelos vuelos-git">
+                  {vuelosGit.map((fila) => (
+                    <VueloCambio key={fila.id} fila={fila} onDone={aterrizadoGit} />
+                  ))}
+                </div>
+                )}
                 {mapa === "ideas" && (
                 <svg className="cables" aria-hidden="true">
                   {cables.map((cable) => {
@@ -650,8 +676,9 @@ export default function App({
                   <NodoCambios
                     activo={gitActivo}
                     cambios={proyeccion?.git_cambios ?? []}
+                    boxRef={cambiosRef}
                   />
-                  <NodoCommits activo={gitActivo} commits={commits} />
+                  <NodoCommits activo={gitActivo} commits={commits} boxRef={commitsRef} />
                 </div>
                 )}
               </div>

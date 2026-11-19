@@ -36,6 +36,9 @@ export type ProyeccionRepo = Schemas["ProyeccionRepo"];
  *  Mapa de Git. */
 export type CommitGit = Schemas["CommitGit"];
 
+/** Un archivo con cambios sin commit, tal como lo da `git status`. */
+export type CambioGit = Schemas["CambioGit"];
+
 /** La respuesta de POST /reiniciar (LAB): cuántas filas se vaciaron. */
 export type Reinicio = Schemas["Reinicio"];
 

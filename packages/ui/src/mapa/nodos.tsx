@@ -11,7 +11,7 @@ import type { Status } from "./carriles";
 import { Arrow, NodeRow } from "./fila";
 import type { Vuelo } from "./vuelos";
 
-export { NodoCambios, NodoCommits, NodoGit, NodoPuenteGit } from "./nodos-git";
+export { NodoCambios, NodoCommits, NodoGit, NodoPuenteGit, VueloCambio } from "./nodos-git";
 
 /** Un nodo entero: cabecera plegable y, debajo, su propia lista. */
 export function NodeBox({

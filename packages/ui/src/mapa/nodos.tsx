@@ -98,9 +98,14 @@ function FasesIdea({
   const [nuevo, setNuevo] = useState("");
   const [fallo, setFallo] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
-  // Qué checklist está desplegada y el texto del requisito que se está
-  // escribiendo. Solo una a la vez: la fila es estrecha.
-  const [verRequisitos, setVerRequisitos] = useState<number | null>(null);
+  // En roadmap y verificación los requisitos se abren solos, que es donde se
+  // trabajan; en entrada, cola y descartadas se quedan plegados. El clic deja
+  // una excepción por fase (abrir en cola, cerrar en roadmap) que dura hasta
+  // que la fila cambie de carril y se vuelva a montar.
+  const autoRequisitos = estado === "roadmap" || estado === "verificacion";
+  const [excepciones, setExcepciones] = useState<ReadonlyMap<number, boolean>>(
+    () => new Map(),
+  );
   const [requisitoNuevo, setRequisitoNuevo] = useState("");
   const vista = fases;
 
@@ -132,6 +137,7 @@ function FasesIdea({
         const requisitos = fase.requisitos ?? [];
         const hechosReq = requisitos.filter((requisito) => requisito.hecho).length;
         const pendientesReq = requisitos.length - hechosReq;
+        const abiertos = excepciones.get(fase.orden) ?? autoRequisitos;
         return (
         <div className="fase-grupo" key={fase.orden}>
         <div className="fase">
@@ -146,9 +152,11 @@ function FasesIdea({
               className="fase-check"
               title={`Requisitos: ${hechosReq} de ${requisitos.length}`}
               aria-label={`Requisitos de ${fase.titulo}: ${hechosReq} de ${requisitos.length}`}
-              aria-expanded={verRequisitos === fase.orden}
+              aria-expanded={abiertos}
               onClick={() => {
-                setVerRequisitos(verRequisitos === fase.orden ? null : fase.orden);
+                const siguiente = new Map(excepciones);
+                siguiente.set(fase.orden, !abiertos);
+                setExcepciones(siguiente);
                 setRequisitoNuevo("");
               }}
             >
@@ -229,7 +237,7 @@ function FasesIdea({
             ×
           </button>
         </div>
-        {verRequisitos === fase.orden && (
+        {abiertos && (
           <div className="fase-requisitos">
             {requisitos.map((requisito) => (
               <label

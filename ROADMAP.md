@@ -257,6 +257,12 @@ con el motivo, para no reabrirlo cada semana.
   aviso queda en el registro. Medido: 16 fases llenas son 8 MiB de parches y un
   fichero de 8,02 MiB; hoy no hay almacenes en el repo, así que ese era el techo
   real, sin límite de fases.
+- **El listado de un almacén vacío no falla**: `consulta._en_lote` cortaba sin
+  uids devolviendo cuatro diccionarios cuando el llamador espera cinco, así que
+  `GET /ideas` daba 500 en un repo recién sembrado —y con un `offset` más allá
+  del final—. Ahora devuelve también el diccionario de fases;
+  `test_listado_vacio.py` cubre el almacén vacío, el offset y un filtro sin
+  resultados.
 - **Runtime fijado a 3.12**: `.python-version` y el CI apuntan a 3.12 y
   `requires-python` cierra el techo en `<3.14`, así que `uv` deja de resolver
   contra el 3.14 del sistema, donde las pruebas síncronas de `starlette` se han
@@ -280,15 +286,8 @@ con el motivo, para no reabrirlo cada semana.
 ## Pendientes
 
 Revisión del 19 de noviembre de 2026, segunda pasada, por orden de daño y no
-de esfuerzo. Las cuatro primeras están comprobadas ejecutando el código.
+de esfuerzo.
 
-- **`GET /ideas` devuelve 500 con el almacén vacío.** `consulta._en_lote` corta
-  con `return {}, {}, {}, {}` cuando no hay uids, pero la firma y los llamadores
-  esperan cinco valores: con cero ideas (o un `offset` más allá del final) el
-  desempaquetado lanza `ValueError` y el 500 (comprobado). Es la primera
-  pantalla de un almacén recién sembrado. El arreglo es devolver también el
-  diccionario de fases, con un test del almacén vacío y del `offset` fuera de
-  rango.
 - **`seed.py` se ejecuta al importarse.** El `raise SystemExit(main(...))` está
   al nivel del módulo, así que `import events_core.seed` imprime el uso y sale
   con 2 (comprobado). Hoy nadie lo importa, pero rompe cualquier herramienta que

@@ -267,6 +267,11 @@ con el motivo, para no reabrirlo cada semana.
   del módulo, así que cualquier `import events_core.seed` imprimía el uso y
   salía con 2. Queda bajo la guarda `__main__`, con `test_seed.py` cubriendo el
   import y la CLI sin repo.
+- **El `git status` del mapa lee rutas raras**: los cambios se piden con
+  `--porcelain=v1 -z`, donde Git no entrecomilla ni escapa, y el origen de un
+  renombrado viaja aparte en `CambioGit.origen`; el nodo de cambios lo enseña
+  como «viejo → nuevo». Dos tests cubren un `git mv` con espacios y acentos y
+  una ruta suelta con acentos y `#`.
 - **Runtime fijado a 3.12**: `.python-version` y el CI apuntan a 3.12 y
   `requires-python` cierra el techo en `<3.14`, así que `uv` deja de resolver
   contra el 3.14 del sistema, donde las pruebas síncronas de `starlette` se han
@@ -299,12 +304,6 @@ de esfuerzo.
   recrea, la conexión vieja ya no ve los commits, así que `/revision` y el
   stream dejan de despertar. Falta cierre al cambiar de repo o caducidad por
   uso.
-- **`git status` no entiende renombrados ni rutas escapadas.**
-  `proyeccion._git_cambios` corta por `linea[3:]` y no pide
-  `core.quotepath=false`: un renombrado llega como una sola ruta
-  `"viejo nombre.txt" -> "nuevo \303\261.txt"` (comprobado). El estado queda en
-  `R`, pero la UI enseña el par entrecomillado y no dice de dónde vino. Hay que
-  separar origen y destino y deshacer el escapado.
 - **Hay tres sondeos permanentes por repo.** `/revision` cada 2 s,
   `/protocolos` y `/proyecciones/repo` cada 5 s, cada uno con su temporizador y
   ninguno se pausa con la ventana oculta. No es un fallo, pero son tres

@@ -795,7 +795,9 @@ function NodeRow({
               Espera a:{" "}
               {deps.map((dep) => {
                 const otra = catalogo.find((i) => i.uid === dep);
-                const aprobada = otra?.status === "revision_aprobada";
+                // Archivar no rompe la dependencia: historial sigue aprobada.
+                const aprobada =
+                  otra?.status === "revision_aprobada" || otra?.status === "historial";
                 return (
                   <span key={dep} className={`chip-depende${aprobada ? " aprobada" : ""}`}>
                     {otra?.title ?? dep}

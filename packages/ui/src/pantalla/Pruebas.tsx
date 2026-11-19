@@ -102,56 +102,284 @@ const PRUEBAS: Prueba[] = [
     id: "mapa-completo",
     nombre: "Mapa completo por carriles",
     descripcion:
-      "Siembra ideas en todos los carriles —entrada, cola, roadmap, verificación, aprobadas, historial y descartadas— " +
-      "para ver los seis cables, sus compuertas y el grosor según la presión. Después vacía el laboratorio.",
+      "Siembra ideas en todos los carriles con fases en varios estados, requisitos, motivos y dependencias, " +
+      "para ver los seis cables, sus compuertas, los contadores y las fichas. Después vacía el laboratorio.",
     construir: ({ crear, editar }) => {
-      const lotes: {
-        prefijo: string;
-        cuantos: number;
-        status: IdeaCreate["status"];
-        donde: string;
-      }[] = [
-        { prefijo: "Entrada", cuantos: 4, status: "draft", donde: "la entrada" },
-        { prefijo: "Cola", cuantos: 3, status: "proposed", donde: "En cola" },
-        { prefijo: "Roadmap", cuantos: 1, status: "roadmap", donde: "roadmap" },
-        { prefijo: "Verificación", cuantos: 2, status: "verificacion", donde: "verificación" },
-        { prefijo: "Aprobada", cuantos: 2, status: "revision_aprobada", donde: "revisión aprobada" },
-        { prefijo: "Historial", cuantos: 3, status: "historial", donde: "el historial" },
-        { prefijo: "Descartada", cuantos: 3, status: "rejected", donde: "Descartadas" },
-      ];
-      return lotes.flatMap(({ prefijo, cuantos, status, donde }) =>
-        Array.from({ length: cuantos }, (_, i) => {
-          const titulo = `${prefijo} ${i + 1}`;
-          return {
-            texto: `Crear «${titulo}» en ${donde}`,
-            ejecutar: async () => {
-              const idea = await crear({
-                title: titulo,
-                description: `Elemento ${i + 1} de ${prefijo.toLowerCase()}.`,
-                content: `Elemento ${i + 1} de ${prefijo.toLowerCase()}.`,
-                kind: "idea",
-                status,
-              });
-              if (!idea) throw new Error("El core no devolvió la idea creada.");
-              // El historial se siembra ya cerrado: así el carril enseña lo
-              // que archiva la aprobación, con su fase completada.
-              if (status === "historial") {
-                await editar(idea.uid, {
-                  fases: [
-                    {
-                      orden: 1,
-                      titulo: "Cierre",
-                      estado: "completada",
-                      nota: "",
-                      requisitos: [{ orden: 1, titulo: "Comprobado", hecho: true }],
-                    },
-                  ],
-                });
-              }
-            },
-          };
-        }),
+      type FaseEntrada = NonNullable<IdeaUpdate["fases"]>[number];
+      const pasos: Paso[] = [];
+      const uids: Record<string, string> = {};
+      const fase = (
+        orden: number,
+        titulo: string,
+        estado: "pendiente" | "completada" | "fallida" | "rechazada",
+        requisitos: [string, boolean][],
+        nota = "",
+      ): FaseEntrada => ({
+        orden,
+        titulo,
+        estado,
+        nota,
+        requisitos: requisitos.map(([nombre, hecho], i) => ({
+          orden: i + 1,
+          titulo: nombre,
+          hecho,
+        })),
+      });
+      const sembrar = (
+        clave: string,
+        body: IdeaCreate,
+        donde: string,
+        completar?: (uid: string) => Promise<void>,
+      ) => {
+        pasos.push({
+          texto: `Crear «${body.title}» en ${donde}`,
+          ejecutar: async () => {
+            const idea = await crear(body);
+            if (!idea) throw new Error("El core no devolvió la idea creada.");
+            uids[clave] = idea.uid;
+            if (completar) await completar(idea.uid);
+          },
+        });
+      };
+
+      for (let i = 1; i <= 4; i++) {
+        sembrar(
+          `entrada-${i}`,
+          {
+            title: `Entrada · ${i}`,
+            description: `Idea ${i} recién capturada, todavía sin carril.`,
+            content: "",
+            kind: "idea",
+            status: "draft",
+          },
+          "la entrada",
+        );
+      }
+      for (let i = 1; i <= 3; i++) {
+        sembrar(
+          `cola-${i}`,
+          {
+            title: `Cola · ${i}`,
+            description: `Idea ${i} esperando su turno en la cola.`,
+            content: "",
+            kind: "idea",
+            status: "proposed",
+          },
+          "En cola",
+        );
+      }
+      sembrar(
+        "roadmap",
+        {
+          title: "Roadmap · en curso con fases",
+          description: "Una fase completada, otra fallida con motivo y una pendiente.",
+          content: "",
+          kind: "idea",
+          status: "roadmap",
+        },
+        "roadmap",
+        async (uid) => {
+          await editar(uid, {
+            fases: [
+              fase(1, "Diseño", "completada", [
+                ["Cerrar el alcance", true],
+                ["Validar con el equipo", true],
+              ]),
+              fase(
+                2,
+                "Implementación",
+                "fallida",
+                [["Repetir la integración", false]],
+                "La API cambió a mitad del trabajo.",
+              ),
+              fase(3, "Revisión", "pendiente", [["Revisar el resultado", false]]),
+            ],
+          });
+        },
       );
+      sembrar(
+        "verificacion-1",
+        {
+          title: "Verificación · lista para aprobar",
+          description: "Dos fases completadas con todos sus requisitos.",
+          content: "",
+          kind: "idea",
+          status: "verificacion",
+        },
+        "verificación",
+        async (uid) => {
+          await editar(uid, {
+            fases: [
+              fase(1, "Implementación", "completada", [
+                ["Código integrado", true],
+                ["Pruebas en verde", true],
+              ]),
+              fase(2, "Documentación", "completada", [["Guía actualizada", true]]),
+            ],
+          });
+        },
+      );
+      sembrar(
+        "verificacion-2",
+        {
+          title: "Verificación · con una fase rechazada y un título que ocupa más de una línea",
+          description:
+            "Una fase completada y otra rechazada, que no cuenta para aprobar; el título largo enseña cómo envuelve la ficha.",
+          content: "",
+          kind: "idea",
+          status: "verificacion",
+        },
+        "verificación",
+        async (uid) => {
+          await editar(uid, {
+            fases: [
+              fase(1, "Implementación", "completada", [["Código integrado", true]]),
+              fase(2, "Migración", "rechazada", [["Migrar los datos", false]]),
+            ],
+          });
+        },
+      );
+      sembrar(
+        "aprobada-1",
+        {
+          title: "Aprobada · firmada",
+          description: "Una idea que ya pasó la aprobación; el historial conserva sus fases.",
+          content: "",
+          kind: "idea",
+          status: "revision_aprobada",
+        },
+        "revisión aprobada",
+        async (uid) => {
+          await editar(uid, {
+            fases: [fase(1, "Entrega", "completada", [["Entregado", true]])],
+          });
+        },
+      );
+      sembrar(
+        "aprobada-2",
+        {
+          title: "Aprobada · con dos fases",
+          description: "Otra aprobada para ver el carril con más de una ficha.",
+          content: "",
+          kind: "idea",
+          status: "revision_aprobada",
+        },
+        "revisión aprobada",
+        async (uid) => {
+          await editar(uid, {
+            fases: [
+              fase(1, "Diseño", "completada", [["Diseño cerrado", true]]),
+              fase(2, "Entrega", "completada", [["Entrega revisada", true]]),
+            ],
+          });
+        },
+      );
+      sembrar(
+        "historial-1",
+        {
+          title: "Historial · cerrada",
+          description: "Una idea terminada que conserva su fase y su requisito.",
+          content: "",
+          kind: "idea",
+          status: "historial",
+        },
+        "el historial",
+        async (uid) => {
+          await editar(uid, {
+            fases: [fase(1, "Cierre", "completada", [["Comprobado", true]])],
+          });
+        },
+      );
+      sembrar(
+        "historial-2",
+        {
+          title: "Historial · con dos fases",
+          description: "El historial también conserva varias fases completadas.",
+          content: "",
+          kind: "idea",
+          status: "historial",
+        },
+        "el historial",
+        async (uid) => {
+          await editar(uid, {
+            fases: [
+              fase(1, "Diseño", "completada", [["Diseño cerrado", true]]),
+              fase(2, "Entrega", "completada", [["Entrega comprobada", true]]),
+            ],
+          });
+        },
+      );
+      sembrar(
+        "historial-3",
+        {
+          title: "Historial · otra cerrada",
+          description: "Una tercera ficha para ver el carril con varias ideas.",
+          content: "",
+          kind: "idea",
+          status: "historial",
+        },
+        "el historial",
+        async (uid) => {
+          await editar(uid, {
+            fases: [fase(1, "Cierre", "completada", [["Comprobado", true]])],
+          });
+        },
+      );
+      const descartes = [
+        {
+          clave: "descartada-1",
+          titulo: "Descartada · no aporta",
+          motivo: "No aporta a este ciclo.",
+        },
+        {
+          clave: "descartada-2",
+          titulo: "Descartada · duplicada",
+          motivo: "Duplica otra idea del mismo lote.",
+        },
+        {
+          clave: "descartada-3",
+          titulo: "Reemplazada · por otra idea",
+          motivo: "La releva una idea más reciente.",
+          estado: "superseded" as const,
+        },
+      ];
+      for (const descarte of descartes) {
+        sembrar(
+          descarte.clave,
+          {
+            title: descarte.titulo,
+            description: "Descarte con motivo para ver la ficha del carril.",
+            content: "",
+            kind: "idea",
+            status: descarte.estado ?? "rejected",
+          },
+          "Descartadas",
+          async (uid) => {
+            await editar(uid, {
+              status: descarte.estado ?? "rejected",
+              rejected_description: descarte.motivo,
+            });
+          },
+        );
+      }
+      // Las dependencias van al final: así el mapa enseña un chip verde
+      // (aprobada/historial) y otro ámbar (cola) en la misma ficha.
+      pasos.push({
+        texto: "Encadenar dependencias: una aprobada, una pendiente y un historial",
+        ejecutar: async () => {
+          const roadmap = uids["roadmap"];
+          const verificacion = uids["verificacion-1"];
+          const aprobada = uids["aprobada-1"];
+          const cola = uids["cola-1"];
+          const historial = uids["historial-1"];
+          if (!roadmap || !verificacion || !aprobada || !cola || !historial) {
+            throw new Error("Faltan uids para las dependencias.");
+          }
+          await editar(roadmap, { depende_de: [aprobada, cola] });
+          await editar(verificacion, { depende_de: [historial] });
+        },
+      });
+      return pasos;
     },
   },
   {

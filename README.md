@@ -155,8 +155,10 @@ para ver el movimiento y volver a abrirlo para consultar los pasos. El selector
 del lanzador ofrece:
 
 - **Reparto y limpieza**: diez ideas, siete en cola y tres descartadas.
-- **Mapa completo por carriles**: siembra ideas en todos los carriles para ver
-  los cables, sus compuertas y el grosor según la presión.
+- **Mapa completo por carriles**: siembra ideas en todos los carriles, con
+  fases en varios estados, requisitos, motivos y dependencias, para ver las
+  fichas, los contadores, los cables, sus compuertas y el grosor según la
+  presión.
 - **Cable en marcha**: una idea salta de carril en carril cinco veces para ver
   el cable de llegada abrirse en guiones y correr con la chispa.
 - **Fases hasta aprobar**: una idea con una fase recorre el flujo hasta la

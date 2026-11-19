@@ -910,33 +910,38 @@ header > div {
 }
 
 .chevron {
-  stroke-width: 1.6;
+  stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
 .wire.cola,
-.chevron.cola {
+.chevron.cola,
+.compuerta.cola {
   --wire: #3f6aa8;
 }
 
 .wire.roadmap,
-.chevron.roadmap {
+.chevron.roadmap,
+.compuerta.roadmap {
   --wire: #8b6be0;
 }
 
 .wire.verificacion,
-.chevron.verificacion {
+.chevron.verificacion,
+.compuerta.verificacion {
   --wire: #38b6a5;
 }
 
 .wire.revision_aprobada,
-.chevron.revision_aprobada {
+.chevron.revision_aprobada,
+.compuerta.revision_aprobada {
   --wire: #3fb950;
 }
 
-.wire.descartadas {
-  --wire: #8a4a32;
+.wire.descartadas,
+.compuerta.descartadas {
+  --wire: #c0704a;
 }
 
 /* La entrada es la única frontera: trazo discontinuo y lento. Dentro del
@@ -975,6 +980,36 @@ header > div {
   .spark {
     display: none;
   }
+}
+
+/* Compuerta de protocolo en el punto medio: una caja vacía deja el paso
+ * abierto, una barra por exigencia y un aspa si la unión está prohibida.
+ * El trazo no se escala con el mapa: la compuerta se sigue leyendo al alejar. */
+.compuerta {
+  fill: none;
+  stroke: var(--wire);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  pointer-events: visiblePainted;
+  cursor: help;
+}
+
+.compuerta.cerrada {
+  stroke: var(--bad);
+}
+
+/* La caja tapa el cable y lo separa: se lee como un dispositivo en línea.
+ * Los trazos no escalan, así que no se pierden al alejar el mapa. */
+.compuerta-caja {
+  fill: var(--bg);
+  stroke-width: 1.1;
+  opacity: 0.95;
+  vector-effect: non-scaling-stroke;
+}
+
+.compuerta-barra {
+  opacity: 0.95;
+  vector-effect: non-scaling-stroke;
 }
 
 .junction {

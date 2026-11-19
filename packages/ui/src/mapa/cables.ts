@@ -18,7 +18,18 @@ export type Cable = {
   y1: number;
   x2: number;
   y2: number;
+  /** Dónde va la compuerta de protocolo sobre el trazo (en la curva, si la
+   *  hay) y su ángulo en grados, listo para `rotate`. */
+  compuerta: { x: number; y: number; angulo: number };
+  /** Longitud aproximada del trazo en px: la chispa tarda más si es largo. */
+  longitud: number;
 };
+
+/** Velocidad de la chispa en px/s, con tope para no sobrevivir a la ventana
+ *  de actividad (1,15 s), que desmonta las chispas. */
+export function duracionChispa(longitud: number): number {
+  return Math.min(1.05, Math.max(0.42, longitud / 90));
+}
 
 /** Los cables y la respuesta a «¿queda algo fuera del lienzo?».
  *
@@ -97,6 +108,14 @@ export function useCables({
           x2,
           y2,
           d: `M ${x1} ${y1} L ${x2} ${y2}`,
+          compuerta: {
+            // El nudo de Descartadas ocupa el centro de la entrada: la
+            // compuerta se corre al 72 % para no taparlo.
+            x: x1 + (x2 - x1) * (lane === "cola" ? 0.72 : 0.5),
+            y: y1 + (y2 - y1) * (lane === "cola" ? 0.72 : 0.5),
+            angulo: (Math.atan2(y2 - y1, x2 - x1) * 180) / Math.PI,
+          },
+          longitud: Math.hypot(x2 - x1, y2 - y1),
         };
       };
 
@@ -130,6 +149,9 @@ export function useCables({
       if (medio && descartadas) {
         const y2 = descartadas.y + descartadas.h / 2;
         const x2 = descartadas.x - 1;
+        // La compuerta va en el tramo vertical, antes del codo: el punto medio
+        // de la recta entre extremos caería fuera de la curva.
+        const codo = y2 - 8;
         trazos.push({
           lane: "descartadas",
           presion: total("descartadas"),
@@ -137,7 +159,16 @@ export function useCables({
           y1: medio.y,
           x2,
           y2,
-          d: `M ${medio.x} ${medio.y} V ${y2 - 8} Q ${medio.x} ${y2} ${medio.x + 8} ${y2} H ${x2}`,
+          d: `M ${medio.x} ${medio.y} V ${codo} Q ${medio.x} ${y2} ${medio.x + 8} ${y2} H ${x2}`,
+          compuerta: {
+            x: medio.x,
+            y: (medio.y + codo) / 2,
+            angulo: 90,
+          },
+          longitud:
+            Math.abs(codo - medio.y) +
+            (Math.PI * 8) / 2 +
+            Math.abs(x2 - (medio.x + 8)),
         });
       }
       setNudo(medio);

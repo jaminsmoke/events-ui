@@ -48,6 +48,13 @@ const A_GRUPO: Record<Status, Grupo> = {
 
 export type PuedeIr = (origen: Status, destino: Status) => boolean;
 
+/** Un requisito del protocolo para cruzar una unión, de menos a más duro. */
+export type Exigencia = "fases" | "fases-listas" | "fases-completas";
+
+/** El estado de una unión para pintarla: abierta o prohibida, y qué exige.
+ *  `null` = los protocolos aún no han cargado (no se dibuja compuerta). */
+export type Paso = { abierta: boolean; exige: readonly Exigencia[] };
+
 export type ProtocolosFlujo = {
   /** ¿Está la unión en la allowlist? */
   puedeIr: PuedeIr;
@@ -57,6 +64,8 @@ export type ProtocolosFlujo = {
   exigeFasesListas: PuedeIr;
   /** ¿Exige el protocolo que todas estén completadas al cruzar? */
   exigeFasesCompletas: PuedeIr;
+  /** La unión entera, para la compuerta del cable: `null` sin datos. */
+  paso: (origen: Status, destino: Status) => Paso | null;
 };
 
 export function useProtocolos(repo: string | null): ProtocolosFlujo {
@@ -129,6 +138,18 @@ export function useProtocolos(repo: string | null): ProtocolosFlujo {
     exigeFasesCompletas: (origen, destino) => {
       if (cargado === null) return false;
       return cargado.exigenCompletas.has(`${A_GRUPO[origen]}→${A_GRUPO[destino]}`);
+    },
+    paso: (origen, destino) => {
+      if (cargado === null) return null;
+      const a = A_GRUPO[origen];
+      const d = A_GRUPO[destino];
+      const par = `${a}→${d}`;
+      const exige: Exigencia[] = [];
+      if (cargado.exigen.has(par)) exige.push("fases");
+      if (cargado.exigenListas.has(par)) exige.push("fases-listas");
+      if (cargado.exigenCompletas.has(par)) exige.push("fases-completas");
+      // Mismo grupo (p. ej. rechazada → reemplazada) no cruza compuerta.
+      return { abierta: a === d || cargado.pares.has(par), exige };
     },
   };
 }

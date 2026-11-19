@@ -7,7 +7,8 @@ import type { ElegirCarpeta } from "./core/repo";
 import { useRepo } from "./core/useRepo";
 import { useAnimaciones } from "./mapa/animaciones";
 import { buildTree } from "./mapa/arbol";
-import { useCables } from "./mapa/cables";
+import { duracionChispa, useCables } from "./mapa/cables";
+import { Compuerta } from "./mapa/compuertas";
 import { useCamara } from "./mapa/camara";
 import type { Status } from "./mapa/carriles";
 import { NodeBox, VueloFila } from "./mapa/nodos";
@@ -96,7 +97,7 @@ export default function App({
   const { eventos, conectado } = useEventos(repo, versionLog);
   // Los protocolos de flujo: las uniones permitidas entre carriles. La fila
   // no ofrece traslados prohibidos; el core los rechaza si llegan igual.
-  const { puedeIr, exigeFases, exigeFasesListas, exigeFasesCompletas } = useProtocolos(repo);
+  const { puedeIr, exigeFases, exigeFasesListas, exigeFasesCompletas, paso } = useProtocolos(repo);
 
   // Una prueba que murió con la app deja su marca sin latido: al reabrir el
   // mismo laboratorio se cobra el vaciado que quedó pendiente. Con latido
@@ -354,10 +355,10 @@ export default function App({
                         d={cable.d}
                         className={`wire ${cable.lane}${t >= 0.66 ? " fuerte" : ""}`}
                         style={{
-                          strokeWidth: 1.1 + 1.9 * t,
-                          // La entrada se queda apagada: no debe competir con
-                          // las etapas, que son el flujo de verdad.
-                          opacity: entrada ? 0.4 + 0.3 * t : 0.45 + 0.55 * t,
+                          // La entrada se queda más fina y apagada que las
+                          // etapas, pero sin desvanecerse sobre el fondo.
+                          strokeWidth: entrada ? 1.3 + 1.5 * t : 1.8 + 2.2 * t,
+                          opacity: entrada ? 0.5 + 0.35 * t : 0.6 + 0.4 * t,
                           ...(entrada
                             ? { animationDuration: `${4.4 - 1.6 * t}s` }
                             : {}),
@@ -370,20 +371,29 @@ export default function App({
                   {cables.map((cable) => {
                     if (cable.lane === "descartadas") return null;
                     const t = cable.presion / maximo;
-                    const mx = (cable.x1 + cable.x2) / 2;
-                    const my = (cable.y1 + cable.y2) / 2;
+                    // El chevrón baja al tercio: la compuerta ocupa el medio.
+                    const mx = cable.x1 + (cable.x2 - cable.x1) * 0.3;
+                    const my = cable.y1 + (cable.y2 - cable.y1) * 0.3;
                     const angulo =
                       (Math.atan2(cable.y2 - cable.y1, cable.x2 - cable.x1) * 180) / Math.PI;
                     return (
                       <path
                         key={`chevron-${cable.lane}`}
                         className={`chevron ${cable.lane}`}
-                        d="M -4 -3.5 L 0 0 L -4 3.5"
+                        d="M -5 -4 L 0 0 L -5 4"
                         transform={`translate(${mx} ${my}) rotate(${angulo})`}
-                        style={{ opacity: 0.4 + 0.5 * t }}
+                        style={{ opacity: 0.5 + 0.45 * t }}
                       />
                     );
                   })}
+                  {cables.map((cable) => (
+                    <Compuerta
+                      key={`compuerta-${cable.lane}`}
+                      lane={cable.lane}
+                      protocolo={paso}
+                      {...cable.compuerta}
+                    />
+                  ))}
                   {cables[0] && (
                     <circle className="junction" cx={cables[0].x1} cy={cables[0].y1} r={4} />
                   )}
@@ -401,7 +411,11 @@ export default function App({
                     const cable = cables.find((c) => c.lane === chispa.lane);
                     return cable ? (
                       <circle key={chispa.id} r={3.5} className={`spark ${chispa.lane}`}>
-                        <animateMotion dur="0.64s" path={cable.d} fill="freeze" />
+                        <animateMotion
+                          dur={`${duracionChispa(cable.longitud)}s`}
+                          path={cable.d}
+                          fill="freeze"
+                        />
                       </circle>
                     ) : null;
                   })}

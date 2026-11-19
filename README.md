@@ -161,6 +161,9 @@ del lanzador ofrece:
   el cable de llegada abrirse en guiones y correr con la chispa.
 - **Fases hasta aprobar**: una idea con una fase recorre el flujo hasta la
   aprobación, con las compuertas de fases en el camino.
+- **Fases: crear, completar y fallar**: una idea con cuatro fases recorre
+  pendiente, completada, fallida y rechazada, con pausas para mirarlo, y
+  termina cruzando a verificación cuando ya no queda ninguna abierta.
 - **Ida y vuelta y descarte**: una idea llega a verificación, vuelve a la cola y
   se descarta con motivo.
 

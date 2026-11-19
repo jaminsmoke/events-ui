@@ -22,6 +22,17 @@ const ESPERA_ENTRE_PASOS_MS = 1100;
 /** Mientras la prueba corre se deja constancia de que sigue viva. */
 const LATIDO_MS = 3000;
 
+/** Respiro para mirar un estado antes de seguir (solo en las pruebas). */
+const mirar = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/** Una fase del taller de la prueba, en el formato del PATCH. */
+type FaseTaller = {
+  orden: number;
+  titulo: string;
+  estado: "pendiente" | "completada" | "fallida" | "rechazada";
+  nota: string;
+};
+
 const PRUEBAS: Prueba[] = [
   {
     id: "prueba-1",
@@ -230,6 +241,129 @@ const PRUEBAS: Prueba[] = [
           texto: "Aprobar la revisión (todas completadas)",
           ejecutar: async () => {
             await mover(conUid(), "revision_aprobada");
+          },
+        },
+      ];
+    },
+  },
+  {
+    id: "fases-estados",
+    nombre: "Fases: crear, completar y fallar",
+    descripcion:
+      "Una idea con cuatro fases recorre todos sus estados —pendiente, completada, fallida y " +
+      "rechazada— con pausas para mirarlo, y después cierra las abiertas para pasar a verificación. " +
+      "Abre la fila «Fases · taller» para ver el panel en vivo.",
+    construir: ({ crear, mover, editar }) => {
+      let uid: string | null = null;
+      const conUid = () => {
+        if (!uid) throw new Error("Falta el uid de la idea creada.");
+        return uid;
+      };
+      // Se reenvía la lista entera en cada paso: el PATCH la reemplaza.
+      let fases: FaseTaller[] = [];
+      const anotar = (fase: FaseTaller) => {
+        fases = [...fases, fase];
+      };
+      const cambiar = (orden: number, estado: FaseTaller["estado"]) => {
+        fases = fases.map((fase) => (fase.orden === orden ? { ...fase, estado } : fase));
+      };
+      const guardar = () => editar(conUid(), { fases });
+      return [
+        {
+          texto: "Crear «Fases · taller» en En cola",
+          ejecutar: async () => {
+            const idea = await crear({
+              title: "Fases · taller",
+              description: "Cuatro fases para ver todos sus estados.",
+              content: "Cuatro fases para ver todos sus estados.",
+              kind: "idea",
+              status: "proposed",
+            });
+            if (!idea) throw new Error("El core no devolvió la idea creada.");
+            uid = idea.uid;
+          },
+        },
+        {
+          texto: "Añadir «Diseño» (pendiente)",
+          ejecutar: async () => {
+            anotar({ orden: 1, titulo: "Diseño", estado: "pendiente", nota: "" });
+            await guardar();
+          },
+        },
+        {
+          texto: "Añadir «Pruebas» (pendiente)",
+          ejecutar: async () => {
+            anotar({ orden: 2, titulo: "Pruebas", estado: "pendiente", nota: "" });
+            await guardar();
+          },
+        },
+        {
+          texto: "Completar «Diseño»",
+          ejecutar: async () => {
+            cambiar(1, "completada");
+            await guardar();
+          },
+        },
+        {
+          texto: "Fallar «Pruebas»",
+          ejecutar: async () => {
+            cambiar(2, "fallida");
+            await guardar();
+          },
+        },
+        {
+          texto: "Añadir «Revisión» (rechazada)",
+          ejecutar: async () => {
+            anotar({ orden: 3, titulo: "Revisión", estado: "rechazada", nota: "" });
+            await guardar();
+          },
+        },
+        {
+          texto: "Añadir «Publicar» (pendiente)",
+          ejecutar: async () => {
+            anotar({ orden: 4, titulo: "Publicar", estado: "pendiente", nota: "" });
+            await guardar();
+          },
+        },
+        {
+          texto: "Mirar los cuatro estados",
+          ejecutar: () => mirar(3000),
+        },
+        {
+          texto: "Mover a roadmap (todavía con fases abiertas)",
+          ejecutar: async () => {
+            await mover(conUid(), "roadmap");
+          },
+        },
+        {
+          texto: "Mirar la compuerta cerrada de verificación",
+          ejecutar: () => mirar(2000),
+        },
+        {
+          texto: "Reabrir «Pruebas» (pendiente)",
+          ejecutar: async () => {
+            cambiar(2, "pendiente");
+            await guardar();
+          },
+        },
+        {
+          texto: "Completar «Pruebas»",
+          ejecutar: async () => {
+            cambiar(2, "completada");
+            await guardar();
+          },
+        },
+        {
+          texto: "Completar «Publicar»",
+          ejecutar: async () => {
+            cambiar(4, "completada");
+            await guardar();
+          },
+        },
+        {
+          texto: "Mover a verificación",
+          ejecutar: async () => {
+            await mover(conUid(), "verificacion");
           },
         },
       ];

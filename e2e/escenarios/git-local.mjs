@@ -10,7 +10,7 @@ function git(carpeta, ...args) {
 export default {
   nombre: "git-local",
   descripcion:
-    "El puente se apaga si el lab solo está dentro de otro repo, se enciende con un git init propio y vuelve a apagarse al quitarlo",
+    "El puente se apaga si el lab solo está dentro de otro repo, se enciende creándolo desde la UI y vuelve a apagarse al eliminarlo",
   run: async ({ page, UI, esperar, expect, resultado, tmp }) => {
     const repos = path.join(tmp, "repos");
     const lab = path.join(repos, "lab");
@@ -51,11 +51,14 @@ export default {
         "la pestaña deshabilitada debe explicar que no hay work tree",
       );
 
-      // `git init` en el propio lab gana al repo contenedor que lo ignora.
-      git(lab, "init", "-b", "main");
+      // Crear el repo local desde el puente: pide confirmación y enciende.
+      await page.getByRole("button", { name: "Crear repo local", exact: true }).click();
+      const dialogoCrear = page.getByRole("dialog", { name: "Crear repo local" });
+      await dialogoCrear.waitFor();
+      await dialogoCrear.getByRole("button", { name: "Crear repo", exact: true }).click();
       await esperar(
         () => puente.evaluate((el) => el.classList.contains("activo")),
-        "Git activo tras git init",
+        "Git activo tras crear el repo local",
         15_000,
       );
       const texto = await puente.innerText();
@@ -83,19 +86,18 @@ export default {
       await page.waitForTimeout(900);
       await page.screenshot({ path: resultado("git-local.png") });
 
-      // Sin repo propio vuelve a mandar el contenedor, que lo ignora.
-      rmSync(path.join(lab, ".git"), { recursive: true, force: true });
-      await esperar(
-        () => cambios.evaluate((el) => el.classList.contains("apagado")),
-        "los cambios apagados al quitar el repo",
-        15_000,
-      );
+      // Eliminar desde el puente: pide confirmación y vuelve a apagarse.
       await page.getByRole("button", { name: "Mapa de ideas", exact: true }).click();
+      await page.getByRole("button", { name: "Eliminar repo…", exact: true }).click();
+      const dialogoEliminar = page.getByRole("dialog", { name: "Eliminar repo local" });
+      await dialogoEliminar.waitFor();
+      await dialogoEliminar.getByRole("button", { name: "Eliminar repo", exact: true }).click();
       await esperar(
         () => puente.evaluate((el) => el.classList.contains("apagado")),
-        "Git apagado al quitar el repo",
+        "Git apagado al eliminar el repo",
         15_000,
       );
+      expect(await pestanaGit.isDisabled(), "la pestaña de Git debe volver a deshabilitarse");
     } finally {
       rmSync(path.join(lab, ".git"), { recursive: true, force: true });
       rmSync(path.join(repos, ".git"), { recursive: true, force: true });

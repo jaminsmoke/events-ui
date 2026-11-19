@@ -18,6 +18,7 @@ import { useProtocolos } from "./core/useProtocolos";
 import { Ajustes as DialogoAjustes } from "./pantalla/Ajustes";
 import { AvisoError } from "./pantalla/AvisoError";
 import { BarraRepo } from "./pantalla/BarraRepo";
+import { DialogoGit } from "./pantalla/DialogoGit";
 import { Bienvenida } from "./pantalla/Bienvenida";
 import { NuevaIdea } from "./pantalla/NuevaIdea";
 import { SelectorRepo } from "./pantalla/SelectorRepo";
@@ -58,6 +59,8 @@ export default function App({
   // Dos mapas enlazados: el de Ideas y el de Git. El puente de Ideas solo
   // abre el de Git cuando hay work tree; la vista se anima al cambiar.
   const [mapa, setMapa] = useState<"ideas" | "git">("ideas");
+  // Crear o eliminar el repo local: no se hace al pulsar, hay confirmación.
+  const [dialogoGit, setDialogoGit] = useState<null | "crear" | "eliminar">(null);
   const [avisoRecuperacion, setAvisoRecuperacion] = useState<string | null>(null);
   // El editor de la fila vive aquí, no dentro de la fila: la fila le monta
   // un `createPortal` a body y con el ratón sus clics no llegaban (Guardar/
@@ -93,6 +96,8 @@ export default function App({
     borrar,
     cargarIdea,
     reiniciar,
+    crearRepoGit,
+    eliminarRepoGit,
   } = useRepo(repo);
   const tree = useMemo(() => (ideas ? buildTree(ideas) : null), [ideas]);
   // F1: el log del repo en vivo (cada `EUI_DATABASE` lleva el suyo).
@@ -343,6 +348,18 @@ export default function App({
         <section className="card selector-card">
           <NuevaIdea onCrear={crear} onCerrar={() => setNuevaAbierta(false)} />
         </section>
+      )}
+
+      {dialogoGit && proyeccion && (
+        <DialogoGit
+          tipo={dialogoGit}
+          ruta={proyeccion.repo}
+          rama={proyeccion.branch}
+          onConfirmar={() =>
+            dialogoGit === "crear" ? crearRepoGit() : eliminarRepoGit()
+          }
+          onCerrar={() => setDialogoGit(null)}
+        />
       )}
 
       {editando && (
@@ -608,6 +625,8 @@ export default function App({
                     gitRoot={proyeccion?.git_root}
                     boxRef={gitRef}
                     onAbrir={irGit}
+                    onCrear={() => setDialogoGit("crear")}
+                    onEliminar={() => setDialogoGit("eliminar")}
                   />
                 </div>
                 ) : (
@@ -617,9 +636,6 @@ export default function App({
                       <p className="git-kicker">Control de versiones</p>
                       <p className="git-titulo">Mapa de Git</p>
                     </div>
-                    <button type="button" className="btn ghost" onClick={irIdeas}>
-                      ← Volver a Ideas
-                    </button>
                   </div>
                   <NodoGit
                     activo={gitActivo}

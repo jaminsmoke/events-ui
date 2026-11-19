@@ -156,6 +156,23 @@ export function useRepo(repo: string | null) {
     };
   }, [repo]);
 
+  // Crear o eliminar el repo local: la respuesta ya trae la proyección
+  // actualizada, así que el puente y la pestaña reaccionan al instante sin
+  // esperar al sondeo de 5 s.
+  const crearRepoGit = useCallback(async (): Promise<ProyeccionRepo | null> => {
+    if (!repo) return null;
+    const p: ProyeccionRepo = await unwrap(api.POST("/git/inicializar", { params: { query: { repo } } }));
+    setProyeccionEstado({ repo, datos: p });
+    return p;
+  }, [repo]);
+
+  const eliminarRepoGit = useCallback(async (): Promise<ProyeccionRepo | null> => {
+    if (!repo) return null;
+    const p: ProyeccionRepo = await unwrap(api.POST("/git/eliminar", { params: { query: { repo } } }));
+    setProyeccionEstado({ repo, datos: p });
+    return p;
+  }, [repo]);
+
   const proyeccion =
     repo && proyeccionEstado?.repo === repo ? proyeccionEstado.datos : null;
 
@@ -172,5 +189,7 @@ export function useRepo(repo: string | null) {
     borrar,
     cargarIdea,
     reiniciar,
+    crearRepoGit,
+    eliminarRepoGit,
   };
 }

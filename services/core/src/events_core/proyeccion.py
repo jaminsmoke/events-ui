@@ -19,6 +19,7 @@ de ellos.
 
 from __future__ import annotations
 
+import shutil
 import sqlite3
 import subprocess
 from contextlib import closing
@@ -26,7 +27,7 @@ from pathlib import Path
 from typing import Any
 
 from .db import open_read_only
-from .ideas import _existe, ensure_repo, repos_root, resolve_repo
+from .ideas import InvalidInput, _existe, ensure_repo, repos_root, resolve_repo
 
 
 def _git(carpeta: Path, *args: str) -> str | None:
@@ -110,6 +111,52 @@ def _git_repo(carpeta: Path) -> tuple[bool, Path | None]:
     if _git(raiz, "check-ignore", "--", relativa):
         return False, None
     return True, raiz
+
+
+def inicializar_repo(carpeta: Path) -> None:
+    """`git init` en la carpeta del repo, con las protecciones del laboratorio.
+
+    Se rechaza si ya es un repo propio o si pertenece a un repo contenedor
+    que no lo ignora: anidar otro dentro escondería el de fuera. Si la
+    carpeta está ignorada por el contenedor, el `init` propio gana.
+    """
+    if not carpeta.exists():
+        raise FileNotFoundError(f"no existe la carpeta {carpeta}")
+    es_git, git_root = _git_repo(carpeta)
+    if es_git and git_root is not None and git_root.resolve() == carpeta.resolve():
+        raise InvalidInput("Ya es un repositorio local")
+    if es_git:
+        raise InvalidInput(f"Ya pertenece al repositorio {git_root}; no se anida otro")
+    try:
+        salida = subprocess.run(
+            ["git", "-C", str(carpeta), "init", "-b", "main"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise InvalidInput("No se pudo ejecutar git init") from exc
+    if salida.returncode != 0:
+        detalle = salida.stderr.strip() or "git init falló"
+        raise InvalidInput(detalle)
+
+
+def eliminar_repo(carpeta: Path) -> None:
+    """Borra solo el `.git` propio; si no lo hay o no es carpeta, se rechaza.
+
+    Un repo heredado de una carpeta superior no se toca: el `.git` ajeno
+    queda intacto. Un `.git` que no sea carpeta (enlace de work tree o de
+    submódulo) tampoco: eliminarlo rompería el repo del que cuelga.
+    """
+    es_git, git_root = _git_repo(carpeta)
+    if not es_git:
+        raise InvalidInput("No hay repositorio local que eliminar")
+    if git_root is None or git_root.resolve() != carpeta.resolve():
+        raise InvalidInput(f"El repo pertenece a {git_root}; se borra desde su raíz")
+    punto_git = carpeta / ".git"
+    if not punto_git.is_dir():
+        raise InvalidInput("El .git no es una carpeta; no se elimina")
+    shutil.rmtree(punto_git)
 
 
 def repo_estado_actual(repo: str) -> dict[str, Any]:

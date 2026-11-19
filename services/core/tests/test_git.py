@@ -148,3 +148,82 @@ def test_repo_propio_dentro_de_una_carpeta_ignorada_si_cuenta(client, tmp_path):
     assert Path(datos["git_root"]).resolve() == laboratorio.resolve()
     assert datos["branch"] == "main"
     assert datos["commit"] is None
+
+
+def test_crear_repo_local_enciende_el_puente(client, tmp_path):  # noqa: ANN001, ANN202
+    carpeta = tmp_path / "suelta"
+    carpeta.mkdir()
+
+    r = client.post("/git/inicializar", params={"repo": str(carpeta)})
+
+    assert r.status_code == 200, r.json()
+    datos = r.json()
+    assert datos["git"] is True
+    assert datos["branch"] == "main"
+    assert (carpeta / ".git").is_dir()
+
+
+def test_eliminar_repo_local_apaga_el_puente(client, tmp_path):  # noqa: ANN001, ANN202
+    carpeta = tmp_path / "propio"
+    _inicializar(carpeta)
+
+    r = client.post("/git/eliminar", params={"repo": str(carpeta)})
+
+    assert r.status_code == 200, r.json()
+    assert r.json()["git"] is False
+    assert not (carpeta / ".git").exists()
+
+
+def test_eliminar_rechaza_el_repo_del_contenedor(client, tmp_path):  # noqa: ANN001, ANN202
+    raiz = tmp_path / "contenedor"
+    _inicializar(raiz)
+    (raiz / "nota.txt").write_text("hola", encoding="utf-8")
+    _git(raiz, "add", "nota.txt")
+    _git(raiz, "commit", "-m", "inicial")
+    sub = raiz / "sub"
+    sub.mkdir()
+
+    r = client.post("/git/eliminar", params={"repo": str(sub)})
+
+    assert r.status_code == 400, r.json()
+    assert (raiz / ".git").is_dir()
+
+
+def test_inicializar_rechaza_un_repo_ya_existente(client, tmp_path):  # noqa: ANN001, ANN202
+    carpeta = tmp_path / "propio"
+    _inicializar(carpeta)
+
+    r = client.post("/git/inicializar", params={"repo": str(carpeta)})
+
+    assert r.status_code == 400, r.json()
+
+
+def test_inicializar_no_anida_en_subcarpeta_de_un_repo(client, tmp_path):  # noqa: ANN001, ANN202
+    raiz = tmp_path / "contenedor"
+    _inicializar(raiz)
+    (raiz / "nota.txt").write_text("hola", encoding="utf-8")
+    _git(raiz, "add", "nota.txt")
+    _git(raiz, "commit", "-m", "inicial")
+    sub = raiz / "sub"
+    sub.mkdir()
+
+    r = client.post("/git/inicializar", params={"repo": str(sub)})
+
+    assert r.status_code == 400, r.json()
+    assert not (sub / ".git").exists()
+
+
+def test_inicializar_en_carpeta_ignorada_gana_al_contenedor(client, tmp_path):  # noqa: ANN001, ANN202
+    raiz = tmp_path / "contenedor"
+    _inicializar(raiz)
+    (raiz / ".gitignore").write_text("laboratorio/\n", encoding="utf-8")
+    _git(raiz, "add", ".gitignore")
+    _git(raiz, "commit", "-m", "ignorar laboratorio")
+    laboratorio = raiz / "laboratorio"
+    laboratorio.mkdir()
+
+    r = client.post("/git/inicializar", params={"repo": str(laboratorio)})
+
+    assert r.status_code == 200, r.json()
+    assert r.json()["git"] is True
+    assert (laboratorio / ".git").is_dir()

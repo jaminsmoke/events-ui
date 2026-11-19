@@ -1201,6 +1201,12 @@ header > div {
   box-shadow: 0 0 10px #3fb95033;
 }
 
+/* Eliminar vive debajo de Abrir, con el mismo ancho y aire. */
+.nodo-puente .puente-borrar {
+  width: calc(100% - 18px);
+  margin: 0 9px 9px;
+}
+
 .nodo-cambios .node-head {
   cursor: default;
 }

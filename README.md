@@ -210,7 +210,10 @@ Su primer nodo, **Cambios sin commit**, lista lo que ve
 `git status --porcelain`: archivos modificados, preparados o sin seguimiento.
 Si Git está apagado, el puente y el nodo también lo están y no inventan cambios.
 Se cambia con las pestañas de arriba o con el botón del puente; al cambiar,
-la cámara reencuadra y los nodos se funden en cascada.
+la cámara reencuadra y los nodos se funden en cascada. El repo local se crea
+(`git init`) y se elimina (solo su `.git`, sin tocar `.EUI`) desde el propio
+puente, con confirmación: `POST /git/inicializar` lo crea y `POST /git/eliminar`
+lo borra, sin anidar dentro de otro repo ni tocar el `.git` de un contenedor.
 
 Una idea puede declarar `depende_de` (uids de otras ideas del repo): el core no
 la deja entrar en roadmap, verificación, revisión aprobada ni historial mientras

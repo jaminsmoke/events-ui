@@ -147,7 +147,10 @@ con el motivo, para no reabrirlo cada semana.
   laboratorio, no. La proyección separa `git`/`git_root` de `branch`/`commit`
   para no confundir «no hay repo» con «repo sin commits». El flujo de ideas
   cierra en el puente **Entregar a Git**, que abre el **Mapa de Git**; su
-  primer nodo lista los cambios sin commit desde `git_cambios`. Cubierto en
+  primer nodo lista los cambios sin commit desde `git_cambios`. El repo local
+  se crea y se elimina desde el puente, con confirmación (`POST /git/inicializar`
+  y `POST /git/eliminar`, sin anidar ni tocar el `.git` ajeno); el botón
+  «Volver a Ideas» sobraba junto a las pestañas y se retiró. Cubierto en
   `services/core/tests/test_git.py` y `e2e/escenarios/git-local.mjs`.
 - **Revisión rechazada (0027)**: desde verificación se vuelve a roadmap para
   rehacer, a la cola para replanificar o a descartadas con motivo. No hay un

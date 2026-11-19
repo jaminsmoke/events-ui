@@ -1115,7 +1115,8 @@ export function NodoGit({
 }
 
 /** El puente al Mapa de Git: cierra el flujo de Ideas y solo se activa con
- *  work tree. No guarda ideas; abre la vista de Control de versiones. */
+ *  work tree. No guarda ideas; abre la vista de Control de versiones. Sin
+ *  repo ofrece crearlo y con repo, eliminarlo (con confirmación). */
 export function NodoPuenteGit({
   activo,
   branch,
@@ -1123,6 +1124,8 @@ export function NodoPuenteGit({
   gitRoot,
   boxRef,
   onAbrir,
+  onCrear,
+  onEliminar,
 }: {
   activo: boolean;
   branch?: string | null;
@@ -1130,6 +1133,8 @@ export function NodoPuenteGit({
   gitRoot?: string | null;
   boxRef?: Ref<HTMLElement>;
   onAbrir: () => void;
+  onCrear: () => void;
+  onEliminar: () => void;
 }) {
   return (
     <section
@@ -1156,14 +1161,20 @@ export function NodoPuenteGit({
           <span className="git-ayuda">Sin repositorio local</span>
         )}
       </div>
-      <button
-        type="button"
-        className="btn puente-abrir"
-        disabled={!activo}
-        onClick={onAbrir}
-      >
-        Abrir mapa de Git <span aria-hidden="true">→</span>
-      </button>
+      {activo ? (
+        <>
+          <button type="button" className="btn puente-abrir" onClick={onAbrir}>
+            Abrir mapa de Git <span aria-hidden="true">→</span>
+          </button>
+          <button type="button" className="btn ghost puente-borrar" onClick={onEliminar}>
+            Eliminar repo…
+          </button>
+        </>
+      ) : (
+        <button type="button" className="btn puente-abrir" onClick={onCrear}>
+          Crear repo local
+        </button>
+      )}
     </section>
   );
 }

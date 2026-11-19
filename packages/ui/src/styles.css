@@ -836,6 +836,72 @@ header > div {
   line-height: 1.1;
 }
 
+/* Leyenda de las compuertas: tres glifos a escala de mapa, en una tira
+ * discreta que no captura el puntero (el lienzo se sigue arrastrando). */
+.leyenda-compuertas {
+  position: absolute;
+  left: 18px;
+  bottom: 10px;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  max-width: calc(100vw - 210px);
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #0e1116e6;
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.leyenda-titulo {
+  color: var(--fg);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.leyenda-compuertas > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.leyenda-icono {
+  width: 10px;
+  height: 16px;
+  flex: none;
+  overflow: visible;
+}
+
+.leyenda-icono .compuerta-caja,
+.leyenda-icono .compuerta-barra {
+  stroke: var(--muted);
+}
+
+.leyenda-icono .compuerta-caja {
+  stroke-width: 1.1;
+  opacity: 0.9;
+}
+
+.leyenda-icono .compuerta-barra {
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  opacity: 0.9;
+}
+
+.leyenda-icono.prohibida .compuerta-caja,
+.leyenda-icono.prohibida .compuerta-barra {
+  stroke: var(--bad);
+}
+
 /* Sin `will-change: transform`: promociona el mapa a capa propia y el texto se
  * estira desde la textura ya rasterizada, que es lo que se veía borroso con
  * zoom alto. Sin promoción, el navegador vuelve a rasterizar a la escala real. */
@@ -984,7 +1050,8 @@ header > div {
 
 /* Compuerta de protocolo en el punto medio: una caja vacía deja el paso
  * abierto, una barra por exigencia y un aspa si la unión está prohibida.
- * El trazo no se escala con el mapa: la compuerta se sigue leyendo al alejar. */
+ * El trazo escala con el mapa: si no, al 200 % la caja crece y el marco se
+ * queda en un píxel, con aspecto de wireframe. */
 .compuerta {
   fill: none;
   stroke: var(--wire);
@@ -998,18 +1065,16 @@ header > div {
   stroke: var(--bad);
 }
 
-/* La caja tapa el cable y lo separa: se lee como un dispositivo en línea.
- * Los trazos no escalan, así que no se pierden al alejar el mapa. */
+/* La caja tapa el cable y lo separa: se lee como un dispositivo en línea. */
 .compuerta-caja {
   fill: var(--bg);
-  stroke-width: 1.1;
+  stroke-width: 1.2;
   opacity: 0.95;
-  vector-effect: non-scaling-stroke;
 }
 
 .compuerta-barra {
+  stroke-width: 1.6;
   opacity: 0.95;
-  vector-effect: non-scaling-stroke;
 }
 
 .junction {

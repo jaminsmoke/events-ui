@@ -43,6 +43,49 @@ function titulo(paso: Paso, lane: LaneId): string {
   return prefijo + paso.exige.map((exigencia) => TEXTO[exigencia]).join("; ");
 }
 
+function Icono({ tipo }: { tipo: "libre" | "exige" | "cerrada" }) {
+  return (
+    <svg
+      className={`leyenda-icono${tipo === "cerrada" ? " prohibida" : ""}`}
+      viewBox="-6 -10 12 20"
+      aria-hidden="true"
+    >
+      <rect className="compuerta-caja" x={-5} y={-9} width={10} height={18} rx={2.5} />
+      {tipo === "exige" && (
+        <>
+          <path className="compuerta-barra" d="M -1.6 -5 L -1.6 5" />
+          <path className="compuerta-barra" d="M 1.6 -5 L 1.6 5" />
+        </>
+      )}
+      {tipo === "cerrada" && (
+        <path className="compuerta-barra" d="M -4 -5 L 4 5 M 4 -5 L -4 5" />
+      )}
+    </svg>
+  );
+}
+
+/** Leyenda de la gramática de las compuertas, fuera del mapa para no
+ *  repetirla en cada cable: caja vacía, barras y aspa. */
+export function LeyendaCompuertas() {
+  return (
+    <aside className="leyenda-compuertas" aria-label="Compuertas de protocolo">
+      <span className="leyenda-titulo">Compuertas</span>
+      <span>
+        <Icono tipo="libre" />
+        Paso libre
+      </span>
+      <span>
+        <Icono tipo="exige" />
+        Una barra por exigencia
+      </span>
+      <span>
+        <Icono tipo="cerrada" />
+        Prohibida
+      </span>
+    </aside>
+  );
+}
+
 /** Una compuerta en el punto medio del cable: una caja vacía es paso libre,
  *  cada barra de dentro es una exigencia del protocolo y el aspa cierra una
  *  unión prohibida. El `title` dice qué pide, sin crecer el mapa. */

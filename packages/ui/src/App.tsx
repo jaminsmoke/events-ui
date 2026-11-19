@@ -8,7 +8,7 @@ import { useRepo } from "./core/useRepo";
 import { useAnimaciones } from "./mapa/animaciones";
 import { buildTree } from "./mapa/arbol";
 import { duracionChispa, useCables } from "./mapa/cables";
-import { Compuerta } from "./mapa/compuertas";
+import { Compuerta, LeyendaCompuertas } from "./mapa/compuertas";
 import { useCamara } from "./mapa/camara";
 import type { Status } from "./mapa/carriles";
 import { NodeBox, VueloFila } from "./mapa/nodos";
@@ -469,6 +469,7 @@ export default function App({
             )}
             {recortado && <AvisoRecorte onEncuadrar={encuadrar} />}
             <Controles vista={vista} onZoom={zoom} onReset={reset} />
+            {cables.length > 0 && <LeyendaCompuertas />}
           </section>
         )}      </main>
 

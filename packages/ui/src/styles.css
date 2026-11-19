@@ -1068,6 +1068,9 @@ header > div {
    * ventana los dejan respirar sin comerse los nodos. */
   column-gap: clamp(72px, 6.5vw, 104px);
   align-items: start;
+  /* Debajo de la línea vive el nudo de Revisión rechazada. El aire se reserva
+   * siempre para que sus cables no queden recortados por el mapa. */
+  padding-bottom: 124px;
 }
 
 .linea > .node {
@@ -1162,6 +1165,39 @@ header > div {
 .wire.descartadas,
 .compuerta.descartadas {
   --wire: #c0704a;
+}
+
+/* Revisión rechazada: una bifurcación, no un carril. El tronco baja desde
+ * Verificación y los tres cables de vuelta salen de su canto izquierdo. */
+.rama-tronco {
+  fill: none;
+  stroke: #b86952;
+  stroke-width: 1.5;
+  opacity: 0.65;
+}
+
+.rama-rechazo {
+  pointer-events: none;
+}
+
+.rama-caja {
+  fill: #1b1113;
+  stroke: #9d5a50;
+  stroke-width: 1.2;
+}
+
+.rama-titulo {
+  fill: #f0b3a8;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.rama-sub {
+  fill: #b98b85;
+  font-family: inherit;
+  font-size: 9px;
 }
 
 /* En marcha: el cable se abre en guiones, corre y emite mientras lo cruza una

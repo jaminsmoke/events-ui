@@ -19,7 +19,11 @@ const UNION: Record<Exclude<LaneId, "descartadas">, [Status, Status]> = {
 function pasoDeCable(
   lane: LaneId,
   paso: (origen: Status, destino: Status) => Paso | null,
+  union: [Status, Status] | null,
 ): Paso | null {
+  // Las ramas de revisión rechazada traen su pareja explícita: comparten
+  // carril de destino con el flujo normal y no pueden deducirla del color.
+  if (union) return paso(...union);
   if (lane !== "descartadas") {
     const [origen, destino] = UNION[lane];
     return paso(origen, destino);
@@ -39,8 +43,13 @@ const TEXTO: Record<Exigencia, string> = {
   "fases-completas": "pide todas las fases completadas",
 };
 
-function titulo(paso: Paso, lane: LaneId): string {
-  const prefijo = lane === "descartadas" ? "Descartar (entrada o cola): " : "Protocolo: ";
+function titulo(paso: Paso, lane: LaneId, union: [Status, Status] | null): string {
+  const prefijo =
+    union?.[0] === "verificacion"
+      ? `Revisión rechazada → ${union[1] === "proposed" ? "Cola" : union[1] === "roadmap" ? "Roadmap" : "Descartadas"}: `
+      : lane === "descartadas"
+        ? "Descartar (entrada o cola): "
+        : "Protocolo: ";
   if (!paso.abierta) return `${prefijo}esta unión no está permitida`;
   if (paso.exige.length === 0) return `${prefijo}paso libre`;
   return prefijo + paso.exige.map((exigencia) => TEXTO[exigencia]).join("; ");
@@ -98,17 +107,19 @@ export function Compuerta({
   y,
   angulo,
   lane,
+  union = null,
 }: {
   protocolo: (origen: Status, destino: Status) => Paso | null;
   x: number;
   y: number;
   angulo: number;
   lane: LaneId;
+  union?: [Status, Status] | null;
 }) {
   // Archivar no es una unión de protocolo: la hace el core al aprobar, así
   // que el cable del historial no lleva compuerta (ni un aspa de prohibida).
   if (lane === "historial") return null;
-  const paso = pasoDeCable(lane, protocolo);
+  const paso = pasoDeCable(lane, protocolo, union);
   if (!paso) return null;
   const barras = paso.exige.length;
   return (
@@ -116,7 +127,7 @@ export function Compuerta({
       className={`compuerta ${lane}${paso.abierta ? "" : " cerrada"}`}
       transform={`translate(${x} ${y}) rotate(${angulo})`}
     >
-      <title>{titulo(paso, lane)}</title>
+      <title>{titulo(paso, lane, union)}</title>
       <rect className="compuerta-caja" x={-5} y={-9} width={10} height={18} rx={2.5} />
       {paso.abierta ? (
         Array.from({ length: barras }, (_, i) => (

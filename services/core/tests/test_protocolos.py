@@ -22,6 +22,8 @@ def test_protocolos_sembrados(client, repo):  # noqa: ANN001, ANN202
         ("proposed", "rejected"),
         ("roadmap", "verificacion"),
         ("verificacion", "proposed"),
+        ("verificacion", "roadmap"),
+        ("verificacion", "rejected"),
         ("verificacion", "revision_aprobada"),
     }
     # `superseded` comparte grupo con `rejected`: no lleva filas propias.

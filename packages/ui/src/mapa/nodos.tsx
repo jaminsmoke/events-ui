@@ -46,8 +46,10 @@ const ACCIONES_ESTADO: Record<
   ],
   roadmap: [{ estado: "verificacion", etiqueta: "A verificación" }],
   verificacion: [
+    { estado: "roadmap", etiqueta: "A roadmap" },
     { estado: "proposed", etiqueta: "A cola" },
     { estado: "revision_aprobada", etiqueta: "Aprobar revisión" },
+    { estado: "rejected", etiqueta: "Descartar", descartar: true },
   ],
   revision_aprobada: [],
   historial: [],

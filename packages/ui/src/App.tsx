@@ -168,7 +168,7 @@ export default function App({
     boardRef,
     mapRef,
   });
-  const { cables, nudo, recortado } = useCables({
+  const { cables, nudo, rama, recortado } = useCables({
     tree,
     cerrados,
     vista,
@@ -179,6 +179,20 @@ export default function App({
   });
   const { vuelos, volando, aterrizado } = useVuelos({ repo, ideas, cerrados, vista, mapRef });
   const { chispas, pulsos, pulsoCajon } = useAnimaciones(repo, ideas);
+
+  /* Un carril puede tener cable de ida y de vuelta (verificación↔cola,
+   * verificación↔roadmap, verificación↔descartadas). La chispa y el fogonazo
+   * se anclan al que sale del carril anterior, no al primero del color. */
+  const cableDeChispa = useCallback(
+    (chispa: { lane: LaneId; desde?: LaneId | null }) => {
+      const exacto = cables.find(
+        (cable) =>
+          cable.lane === chispa.lane && cable.origenLane === (chispa.desde ?? "root"),
+      );
+      return exacto ?? cables.find((cable) => cable.lane === chispa.lane);
+    },
+    [cables],
+  );
 
   /* Fogonazo de llegada: la chispa tarda lo que mide su cable; cuando termina,
    *  el nodo da un golpe breve de luz. Va por su cuenta y no con la actividad,
@@ -192,7 +206,7 @@ export default function App({
     for (const chispa of chispas) {
       if (vistos.current.has(chispa.id)) continue;
       vistos.current.add(chispa.id);
-      const cable = cables.find((c) => c.lane === chispa.lane);
+      const cable = cableDeChispa(chispa);
       if (!cable) continue;
       temporizadores.current.push(
         setTimeout(() => {
@@ -206,7 +220,7 @@ export default function App({
         }, duracionChispa(cable.longitud) * 1000),
       );
     }
-  }, [chispas, cables]);
+  }, [chispas, cableDeChispa]);
 
   useEffect(() => () => temporizadores.current.forEach(clearTimeout), []);
 
@@ -383,14 +397,16 @@ export default function App({
                 <svg className="cables" aria-hidden="true">
                   {cables.map((cable) => {
                     const t = cable.presion / maximo;
-                    const entrada = cable.lane === "cola";
+                    const entrada = cable.origenLane === "root" && cable.lane === "cola";
                     // Solo se abre en guiones el cable que una chispa recorre.
-                    const enMarcha = chispas.some((chispa) => chispa.lane === cable.lane);
+                    const enMarcha = chispas.some(
+                      (chispa) => chispa.lane === cable.lane && cableDeChispa(chispa)?.id === cable.id,
+                    );
                     return (
                       <path
-                        key={cable.lane}
+                        key={cable.id}
                         d={cable.d}
-                        className={`wire ${cable.lane}${enMarcha ? " marcha" : ""}`}
+                        className={`wire ${cable.lane}${cable.rama ? " rama" : ""}${enMarcha ? " marcha" : ""}`}
                         style={{
                           // El grosor cuenta lo que espera en el origen; la luz
                           // no: un cable no se enciende porque el carril del
@@ -404,7 +420,7 @@ export default function App({
                   {/* Dirección sin depender del movimiento: un chevrón en el
                    *  punto medio. La rama de Descartadas no lo lleva. */}
                   {cables.map((cable) => {
-                    if (cable.lane === "descartadas") return null;
+                    if (cable.lane === "descartadas" || cable.rama) return null;
                     // El chevrón baja al tercio: la compuerta ocupa el medio.
                     const mx = cable.x1 + (cable.x2 - cable.x1) * 0.3;
                     const my = cable.y1 + (cable.y2 - cable.y1) * 0.3;
@@ -412,7 +428,7 @@ export default function App({
                       (Math.atan2(cable.y2 - cable.y1, cable.x2 - cable.x1) * 180) / Math.PI;
                     return (
                       <path
-                        key={`chevron-${cable.lane}`}
+                        key={`chevron-${cable.id}`}
                         className={`chevron ${cable.lane}`}
                         d="M -5 -4 L 0 0 L -5 4"
                         transform={`translate(${mx} ${my}) rotate(${angulo})`}
@@ -421,12 +437,42 @@ export default function App({
                   })}
                   {cables.map((cable) => (
                     <Compuerta
-                      key={`compuerta-${cable.lane}`}
+                      key={`compuerta-${cable.id}`}
                       lane={cable.lane}
+                      union={cable.union}
                       protocolo={paso}
                       {...cable.compuerta}
                     />
                   ))}
+                  {rama && (
+                    <g className="rama-rechazo">
+                      <path className="rama-tronco" d={rama.tronco} />
+                      <rect
+                        className="rama-caja"
+                        x={rama.fork.x}
+                        y={rama.fork.y}
+                        width={rama.fork.w}
+                        height={rama.fork.h}
+                        rx={7}
+                      />
+                      <text
+                        className="rama-titulo"
+                        x={rama.fork.x + rama.fork.w / 2}
+                        y={rama.fork.y + 23}
+                        textAnchor="middle"
+                      >
+                        Revisión rechazada
+                      </text>
+                      <text
+                        className="rama-sub"
+                        x={rama.fork.x + rama.fork.w / 2}
+                        y={rama.fork.y + 40}
+                        textAnchor="middle"
+                      >
+                        vuelve a cola · roadmap · descartadas
+                      </text>
+                    </g>
+                  )}
                   {cables[0] && (
                     <circle className="junction" cx={cables[0].x1} cy={cables[0].y1} r={4} />
                   )}
@@ -441,7 +487,7 @@ export default function App({
                     />
                   )}
                   {chispas.map((chispa) => {
-                    const cable = cables.find((c) => c.lane === chispa.lane);
+                    const cable = cableDeChispa(chispa);
                     return cable ? (
                       <circle key={chispa.id} r={3.5} className={`spark ${chispa.lane}`}>
                         <animateMotion

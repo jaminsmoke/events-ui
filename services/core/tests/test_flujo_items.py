@@ -213,10 +213,37 @@ def test_transiciones_no_listadas_se_rechazan(client, repo):  # noqa: ANN001, AN
     assert r.status_code == 400
 
     _paso(client, repo, uid, "verificacion")
-    for destino in ("draft", "roadmap", "rejected"):
+    for destino in ("draft", "historial"):
         r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": destino})
         assert r.status_code == 400
         assert "protocolo" in r.json()["detail"]
+
+
+def test_verificacion_puede_volver_a_roadmap_o_descartarse(client, repo):  # noqa: ANN001, ANN202
+    """La revisión rechazada no crea carril: vuelve a roadmap o se descarta."""
+    uid = _crear(client, repo, status="proposed")
+    _paso(client, repo, uid, "roadmap")
+    _paso(client, repo, uid, "verificacion")
+
+    # Rechazo con rehacer: vuelve a roadmap sin reemplazar las fases que ya
+    # tenía; el PATCH de retorno solo cambia el carril.
+    r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": "roadmap"})
+    assert r.status_code == 200, r.json()
+    vuelve = r.json()
+    assert vuelve["status"] == "roadmap"
+    assert vuelve["fases"][0]["estado"] == "completada"
+
+    # Y desde verificación también se puede descartar con motivo.
+    _paso(client, repo, uid, "verificacion")
+    descartada = _paso(
+        client,
+        repo,
+        uid,
+        "rejected",
+        rejected_description="No supera la revisión",
+    )
+    assert descartada["status"] == "rejected"
+    assert descartada["rejected_description"] == "No supera la revisión"
 
 
 def test_borrar_la_sustituta_conserva_el_vinculo(client, repo):  # noqa: ANN001, ANN202

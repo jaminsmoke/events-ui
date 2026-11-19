@@ -23,7 +23,7 @@ export default {
     await selector.or(pruebas).first().waitFor();
     if (await selector.isVisible()) await selector.click();
     await pruebas.waitFor();
-    await esperar(() => page.locator(".wire").count().then((n) => n === 6), "los seis cables");
+    await esperar(() => page.locator(".wire").count().then((n) => n === 9), "los nueve cables");
 
     await pruebas.click();
     const dialogo = page.getByRole("dialog", { name: "Pruebas del laboratorio" });
@@ -61,6 +61,13 @@ export default {
     expect(
       (await page.locator(".lane-roadmap .chip-depende.aprobada").count()) === 1,
       "la dependencia aprobada debe verse en verde",
+    );
+    // El nudo de revisión rechazada y sus tres retornos están siempre, aunque
+    // no haya ninguna idea rechazada en ese momento.
+    expect((await page.locator(".rama-rechazo").count()) === 1, "falta el nudo de rechazo");
+    expect(
+      (await page.locator(".wire.rama").count()) === 3,
+      "faltan los tres retornos de la revisión rechazada",
     );
     // En verificación la dependencia apunta al historial: también está aprobada.
     await esperar(

@@ -141,6 +141,12 @@ con el motivo, para no reabrirlo cada semana.
   carril es terminal y la UI lo enseña de lectura. Las aprobadas existentes se
   archivan en la migración. Cubierto en `services/core/tests/test_flujo_items.py`
   y `e2e/escenarios/historial-aprobacion.mjs`.
+- **Revisión rechazada (0027)**: desde verificación se vuelve a roadmap para
+  rehacer, a la cola para replanificar o a descartadas con motivo. No hay un
+  carril nuevo: el mapa dibuja una bifurcación bajo Verificación y tres cables
+  de vuelta con sus compuertas. La vuelta a roadmap conserva las fases; el
+  descarte guarda su motivo. Cubierto en `services/core/tests/test_flujo_items.py`
+  y `e2e/escenarios/mapa-completo.mjs`.
 - **Formato de etiquetas**: `tags` es una lista JSON de cadenas en el
   esquema (migración 0017, que sanea `{}` y los elementos no textuales) y en
   la API (422 con valores que no son cadenas); una fila antigua se lee como

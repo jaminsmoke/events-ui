@@ -171,7 +171,8 @@ CREATE TABLE IF NOT EXISTS idea_requisito (
 -- `superseded` comparte grupo con `rejected` para mover (el detalle lo
 -- distingue, el carril no), así que no lleva filas propias: el grupo manda.
 -- Se siembra aquí para los almacenes nuevos; a los existentes les llega por
--- la migración 0011 y se amplía en la 0013.
+-- la migración 0011, se amplía en la 0013 y la 0027 añade los retornos de
+-- verificación a roadmap y a descartadas.
 CREATE TABLE IF NOT EXISTS protocolo_flujo (
     origen  TEXT NOT NULL CHECK (origen IN ('draft', 'proposed', 'roadmap', 'verificacion', 'revision_aprobada', 'rejected')),
     destino TEXT NOT NULL CHECK (destino IN ('draft', 'proposed', 'roadmap', 'verificacion', 'revision_aprobada', 'rejected')),
@@ -196,4 +197,6 @@ INSERT OR IGNORE INTO protocolo_flujo
     ('proposed', 'rejected', 0, 0, 0),
     ('roadmap', 'verificacion', 0, 1, 0),
     ('verificacion', 'proposed', 0, 0, 0),
+    ('verificacion', 'roadmap', 0, 0, 0),
+    ('verificacion', 'rejected', 0, 0, 0),
     ('verificacion', 'revision_aprobada', 1, 0, 1);

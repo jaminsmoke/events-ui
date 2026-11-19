@@ -22,6 +22,8 @@ _ESPERADOS = {
     ("proposed", "rejected"),
     ("roadmap", "verificacion"),
     ("verificacion", "proposed"),
+    ("verificacion", "roadmap"),
+    ("verificacion", "rejected"),
     ("verificacion", "revision_aprobada"),
 }
 

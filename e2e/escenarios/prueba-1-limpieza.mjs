@@ -12,7 +12,9 @@ async function geometria(page) {
       const { x, y } = n.getBoundingClientRect();
       return [x, y];
     }),
-    cables: Array.from(document.querySelectorAll(".wire"), (n) => n.getAttribute("d")),
+    // Los cables de etapa se anclan a las cabeceras y no se mueven. El ramal
+    // de revisión rechazada sí depende de la altura de las fichas abiertas.
+    cables: Array.from(document.querySelectorAll(".wire:not(.rama)"), (n) => n.getAttribute("d")),
   }));
 }
 
@@ -37,7 +39,7 @@ export default {
       await selector.or(pruebas).first().waitFor();
       if (await selector.isVisible()) await selector.click();
       await pruebas.waitFor();
-      await esperar(() => page.locator(".wire").count().then((n) => n === 6), "los seis cables");
+      await esperar(() => page.locator(".wire").count().then((n) => n === 9), "los nueve cables");
       const inicial = await geometria(page);
       expect(inicial.cabeceras.length === 7, "siete nodos");
       await pruebas.click();

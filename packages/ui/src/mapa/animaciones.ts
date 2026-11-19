@@ -4,7 +4,7 @@ import type { Idea } from "../core/api";
 import { laneOf } from "./carriles";
 import type { LaneId } from "./carriles";
 
-export type Animacion = { lane: LaneId; id: number };
+export type Animacion = { lane: LaneId; id: number; desde?: LaneId | null };
 
 /** Dónde puede pulsar un nodo: un carril, o el cajón de Ideas (`"cajon"`).
  *  El cajón contiene las ideas sin carril (recién creadas), así que pulsa
@@ -59,7 +59,8 @@ export function useAnimaciones(repo: string | null, ideas: Idea[] | null) {
       if (!cajon || PRIORIDAD[tono] > PRIORIDAD[cajon]) cajon = tono;
     };
     // Solo los carriles que reciben una idea generan chispa; el resto, pulso.
-    const llegan = new Set<LaneId>();
+    // El origen permite elegir, en un carril con ida y vuelta, el cable correcto.
+    const llegan = new Map<LaneId, LaneId | null>();
 
     for (const idea of ideas) {
       const lane = laneOf(idea.status);
@@ -71,18 +72,18 @@ export function useAnimaciones(repo: string | null, ideas: Idea[] | null) {
       ) {
         if (lane) {
           fijar(lane, "verde");
-          llegan.add(lane);
+          llegan.set(lane, lanePrevio ?? null);
         }
       } else if (lanePrevio === undefined) {
         if (lane) {
           fijar(lane, "azul");
-          llegan.add(lane);
+          llegan.set(lane, null);
         }
         fijarCajon("azul");
       } else if (lanePrevio !== lane) {
         if (lane) {
           fijar(lane, lane === "descartadas" ? "rojo" : "azul");
-          llegan.add(lane);
+          llegan.set(lane, lanePrevio);
         }
         // El carril que deja la idea pulsa en rojo, pero su cable de entrada
         // no se enciende: la chispa pertenece al carril de llegada.
@@ -102,7 +103,11 @@ export function useAnimaciones(repo: string | null, ideas: Idea[] | null) {
     // Una salida (o un cajón que solo pulsa) no tiene chispas, pero sí pulso.
     if (llegan.size === 0 && pulsos.size === 0 && !cajon) return;
 
-    const chispas = Array.from(llegan, (lane) => ({ lane, id: ++secuencia.current }));
+    const chispas = Array.from(llegan, ([lane, desde]) => ({
+      lane,
+      desde,
+      id: ++secuencia.current,
+    }));
     const raf = requestAnimationFrame(() => {
       setActividad({
         repo,

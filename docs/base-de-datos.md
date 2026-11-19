@@ -16,7 +16,7 @@ operativo de la aplicación vive en otro fichero y abarca varios repositorios.
 | `verificacion_node` | Una fila por UID mientras dura | Intentos de la estancia, último resultado, comentario y fecha de finalización del roadmap previo. |
 | `revision_node` | Una fila por UID, conservada al archivar | Autor y nota de la aprobación. La fecha es `entered_at` del nodo. Al aprobar, la idea pasa a `historial` y esta firma se conserva. La migración 0013 copia aquí las antiguas completadas. |
 | `rejected_node` | Una fila por UID mientras dura y una referencia opcional a otro UID | Motivo y autor del descarte. `superseded_by_uid` identifica la idea sustituta. |
-| `protocolo_flujo` | Clave compuesta `(origen, destino)` | Transiciones permitidas entre grupos y, con `exige_fases` (0021 y 0024), las que exigen al menos una fase, ninguna abierta (0022) o todas completadas (0023). Es configuración del repo y se conserva al reiniciar el laboratorio. |
+| `protocolo_flujo` | Clave compuesta `(origen, destino)` | Transiciones permitidas entre grupos y, con `exige_fases` (0021 y 0024), las que exigen al menos una fase, ninguna abierta (0022) o todas completadas (0023). Desde la 0027, verificación también puede volver a roadmap o descartarse. Es configuración del repo y se conserva al reiniciar el laboratorio. |
 | `event` | `id` entero para el cursor y `dedupe_key` opcional única | Historial por repo con fecha, tipo, origen y payload. Se siembra con el almacén y la migración 0015 lo añade a los que nacieron sin él. |
 | `registro` | `id` entero en un SQLite independiente | Fecha, nivel, origen y mensaje de operaciones del core. El destino por defecto es `data/registro.sqlite` en la raíz del repo y `EVENTSUI_REGISTRO_DB` permite elegir el fichero. |
 
@@ -39,7 +39,7 @@ a las ideas que dependen de ella.
 
 Las fases viven en `idea_fase`, colgadas de `idea_data` y no de `idea_node`:
 no son una estancia, sobreviven al paso por verificación y a la vuelta a la
-cola. Cada una lleva su estado (`pendiente`, `completada`, `fallida`,
+cola o a roadmap. Cada una lleva su estado (`pendiente`, `completada`, `fallida`,
 `rechazada`) y `entered_at`. La lista se reemplaza desde el `PATCH` de la idea
 en la misma transacción que el traslado, y `protocolo_flujo.exige_fases` marca
 las uniones que no se cruzan sin al menos una (hoy, entrar en roadmap y aprobar

@@ -8,8 +8,9 @@ se edita a mano. Este paquete solo lo aplica y hace CRUD sobre él.
 
 La implementación va por capas, de abajo arriba, para que cada módulo sepa poco:
 
-- `base/`: lo que no sabe de ideas — rutas del almacén, esquema y migraciones, y
-  utilidades comunes (errores, fechas, eventos y lecturas sueltas).
+- `base/`: lo que no sabe de ideas — rutas del almacén, esquema y sus
+  migraciones numeradas, y utilidades comunes (errores, fechas, eventos y
+  lecturas sueltas).
 - `modelo/`: las reglas del flujo — estados y fichas, dependencias y compuertas
   de fases y protocolos.
 - `trabajo/`: el desglose de la idea — fases, requisitos y los archivos que anota
@@ -23,7 +24,6 @@ from __future__ import annotations
 
 from .base.comun import InvalidInput, _columna, _existe, now_iso
 from .base.esquema import (
-    MIGRATIONS_DIR,
     SCHEMA_DIR,
     SCHEMA_VERSION,
     aplicar_esquema,
@@ -31,6 +31,7 @@ from .base.esquema import (
     ensure_repo,
     init_repo,
 )
+from .base.migraciones import MIGRATIONS_DIR
 from .base.rutas import DB_FILENAME, EUI_DIR, db_file_for, repos_root, resolve_repo
 from .consulta import get_idea, list_ideas, list_repos, listar_protocolos, map_snapshot, revision
 from .crud import create_idea, delete_idea, reiniciar, update_idea

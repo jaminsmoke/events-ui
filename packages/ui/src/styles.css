@@ -1722,6 +1722,11 @@ code {
 .ficha-fase-titulo {
   font-size: 13px;
 }
+/* En la ficha el contador es un resumen, no un botón: mismo formato que en
+ * la fila, pero sin estirarse a lo ancho. */
+.ficha-fase .fase-check {
+  justify-self: start;
+}
 .ficha-fase-nota {
   margin: 0;
   font-size: 12px;

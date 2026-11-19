@@ -400,12 +400,20 @@ function FichaFases({
           {hechas} de {vista.length} completadas
         </p>
         <ol className="ficha-fases">
-          {vista.map((fase) => (
+          {vista.map((fase) => {
+            const requisitos = fase.requisitos ?? [];
+            const hechosReq = requisitos.filter((requisito) => requisito.hecho).length;
+            return (
             <li key={fase.orden} className={`ficha-fase estado-${fase.estado}`}>
               <span className="ficha-fase-titulo">
                 <span className="fase-indice">Fase {fase.orden}</span>
                 {" · "}
                 {fase.titulo}
+              </span>
+              {/* Mismo resumen que la fila; aquí la checklist ya está a la vista. */}
+              <span className="fase-check">
+                {hechosReq}/{requisitos.length}{" "}
+                {requisitos.length === 1 ? "requisito" : "requisitos"}
               </span>
               <span className="fila-estado">{ETIQUETA_FASE[fase.estado] ?? fase.estado}</span>
               {alGuardar &&
@@ -475,7 +483,8 @@ function FichaFases({
                 {fechaCorta(fase.entered_at)}
               </time>
             </li>
-          ))}
+            );
+          })}
         </ol>
         {fallo && <p className="hint error">{fallo}</p>}
         <div className="modal-acciones">

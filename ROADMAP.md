@@ -279,8 +279,39 @@ con el motivo, para no reabrirlo cada semana.
 
 ## Pendientes
 
-Revisión del 19 de noviembre de 2026, por orden de daño y no de esfuerzo.
+Revisión del 19 de noviembre de 2026, segunda pasada, por orden de daño y no
+de esfuerzo. Las cuatro primeras están comprobadas ejecutando el código.
 
+- **`GET /ideas` devuelve 500 con el almacén vacío.** `consulta._en_lote` corta
+  con `return {}, {}, {}, {}` cuando no hay uids, pero la firma y los llamadores
+  esperan cinco valores: con cero ideas (o un `offset` más allá del final) el
+  desempaquetado lanza `ValueError` y el 500 (comprobado). Es la primera
+  pantalla de un almacén recién sembrado. El arreglo es devolver también el
+  diccionario de fases, con un test del almacén vacío y del `offset` fuera de
+  rango.
+- **`seed.py` se ejecuta al importarse.** El `raise SystemExit(main(...))` está
+  al nivel del módulo, así que `import events_core.seed` imprime el uso y sale
+  con 2 (comprobado). Hoy nadie lo importa, pero rompe cualquier herramienta que
+  lo haga (PyInstaller, un futuro test). Va bajo `if __name__ == "__main__":`,
+  como el resto de CLIs.
+- **Las conexiones vigilantes no se cierran nunca.** `db._VIGILANTES` cachea una
+  conexión SQLite por almacén y variante para siempre: con muchos repos son
+  descriptores acumulados y, en Windows, el `.EUI` queda abierto mientras viva
+  el core (renombrar o borrar la carpeta falla). Además, si el fichero se
+  recrea, la conexión vieja ya no ve los commits, así que `/revision` y el
+  stream dejan de despertar. Falta cierre al cambiar de repo o caducidad por
+  uso.
+- **`git status` no entiende renombrados ni rutas escapadas.**
+  `proyeccion._git_cambios` corta por `linea[3:]` y no pide
+  `core.quotepath=false`: un renombrado llega como una sola ruta
+  `"viejo nombre.txt" -> "nuevo \303\261.txt"` (comprobado). El estado queda en
+  `R`, pero la UI enseña el par entrecomillado y no dice de dónde vino. Hay que
+  separar origen y destino y deshacer el escapado.
+- **Hay tres sondeos permanentes por repo.** `/revision` cada 2 s,
+  `/protocolos` y `/proyecciones/repo` cada 5 s, cada uno con su temporizador y
+  ninguno se pausa con la ventana oculta. No es un fallo, pero son tres
+  peticiones por ciclo cuando el mapa ya está al día. Se puede unificar el
+  ciclo o pararlo con `document.hidden`.
 
 ## No se hace (por ahora)
 

@@ -22,7 +22,7 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Tauri deps (Linux)
         run: |
@@ -38,21 +38,21 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 12
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: 3.12
 
       - name: uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v10
 
       - name: Rust (estable)
         uses: dtolnay/rust-toolchain@stable
@@ -77,23 +77,23 @@ jobs:
     # plataforma). Sin deps de Tauri ni placeholder del sidecar: no hay Rust.
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 12
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: 3.12
 
       - name: uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v10
 
       - name: pnpm install
         run: corepack pnpm install --frozen-lockfile

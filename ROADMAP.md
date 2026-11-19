@@ -312,6 +312,11 @@ de esfuerzo. Las cuatro primeras están comprobadas ejecutando el código.
   ninguno se pausa con la ventana oculta. No es un fallo, pero son tres
   peticiones por ciclo cuando el mapa ya está al día. Se puede unificar el
   ciclo o pararlo con `document.hidden`.
+- **El presupuesto por fase cuenta caracteres, no bytes.** `archivos.contenidos`
+  suma `len(texto)` contra `LIMITE_TOTAL` (512 KiB), así que un árbol de texto
+  no ASCII puede pasarse del tope en disco; el tope global nuevo sí cuenta
+  bytes, así que el almacén queda acotado igual. Es coherencia menor: contar
+  `len(texto.encode())` o dejar el margen documentado.
 
 ## No se hace (por ahora)
 

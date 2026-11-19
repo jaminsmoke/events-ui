@@ -1,23 +1,165 @@
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
+use std::thread::sleep;
+use std::time::Duration;
 
 use tauri::{
   menu::{Menu, MenuItem},
   tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-  Manager,
+  AppHandle, Manager,
 };
 
-/// El sidecar empaquetado (F3), en ejecución. Vive en el estado gestionado
-/// para poder matarlo al salir: `Salir` de la bandeja lo mata y cierra la
-/// app; cerrar la ventana solo la oculta (ver `on_window_event`).
-type Sidecar = Mutex<Option<Child>>;
+/// El puerto del core: el mismo que llama la UI empaquetada (`.env.production`).
+const PUERTO_CORE: u16 = 18765;
+
+/// El sidecar empaquetado (F3), en ejecución, y si la app ya está cerrando.
+/// Vive en el estado gestionado para poder matarlo al salir y para que el
+/// vigilante sepa si debe volver a arrancarlo.
+#[derive(Default)]
+struct Core {
+  hijo: Mutex<Option<Child>>,
+  parado: AtomicBool,
+}
+
+/// Arranca el sidecar si no hay uno vivo. `true` si el hijo quedó en marcha.
+fn arrancar(app: &AppHandle) -> bool {
+  let core = app.state::<Core>();
+  let mut guard = core.hijo.lock().unwrap();
+  // Si ya se está cerrando (o alguien arrancó otro hijo), no se siembra un
+  // huérfano: `matar_sidecar` toma este mismo lock para llevárselo.
+  if core.parado.load(Ordering::Relaxed) || guard.is_some() {
+    return false;
+  }
+
+  let nombre = if cfg!(windows) {
+    "events-core.exe"
+  } else {
+    "events-core"
+  };
+  // El binario viaja como `externalBin` y el instalador lo deja junto al
+  // ejecutable, así que su ruta es "el mismo directorio que yo".
+  let ruta = std::env::current_exe()
+    .ok()
+    .and_then(|exe| exe.parent().map(|dir| dir.join(nombre)));
+  let hijo = ruta.and_then(|ruta| {
+    Command::new(ruta)
+      .stdin(Stdio::null())
+      .stdout(Stdio::null())
+      .stderr(Stdio::null())
+      .spawn()
+      .ok()
+  });
+  match hijo {
+    Some(hijo) => {
+      log::info!("Sidecar events-core arrancado (PID {})", hijo.id());
+      *guard = Some(hijo);
+      true
+    }
+    None => {
+      log::error!(
+        "No se pudo arrancar el sidecar events-core junto al ejecutable: \
+         la UI no tendrá API hasta que el core esté en 127.0.0.1:{PUERTO_CORE}"
+      );
+      false
+    }
+  }
+}
+
+/// ¿Responde `/health` el core de `127.0.0.1`? Un GET mínimo escrito a mano:
+/// no hay cliente HTTP aquí y no merece arrastrar una dependencia entera.
+fn salud_ok() -> bool {
+  use std::io::{Read, Write};
+  use std::net::TcpStream;
+
+  let Ok(direccion) = format!("127.0.0.1:{PUERTO_CORE}").parse() else {
+    return false;
+  };
+  let Ok(mut flujo) = TcpStream::connect_timeout(&direccion, Duration::from_millis(500)) else {
+    return false;
+  };
+  let _ = flujo.set_read_timeout(Some(Duration::from_millis(800)));
+  if flujo
+    .write_all(b"GET /health HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n")
+    .is_err()
+  {
+    return false;
+  }
+  let mut respuesta = String::new();
+  let _ = flujo.read_to_string(&mut respuesta);
+  respuesta.starts_with("HTTP/1.1 200") || respuesta.starts_with("HTTP/1.0 200")
+}
+
+/// Recoge el hijo si ya terminó y dice si sigue vivo.
+fn sigue_vivo(app: &AppHandle) -> bool {
+  let core = app.state::<Core>();
+  let mut guard = core.hijo.lock().unwrap();
+  match guard.as_mut() {
+    Some(hijo) => match hijo.try_wait() {
+      Ok(None) => true,
+      Ok(Some(codigo)) => {
+        log::warn!("El sidecar terminó (código {codigo:?}); se reintenta");
+        *guard = None;
+        false
+      }
+      Err(error) => {
+        log::warn!("No se pudo consultar el sidecar: {error}");
+        *guard = None;
+        false
+      }
+    },
+    None => false,
+  }
+}
+
+/// Vigila el core mientras viva la app: espera `/health` al arrancar y lo
+/// vuelve a arrancar si se cae. Si el puerto ya lo atiende otro core (una
+/// sesión anterior, la app en dev) se usa ese y no se arranca otro encima.
+fn vigilar(app: AppHandle) {
+  let mut espera = Duration::from_millis(500);
+  loop {
+    if app.state::<Core>().parado.load(Ordering::Relaxed) {
+      return;
+    }
+
+    if !sigue_vivo(&app) && !salud_ok() {
+      if !arrancar(&app) {
+        // Sin binario o sin permiso: se reintenta, cada vez más espaciado.
+        sleep(espera);
+        espera = (espera * 2).min(Duration::from_secs(10));
+        continue;
+      }
+      espera = Duration::from_millis(500);
+    }
+
+    // Al arrancar tarda en abrir el puerto: se le dan hasta diez segundos.
+    let mut listo = false;
+    for _ in 0..40 {
+      if app.state::<Core>().parado.load(Ordering::Relaxed) {
+        return;
+      }
+      if salud_ok() {
+        listo = true;
+        break;
+      }
+      sleep(Duration::from_millis(250));
+    }
+    if !listo {
+      log::warn!("El core no responde en /health; se vuelve a intentar");
+    }
+    sleep(Duration::from_secs(2));
+  }
+}
 
 /// Mata el sidecar si vive. Un hijo ya muerto devuelve error y se ignora;
 /// el `take` ya lo sacó del estado, así que llamarlo dos veces es no-op.
-fn matar_sidecar(app: &tauri::AppHandle) {
-  if let Some(sidecar) = app.try_state::<Sidecar>() {
-    if let Some(mut hijo) = sidecar.lock().unwrap().take() {
+fn matar_sidecar(app: &AppHandle) {
+  if let Some(core) = app.try_state::<Core>() {
+    // Antes de matarlo: que el vigilante no lo resucite mientras cerramos.
+    core.parado.store(true, Ordering::Relaxed);
+    if let Some(mut hijo) = core.hijo.lock().unwrap().take() {
       let _ = hijo.kill();
+      let _ = hijo.wait();
     }
   }
 }
@@ -37,7 +179,7 @@ pub fn run() {
     .plugin(tauri_plugin_dialog::init())
     // Avisos del sistema (F3): la UI los pide con la verbosidad del usuario.
     .plugin(tauri_plugin_notification::init())
-    .manage(Sidecar::new(None))
+    .manage(Core::default())
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(
@@ -48,35 +190,12 @@ pub fn run() {
       }
 
       // Sidecar (F3): solo en release. En dev (`tauri dev`) el core lo levanta
-      // `scripts/dev.mjs` si no está; arrancar otro aquí pelearía por el 18765.
-      // El binario viaja como `externalBin` y el instalador lo deja junto al
-      // ejecutable, así que su ruta es "el mismo directorio que yo".
+      // `scripts/dev.mjs` si no está; arrancarlo aquí pelearía por el 18765.
       if !cfg!(debug_assertions) {
-        let nombre = if cfg!(windows) {
-          "events-core.exe"
-        } else {
-          "events-core"
-        };
-        let ruta = std::env::current_exe()
-          .ok()
-          .and_then(|exe| exe.parent().map(|dir| dir.join(nombre)));
-        match ruta.and_then(|ruta| {
-          Command::new(ruta)
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .ok()
-        }) {
-          Some(hijo) => {
-            log::info!("Sidecar events-core arrancado (PID {})", hijo.id());
-            *app.state::<Sidecar>().lock().unwrap() = Some(hijo);
-          }
-          None => log::error!(
-            "No se pudo arrancar el sidecar events-core junto al ejecutable: \
-             la UI no tendrá API hasta que el core esté en 127.0.0.1:18765"
-          ),
-        }
+        // El vigilante arranca el core, espera `/health` y lo resucita si se
+        // cae: sin él, un crash dejaba la UI sin API hasta reabrir la app.
+        let vigilante = app.handle().clone();
+        std::thread::spawn(move || vigilar(vigilante));
 
         // Bandeja (F3): el icono vive siempre en release, con «Abrir» y
         // «Salir». Clic izquierdo restaura la ventana; el menú va con el

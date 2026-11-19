@@ -301,6 +301,12 @@ con el motivo, para no reabrirlo cada semana.
   release deja de terminar con el árbol sucio.
 - **`bump.mjs` reconoce la versión con argumentos extra o en varias líneas**:
   probado con el constructor de `FastAPI` partido y después restaurado.
+- **Los instaladores los publica la CI**: al empujar el tag `v*`, el workflow
+  `release` construye el sidecar y los bundles en Windows y adjunta MSI y NSIS
+  a la GitHub Release (la crea con notas generadas si no existe, o reemplaza
+  los adjuntos). `pnpm release` sigue subiendo la versión y creando el tag en
+  local; la prueba con `workflow_dispatch` y `publicar: false` salió en verde
+  sin tocar la release publicada.
 - **Runtime fijado a 3.12**: `.python-version` y el CI apuntan a 3.12 y
   `requires-python` cierra el techo en `<3.14`, así que `uv` deja de resolver
   contra el 3.14 del sistema, donde las pruebas síncronas de `starlette` se han

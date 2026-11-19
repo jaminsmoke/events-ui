@@ -223,15 +223,51 @@ const ETIQUETA_FASE: Record<string, string> = {
 /** La ficha de fases: el detalle completo (estado, nota y fecha), que la
  *  fila no enseña para no crecer. Solo lectura: editar es cosa de la fila. */
 function FichaFases({
+  uid,
+  estado,
   titulo,
   fases,
+  onEditar,
   onCerrar,
 }: {
+  uid: string;
+  /** El carril de la idea: el motivo se toca en roadmap, como en la fila. */
+  estado: Status;
   titulo: string;
   fases: readonly Fase[];
+  onEditar?: (uid: string, cambios: IdeaUpdate) => Promise<void>;
   onCerrar: () => void;
 }) {
-  const hechas = fases.filter((fase) => fase.estado === "completada").length;
+  const [guardando, setGuardando] = useState(false);
+  const [fallo, setFallo] = useState<string | null>(null);
+  // Misma copia optimista que la fila: el mapa tarda en refrescar y dos
+  // motivos seguidos no pueden reenviar la lista vieja.
+  const [optimista, setOptimista] = useState<{
+    base: readonly Fase[];
+    fases: readonly Fase[];
+  } | null>(null);
+  const vista = optimista?.base === fases ? optimista.fases : fases;
+  const hechas = vista.filter((fase) => fase.estado === "completada").length;
+
+  const guardar = (siguientes: readonly Fase[]) => {
+    if (!onEditar) return;
+    setGuardando(true);
+    setFallo(null);
+    setOptimista({ base: fases, fases: siguientes });
+    onEditar(uid, {
+      fases: siguientes.map(({ orden, titulo: nombre, estado: propio, nota }) => ({
+        orden,
+        titulo: nombre,
+        estado: propio,
+        nota,
+      })),
+    })
+      .catch((err: unknown) => {
+        setOptimista(null);
+        setFallo(err instanceof Error ? err.message : String(err));
+      })
+      .finally(() => setGuardando(false));
+  };
   return createPortal(
     <div
       className="modal-fondo"
@@ -250,20 +286,46 @@ function FichaFases({
       >
         <h2>Fases de «{titulo}»</h2>
         <p className="hint">
-          {hechas} de {fases.length} completadas
+          {hechas} de {vista.length} completadas
         </p>
         <ol className="ficha-fases">
-          {fases.map((fase) => (
+          {vista.map((fase) => (
             <li key={fase.orden} className={`ficha-fase estado-${fase.estado}`}>
               <span className="ficha-fase-titulo">{fase.titulo}</span>
               <span className="fila-estado">{ETIQUETA_FASE[fase.estado] ?? fase.estado}</span>
-              {fase.nota && <p className="ficha-fase-nota">{fase.nota}</p>}
+              {onEditar &&
+              estado === "roadmap" &&
+              (fase.estado === "fallida" || fase.estado === "rechazada") ? (
+                <input
+                  key={fase.nota}
+                  className="ficha-fase-motivo"
+                  defaultValue={fase.nota}
+                  placeholder="Motivo…"
+                  aria-label={`Motivo de ${fase.titulo}`}
+                  disabled={guardando}
+                  onBlur={(e) => {
+                    const nota = e.target.value.trim();
+                    if (nota === fase.nota) return;
+                    guardar(
+                      vista.map((otra) =>
+                        otra.orden === fase.orden ? { ...otra, nota } : otra,
+                      ),
+                    );
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") e.currentTarget.blur();
+                  }}
+                />
+              ) : (
+                fase.nota && <p className="ficha-fase-nota">{fase.nota}</p>
+              )}
               <time className="ficha-fase-fecha" dateTime={fase.entered_at}>
                 {fechaCorta(fase.entered_at)}
               </time>
             </li>
           ))}
         </ol>
+        {fallo && <p className="hint error">{fallo}</p>}
         <div className="modal-acciones">
           <button className="btn" type="button" onClick={onCerrar}>
             Cerrar
@@ -575,7 +637,14 @@ function NodeRow({
 
 
       {node.idea && fichaFases && (
-        <FichaFases titulo={node.title} fases={fases} onCerrar={() => setFichaFases(false)} />
+        <FichaFases
+          uid={uid!}
+          estado={node.idea.status}
+          titulo={node.title}
+          fases={fases}
+          onEditar={onEditar}
+          onCerrar={() => setFichaFases(false)}
+        />
       )}
       {fallo && <span className="hint error fila-fallo">{fallo}</span>}
         </div>

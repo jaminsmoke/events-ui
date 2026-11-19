@@ -1628,7 +1628,8 @@ code {
   padding: 2px 6px;
 }
 
-/* Ficha de fases: detalle de solo lectura, con estado, nota y fecha. */
+/* Ficha de fases: detalle con estado, nota y fecha; el motivo se edita ahí
+ * cuando la fase falló o se rechazó en roadmap. */
 .ficha-fases {
   margin: 10px 0 0;
   padding: 0;
@@ -1660,6 +1661,11 @@ code {
   margin: 0;
   font-size: 12px;
   opacity: 0.8;
+}
+.ficha-fase-motivo {
+  width: 100%;
+  font-size: 12px;
+  padding: 2px 6px;
 }
 .ficha-fase-fecha {
   font-size: 11px;

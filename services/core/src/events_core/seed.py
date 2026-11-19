@@ -30,4 +30,5 @@ def main(argv: list[str]) -> int:
     return 0
 
 
-raise SystemExit(main(sys.argv[1:]))
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

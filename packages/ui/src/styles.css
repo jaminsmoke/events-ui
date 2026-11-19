@@ -1663,8 +1663,16 @@ code {
 }
 .fase {
   display: flex;
-  align-items: center;
+  /* El estado y la × se alinean con la primera línea del título. */
+  align-items: flex-start;
   gap: 6px;
+}
+.fase-estado,
+.fase-estado-texto {
+  margin-top: 1px;
+}
+.fase > .chip-quitar {
+  margin-top: 3px;
 }
 .fase-titulo {
   flex: 1;
@@ -1749,13 +1757,14 @@ code {
 }
 .requisito {
   display: flex;
-  align-items: center;
+  /* Con textos de más de una línea la casilla se queda en la primera. */
+  align-items: flex-start;
   gap: 5px;
   font-size: 11px;
   color: var(--muted);
 }
 .requisito input {
-  margin: 0;
+  margin: 2px 0 0;
 }
 .requisito.hecho .requisito-titulo {
   text-decoration: line-through;
@@ -1839,7 +1848,8 @@ code {
 }
 /* En la ficha el contador es un resumen, no un botón: mismo formato que en
  * la fila, pero sin estirarse a lo ancho. */
-.ficha-fase .fase-check {
+.ficha-fase .fase-check,
+.ficha-fase > .fila-estado {
   justify-self: start;
 }
 .ficha-fase-nota {
@@ -1865,12 +1875,12 @@ code {
 }
 .ficha-requisito {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
   font-size: 12px;
 }
 .ficha-requisito input {
-  margin: 0;
+  margin: 3px 0 0;
 }
 .ficha-requisito.hecho .ficha-requisito-titulo {
   text-decoration: line-through;

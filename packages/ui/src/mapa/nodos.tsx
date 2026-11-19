@@ -249,7 +249,7 @@ function FasesIdea({
                 }}
               />
             ) : (
-              fase.nota && <span className="fase-nota">{fase.nota}</span>
+              fase.nota && <span className="fase-nota">Motivo: {fase.nota}</span>
             )}
           </div>
           {estado === "roadmap" && !soloLectura ? (
@@ -539,7 +539,7 @@ function FichaFases({
                   }}
                 />
               ) : (
-                fase.nota && <p className="ficha-fase-nota">{fase.nota}</p>
+                fase.nota && <p className="ficha-fase-nota">Motivo: {fase.nota}</p>
               )}
               {fase.requisitos && fase.requisitos.length > 0 && (
                 <ul className="ficha-requisitos">
@@ -845,23 +845,39 @@ function NodeRow({
             soloLectura={soloLectura}
           />
           {estado === "proposed" && fases.length === 0 && exigeFases?.(estado, "roadmap") && (
-            <p className="fila-aviso">Añade una fase para pasar a roadmap.</p>
+            <p className="fila-aviso">
+              {soloLectura
+                ? "Pulsa Editar para añadir una fase."
+                : "Añade una fase para pasar a roadmap."}
+            </p>
           )}
           {(estado === "draft" || estado === "proposed") && fases.length > 0 && (
             <p className="fila-aviso">Las fases se abren en roadmap.</p>
           )}
           {estado === "roadmap" && abiertas > 0 && exigeFasesListas?.(estado, "verificacion") && (
-            <p className="fila-aviso">Cierra las fases abiertas.</p>
+            <p className="fila-aviso">
+              {soloLectura
+                ? "Pulsa Editar para cerrar las fases abiertas."
+                : "Cierra las fases abiertas."}
+            </p>
           )}
           {estado === "verificacion" &&
             fases.length === 0 &&
             exigeFases?.(estado, "revision_aprobada") && (
-              <p className="fila-aviso">Añade una fase para aprobar.</p>
+              <p className="fila-aviso">
+                {soloLectura
+                  ? "Pulsa Editar para añadir una fase."
+                  : "Añade una fase para aprobar."}
+              </p>
             )}
           {estado === "verificacion" &&
             !fases.every((fase) => fase.estado === "completada") &&
             exigeFasesCompletas?.(estado, "revision_aprobada") && (
-              <p className="fila-aviso">Completa las fases para aprobar.</p>
+              <p className="fila-aviso">
+                {soloLectura
+                  ? "Pulsa Editar para completar las fases."
+                  : "Completa las fases para aprobar."}
+              </p>
             )}
         </div>
       )}
@@ -898,6 +914,11 @@ function NodeRow({
               type="button"
               className="btn ghost mover"
               aria-pressed={editando}
+              title={
+                editando
+                  ? "Volver a la ficha de lectura"
+                  : "Editar los datos, las fases y las dependencias"
+              }
               onClick={() => setEditando((v) => !v)}
             >
               {editando ? "Listo" : "Editar"}
@@ -963,7 +984,7 @@ function NodeRow({
           estado={node.idea.status}
           titulo={node.title}
           fases={vistaFases}
-          alGuardar={onEditar ? guardarFases : undefined}
+          alGuardar={onEditar && editando ? guardarFases : undefined}
           onCerrar={() => setFichaFases(false)}
         />
       )}

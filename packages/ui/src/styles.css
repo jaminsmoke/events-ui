@@ -1015,15 +1015,18 @@ header > div {
   --wire: #c0704a;
 }
 
-/* En marcha: el cable se abre en guiones, corre y brilla mientras lo cruza una
+/* En marcha: el cable se abre en guiones, corre y emite mientras lo cruza una
  *  chispa. Así el discontinuo y la luz significan movimiento de verdad y no un
  *  adorno fijo; lo que se acumula en el origen solo engorda el trazo. Los 26 px
  *  del ciclo a 0.3 s son ~87 px/s, la velocidad de la chispa (90 px/s): el
- *  trazo acompaña al punto en vez de quedarse atrás y parecer que patina. */
+ *  trazo acompaña al punto en vez de quedarse atrás y parecer que patina.
+ *
+ *  Emisión: se aclara el propio trazo (`brightness`) y se suman dos halos, uno
+ *  pegado y otro ancho, para que el cable en marcha salte sobre los apagados. */
 .wire.marcha {
   stroke-dasharray: 6 7;
   animation: fluir 0.3s linear infinite;
-  filter: drop-shadow(0 0 4px var(--wire));
+  filter: brightness(1.5) drop-shadow(0 0 3px var(--wire)) drop-shadow(0 0 9px var(--wire));
 }
 
 @keyframes fluir {

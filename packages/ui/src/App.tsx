@@ -361,7 +361,7 @@ export default function App({
                           // no: un cable no se enciende porque el carril del
                           // que sale reciba ideas, solo cuando algo lo cruza.
                           strokeWidth: entrada ? 1.3 + 1.5 * t : 1.8 + 2.2 * t,
-                          opacity: enMarcha ? 1 : entrada ? 0.5 : 0.62,
+                          opacity: enMarcha ? 1 : entrada ? 0.46 : 0.56,
                         }}
                       />
                     );

@@ -282,6 +282,10 @@ con el motivo, para no reabrirlo cada semana.
   y avisa al instante al volver. La proyección y los protocolos se piden uno de
   cada tres latidos (~6 s) y cada hook se salta el turno si ya tiene una
   lectura en vuelo.
+- **El tope de contenido por fase cuenta bytes**: `archivos.contenidos` sumaba
+  `len(texto)` (caracteres), así que un árbol no ASCII podía pasarse de los
+  512 KiB en disco. Ahora mide `len(texto.encode("utf-8"))` y el test deja
+  claro que 20 caracteres de 40 bytes no caben en 30.
 - **Runtime fijado a 3.12**: `.python-version` y el CI apuntan a 3.12 y
   `requires-python` cierra el techo en `<3.14`, así que `uv` deja de resolver
   contra el 3.14 del sistema, donde las pruebas síncronas de `starlette` se han
@@ -307,11 +311,6 @@ con el motivo, para no reabrirlo cada semana.
 Revisión del 19 de noviembre de 2026, segunda pasada, por orden de daño y no
 de esfuerzo.
 
-- **El presupuesto por fase cuenta caracteres, no bytes.** `archivos.contenidos`
-  suma `len(texto)` contra `LIMITE_TOTAL` (512 KiB), así que un árbol de texto
-  no ASCII puede pasarse del tope en disco; el tope global nuevo sí cuenta
-  bytes, así que el almacén queda acotado igual. Es coherencia menor: contar
-  `len(texto.encode())` o dejar el margen documentado.
 
 ## No se hace (por ahora)
 

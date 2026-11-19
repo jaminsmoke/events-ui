@@ -221,6 +221,12 @@ con el motivo, para no reabrirlo cada semana.
   versión 29 y lista `idea_requisito`, `idea_foto` y `idea_fase_archivo`; el
   README ya cuenta que el runner de e2e elige puertos libres en vez de negarse
   a arrancar.
+- **`styles.css` partido por zonas**: las 2.324 líneas pasaron a `src/styles/`
+  (base, marco, repo, ficha, log, mapa, cables y nodo), importadas desde
+  `index.css`; el paquete sigue exportando `./styles.css`, así que las apps no
+  cambian ni un import. El corte es mecánico —mismas reglas y mismo orden— y se
+  comprobó que la suma de las zonas cuenta las mismas líneas que el fichero
+  original.
 - **CI**: `pnpm check` global en cada push a main y en PRs
   (`.github/workflows/ci.yml`). Batería e2e y builds de Tauri quedan fuera
   del CI a propósito (navegador y puertos; se corren en local).
@@ -248,10 +254,6 @@ con el motivo, para no reabrirlo cada semana.
 
 Revisión del 19 de noviembre de 2026, por orden de daño y no de esfuerzo.
 
-- **`packages/ui/src/styles.css` son 2.324 líneas.** Los comentarios ya marcan
-  las zonas (frame, selector, fila, ficha, log, mapa, compuertas, Git). Partirlo
-  en `styles/` por zona, importadas desde un índice, deja los cambios de una
-  pantalla en un solo fichero.
 - **`mapa/nodos.tsx` son 1.469 líneas.** Fila, ficha, archivos anotados y fases
   viven en el mismo módulo; el corte de `ideas.py` sirve de patrón: componentes
   por fichero con el mismo dominio y sin cambiar props.

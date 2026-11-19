@@ -1,0 +1,405 @@
+/* Mapa de ideas: lienzo, cámara, leyenda, rejilla de carriles y puente a Git. */
+
+/* ---------- el nodo ----------
+ *
+ *  Compacto y plegable, como un nodo de Unreal: la cabecera es el nodo entero
+ *  cuando está cerrado; al abrirse aparecen sus items como filas dentro.
+ *  Las filas se editan en línea y los nodos se arrastran para encuadrar.
+ */
+
+/* El lienzo se queda con el alto que sobra y centra el esquema en la ventana,
+ * en vez de colgarlo justo debajo del hero. El aire de abajo es mayor a
+ * propósito: centrado exacto el bloque se ve bajo. */
+.board {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 0 64px;
+  /* Sangra hasta los bordes de la ventana: recortar en la columna de 1180 dejaba
+   * el esquema cortado a los lados con cientos de píxeles vacíos al lado. */
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+}
+
+.aviso-refresco {
+  position: absolute;
+  z-index: 1;
+  top: 8px;
+  right: 18px;
+  margin: 0;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--warn);
+}
+
+/* El esquema no cabe: se avisa y se ofrece reencuadrar de un clic. */
+.aviso-recorte {
+  position: absolute;
+  right: 18px;
+  bottom: 52px;
+  padding: 5px 10px;
+  background: #1b2230;
+  border: 1px solid #3c5f8f;
+  border-radius: 8px;
+  color: #cfe0f7;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.aviso-recorte:hover {
+  background: #223049;
+}
+
+.board.arrastrando {
+  cursor: grabbing;
+  user-select: none;
+}
+
+/* Nivel de cámara y vuelta al 100%, en la esquina del lienzo. */
+.vista {
+  position: absolute;
+  right: 18px;
+  bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 5px 3px 10px;
+  background: #10151c;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.vista-nivel {
+  min-width: 34px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.vista .btn {
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+.vista .btn:disabled {
+  opacity: 0.35;
+}
+
+.vista-flecha {
+  min-width: 24px;
+  padding: 2px 6px;
+  font-size: 14px;
+  line-height: 1.1;
+}
+
+/* Leyenda de las compuertas: tres glifos a escala de mapa, en una tira
+ * discreta que no captura el puntero (el lienzo se sigue arrastrando). */
+.leyenda-compuertas {
+  position: absolute;
+  left: 18px;
+  bottom: 10px;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  max-width: calc(100vw - 210px);
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #0e1116e6;
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.leyenda-titulo {
+  color: var(--fg);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.leyenda-compuertas > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.leyenda-icono {
+  width: 10px;
+  height: 16px;
+  flex: none;
+  overflow: visible;
+}
+
+.leyenda-icono .compuerta-caja,
+.leyenda-icono .compuerta-barra {
+  stroke: var(--muted);
+}
+
+.leyenda-icono .compuerta-caja {
+  stroke-width: 1.1;
+  opacity: 0.9;
+}
+
+.leyenda-icono .compuerta-barra {
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  opacity: 0.9;
+}
+
+.leyenda-icono.prohibida .compuerta-caja,
+.leyenda-icono.prohibida .compuerta-barra {
+  stroke: var(--bad);
+}
+
+/* Sin `will-change: transform`: promociona el mapa a capa propia y el texto se
+ * estira desde la textura ya rasterizada, que es lo que se veía borroso con
+ * zoom alto. Sin promoción, el navegador vuelve a rasterizar a la escala real. */
+.map {
+  position: absolute;
+  top: 46px;
+  left: 0;
+  transform-origin: top left;
+}
+
+.board > .hint {
+  position: absolute;
+  top: 4px;
+}
+
+.linea {
+  /* El panel de una fila abierta (descripción, fases, dependencias y pie) no
+   * cabe en 264: el cuerpo del nodo lo recortaba justo por encima de las
+   * acciones. Con 300 entra el caso normal sin desplazarse. */
+  --altura-cola: 300px;
+  display: grid;
+  grid-template-columns: repeat(7, clamp(232px, 18vw, 340px));
+  /* El hueco de la rejilla *es* el cable. Con 56 px el chevrón, el nudo y la
+   * compuerta quedaban apiñados; un mínimo de 72 px y algo de aire según la
+   * ventana los dejan respirar sin comerse los nodos. */
+  column-gap: clamp(72px, 6.5vw, 104px);
+  align-items: start;
+  /* Debajo de la línea vive el nodo de Revisión rechazada. El aire se reserva
+   * siempre para que sus cables no queden recortados por el mapa. */
+  padding-bottom: 124px;
+}
+
+.linea:not(.linea-git) > .node {
+  grid-row: 1;
+}
+
+.linea > .lane-cola {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  max-height: var(--altura-cola);
+}
+
+.lane-cola > .node-body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.linea > .lane-descartadas {
+  grid-column: 2;
+  margin-top: calc(var(--altura-cola) + 36px);
+}
+
+.linea:not(.linea-git) > .nodo-git {
+  grid-column: 7;
+}
+
+/* Dos mapas enlazados: el de Ideas y el de Git. Las pestañas viven fuera del
+ * lienzo, así que la cámara no las mueve. */
+.mapas-nav {
+  position: absolute;
+  top: 8px;
+  left: 18px;
+  z-index: 3;
+  display: flex;
+  gap: 6px;
+}
+
+.mapas-pestana.activa {
+  border-color: #2b5c3f;
+  color: #7ee2a8;
+}
+
+/* El Mapa de Git: estado a la izquierda y cambios a la derecha. */
+.linea-git {
+  grid-template-columns: repeat(2, clamp(260px, 20vw, 340px));
+  padding-bottom: 0;
+}
+
+.git-cabecera {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.git-kicker {
+  margin: 0;
+  color: var(--muted);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.git-titulo {
+  margin: 2px 0 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+/* Al cambiar de mapa, el lienzo se funde y los nodos entran en cascada. */
+.map {
+  animation: mapa-funde 0.4s ease both;
+}
+
+.linea > .node,
+.linea-git > .node,
+.linea-git > .git-cabecera {
+  animation: nodo-entra 0.45s cubic-bezier(0.2, 0.9, 0.25, 1.1) both;
+}
+
+.linea-git > .node:nth-of-type(1) {
+  animation-delay: 0.05s;
+}
+
+.linea-git > .node:nth-of-type(2) {
+  animation-delay: 0.12s;
+}
+
+@keyframes mapa-funde {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes nodo-entra {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .map,
+  .linea > .node,
+  .linea-git > .node,
+  .linea-git > .git-cabecera {
+    animation: none;
+  }
+}
+
+/* El puente al Mapa de Git: cierra el flujo y entra en brillo al pasar. */
+.nodo-puente .puente-abrir {
+  width: calc(100% - 18px);
+  margin: 0 9px 9px;
+}
+
+.nodo-puente.activo .puente-abrir:hover:not(:disabled) {
+  border-color: #2b5c3f;
+  color: #7ee2a8;
+  box-shadow: 0 0 10px #3fb95033;
+}
+
+/* Eliminar vive debajo de Abrir, con el mismo ancho y aire. */
+.nodo-puente .puente-borrar {
+  width: calc(100% - 18px);
+  margin: 0 9px 9px;
+}
+
+.nodo-cambios .node-head {
+  cursor: default;
+}
+
+.nodo-cambios .node-head:hover {
+  background: #122719;
+}
+
+.nodo-cambios.apagado .node-head {
+  background: #161b22;
+}
+
+.cambios-cuerpo {
+  padding: 6px 9px 7px;
+  border-top: 1px solid var(--line);
+}
+
+.cambios-vacio {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.nodo-cambios.apagado .cambios-vacio {
+  color: #6e7681;
+}
+
+.cambios-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 190px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.fila-cambio {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
+  font-size: 11px;
+}
+
+.cambio-estado {
+  flex: none;
+  min-width: 19px;
+  padding: 0 4px;
+  border: 1px solid #4a3a1c;
+  border-radius: 4px;
+  color: var(--warn);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 9.5px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.cambio-ruta {
+  overflow: hidden;
+  color: #b7c0cc;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -1,0 +1,173 @@
+/* Barra de repo, botones, tarjetas y selector (también la ruta manual). */
+
+.repo-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.repo-texto {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.repo-name {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.repo-path {
+  font-size: 10px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+}
+
+.btn {
+  border: 1px solid var(--line);
+  background: #1f6feb;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.btn:hover:not(:disabled) {
+  filter: brightness(1.12);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.btn.ghost {
+  background: transparent;
+  color: var(--fg);
+  font-weight: 500;
+  padding: 4px 10px;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.card.bad {
+  border-left-color: var(--bad);
+}
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 36px 20px;
+}
+
+.hero .btn {
+  padding: 9px 18px;
+}
+
+/* Selector de repo: el mismo en la web y en desktop. */
+.selector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.selector .manual {
+  max-width: 560px;
+}
+
+.selector-lista {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.selector-lista .btn.ghost.activo {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.selector-card {
+  max-width: 720px;
+  margin: 0 auto 16px;
+}
+
+/* Nueva idea: dos campos y las acciones, como el selector. */
+.nueva {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.nueva input {
+  background: #0b0e13;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--fg);
+  padding: 7px 10px;
+}
+
+.nueva input:focus {
+  outline: 1px solid var(--accent);
+  border-color: var(--accent);
+}
+
+.nueva-acciones {
+  display: flex;
+  gap: 8px;
+}
+
+.hint.error {
+  color: var(--bad);
+}
+
+
+.manual {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.manual input {
+  flex: 1;
+  background: #0b0e13;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--fg);
+  padding: 7px 10px;
+}
+
+.manual input:focus {
+  outline: 1px solid var(--accent);
+  border-color: var(--accent);
+}

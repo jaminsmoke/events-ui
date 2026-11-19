@@ -1,0 +1,35 @@
+/* Base: variables, escala tipográfica y reset del documento. */
+
+:root {
+  --bg: #0e1116;
+  --panel: #161b22;
+  --line: #263041;
+  --fg: #e6edf3;
+  --muted: #8b98a9;
+  --warn: #d29922;
+  --bad: #f85149;
+  --accent: #58a6ff;
+  /* Escala de la ficha: título de idea, título de fila, subtítulo, cuerpo y
+   * rótulos. Los tamaños bajan en ese orden para que la jerarquía se lea de
+   * un vistazo y los controles no compitan con el contenido. */
+  --t-titulo: 14px;
+  --t-fila: 13px;
+  --t-subtitulo: 11px;
+  --t-cuerpo: 12px;
+  --t-rotulo: 9.5px;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  /* El lienzo sangra hasta los bordes: un scroll de página solo estorbaría. */
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--fg);
+  font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}

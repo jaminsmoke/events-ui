@@ -1,0 +1,230 @@
+/* Cables, compuertas, nudos y chispas del mapa. */
+
+/* ---------- cables ----------
+ *
+ *  Se miden del DOM porque los nodos crecen al desplegarse. Cada cable une
+ *  una etapa con la siguiente de la línea; Descartadas no cuelga de un nodo:
+ *  su rama sale de un nudo en medio del cable Entrada↔En cola. Todos los
+ *  cables son ortogonales, con codos de 90°, como pistas de circuito impreso;
+ *  van continuos y apagados en reposo y se abren en guiones solo mientras algo
+ *  los recorre (la chispa de llegada). El grosor mide lo que espera en el
+ *  origen; el brillo no cuenta lo acumulado, solo la marcha, y cada cable
+ *  lleva el color de su carril.
+ */
+
+.cables {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.wire,
+.chevron {
+  fill: none;
+  stroke: var(--wire);
+}
+
+.wire {
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+}
+
+.chevron {
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.7;
+}
+
+.wire.cola,
+.chevron.cola,
+.compuerta.cola {
+  --wire: #3f6aa8;
+}
+
+.wire.roadmap,
+.chevron.roadmap,
+.compuerta.roadmap {
+  --wire: #8b6be0;
+}
+
+.wire.verificacion,
+.chevron.verificacion,
+.compuerta.verificacion {
+  --wire: #38b6a5;
+}
+
+.wire.revision_aprobada,
+.chevron.revision_aprobada,
+.compuerta.revision_aprobada {
+  --wire: #3fb950;
+}
+
+/* Archivo: el cable de la aprobación se apaga hacia un verde gastado. */
+.wire.historial,
+.chevron.historial,
+.compuerta.historial {
+  --wire: #5f8a72;
+}
+
+.wire.descartadas,
+.compuerta.descartadas {
+  --wire: #c0704a;
+}
+
+.wire.git {
+  --wire: #3fb950;
+}
+
+.wire.git.apagado {
+  --wire: #6e7681;
+}
+
+/* Revisión rechazada: una bifurcación, no un carril. El tronco baja desde el
+ * nudo del cable Verificación→Revisión aprobada y los tres cables de vuelta
+ * salen de su canto izquierdo en ángulo recto. La caja imita la cabecera de
+ * Descartadas para que se lea como un nodo más del mapa. */
+.rama-tronco {
+  fill: none;
+  stroke: #b86952;
+  stroke-width: 1.5;
+  opacity: 0.65;
+}
+
+.rama-rechazo {
+  pointer-events: none;
+}
+
+.rama-caja {
+  fill: #2a1a1d;
+  stroke: #5c2f2f;
+  stroke-width: 1.1;
+}
+
+.rama-punto {
+  fill: #f0883e;
+}
+
+.rama-titulo {
+  fill: #f0b3a8;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.rama-sub {
+  fill: #b98b85;
+  font-family: inherit;
+  font-size: 9px;
+}
+
+/* En marcha: el cable se abre en guiones, corre y emite mientras lo cruza una
+ *  chispa. Así el discontinuo y la luz significan movimiento de verdad y no un
+ *  adorno fijo; lo que se acumula en el origen solo engorda el trazo. Los 26 px
+ *  del ciclo a 0.3 s son ~87 px/s, la velocidad de la chispa (90 px/s): el
+ *  trazo acompaña al punto en vez de quedarse atrás y parecer que patina.
+ *
+ *  Emisión: se aclara el propio trazo (`brightness`) y se suman dos halos, uno
+ *  pegado y otro ancho, para que el cable en marcha salte sobre los apagados. */
+.wire.marcha {
+  stroke-dasharray: 6 7;
+  animation: fluir 0.3s linear infinite;
+  filter: brightness(1.5) drop-shadow(0 0 3px var(--wire)) drop-shadow(0 0 9px var(--wire));
+}
+
+@keyframes fluir {
+  to {
+    stroke-dashoffset: -26;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wire.marcha {
+    animation: none;
+  }
+
+  /* Sin viaje: el pulso del nodo sigue contando el cambio, y el destello de
+   *  llegada ya no tiene recorrido al que esperar. */
+  .spark,
+  .destello {
+    display: none;
+  }
+}
+
+/* Compuerta de protocolo en el punto medio: una caja vacía deja el paso
+ * abierto, una barra por exigencia y un aspa si la unión está prohibida.
+ * El trazo escala con el mapa: si no, al 200 % la caja crece y el marco se
+ * queda en un píxel, con aspecto de wireframe. */
+.compuerta {
+  fill: none;
+  stroke: var(--wire);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  pointer-events: visiblePainted;
+  cursor: help;
+}
+
+.compuerta.cerrada {
+  stroke: var(--bad);
+}
+
+/* La caja tapa el cable y lo separa: se lee como un dispositivo en línea. */
+.compuerta-caja {
+  fill: var(--bg);
+  stroke-width: 1.2;
+  opacity: 0.95;
+}
+
+.compuerta-barra {
+  stroke-width: 1.6;
+  opacity: 0.95;
+}
+
+.junction {
+  fill: #58a6ff;
+  filter: drop-shadow(0 0 6px #1f6feb);
+}
+
+/* Chispa que recorre el cable: la animación dura más que el cambio en el
+ * almacén, que es instantáneo, y así se ve llegar el elemento al carril. */
+/* Nudo del cable Entrada↔En cola: de ahí sale la rama de Descartadas, porque
+ * una idea se descarta tanto antes como después de entrar en la cola. */
+.nudo {
+  fill: #0d1117;
+  stroke: #7d8590;
+  stroke-width: 1.4;
+}
+
+.nudo.rechazo {
+  stroke: #b86952;
+}
+
+.spark {
+  fill: #9ecbff;
+  filter: drop-shadow(0 0 6px #58a6ff);
+  animation: chispa 1100ms ease-out both;
+}
+
+.spark.descartadas {
+  fill: #f0883e;
+  filter: drop-shadow(0 0 6px #f0883e);
+}
+
+@keyframes chispa {
+  0% {
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  62% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}

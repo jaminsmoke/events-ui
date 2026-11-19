@@ -1,0 +1,169 @@
+/* Marco de la app: topbar, statusbar, flyout de panel y bienvenida. */
+
+/* Frame de la app: topbar arriba, viewport en medio (solo el graph) y
+ * statusbar abajo. Alto fijo de ventana: el lienzo no crece con el
+ * contenido, se recorta y la cámara es la que encuadra. */
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+/* El viewport es solo el graph: la proyección y la actividad viven abajo,
+ * en el statusbar, y ya no empujan el mapa. */
+.viewport {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Bottom bar al estilo VS Code: una sola línea (~26 px) de entradas;
+ * cada entrada alterna su flyout por encima, anclado a su entrada. */
+.statusbar {
+  position: relative;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  border-top: 1px solid var(--line);
+  padding: 3px 8px;
+}
+
+.statusbar .proyeccion {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.statusbar .proyeccion strong {
+  color: var(--fg);
+}
+
+.statusbar .proyeccion em {
+  font-style: normal;
+}
+
+/* Entrada de panel: como las de VS Code, sin tarjeta ni borde. */
+.status-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.status-item:hover {
+  background: #232b3a;
+}
+
+.status-item.activo {
+  background: #1f6feb;
+}
+
+.status-item .dot {
+  margin-left: 0;
+}
+
+.status-item-n {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+/* Flyout de panel: sale por encima del viewport, anclado a la statusbar,
+ * del ancho de su menú y por encima de todo lo demás (z 30). */
+.panel {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 8px;
+  z-index: 30;
+  width: min(380px, calc(100vw - 16px));
+  max-height: min(340px, 60vh);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+
+.panel-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.panel-titulo {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.panel-cabecera .btn {
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+.panel-cuerpo {
+  overflow-y: auto;
+  min-height: 0;
+  padding: 8px 10px;
+  flex: 1;
+}
+
+.panel-cuerpo .eventos-lista {
+  max-height: 240px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+h2 {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Sin repo: la bienvenida ocupa el viewport entero, como el graph. */
+.hero {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+header > div {
+  flex: 1;
+}

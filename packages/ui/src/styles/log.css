@@ -1,0 +1,173 @@
+/* Flyout de log: pestañas, filtros, actividad del repo y registro operativo. */
+
+/* Tabs y chips del flyout de log: activar filtra, no pulsa. */
+.panel-pestanas {
+  display: flex;
+  gap: 4px;
+}
+
+.panel-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.chip-titulo {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-right: 2px;
+}
+
+.chip {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.chip:hover {
+  border-color: var(--accent);
+}
+
+.chip.activo {
+  background: #1f6feb;
+  border-color: #1f6feb;
+  color: #fff;
+}
+
+.panel-acciones {
+  display: inline-flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+/* El punto de color por nivel, igual en las dos pestañas. */
+.punto {
+  display: inline-block;
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: 1px;
+}
+
+.punto.info {
+  background: var(--accent);
+}
+
+.punto.aviso {
+  background: var(--warn);
+}
+
+.punto.error {
+  background: var(--bad);
+}
+
+/* Diálogo de pruebas: los pasos con su marca de hecho. */
+.prueba-pasos {
+  margin: 12px 0;
+  padding-left: 20px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.prueba-pasos li {
+  margin: 4px 0;
+  opacity: 0.75;
+}
+
+.prueba-pasos li.hecho {
+  opacity: 1;
+  color: var(--verde, #3fbf72);
+}
+
+.modal-acciones {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+/* F1: actividad del log en vivo (SSE). Lista compacta con fallback genérico. */
+.eventos-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  /* Con scroll, el board conserva su sitio. */
+  max-height: 168px;
+  overflow-y: auto;
+}
+
+.eventos-lista li {
+  /* Sin esto el flex los encoge al alto limitado del scroll y el texto
+     se solapa; cada fila mide lo suyo y el scroll lo lleva la lista. */
+  flex: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eventos-lista em {
+  color: var(--muted);
+  font-style: normal;
+}
+
+/* Visor del registro operativo (modal): mismas filas compactas que actividad. */
+.registro-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.registro-linea {
+  flex: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.registro-linea strong {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.reg-info span {
+  color: var(--accent);
+}
+
+.reg-aviso span {
+  color: var(--warn);
+}
+
+.reg-error {
+  color: var(--bad);
+}
+
+.reg-error span {
+  color: var(--bad);
+}
+
+.eventos h2 .dot {
+  display: inline-block;
+  margin-left: 6px;
+  vertical-align: middle;
+}

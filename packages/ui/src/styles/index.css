@@ -1,0 +1,12 @@
+/* Estilos de la UI compartida, por zonas. El orden de estos imports es el
+ * que tenían en el fichero único: con la misma especificidad gana lo que va
+ * más abajo, así que no se reordenan sin mirar la cascada. */
+
+@import "./base.css";
+@import "./marco.css";
+@import "./repo.css";
+@import "./ficha.css";
+@import "./log.css";
+@import "./mapa.css";
+@import "./cables.css";
+@import "./nodo.css";

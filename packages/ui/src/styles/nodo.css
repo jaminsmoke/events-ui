@@ -1,0 +1,820 @@
+/* Nodo: cabecera, filas, fases, requisitos y archivos anotados. */
+
+.node {
+  --pulso: #58a6ff44;
+  --destello: #58a6ff;
+  position: relative;
+  min-width: 232px;
+  max-width: 340px;
+  background: #10151c;
+  border: 1px solid #3c5f8f;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.node.lane-root {
+  --tinte: #58a6ff;
+}
+
+.node.lane-cola {
+  --tinte: #58a6ff;
+  border-color: #2e4a6b;
+}
+
+.node.lane-roadmap {
+  --tinte: #a98bf0;
+  --pulso: #8b6be055;
+  border-color: #4c3a6b;
+}
+
+.node.lane-verificacion {
+  --tinte: #38b6a5;
+  --pulso: #38b6a555;
+  border-color: #1f5568;
+}
+
+.node.lane-revision_aprobada {
+  --tinte: #3fb950;
+  --pulso: #3fb95055;
+  border-color: #2b5c3f;
+}
+
+.node.lane-historial {
+  --tinte: #7f9b8b;
+  --pulso: #7f9b8b55;
+  border-color: #3a5348;
+}
+
+.node.lane-descartadas {
+  --tinte: #f0883e;
+  --pulso: #f0883e44;
+  border-color: #5c2f2f;
+}
+
+/* Git cierra la línea como un nodo de estado, no como un carril. Apagado
+ * conserva su sitio para que el mapa no cambie de forma al encenderse. */
+.node.nodo-git {
+  --tinte: #3fb950;
+  --pulso: #3fb95044;
+  border-color: #2b5c3f;
+}
+
+.node.nodo-git.apagado {
+  --tinte: #6e7681;
+  --pulso: #6e768144;
+  border-color: #30363d;
+}
+
+.nodo-git .node-head {
+  cursor: default;
+}
+
+.nodo-git .node-head:hover {
+  background: #122719;
+}
+
+.nodo-git.apagado .node-head {
+  background: #161b22;
+}
+
+.git-punto {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: #30363d;
+}
+
+.git-punto.on {
+  background: #3fb950;
+  box-shadow: 0 0 7px #3fb950;
+}
+
+.git-estado {
+  padding: 1px 7px;
+  border: 1px solid #30363d;
+  border-radius: 99px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.git-estado.on {
+  border-color: #2b5c3f;
+  color: #7ee2a8;
+}
+
+.git-detalle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 9px;
+  padding: 6px 9px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.git-rama {
+  color: #7ee2a8;
+  font-weight: 600;
+}
+
+.git-commit {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 10.5px;
+}
+
+.git-ayuda {
+  color: #6e7681;
+}
+
+.node.lane-cola > .node-head {
+  background: #14243a;
+}
+
+.node.lane-roadmap > .node-head {
+  background: #221a35;
+}
+
+.node.lane-verificacion > .node-head {
+  background: #0f2b36;
+}
+
+.node.lane-revision_aprobada > .node-head {
+  background: #122719;
+}
+
+.node.lane-historial > .node-head {
+  background: #17231d;
+}
+
+.node.lane-descartadas > .node-head {
+  background: #2a1a1d;
+}
+
+.node-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 9px;
+  background: #16233a;
+  border: 0;
+  color: var(--fg);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.node-head:hover {
+  background: #1a2a45;
+}
+
+.node-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Contador redondo de la cabecera: cuántas ideas hay dentro. */
+.count {
+  min-width: 18px;
+  padding: 0 6px;
+  border: 1px solid #4a6b9a;
+  border-radius: 99px;
+  color: #cfe0f7;
+  font-size: 10.5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* Pulso de borde del nodo según qué pasó: azul entra, rojo sale, verde
+ * completado. El mismo tono tiñe el contador (`--pulso`). */
+.node.pulso-azul {
+  --pulso: #58a6ff55;
+  animation: pulso-borde 900ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.node.pulso-rojo {
+  --pulso: #f8514955;
+  --destello: #f85149;
+  animation: pulso-borde 900ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.node.pulso-verde {
+  --pulso: #3fb95066;
+  --destello: #3fb950;
+  animation: pulso-borde 900ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@keyframes pulso-borde {
+  0% {
+    box-shadow: 0 0 0 0 var(--pulso);
+  }
+  30% {
+    box-shadow: 0 0 0 6px var(--pulso);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+/* Fogonazo de llegada: la chispa tarda lo que mide su cable y, al terminar, el
+ *  nodo da un golpe breve de luz. Confirma la llegada; el pulso del borde la
+ *  avisa en cuanto se sabe el cambio. Sin relleno, solo borde y halo interior:
+ *  el nodo recorta lo que sobresale. */
+.destello {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow:
+    inset 0 0 0 1px var(--destello),
+    inset 0 0 14px var(--destello);
+  animation: destello-llegada 380ms ease-out both;
+}
+
+@keyframes destello-llegada {
+  0% {
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* El contador del carril que acaba de recibir una idea: un golpe, no un latido. */
+.count.pulso {
+  animation: pulso 900ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@keyframes pulso {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 transparent;
+  }
+  30% {
+    transform: scale(1.35);
+    box-shadow: 0 0 0 4px var(--pulso);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.arrow {
+  width: 8px;
+  color: #7fa6d8;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.node-body {
+  border-top: 1px solid #24354d;
+}
+
+/* Las filas no son tarjetas: son líneas del nodo, sin caja ni borde propio.
+ *  Llegan deslizándose desde el cable: el cambio es instantáneo, el movimiento
+ *  no, y así se puede seguir con la vista. */
+.row {
+  border-top: 1px solid #1b2534;
+  animation: llegar 420ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes llegar {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.node-body > .row:first-child {
+  border-top: 0;
+}
+
+.row-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 3px 9px;
+  background: transparent;
+  border: 0;
+  color: var(--fg);
+  font: inherit;
+  font-size: 11.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.row-head:hover {
+  background: #151d29;
+}
+
+.row:not(:has(.row-head[aria-expanded])) > .row-head {
+  cursor: default;
+}
+
+.row-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--t-fila);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+/* Abierta, la fila es la barra de control y el título vive en la ficha. */
+.row-head[aria-expanded="true"] {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.row .count {
+  border-color: #33465e;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.row .arrow {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+/* Un nivel más de profundidad: sangría y guía fina, sin otra caja. */
+.row-kids {
+  margin-left: 9px;
+  padding-left: 8px;
+  border-left: 1px solid #1f2a3a;
+}
+
+/* Azul en Ideas y En cola. En vuelo se usa el color del destino. */
+.dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 99px;
+  background: var(--accent);
+}
+
+.lane-roadmap .dot,
+.vuelo.roadmap .dot {
+  background: #8b6be0;
+}
+
+.lane-verificacion .dot,
+.vuelo.verificacion .dot {
+  background: #38b6a5;
+}
+
+.lane-revision_aprobada .dot,
+.vuelo.revision_aprobada .dot {
+  background: #3fb950;
+}
+
+.lane-historial .dot,
+.vuelo.historial .dot {
+  background: #7f9b8b;
+}
+
+.lane-descartadas .dot,
+.vuelo.descartadas .dot {
+  background: var(--bad);
+}
+
+/* ---------- el vuelo de una fila ----------
+ *
+ *  Copia que cruza de un carril al otro. El dato ya cambió; esto es solo lo que
+ *  ve el ojo, y por eso dura bastante más que la escritura en el almacén.
+ */
+
+.vuelos {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  pointer-events: none;
+}
+
+.vuelo {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  overflow: hidden;
+  background: #16233a;
+  border: 1px solid #4a6b9a;
+  border-radius: 4px;
+  box-shadow: 0 8px 20px #0009;
+  font-size: 11.5px;
+  /* La chispa sale primero por el cable y la fila se descuelga 100 ms después:
+   * así el ojo sigue el gesto desde el origen y el aterrizaje coincide. */
+  transition:
+    transform 620ms cubic-bezier(0.22, 1, 0.36, 1) 100ms,
+    opacity 320ms ease 300ms;
+  will-change: transform;
+}
+
+.vuelo.descartadas {
+  background: #2a1a1d;
+  border-color: #7a3b33;
+}
+
+.vuelo-title {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* El destino espera oculto a que aterrice la copia que viaja. */
+.row.volando {
+  opacity: 0;
+  animation: none;
+}
+
+.mono,
+code {
+  font-family: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+  font-size: 12.5px;
+}
+
+code {
+  background: #0b0e13;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.hint {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+
+/* Fases de la idea (0021): lista corta con su estado, dentro de la fila. */
+.fases {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+
+/* La cabecera de fases es el rótulo del bloque: mismo tono que los demás. */
+.fases-cabecera {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  color: #8998ab;
+  font-size: var(--t-rotulo);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.fases-cabecera::before {
+  content: "";
+  width: 4px;
+  height: 4px;
+  border-radius: 1px;
+  background: var(--tinte, var(--muted));
+}
+.fase {
+  display: flex;
+  /* El estado y la × se alinean con la primera línea del título. */
+  align-items: flex-start;
+  gap: 6px;
+}
+.fase-estado,
+.fase-estado-texto {
+  margin-top: 1px;
+}
+.fase > .chip-quitar {
+  margin-top: 3px;
+}
+.fase-titulo {
+  flex: 1;
+  font-size: var(--t-cuerpo);
+}
+/* El número de fase separa los dos contadores: el de fases (arriba) y el de
+ * requisitos de cada fase (bajo su título). */
+.fase-indice {
+  color: var(--muted);
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+}
+.fase-estado {
+  font-size: 11px;
+  padding: 1px 4px;
+}
+/* Fuera de roadmap la fase no se toca: su estado es un rótulo, no un selector. */
+.fase-estado-texto {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+/* Título y motivo en columna: el motivo cabe bajo el nombre sin empujar
+ * el selector ni la ×. */
+.fase-texto {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.fase-nota {
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.25;
+}
+.fase-motivo {
+  width: 100%;
+  height: 16px;
+  padding: 0 4px;
+  font-size: 10.5px;
+}
+/* Fallar sin motivo no se guarda: el motivo se pide aquí y va con el estado. */
+.fase-motivo-form {
+  display: grid;
+  gap: 3px;
+}
+.fase-motivo-acciones {
+  display: flex;
+  gap: 4px;
+}
+.fase-motivo-acciones .btn {
+  padding: 0 6px;
+  font-size: 10.5px;
+}
+.fase-grupo {
+  display: grid;
+  gap: 2px;
+}
+/* Contador de requisitos: bajo el título y con su nombre, para que no se
+ * confunda con el contador de fases de arriba. Abre la checklist. */
+.fase-check {
+  align-self: flex-start;
+  padding: 0 4px;
+  font-size: 10px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--linea, #444);
+  border-radius: 4px;
+}
+.fase-check[aria-expanded="true"] {
+  color: inherit;
+}
+.fase-requisitos {
+  display: grid;
+  gap: 2px;
+  margin-left: 10px;
+  padding-left: 8px;
+  border-left: 1px solid var(--linea, #444);
+}
+.requisito {
+  display: flex;
+  /* Con textos de más de una línea la casilla se queda en la primera. */
+  align-items: flex-start;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.requisito input {
+  margin: 2px 0 0;
+}
+.requisito.hecho .requisito-titulo {
+  text-decoration: line-through;
+  opacity: 0.65;
+}
+.requisito-titulo {
+  flex: 1;
+  min-width: 0;
+}
+.requisito-nuevo {
+  display: flex;
+  gap: 4px;
+}
+.requisito-nuevo input {
+  flex: 1;
+  min-width: 0;
+  height: 18px;
+  padding: 0 4px;
+  font-size: 10.5px;
+}
+.requisito-nuevo .btn {
+  padding: 0 6px;
+  font-size: 10.5px;
+}
+.fase-nueva {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+}
+/* En solo lectura los formularios se quedan en el DOM pero no ocupan sitio. */
+.fase-nueva[hidden],
+.requisito-nuevo[hidden] {
+  display: none;
+}
+.fase-nueva input {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  padding: 2px 6px;
+}
+/* La fase nace con su primer requisito: el título y el botón arriba,
+ * el requisito a lo ancho debajo. */
+.fase-nueva-titulo {
+  grid-area: 1 / 1;
+}
+.fase-nueva .btn {
+  grid-area: 1 / 2;
+}
+.fase-nueva-requisito {
+  grid-area: 2 / 1 / 3 / 3;
+}
+
+/* Ficha de fases: detalle con estado, nota y fecha; el motivo se edita ahí
+ * cuando la fase falló o se rechazó en roadmap. */
+.ficha-fases {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+  max-height: 50vh;
+  overflow: auto;
+}
+.ficha-fase {
+  display: grid;
+  gap: 2px;
+  padding: 6px 8px;
+  border-left: 3px solid var(--linea, #444);
+}
+.ficha-fase.estado-completada {
+  border-left-color: #4ea36b;
+}
+.ficha-fase.estado-fallida {
+  border-left-color: #c25555;
+}
+.ficha-fase.estado-rechazada {
+  border-left-color: #8a6bb5;
+}
+.ficha-fase-titulo {
+  font-size: 13px;
+}
+/* En la ficha el contador es un resumen, no un botón: mismo formato que en
+ * la fila, pero sin estirarse a lo ancho. */
+.ficha-fase .fase-check,
+.ficha-fase > .fila-estado {
+  justify-self: start;
+}
+.ficha-fase-nota {
+  margin: 0;
+  font-size: 12px;
+  opacity: 0.8;
+}
+.ficha-fase-motivo {
+  width: 100%;
+  font-size: 12px;
+  padding: 2px 6px;
+}
+.ficha-fase-fecha {
+  font-size: 11px;
+  opacity: 0.6;
+}
+/* Los archivos que tocó la fase (0028): en la fila solo el recuento, el
+ * detalle en la ficha. Sin Git son rutas y estado; el parche no se pinta. */
+.fase-archivos {
+  align-self: flex-start;
+  padding: 0 4px;
+  font-size: 10px;
+  color: var(--muted);
+  border: 1px dashed var(--linea, #444);
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.ficha-archivos {
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+}
+.ficha-archivo {
+  display: grid;
+  gap: 3px;
+  font-size: 11px;
+  min-width: 0;
+}
+/* Cada archivo es una fila; si hay parche, se despliega al pulsar. */
+.archivo-abrir {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+}
+button.archivo-abrir:hover code {
+  text-decoration: underline;
+}
+.archivo-flecha {
+  margin-left: auto;
+  padding-left: 6px;
+  opacity: 0.6;
+}
+/* El parche tal cual lo da Git: monoespaciado y con el signo a la vista. */
+.ficha-parche {
+  margin: 0;
+  padding: 4px 6px;
+  max-height: 40vh;
+  overflow: auto;
+  font-size: 10.5px;
+  line-height: 1.35;
+  white-space: pre;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+  border-radius: 4px;
+}
+.ficha-parche .linea-mas {
+  color: #4ea36b;
+}
+.ficha-parche .linea-menos {
+  color: #c25555;
+}
+.ficha-archivo code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.archivo-estado {
+  flex: none;
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+.archivo-estado.estado-nuevo {
+  color: #4ea36b;
+}
+.archivo-estado.estado-borrado {
+  color: #c25555;
+}
+.archivo-estado.estado-renombrado {
+  color: #c9a227;
+}
+.ficha-requisitos {
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+}
+.ficha-requisito {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12px;
+}
+/* Los archivos de un requisito (0029) van debajo de su fila, sangrados a la
+ * altura del título para que se vea que cuelgan de él. */
+.requisito-archivos {
+  flex-basis: 100%;
+  margin-left: 20px;
+}
+.ficha-requisito input {
+  margin: 3px 0 0;
+}
+.ficha-requisito.hecho .ficha-requisito-titulo {
+  text-decoration: line-through;
+  opacity: 0.65;
+}
+.ficha-requisito-titulo {
+  flex: 1;
+  min-width: 0;
+}
+.ficha-requisito time {
+  font-size: 10.5px;
+  opacity: 0.6;
+}

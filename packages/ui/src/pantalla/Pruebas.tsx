@@ -33,6 +33,15 @@ type FaseTaller = {
   nota: string;
 };
 
+/** Una fase del taller con su checklist de requisitos. */
+type FaseTallerConRequisitos = {
+  orden: number;
+  titulo: string;
+  estado: FaseTaller["estado"];
+  nota: string;
+  requisitos: { orden: number; titulo: string; hecho: boolean }[];
+};
+
 const PRUEBAS: Prueba[] = [
   {
     id: "prueba-1",
@@ -448,6 +457,95 @@ const PRUEBAS: Prueba[] = [
         {
           texto: "Mirar el motivo conservado",
           ejecutar: () => mirar(4000),
+        },
+      ];
+    },
+  },
+  {
+    id: "fases-requisitos",
+    nombre: "Fases con requisitos",
+    descripcion:
+      "Una fase con dos requisitos: nacen pendientes en la cola, se marcan en roadmap y la fase " +
+      "solo se completa cuando están los dos. Abre la fila «Requisitos · fases» y su checklist.",
+    construir: ({ crear, mover, editar }) => {
+      let uid: string | null = null;
+      const conUid = () => {
+        if (!uid) throw new Error("Falta el uid de la idea creada.");
+        return uid;
+      };
+      const fase = (
+        estado: FaseTaller["estado"],
+        hechos: boolean[],
+      ): FaseTallerConRequisitos[] => [
+        {
+          orden: 1,
+          titulo: "Revisar",
+          estado,
+          nota: "",
+          requisitos: [
+            { orden: 1, titulo: "Cubre el borde", hecho: hechos[0] ?? false },
+            { orden: 2, titulo: "Pasa lint", hecho: hechos[1] ?? false },
+          ],
+        },
+      ];
+      return [
+        {
+          texto: "Crear «Requisitos · fases» en En cola",
+          ejecutar: async () => {
+            const idea = await crear({
+              title: "Requisitos · fases",
+              description: "Una fase que solo se cierra con sus requisitos.",
+              content: "Una fase que solo se cierra con sus requisitos.",
+              kind: "idea",
+              status: "proposed",
+            });
+            if (!idea) throw new Error("El core no devolvió la idea creada.");
+            uid = idea.uid;
+          },
+        },
+        {
+          texto: "Añadir «Revisar» con dos requisitos",
+          ejecutar: async () => {
+            await editar(conUid(), { fases: fase("pendiente", [false, false]) });
+          },
+        },
+        {
+          texto: "Mover a roadmap",
+          ejecutar: async () => {
+            await mover(conUid(), "roadmap");
+          },
+        },
+        {
+          texto: "Marcar «Cubre el borde»",
+          ejecutar: async () => {
+            await editar(conUid(), { fases: fase("pendiente", [true, false]) });
+          },
+        },
+        {
+          texto: "Mirar el checklist a medias",
+          ejecutar: () => mirar(2500),
+        },
+        {
+          texto: "Marcar «Pasa lint»",
+          ejecutar: async () => {
+            await editar(conUid(), { fases: fase("pendiente", [true, true]) });
+          },
+        },
+        {
+          texto: "Completar «Revisar»",
+          ejecutar: async () => {
+            await editar(conUid(), { fases: fase("completada", [true, true]) });
+          },
+        },
+        {
+          texto: "Mirar la fase cerrada",
+          ejecutar: () => mirar(2000),
+        },
+        {
+          texto: "Mover a verificación",
+          ejecutar: async () => {
+            await mover(conUid(), "verificacion");
+          },
         },
       ];
     },

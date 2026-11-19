@@ -166,6 +166,8 @@ del lanzador ofrece:
   termina cruzando a verificación cuando ya no queda ninguna abierta.
 - **Fases: el motivo sobrevive**: una fase rechazada con motivo vuelve a la
   cola como pendiente sin perderlo.
+- **Fases con requisitos**: una fase con dos requisitos se completa solo al
+  cerrarlos y entonces cruza a verificación.
 - **Ida y vuelta y descarte**: una idea llega a verificación, vuelve a la cola y
   se descarta con motivo.
 

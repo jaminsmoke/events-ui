@@ -65,48 +65,50 @@ function fechaCorta(iso: string): string {
 const ESTADOS_FASE = ["pendiente", "completada", "fallida", "rechazada"] as const;
 type Fase = NonNullable<Idea["fases"]>[number];
 
+/** Las fases en el formato del PATCH: sin `entered_at` (lo pone el core) ni
+ *  `done_at` (lo pone al marcar). Lo comparten la fila y la ficha. */
+function comoFases(fases: readonly Fase[]): NonNullable<IdeaUpdate["fases"]> {
+  return fases.map(({ orden, titulo, estado, nota, requisitos }) => ({
+    orden,
+    titulo,
+    estado,
+    nota,
+    requisitos: (requisitos ?? []).map(({ orden: suOrden, titulo: suTitulo, hecho }) => ({
+      orden: suOrden,
+      titulo: suTitulo,
+      hecho,
+    })),
+  }));
+}
+
 /** Las fases de una idea: lista corta con su estado, sin salir de la fila.
  *  Cada cambio reenvía la lista entera: el PATCH la reemplaza en una
  *  transacción, así que marcar una casilla no pisa el carril. */
 function FasesIdea({
-  uid,
   fases,
   estado,
-  onEditar,
+  alGuardar,
 }: {
-  uid: string;
   fases: readonly Fase[];
   /** El carril de la idea: el estado de una fase solo se toca en roadmap. */
   estado: Status;
-  onEditar: (uid: string, cambios: IdeaUpdate) => Promise<void>;
+  /** La copia optimista vive en la fila: así la ficha y la fila no se pisan. */
+  alGuardar: (siguientes: readonly Fase[]) => Promise<void>;
 }) {
   const [nuevo, setNuevo] = useState("");
   const [fallo, setFallo] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
-  // Copia optimista: el mapa tarda en refrescar y dos cambios seguidos no
-  // pueden reenviar la lista vieja (el PATCH reemplaza la lista entera). Vale
-  // solo mientras la prop sea la misma; cuando el mapa trae otra lista, manda
-  // el mapa. Sin efecto: comparar identidad no dispara renders en cascada.
-  const [optimista, setOptimista] = useState<{
-    base: readonly Fase[];
-    fases: readonly Fase[];
-  } | null>(null);
-  const vista = optimista?.base === fases ? optimista.fases : fases;
+  // Qué checklist está desplegada y el texto del requisito que se está
+  // escribiendo. Solo una a la vez: la fila es estrecha.
+  const [verRequisitos, setVerRequisitos] = useState<number | null>(null);
+  const [requisitoNuevo, setRequisitoNuevo] = useState("");
+  const vista = fases;
 
   const guardar = (siguientes: readonly Fase[]) => {
     setGuardando(true);
     setFallo(null);
-    setOptimista({ base: fases, fases: siguientes });
-    onEditar(uid, {
-      fases: siguientes.map(({ orden, titulo, estado, nota }) => ({
-        orden,
-        titulo,
-        estado,
-        nota,
-      })),
-    })
+    alGuardar(siguientes)
       .catch((err: unknown) => {
-        setOptimista(null);
         setFallo(err instanceof Error ? err.message : String(err));
       })
       .finally(() => setGuardando(false));
@@ -126,8 +128,13 @@ function FasesIdea({
       <p className="fases-cabecera">
         Fases {vista.filter((fase) => fase.estado === "completada").length}/{vista.length}
       </p>
-      {vista.map((fase) => (
-        <div className="fase" key={fase.orden}>
+      {vista.map((fase) => {
+        const requisitos = fase.requisitos ?? [];
+        const hechosReq = requisitos.filter((requisito) => requisito.hecho).length;
+        const pendientesReq = requisitos.length - hechosReq;
+        return (
+        <div className="fase-grupo" key={fase.orden}>
+        <div className="fase">
           <div className="fase-texto">
             <span className="fase-titulo">{fase.titulo}</span>
             {estado === "roadmap" && (fase.estado === "fallida" || fase.estado === "rechazada") ? (
@@ -155,12 +162,29 @@ function FasesIdea({
               fase.nota && <span className="fase-nota">{fase.nota}</span>
             )}
           </div>
+          <button
+            type="button"
+            className="fase-check"
+            title={`Requisitos: ${hechosReq}/${requisitos.length}`}
+            aria-expanded={verRequisitos === fase.orden}
+            onClick={() => {
+              setVerRequisitos(verRequisitos === fase.orden ? null : fase.orden);
+              setRequisitoNuevo("");
+            }}
+          >
+            {hechosReq}/{requisitos.length}
+          </button>
           {estado === "roadmap" ? (
             <select
               className="fase-estado"
               value={fase.estado}
               disabled={guardando}
               aria-label={`Estado de ${fase.titulo}`}
+              title={
+                pendientesReq > 0
+                  ? `Cierra ${pendientesReq} requisito(s) para completar`
+                  : undefined
+              }
               onChange={(e) =>
                 guardar(
                   vista.map((otra) =>
@@ -172,7 +196,11 @@ function FasesIdea({
               }
             >
               {ESTADOS_FASE.map((otro) => (
-                <option key={otro} value={otro}>
+                <option
+                  key={otro}
+                  value={otro}
+                  disabled={otro === "completada" && pendientesReq > 0}
+                >
                   {otro}
                 </option>
               ))}
@@ -195,7 +223,100 @@ function FasesIdea({
             ×
           </button>
         </div>
-      ))}
+        {verRequisitos === fase.orden && (
+          <div className="fase-requisitos">
+            {requisitos.map((requisito) => (
+              <label
+                key={requisito.orden}
+                className={`requisito${requisito.hecho ? " hecho" : ""}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={requisito.hecho}
+                  disabled={guardando || estado !== "roadmap"}
+                  aria-label={`Requisito ${requisito.titulo}`}
+                  onChange={() =>
+                    guardar(
+                      vista.map((otra) =>
+                        otra.orden === fase.orden
+                          ? {
+                              ...otra,
+                              requisitos: (otra.requisitos ?? []).map((cada) =>
+                                cada.orden === requisito.orden
+                                  ? { ...cada, hecho: !cada.hecho }
+                                  : cada,
+                              ),
+                            }
+                          : otra,
+                      ),
+                    )
+                  }
+                />
+                <span className="requisito-titulo">{requisito.titulo}</span>
+                <button
+                  type="button"
+                  className="chip-quitar"
+                  title="Quitar requisito"
+                  disabled={guardando}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    guardar(
+                      vista.map((otra) =>
+                        otra.orden === fase.orden
+                          ? {
+                              ...otra,
+                              requisitos: (otra.requisitos ?? []).filter(
+                                (cada) => cada.orden !== requisito.orden,
+                              ),
+                            }
+                          : otra,
+                      ),
+                    );
+                  }}
+                >
+                  ×
+                </button>
+              </label>
+            ))}
+            <form
+              className="requisito-nuevo"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const titulo = requisitoNuevo.trim();
+                if (!titulo) return;
+                const orden = Math.max(0, ...requisitos.map((cada) => cada.orden)) + 1;
+                guardar(
+                  vista.map((otra) =>
+                    otra.orden === fase.orden
+                      ? {
+                          ...otra,
+                          requisitos: [
+                            ...(otra.requisitos ?? []),
+                            { orden, titulo, hecho: false, done_at: null },
+                          ],
+                        }
+                      : otra,
+                  ),
+                );
+                setRequisitoNuevo("");
+              }}
+            >
+              <input
+                value={requisitoNuevo}
+                onChange={(e) => setRequisitoNuevo(e.target.value)}
+                placeholder="Nuevo requisito…"
+                aria-label={`Nuevo requisito de ${fase.titulo}`}
+                disabled={guardando}
+              />
+              <button className="btn ghost" type="submit" disabled={guardando}>
+                +
+              </button>
+            </form>
+          </div>
+        )}
+        </div>
+        );
+      })}
       <form className="fase-nueva" onSubmit={anadir}>
         <input
           value={nuevo}
@@ -223,47 +344,31 @@ const ETIQUETA_FASE: Record<string, string> = {
 /** La ficha de fases: el detalle completo (estado, nota y fecha), que la
  *  fila no enseña para no crecer. Solo lectura: editar es cosa de la fila. */
 function FichaFases({
-  uid,
   estado,
   titulo,
   fases,
-  onEditar,
+  alGuardar,
   onCerrar,
 }: {
-  uid: string;
   /** El carril de la idea: el motivo se toca en roadmap, como en la fila. */
   estado: Status;
   titulo: string;
   fases: readonly Fase[];
-  onEditar?: (uid: string, cambios: IdeaUpdate) => Promise<void>;
+  /** La copia optimista vive en la fila; sin él, la ficha es de lectura. */
+  alGuardar?: (siguientes: readonly Fase[]) => Promise<void>;
   onCerrar: () => void;
 }) {
   const [guardando, setGuardando] = useState(false);
   const [fallo, setFallo] = useState<string | null>(null);
-  // Misma copia optimista que la fila: el mapa tarda en refrescar y dos
-  // motivos seguidos no pueden reenviar la lista vieja.
-  const [optimista, setOptimista] = useState<{
-    base: readonly Fase[];
-    fases: readonly Fase[];
-  } | null>(null);
-  const vista = optimista?.base === fases ? optimista.fases : fases;
+  const vista = fases;
   const hechas = vista.filter((fase) => fase.estado === "completada").length;
 
   const guardar = (siguientes: readonly Fase[]) => {
-    if (!onEditar) return;
+    if (!alGuardar) return;
     setGuardando(true);
     setFallo(null);
-    setOptimista({ base: fases, fases: siguientes });
-    onEditar(uid, {
-      fases: siguientes.map(({ orden, titulo: nombre, estado: propio, nota }) => ({
-        orden,
-        titulo: nombre,
-        estado: propio,
-        nota,
-      })),
-    })
+    alGuardar(siguientes)
       .catch((err: unknown) => {
-        setOptimista(null);
         setFallo(err instanceof Error ? err.message : String(err));
       })
       .finally(() => setGuardando(false));
@@ -293,7 +398,7 @@ function FichaFases({
             <li key={fase.orden} className={`ficha-fase estado-${fase.estado}`}>
               <span className="ficha-fase-titulo">{fase.titulo}</span>
               <span className="fila-estado">{ETIQUETA_FASE[fase.estado] ?? fase.estado}</span>
-              {onEditar &&
+              {alGuardar &&
               estado === "roadmap" &&
               (fase.estado === "fallida" || fase.estado === "rechazada") ? (
                 <input
@@ -318,6 +423,43 @@ function FichaFases({
                 />
               ) : (
                 fase.nota && <p className="ficha-fase-nota">{fase.nota}</p>
+              )}
+              {fase.requisitos && fase.requisitos.length > 0 && (
+                <ul className="ficha-requisitos">
+                  {fase.requisitos.map((requisito) => (
+                    <li
+                      key={requisito.orden}
+                      className={`ficha-requisito${requisito.hecho ? " hecho" : ""}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={requisito.hecho}
+                        disabled={guardando || estado !== "roadmap" || !alGuardar}
+                        aria-label={`Requisito ${requisito.titulo}`}
+                        onChange={() =>
+                          guardar(
+                            vista.map((otra) =>
+                              otra.orden === fase.orden
+                                ? {
+                                    ...otra,
+                                    requisitos: (otra.requisitos ?? []).map((cada) =>
+                                      cada.orden === requisito.orden
+                                        ? { ...cada, hecho: !cada.hecho }
+                                        : cada,
+                                    ),
+                                  }
+                                : otra,
+                            ),
+                          )
+                        }
+                      />
+                      <span className="ficha-requisito-titulo">{requisito.titulo}</span>
+                      {requisito.done_at && (
+                        <time dateTime={requisito.done_at}>{fechaCorta(requisito.done_at)}</time>
+                      )}
+                    </li>
+                  ))}
+                </ul>
               )}
               <time className="ficha-fase-fecha" dateTime={fase.entered_at}>
                 {fechaCorta(fase.entered_at)}
@@ -390,6 +532,23 @@ function NodeRow({
   const descripcion = node.idea?.description ?? "";
   const deps = node.idea?.depende_de ?? [];
   const fases = node.idea?.fases ?? [];
+  // Copia optimista compartida por la fila y la ficha: el mapa tarda en
+  // refrescar y dos cambios seguidos no pueden reenviar la lista vieja (el
+  // PATCH la reemplaza entera). Vale solo mientras la prop sea la misma;
+  // cuando el mapa trae otra lista, manda el mapa.
+  const [optimista, setOptimista] = useState<{
+    base: readonly Fase[];
+    fases: readonly Fase[];
+  } | null>(null);
+  const vistaFases = optimista?.base === fases ? optimista.fases : fases;
+  const guardarFases = (siguientes: readonly Fase[]) => {
+    if (!onEditar || !uid) return Promise.resolve();
+    setOptimista({ base: fases, fases: siguientes });
+    return onEditar(uid, { fases: comoFases(siguientes) }).catch((err: unknown) => {
+      setOptimista(null);
+      throw err;
+    });
+  };
   // Candidatas a dependencia: ni ella misma ni las que ya espera.
   const candidatas = catalogo.filter((otra) => otra.uid !== uid && !deps.includes(otra.uid));
   const hechas = fases.filter((fase) => fase.estado === "completada").length;
@@ -531,7 +690,7 @@ function NodeRow({
       )}
       {onEditar && estado && estado !== "rejected" && estado !== "superseded" && (
         <div className="fila-bloque">
-          <FasesIdea uid={uid!} fases={fases} estado={estado} onEditar={onEditar} />
+          <FasesIdea fases={vistaFases} estado={estado} alGuardar={guardarFases} />
           {estado === "proposed" && fases.length === 0 && exigeFases?.(estado, "roadmap") && (
             <p className="fila-aviso">Añade una fase para pasar a roadmap.</p>
           )}
@@ -638,11 +797,10 @@ function NodeRow({
 
       {node.idea && fichaFases && (
         <FichaFases
-          uid={uid!}
           estado={node.idea.status}
           titulo={node.title}
-          fases={fases}
-          onEditar={onEditar}
+          fases={vistaFases}
+          alGuardar={onEditar ? guardarFases : undefined}
           onCerrar={() => setFichaFases(false)}
         />
       )}

@@ -199,6 +199,14 @@ con el motivo, para no reabrirlo cada semana.
   la creación del almacén) y `tests/test_capas.py` vigila que nadie importe
   hacia arriba: recorre los imports de cada módulo y falla si uno mira a una
   capa superior. Cubierto por los tests del core, sin tocarlos.
+- **El almacén al día no se abre dos veces**: `ensure_repo` comprobaba
+  `user_version` en cada lectura —una conexión extra— y el llamante abría otra
+  para leer o escribir. Ahora `migraciones` recuerda la huella del fichero
+  (`mtime_ns`, tamaño) que dejó al día y se ahorra la conexión; si el fichero
+  cambia por detrás (una copia restaurada, una migración desde fuera) vuelve a
+  comprobarlo, y un intento fallido no deja la marca. Cubierto en
+  `services/core/tests/test_almacen_al_dia.py`. El `.gitignore` de `.EUI` se
+  sigue repasando en cada lectura: es un fichero de dos líneas y se deja.
 - **CI**: `pnpm check` global en cada push a main y en PRs
   (`.github/workflows/ci.yml`). Batería e2e y builds de Tauri quedan fuera
   del CI a propósito (navegador y puertos; se corren en local).
@@ -226,12 +234,6 @@ con el motivo, para no reabrirlo cada semana.
 
 Revisión del 19 de noviembre de 2026, por orden de daño y no de esfuerzo.
 
-- **Cada petición abre dos conexiones al almacén.** `ensure_repo` llama a
-  `_migrar_esquema` en cada lectura —abre SQLite y mira `user_version`— y
-  `consulta`/`crud` vuelven a abrir para leer o escribir; de paso se relee el
-  `.gitignore` de `.EUI`. Un almacén que ya está al día podría recordarse
-  (versión + `mtime` del fichero) y ahorrarse el viaje. Medir antes de tocar:
-  el mapa hace varias lecturas por refresco.
 - **El registro operativo se prepara entero en cada línea.** `registro.escribir`
   crea la tabla y el índice (`IF NOT EXISTS`), inserta y purga en una conexión
   nueva cada vez. Con el log del core en marcha son muchas aperturas por minuto;

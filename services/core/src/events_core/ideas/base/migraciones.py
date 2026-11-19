@@ -65,6 +65,22 @@ SIN_FOREIGN_KEYS = "-- sin-foreign-keys"
 
 _ESQUEMA_LOCK = threading.RLock()
 
+# Almacenes que este proceso ya comprobó: `Ruta -> (mtime_ns, tamaño)`. La
+# versión del esquema solo cambia si alguien escribe en el fichero (una
+# migración, una copia restaurada), así que con su huella basta para ahorrarse
+# abrir la conexión de cada lectura. Se anota solo tras comprobarlo de verdad.
+
+_AL_DIA: dict[Path, tuple[int, int]] = {}
+
+
+def _huella(db_file: Path) -> tuple[int, int] | None:
+    """`(mtime_ns, tamaño)` del almacén; `None` si aún no está."""
+    try:
+        info = db_file.stat()
+    except OSError:
+        return None
+    return info.st_mtime_ns, info.st_size
+
 
 def _migrar_esquema(db_file: Path) -> None:
     """Sube al día un almacén que ya existía, paso a paso.
@@ -74,62 +90,79 @@ def _migrar_esquema(db_file: Path) -> None:
     para lo que es `IF NOT EXISTS`. Por eso cada cambio de esquema es un fichero
     numerado en `migraciones/`, y `user_version` dice por cuál va el almacén.
 
-    Si ya está al día no se ejecuta ni un paso (esto corre en cada lectura).
+    Si ya está al día no se ejecuta ni un paso (esto corre en cada lectura) y,
+    si este proceso ya lo comprobó con esta misma huella, ni se abre.
     """
-    with _ESQUEMA_LOCK, closing(connect(db_file)) as conn:
-        version = int(conn.execute("PRAGMA user_version").fetchone()[0])
-        # Un almacén firmado por el `core:seed` anterior no pasó por la
-        # migración 0013: `aplicar_esquema` marcó la versión sin copiar
-        # `idea_completada` ni ampliar los protocolos. Si ese esquema
-        # incompleto sigue ahí, hay que terminar la 0013 antes de seguir, no
-        # fiarse del número. Un almacén migrado de verdad no tiene
-        # `idea_completada` y su `protocolo_flujo` ya acepta los carriles
-        # nuevos.
+    huella = _huella(db_file)
+    with _ESQUEMA_LOCK:
+        if huella is not None and _AL_DIA.get(db_file) == huella:
+            return
+        try:
+            with closing(connect(db_file)) as conn:
+                _llevar_al_dia(conn)
+        except BaseException:
+            # Un intento fallido no deja el almacén al día: que se reintente.
+            _AL_DIA.pop(db_file, None)
+            raise
+        if (nueva := _huella(db_file)) is not None:
+            _AL_DIA[db_file] = nueva
+
+
+def _llevar_al_dia(conn: sqlite3.Connection) -> None:
+    """Aplica los pasos que le falten al almacén ya abierto."""
+    version = int(conn.execute("PRAGMA user_version").fetchone()[0])
+    # Un almacén firmado por el `core:seed` anterior no pasó por la
+    # migración 0013: `aplicar_esquema` marcó la versión sin copiar
+    # `idea_completada` ni ampliar los protocolos. Si ese esquema
+    # incompleto sigue ahí, hay que terminar la 0013 antes de seguir, no
+    # fiarse del número. Un almacén migrado de verdad no tiene
+    # `idea_completada` y su `protocolo_flujo` ya acepta los carriles
+    # nuevos.
+    #
+    # `_aplicar_paso` firma el paso que aplica: si el almacén ya estaba
+    # por encima (un esquema fresco marcado sin terminar la 0013), se
+    # devuelve su versión para no repetir los pasos que ya tiene.
+    if version >= 13 and _esquema_0013_incompleto(conn):
+        conn.isolation_level = None
+        _aplicar_paso(conn, 13, MIGRATIONS_DIR / "0013_estado_completo.sql")
+        conn.execute(f"PRAGMA user_version = {version}")
+
+    # Un «v18» firmado por `aplicar_esquema` sobre un almacén viejo no
+    # tiene `depende_de`: la columna la añade la 0018, que se salta por ir
+    # ya en esa versión. Se aplica aquí, como la 0013, en vez de fiarse
+    # del número.
+    if (
+        version >= 18
+        and _existe(conn, "idea_entry")
+        and not _columna(conn, "idea_entry", "depende_de")
+    ):
+        conn.isolation_level = None
+        _aplicar_paso(conn, 18, MIGRATIONS_DIR / "0018_dependencias.sql")
+        conn.execute(f"PRAGMA user_version = {version}")
+
+    if version >= SCHEMA_VERSION:
+        if _existe(conn, "ideas"):
+            _copiar_ideas_historicas(conn)
+        return
+
+    if version == 0:
+        # Almacén de antes de que existiera la versión: no se sabe de dónde
+        # parte, así que se le pone el esquema base de ideas/conexiones
+        # (idempotente) y se marca como al día. Los pasos 3-5 ya están
+        # reflejados en él, pero la tabla `event` no: el log lo escribe
+        # otro proceso y no se crea desde la app.
         #
-        # `_aplicar_paso` firma el paso que aplica: si el almacén ya estaba
-        # por encima (un esquema fresco marcado sin terminar la 0013), se
-        # devuelve su versión para no repetir los pasos que ya tiene.
-        if version >= 13 and _esquema_0013_incompleto(conn):
-            conn.isolation_level = None
-            _aplicar_paso(conn, 13, MIGRATIONS_DIR / "0013_estado_completo.sql")
-            conn.execute(f"PRAGMA user_version = {version}")
+        # Si además trae la tabla histórica `ideas`, su contenido no está
+        # en el esquema fresco: hay que copiarlo antes de marcar al día.
+        aplicar_esquema(conn)
+        conn.commit()
+        if _existe(conn, "ideas"):
+            _copiar_ideas_historicas(conn)
+        return
 
-        # Un «v18» firmado por `aplicar_esquema` sobre un almacén viejo no
-        # tiene `depende_de`: la columna la añade la 0018, que se salta por ir
-        # ya en esa versión. Se aplica aquí, como la 0013, en vez de fiarse
-        # del número.
-        if (
-            version >= 18
-            and _existe(conn, "idea_entry")
-            and not _columna(conn, "idea_entry", "depende_de")
-        ):
-            conn.isolation_level = None
-            _aplicar_paso(conn, 18, MIGRATIONS_DIR / "0018_dependencias.sql")
-            conn.execute(f"PRAGMA user_version = {version}")
-
-        if version >= SCHEMA_VERSION:
-            if _existe(conn, "ideas"):
-                _copiar_ideas_historicas(conn)
-            return
-
-        if version == 0:
-            # Almacén de antes de que existiera la versión: no se sabe de dónde
-            # parte, así que se le pone el esquema base de ideas/conexiones
-            # (idempotente) y se marca como al día. Los pasos 3-5 ya están
-            # reflejados en él, pero la tabla `event` no: el log lo escribe
-            # otro proceso y no se crea desde la app.
-            #
-            # Si además trae la tabla histórica `ideas`, su contenido no está
-            # en el esquema fresco: hay que copiarlo antes de marcar al día.
-            aplicar_esquema(conn)
-            conn.commit()
-            if _existe(conn, "ideas"):
-                _copiar_ideas_historicas(conn)
-            return
-
-        conn.isolation_level = None  # las transacciones las llevamos nosotros
-        for numero, script in _pasos(version):
-            _aplicar_paso(conn, numero, script)
+    conn.isolation_level = None  # las transacciones las llevamos nosotros
+    for numero, script in _pasos(version):
+        _aplicar_paso(conn, numero, script)
 
 
 def _esquema_0013_incompleto(conn: sqlite3.Connection) -> bool:

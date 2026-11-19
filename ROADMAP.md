@@ -236,6 +236,12 @@ con el motivo, para no reabrirlo cada semana.
   sus tipos viven en `pantalla/guiones.ts` como datos; el componente se queda
   con el motor (pasos, latido, limpieza, reintento y diálogo) y baja de 1.194 a
   unas 250 líneas.
+- **Las rutas de `main.py` por dominio**: el `app` se queda con CORS, los
+  handlers de error y `/health`; las rutas viven en `routers/ideas.py`,
+  `routers/eventos.py`, `routers/log.py` y `routers/git.py`, y los modelos y
+  tipos compartidos en `contrato.py`. Se incluyen en el mismo orden en que
+  estaban, así que el OpenAPI sale idéntico y `gen:api --check` no pide
+  regenerar nada.
 - **CI**: `pnpm check` global en cada push a main y en PRs
   (`.github/workflows/ci.yml`). Batería e2e y builds de Tauri quedan fuera
   del CI a propósito (navegador y puertos; se corren en local).
@@ -263,9 +269,6 @@ con el motivo, para no reabrirlo cada semana.
 
 Revisión del 19 de noviembre de 2026, por orden de daño y no de esfuerzo.
 
-- **`main.py` es 618 líneas de rutas** de cuatro dominios (ideas, eventos, log,
-  git). Un grupo por dominio dejaría el `app` en la fábrica; sin prisa, porque
-  el contrato manda y regenerarlo es un comando.
 - **El CI solo corre en Linux** y el desarrollo es Windows: un job
   `windows-latest` con `check:py` y `check:ui` cazaría lo que solo se rompe
   aquí (rutas con unidad, `#` en el nombre del repo, venv de otra plataforma).

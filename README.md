@@ -164,6 +164,8 @@ del lanzador ofrece:
 - **Fases: crear, completar y fallar**: una idea con cuatro fases recorre
   pendiente, completada, fallida y rechazada, con pausas para mirarlo, y
   termina cruzando a verificación cuando ya no queda ninguna abierta.
+- **Fases: el motivo sobrevive**: una fase rechazada con motivo vuelve a la
+  cola como pendiente sin perderlo.
 - **Ida y vuelta y descarte**: una idea llega a verificación, vuelve a la cola y
   se descarta con motivo.
 

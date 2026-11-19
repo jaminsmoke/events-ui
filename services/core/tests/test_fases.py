@@ -322,6 +322,36 @@ def test_volver_a_la_cola_reinicia_las_fases(client, repo):  # noqa: ANN001, ANN
     assert r.status_code == 400
 
 
+def test_volver_a_la_cola_conserva_el_motivo(client, repo):  # noqa: ANN001, ANN202
+    """Reiniciar una fase a pendiente no borra su nota: el motivo de por qué
+    falló o se rechazó se queda con ella."""
+    uid = _crear(client, repo, status="proposed")
+    r = client.patch(
+        f"/ideas/{uid}",
+        params={"repo": repo},
+        json={"status": "roadmap", "fases": [{"titulo": "Revisar"}]},
+    )
+    assert r.status_code == 200, r.json()
+    r = client.patch(
+        f"/ideas/{uid}",
+        params={"repo": repo},
+        json={
+            "fases": [
+                {"orden": 1, "titulo": "Revisar", "estado": "rechazada", "nota": "No cubre el borde"}
+            ]
+        },
+    )
+    assert r.status_code == 200, r.json()
+    r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": "verificacion"})
+    assert r.status_code == 200, r.json()
+
+    r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": "proposed"})
+    assert r.status_code == 200, r.json()
+    fase = r.json()["fases"][0]
+    assert fase["estado"] == "pendiente"
+    assert fase["nota"] == "No cubre el borde"
+
+
 def test_protocolos_publican_el_requisito(client, repo):  # noqa: ANN001, ANN202
     filas = client.get("/protocolos", params={"repo": repo}).json()
     exigidas = {(f["origen"], f["destino"]) for f in filas if f["exige_fases"]}

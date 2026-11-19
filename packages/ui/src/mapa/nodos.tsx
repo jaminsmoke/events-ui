@@ -128,7 +128,33 @@ function FasesIdea({
       </p>
       {vista.map((fase) => (
         <div className="fase" key={fase.orden}>
-          <span className="fase-titulo">{fase.titulo}</span>
+          <div className="fase-texto">
+            <span className="fase-titulo">{fase.titulo}</span>
+            {estado === "roadmap" && (fase.estado === "fallida" || fase.estado === "rechazada") ? (
+              <input
+                key={fase.nota}
+                className="fase-motivo"
+                defaultValue={fase.nota}
+                placeholder="Motivo…"
+                aria-label={`Motivo de ${fase.titulo}`}
+                disabled={guardando}
+                onBlur={(e) => {
+                  const nota = e.target.value.trim();
+                  if (nota === fase.nota) return;
+                  guardar(
+                    vista.map((otra) =>
+                      otra.orden === fase.orden ? { ...otra, nota } : otra,
+                    ),
+                  );
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") e.currentTarget.blur();
+                }}
+              />
+            ) : (
+              fase.nota && <span className="fase-nota">{fase.nota}</span>
+            )}
+          </div>
           {estado === "roadmap" ? (
             <select
               className="fase-estado"

@@ -381,6 +381,78 @@ const PRUEBAS: Prueba[] = [
     },
   },
   {
+    id: "fases-motivo",
+    nombre: "Fases: el motivo sobrevive",
+    descripcion:
+      "Una fase rechazada con motivo vuelve con la idea a la cola: se queda pendiente, pero no " +
+      "pierde el motivo. Abre la fila «Motivo · fases» para verlo antes y después.",
+    construir: ({ crear, mover, editar }) => {
+      let uid: string | null = null;
+      const conUid = () => {
+        if (!uid) throw new Error("Falta el uid de la idea creada.");
+        return uid;
+      };
+      const motivo = "No cubre el caso borde";
+      const fase: FaseTaller = { orden: 1, titulo: "Revisar", estado: "pendiente", nota: "" };
+      return [
+        {
+          texto: "Crear «Motivo · fases» en En cola",
+          ejecutar: async () => {
+            const idea = await crear({
+              title: "Motivo · fases",
+              description: "Una fase fallida que vuelve con su motivo.",
+              content: "Una fase fallida que vuelve con su motivo.",
+              kind: "idea",
+              status: "proposed",
+            });
+            if (!idea) throw new Error("El core no devolvió la idea creada.");
+            uid = idea.uid;
+          },
+        },
+        {
+          texto: "Añadir la fase «Revisar»",
+          ejecutar: async () => {
+            await editar(conUid(), { fases: [fase] });
+          },
+        },
+        {
+          texto: "Mover a roadmap",
+          ejecutar: async () => {
+            await mover(conUid(), "roadmap");
+          },
+        },
+        {
+          texto: `Rechazar «Revisar» con el motivo «${motivo}»`,
+          ejecutar: async () => {
+            await editar(conUid(), {
+              fases: [{ ...fase, estado: "rechazada", nota: motivo }],
+            });
+          },
+        },
+        {
+          texto: "Mirar el motivo en roadmap",
+          ejecutar: () => mirar(2500),
+        },
+        {
+          texto: "Mover a verificación",
+          ejecutar: async () => {
+            await mover(conUid(), "verificacion");
+          },
+        },
+        {
+          texto: "Volver a En cola",
+          ejecutar: async () => {
+            await mover(conUid(), "proposed");
+          },
+        },
+        {
+          texto: "Mirar el motivo conservado",
+          ejecutar: () => mirar(4000),
+        },
+      ];
+    },
+  },
+  {
     id: "vuelta-descarte",
     nombre: "Ida y vuelta y descarte",
     descripcion:

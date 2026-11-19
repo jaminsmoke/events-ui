@@ -250,9 +250,9 @@ const PRUEBAS: Prueba[] = [
     id: "fases-estados",
     nombre: "Fases: crear, completar y fallar",
     descripcion:
-      "Una idea con cuatro fases recorre todos sus estados —pendiente, completada, fallida y " +
-      "rechazada— con pausas para mirarlo, y después cierra las abiertas para pasar a verificación. " +
-      "Abre la fila «Fases · taller» para ver el panel en vivo.",
+      "Cuatro fases esperan pendientes en la cola (ahí no se tocan) y, al entrar en roadmap, " +
+      "recorren todos sus estados —completada, fallida, rechazada y pendiente— con pausas para " +
+      "mirarlo. Después cierra las abiertas para pasar a verificación. Abre la fila «Fases · taller».",
     construir: ({ crear, mover, editar }) => {
       let uid: string | null = null;
       const conUid = () => {
@@ -298,6 +298,30 @@ const PRUEBAS: Prueba[] = [
           },
         },
         {
+          texto: "Añadir «Revisión» (pendiente)",
+          ejecutar: async () => {
+            anotar({ orden: 3, titulo: "Revisión", estado: "pendiente", nota: "" });
+            await guardar();
+          },
+        },
+        {
+          texto: "Añadir «Publicar» (pendiente)",
+          ejecutar: async () => {
+            anotar({ orden: 4, titulo: "Publicar", estado: "pendiente", nota: "" });
+            await guardar();
+          },
+        },
+        {
+          texto: "Mirar las fases pendientes en la cola",
+          ejecutar: () => mirar(3500),
+        },
+        {
+          texto: "Mover a roadmap (todavía con fases abiertas)",
+          ejecutar: async () => {
+            await mover(conUid(), "roadmap");
+          },
+        },
+        {
           texto: "Completar «Diseño»",
           ejecutar: async () => {
             cambiar(1, "completada");
@@ -312,28 +336,15 @@ const PRUEBAS: Prueba[] = [
           },
         },
         {
-          texto: "Añadir «Revisión» (rechazada)",
+          texto: "Rechazar «Revisión»",
           ejecutar: async () => {
-            anotar({ orden: 3, titulo: "Revisión", estado: "rechazada", nota: "" });
-            await guardar();
-          },
-        },
-        {
-          texto: "Añadir «Publicar» (pendiente)",
-          ejecutar: async () => {
-            anotar({ orden: 4, titulo: "Publicar", estado: "pendiente", nota: "" });
+            cambiar(3, "rechazada");
             await guardar();
           },
         },
         {
           texto: "Mirar los cuatro estados",
           ejecutar: () => mirar(3000),
-        },
-        {
-          texto: "Mover a roadmap (todavía con fases abiertas)",
-          ejecutar: async () => {
-            await mover(conUid(), "roadmap");
-          },
         },
         {
           texto: "Mirar la compuerta cerrada de verificación",
@@ -381,9 +392,7 @@ const PRUEBAS: Prueba[] = [
         if (!uid) throw new Error("Falta el uid de la idea creada.");
         return uid;
       };
-      const fase = [
-        { orden: 1, titulo: "Verificar", estado: "completada" as const, nota: "" },
-      ];
+      const fase = [{ orden: 1, titulo: "Verificar", estado: "pendiente" as const, nota: "" }];
       return [
         {
           texto: "Crear la idea en En cola",
@@ -400,7 +409,7 @@ const PRUEBAS: Prueba[] = [
           },
         },
         {
-          texto: "Añadir la fase «Verificar» completada",
+          texto: "Añadir la fase «Verificar» (pendiente)",
           ejecutar: async () => {
             await editar(conUid(), { fases: fase });
           },
@@ -409,6 +418,14 @@ const PRUEBAS: Prueba[] = [
           texto: "Mover a roadmap",
           ejecutar: async () => {
             await mover(conUid(), "roadmap");
+          },
+        },
+        {
+          texto: "Completar la fase «Verificar»",
+          ejecutar: async () => {
+            await editar(conUid(), {
+              fases: [{ orden: 1, titulo: "Verificar", estado: "completada", nota: "" }],
+            });
           },
         },
         {

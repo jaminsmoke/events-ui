@@ -1588,6 +1588,14 @@ code {
   font-size: 11px;
   padding: 1px 4px;
 }
+/* Fuera de roadmap la fase no se toca: su estado es un rótulo, no un selector. */
+.fase-estado-texto {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
 .fase-nueva {
   display: grid;
   grid-template-columns: 1fr auto;

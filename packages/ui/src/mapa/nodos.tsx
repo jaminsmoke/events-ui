@@ -71,10 +71,13 @@ type Fase = NonNullable<Idea["fases"]>[number];
 function FasesIdea({
   uid,
   fases,
+  estado,
   onEditar,
 }: {
   uid: string;
   fases: readonly Fase[];
+  /** El carril de la idea: el estado de una fase solo se toca en roadmap. */
+  estado: Status;
   onEditar: (uid: string, cambios: IdeaUpdate) => Promise<void>;
 }) {
   const [nuevo, setNuevo] = useState("");
@@ -126,27 +129,36 @@ function FasesIdea({
       {vista.map((fase) => (
         <div className="fase" key={fase.orden}>
           <span className="fase-titulo">{fase.titulo}</span>
-          <select
-            className="fase-estado"
-            value={fase.estado}
-            disabled={guardando}
-            aria-label={`Estado de ${fase.titulo}`}
-            onChange={(e) =>
-              guardar(
-                vista.map((otra) =>
-                  otra.orden === fase.orden
-                    ? { ...otra, estado: e.target.value as Fase["estado"] }
-                    : otra,
-                ),
-              )
-            }
-          >
-            {ESTADOS_FASE.map((estado) => (
-              <option key={estado} value={estado}>
-                {estado}
-              </option>
-            ))}
-          </select>
+          {estado === "roadmap" ? (
+            <select
+              className="fase-estado"
+              value={fase.estado}
+              disabled={guardando}
+              aria-label={`Estado de ${fase.titulo}`}
+              onChange={(e) =>
+                guardar(
+                  vista.map((otra) =>
+                    otra.orden === fase.orden
+                      ? { ...otra, estado: e.target.value as Fase["estado"] }
+                      : otra,
+                  ),
+                )
+              }
+            >
+              {ESTADOS_FASE.map((otro) => (
+                <option key={otro} value={otro}>
+                  {otro}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span
+              className="fase-estado-texto"
+              title="El estado de la fase se lleva en roadmap"
+            >
+              {ETIQUETA_FASE[fase.estado] ?? fase.estado}
+            </span>
+          )}
           <button
             type="button"
             className="chip-quitar"
@@ -431,9 +443,12 @@ function NodeRow({
       )}
       {onEditar && estado && estado !== "rejected" && estado !== "superseded" && (
         <div className="fila-bloque">
-          <FasesIdea uid={uid!} fases={fases} onEditar={onEditar} />
+          <FasesIdea uid={uid!} fases={fases} estado={estado} onEditar={onEditar} />
           {estado === "proposed" && fases.length === 0 && exigeFases?.(estado, "roadmap") && (
             <p className="fila-aviso">Añade una fase para pasar a roadmap.</p>
+          )}
+          {(estado === "draft" || estado === "proposed") && fases.length > 0 && (
+            <p className="fila-aviso">Las fases se abren en roadmap.</p>
           )}
           {estado === "roadmap" && abiertas > 0 && exigeFasesListas?.(estado, "verificacion") && (
             <p className="fila-aviso">Cierra las fases abiertas.</p>

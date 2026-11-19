@@ -256,6 +256,72 @@ def test_aprobar_revision_exige_al_menos_una_fase(client, repo):  # noqa: ANN001
     assert r.json()["status"] == "revision_aprobada"
 
 
+def test_fuera_de_roadmap_las_fases_estan_pendientes(client, repo):  # noqa: ANN001, ANN202
+    """En la entrada y la cola la fase es un plan: completarla no vale."""
+    uid = _crear(client, repo, status="proposed")
+    r = client.patch(
+        f"/ideas/{uid}",
+        params={"repo": repo},
+        json={"fases": [{"titulo": "Una", "estado": "completada"}]},
+    )
+    assert r.status_code == 400
+    assert "pendientes" in r.json()["detail"]
+    assert _fases(client, repo, uid) == []
+
+    # En roadmap sí, y cerrar en el mismo PATCH que cruza a verificación sigue
+    # valiendo (el gate mira la lista que queda).
+    r = client.patch(
+        f"/ideas/{uid}",
+        params={"repo": repo},
+        json={"status": "roadmap", "fases": [{"titulo": "Una"}]},
+    )
+    assert r.status_code == 200, r.json()
+    r = client.patch(
+        f"/ideas/{uid}",
+        params={"repo": repo},
+        json={"fases": [{"orden": 1, "titulo": "Una", "estado": "completada"}]},
+    )
+    assert r.status_code == 200, r.json()
+    r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": "verificacion"})
+    assert r.status_code == 200, r.json()
+
+
+def test_volver_a_la_cola_reinicia_las_fases(client, repo):  # noqa: ANN001, ANN202
+    """Al volver a la cola las fases cerradas vuelven a pendientes."""
+    uid = _crear(client, repo, status="proposed")
+    r = client.patch(
+        f"/ideas/{uid}",
+        params={"repo": repo},
+        json={"status": "roadmap", "fases": [{"titulo": "Una"}, {"titulo": "Dos"}]},
+    )
+    assert r.status_code == 200, r.json()
+    r = client.patch(
+        f"/ideas/{uid}",
+        params={"repo": repo},
+        json={
+            "fases": [
+                {"orden": 1, "titulo": "Una", "estado": "completada"},
+                {"orden": 2, "titulo": "Dos", "estado": "rechazada"},
+            ]
+        },
+    )
+    assert r.status_code == 200, r.json()
+    r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": "verificacion"})
+    assert r.status_code == 200, r.json()
+
+    r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": "proposed"})
+    assert r.status_code == 200, r.json()
+    assert [f["estado"] for f in r.json()["fases"]] == ["pendiente", "pendiente"]
+
+    # Y el PATCH no deja volver a cerrarlas desde la cola.
+    r = client.patch(
+        f"/ideas/{uid}",
+        params={"repo": repo},
+        json={"fases": [{"orden": 1, "titulo": "Una", "estado": "completada"}]},
+    )
+    assert r.status_code == 400
+
+
 def test_protocolos_publican_el_requisito(client, repo):  # noqa: ANN001, ANN202
     filas = client.get("/protocolos", params={"repo": repo}).json()
     exigidas = {(f["origen"], f["destino"]) for f in filas if f["exige_fases"]}

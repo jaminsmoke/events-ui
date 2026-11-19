@@ -883,6 +883,15 @@ def _escribir_estado(
         "UPDATE idea_node SET estado = ?, posicion = ?, entered_at = ? WHERE uid = ?",
         (_grupo(estado), posicion, ts, uid),
     )
+    if estado in ("draft", "proposed"):
+        # En la entrada y la cola las fases solo pueden estar pendientes (ver
+        # `_validar_fases_en_lane`): volver allí reinicia las que estaban
+        # cerradas, porque el trabajo ya no está activo.
+        conn.execute(
+            "UPDATE idea_fase SET estado = 'pendiente', entered_at = ?"
+            " WHERE idea_uid = ? AND estado <> 'pendiente'",
+            (ts, uid),
+        )
     conn.execute("DELETE FROM roadmap_node WHERE uid = ?", (uid,))
     conn.execute("DELETE FROM verificacion_node WHERE uid = ?", (uid,))
     conn.execute("DELETE FROM revision_node WHERE uid = ?", (uid,))
@@ -1162,6 +1171,24 @@ def _actualizar_ficha_activa(
             )
 
 
+def _validar_fases_en_lane(destino: str, fases: list[dict[str, Any]]) -> None:
+    """En la entrada y la cola las fases solo pueden estar pendientes.
+
+    Hasta roadmap la idea es un plan: completar, fallar o rechazar una fase es
+    trabajo, y el trabajo se lleva allí, que es donde la idea está activa.
+    Volver a estos carriles devuelve las fases a pendiente (ver
+    `_escribir_estado`).
+    """
+    if destino not in ("draft", "proposed"):
+        return
+    no_pendientes = [fase["titulo"] for fase in fases if fase["estado"] != "pendiente"]
+    if no_pendientes:
+        raise InvalidInput(
+            "en la entrada y la cola las fases solo pueden estar pendientes: "
+            + ", ".join(no_pendientes)
+        )
+
+
 def _normalizar_fases(fases: Any, existentes: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Valida la lista de fases y decide la fecha de entrada de cada una.
 
@@ -1285,6 +1312,8 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
                 if fases_pedidas is not None
                 else None
             )
+            if fases_finales is not None:
+                _validar_fases_en_lane(destino, fases_finales)
             # El gate mira la lista que quedará: la que llega en este PATCH o,
             # si no hay, la que ya tiene la idea.
             fases_quedan = (

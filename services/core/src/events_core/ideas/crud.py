@@ -1,0 +1,320 @@
+"""Escribir ideas: alta, edición, borrado y reinicio del almacén."""
+
+from __future__ import annotations
+
+import json
+import sqlite3
+import uuid
+from collections.abc import Iterable
+from contextlib import closing
+from typing import Any
+
+from .. import archivos, registro
+from .base.comun import _COLUMNAS, InvalidInput, _emitir, _existe, _tags_json, now_iso
+from .base.esquema import connect, ensure_repo
+from .base.rutas import repos_root, resolve_repo
+from .consulta import _row, get_idea
+from .modelo.dependencias import _comprobar_dependencias, _validar_dependencias
+from .modelo.estados import (
+    REJECT_FIELDS,
+    STATE_FIELDS,
+    UPDATABLE,
+    _actualizar_ficha_activa,
+    _escribir_estado,
+    _estado,
+    _grupo,
+    _validar_campos_ficha,
+)
+from .modelo.validacion import (
+    _exige_fases,
+    _exige_fases_completas,
+    _exige_fases_listas,
+    _protocolo_ok,
+    _validar_aprobacion_total,
+    _validar_fases_completadas,
+    _validar_fases_en_lane,
+)
+from .trabajo.anotacion import _anotar_archivos, _foto_guardar
+from .trabajo.fases import _escribir_fases, _fases, _normalizar_fases
+
+
+def create_idea(
+    repo: str,
+    *,
+    title: str,
+    description: str = "",
+    content: str = "",
+    kind: str = "idea",
+    status: str = "draft",
+    tags: Iterable[str] = (),
+    depende_de: Iterable[str] = (),
+) -> dict[str, Any]:
+    uid = uuid.uuid4().hex
+    ts = now_iso()
+    with closing(connect(ensure_repo(repo))) as conn:
+        deps = _validar_dependencias(conn, uid, list(depende_de))
+        _comprobar_dependencias(conn, uid, status, deps)
+        conn.execute(
+            "INSERT INTO idea_data"
+            " (uid, title, description, content, kind, tags, depende_de,"
+            " created_at, updated_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                uid,
+                title,
+                description,
+                content,
+                kind,
+                json.dumps(list(tags)),
+                json.dumps(deps),
+                ts,
+                ts,
+            ),
+        )
+        # El nodo nace en la entrada y `_escribir_estado` lo mueve si la idea
+        # se creó ya en otro carril, en la misma transacción.
+        conn.execute(
+            "INSERT INTO idea_node (uid, estado, posicion, entered_at)"
+            " VALUES (?, 'draft', NULL, ?)",
+            (uid, ts),
+        )
+        _escribir_estado(conn, uid, status, {})
+        # Nacer ya en roadmap también es entrar: sin foto de partida, la primera
+        # fase anotaría como suyo todo el árbol que ya estaba.
+        if _grupo(status) == "roadmap":
+            try:
+                _foto_guardar(conn, uid, archivos.foto(resolve_repo(repo)))
+            except OSError as exc:
+                registro.escribir("aviso", f"No se pudo fotografiar el árbol de {uid}: {exc}")
+        _emitir(conn, "idea.created", {"uid": uid, "title": title})
+        conn.commit()
+    return get_idea(repo, uid)
+
+
+def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
+    """Actualiza solo los campos presentes. Los `None` no se escriben."""
+    clean = {k: v for k, v in changes.items() if v is not None and k in UPDATABLE}
+    rechazo = {k: v for k, v in changes.items() if v is not None and k in REJECT_FIELDS}
+    estado_detalle = {k: v for k, v in changes.items() if v is not None and k in STATE_FIELDS}
+    fases_pedidas = changes.get("fases")
+    if (
+        not clean
+        and not rechazo
+        and not estado_detalle
+        and "status" not in changes
+        and fases_pedidas is None
+    ):
+        raise InvalidInput("nada que actualizar")
+
+    if "tags" in clean:
+        clean["tags"] = json.dumps(list(clean["tags"]))
+    clean["updated_at"] = now_iso()
+
+    nuevo_estado = changes["status"] if changes.get("status") is not None else None
+    detalle_ficha = {**rechazo, **estado_detalle}
+    assignments = ", ".join(f"{column} = :{column}" for column in clean)
+    with closing(connect(ensure_repo(repo))) as conn:
+        # La ficha activa (y el destino, si cambia el estado) decide qué
+        # campos de ficha tienen sentido; se comprueba antes de escribir.
+        if conn.execute("SELECT 1 FROM idea_data WHERE uid = ?", (uid,)).fetchone() is None:
+            raise KeyError(uid)
+        actual = _estado(conn, uid)
+        # Las fases se leen una vez: el mismo dato decide la validación, las
+        # compuertas y los archivos que se anotan al cerrar (0028).
+        fases_previas = _fases(conn, uid)
+        destino = nuevo_estado or actual
+        _validar_campos_ficha(detalle_ficha, destino)
+        # Las dependencias se validan antes del UPDATE: se deduplican, tienen
+        # que existir y no pueden cerrar un ciclo. La lista se guarda en JSON.
+        deps_nuevas: list[str] | None = None
+        if "depende_de" in clean:
+            deps_nuevas = _validar_dependencias(conn, uid, list(clean["depende_de"]))
+            clean["depende_de"] = json.dumps(deps_nuevas)
+        # Un cambio de estado no es un UPDATE de la entrada: crea o retira la
+        # fila de cola, de roadmap, de verificación, de revisión aprobada o
+        # de descartada. Sin cambio (o reafirmando el mismo), se edita la
+        # ficha activa.
+        try:
+            cambiado_estado = nuevo_estado is not None and nuevo_estado != actual
+            # Los protocolos mandan sobre el flujo: una unión no listada
+            # se rechaza (400) y no escribe nada.
+            if cambiado_estado and not _protocolo_ok(conn, actual, nuevo_estado):
+                raise InvalidInput(
+                    f"el protocolo no permite el flujo {actual} → "
+                    f"{nuevo_estado}: esa unión no está en `protocolo_flujo`"
+                )
+            if cambiado_estado:
+                _comprobar_dependencias(conn, uid, nuevo_estado, deps_nuevas)
+            # Las fases se reemplazan enteras y se validan antes de escribir
+            # nada: el gate mira lo que quedará, no lo que había.
+            fases_finales = (
+                _normalizar_fases(fases_pedidas, fases_previas)
+                if fases_pedidas is not None
+                else None
+            )
+            if fases_finales is not None:
+                _validar_fases_en_lane(destino, fases_finales)
+                _validar_fases_completadas(fases_finales)
+            # El gate mira la lista que quedará: la que llega en este PATCH o,
+            # si no hay, la que ya tiene la idea.
+            fases_quedan = (
+                (fases_finales if fases_finales is not None else fases_previas)
+                if cambiado_estado
+                else []
+            )
+            if cambiado_estado and _exige_fases(conn, actual, nuevo_estado) and not fases_quedan:
+                raise InvalidInput(
+                    f"el protocolo exige al menos una fase para pasar a {nuevo_estado}"
+                )
+            if cambiado_estado and _exige_fases_listas(conn, actual, nuevo_estado):
+                abiertas = [
+                    fase["titulo"]
+                    for fase in fases_quedan
+                    if fase["estado"] in ("pendiente", "fallida")
+                ]
+                if abiertas:
+                    raise InvalidInput(
+                        f"no puede pasar a {nuevo_estado}: quedan fases sin cerrar: "
+                        + ", ".join(abiertas)
+                    )
+            if cambiado_estado and _exige_fases_completas(conn, actual, nuevo_estado):
+                incompletas = [
+                    fase["titulo"] for fase in fases_quedan if fase["estado"] != "completada"
+                ]
+                if incompletas:
+                    raise InvalidInput(
+                        f"no puede pasar a {nuevo_estado}: hay fases sin completar: "
+                        + ", ".join(incompletas)
+                    )
+            if cambiado_estado and _grupo(nuevo_estado) in ("revision_aprobada", "historial"):
+                _validar_aprobacion_total(fases_quedan)
+            cursor = conn.execute(
+                f"UPDATE idea_data SET {assignments} WHERE uid = :uid",
+                {**clean, "uid": uid},
+            )
+            if cursor.rowcount == 0:
+                raise KeyError(uid)
+            if cambiado_estado:
+                _escribir_estado(conn, uid, nuevo_estado, detalle_ficha)
+                # Aprobar archiva: la firma se queda en `revision_node` y la
+                # idea pasa a `historial` en la misma transacción. El carril
+                # aprobado es la compuerta, no un sitio donde esperar.
+                if nuevo_estado == "revision_aprobada":
+                    conn.execute(
+                        "UPDATE idea_node SET estado = 'historial', posicion = NULL WHERE uid = ?",
+                        (uid,),
+                    )
+            else:
+                _actualizar_ficha_activa(conn, uid, actual, detalle_ficha)
+            if fases_finales is not None:
+                _escribir_fases(conn, uid, fases_finales)
+            # Cerrar una fase es el evento que anota sus archivos: se mira el
+            # árbol aquí, con las fases ya definitivas y en la misma
+            # transacción. Entrar en roadmap toma la foto de partida.
+            _anotar_archivos(
+                conn,
+                repo,
+                uid,
+                fases_previas,
+                fases_finales if fases_finales is not None else fases_previas,
+                inicio=cambiado_estado and _grupo(str(nuevo_estado)) == "roadmap",
+            )
+            idea = _row(
+                conn,
+                conn.execute(
+                    f"SELECT {_COLUMNAS} FROM idea_data"
+                    " JOIN idea_node ON idea_node.uid = idea_data.uid"
+                    " WHERE idea_data.uid = ?",
+                    (uid,),
+                ).fetchone(),
+            )
+            _emitir(
+                conn,
+                "idea.status" if cambiado_estado else "idea.updated",
+                {"uid": uid, "title": idea["title"], "status": idea["status"]},
+            )
+            conn.commit()
+        except sqlite3.IntegrityError as exc:
+            # `superseded_by_uid` apunta a una idea que no existe: es un dato
+            # mal puesto (400), no un fallo del servidor (500).
+            raise InvalidInput("superseded_by_uid apunta a una idea que no existe") from exc
+    return idea
+
+
+def delete_idea(repo: str, uid: str) -> bool:
+    """Borra la idea; su nodo y el detalle se van con ella (ON DELETE CASCADE).
+
+    El título se lee antes de borrar para que el evento `idea.deleted` tenga
+    qué mostrar: después no hay fila de la que sacar nada. Si otra ficha la
+    usa como sustituta (`superseded_by_uid`), no se borra: el vínculo es
+    información y se avisa del conflicto en vez de romperlo en silencio.
+    """
+    with closing(connect(ensure_repo(repo))) as conn:
+        titulo_row = conn.execute("SELECT title FROM idea_data WHERE uid = ?", (uid,)).fetchone()
+        sustitutas = [
+            str(fila[0])
+            for fila in conn.execute(
+                "SELECT uid FROM rejected_node WHERE superseded_by_uid = ? ORDER BY uid",
+                (uid,),
+            )
+        ]
+        if sustitutas:
+            raise InvalidInput(
+                f"no se puede borrar {uid}: es la sustituta de {', '.join(sustitutas)};"
+                " retira ese vínculo antes"
+            )
+        # El nodo y el detalle se borran con la idea (ON DELETE CASCADE).
+        try:
+            cursor = conn.execute("DELETE FROM idea_data WHERE uid = ?", (uid,))
+        except sqlite3.IntegrityError as exc:
+            # Otra ficha pudo enlazarla entre la comprobación y el borrado.
+            raise InvalidInput(
+                f"no se puede borrar {uid}: otra ficha la referencia en `superseded_by_uid`"
+            ) from exc
+        if cursor.rowcount > 0:
+            # `depende_de` es una lista JSON, sin FK que la limpie: se retira
+            # el uid de las listas ajenas para que nadie quede bloqueado por
+            # una idea que ya no existe.
+            for fila in conn.execute("SELECT uid, depende_de FROM idea_data").fetchall():
+                deps = _tags_json(fila[1])
+                if uid in deps:
+                    conn.execute(
+                        "UPDATE idea_data SET depende_de = ? WHERE uid = ?",
+                        (json.dumps([otra for otra in deps if otra != uid]), fila[0]),
+                    )
+            _emitir(conn, "idea.deleted", {"uid": uid, "title": titulo_row[0]})
+        conn.commit()
+    return cursor.rowcount > 0
+
+
+def reiniciar(repo: str) -> dict[str, Any]:
+    """Vacía el almacén de ideas, cola, fichas y eventos (LAB).
+
+    Solo lo usa el lanzador de pruebas (`puedeProbar`) para volver a un estado
+    de proyecto limpio tras una prueba: no es parte del CRUD de producto. La
+    estructura (tablas, `user_version`) no cambia: la misma BD, vacía.
+    """
+    if resolve_repo(repo).parent != repos_root():
+        raise InvalidInput("el reinicio solo está disponible en repositorios del laboratorio")
+    db_file = ensure_repo(repo)
+
+    def contar(conn: sqlite3.Connection, tabla: str) -> int:
+        if not _existe(conn, tabla):
+            return 0
+        return conn.execute(f"SELECT count(*) FROM {tabla}").fetchone()[0]
+
+    with closing(connect(db_file)) as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        n_ideas = contar(conn, "idea_data")
+        n_eventos = contar(conn, "event")
+        # Borrar las ideas arrastra nodo y detalle por CASCADE; los eventos no
+        # cuelgan de nada, se borran aparte.
+        if n_eventos:
+            conn.execute("DELETE FROM event")
+        conn.execute("DELETE FROM idea_data")
+        conn.commit()
+    return {
+        "repo": repo,
+        "ideas_eliminadas": n_ideas,
+        "eventos_eliminados": n_eventos,
+    }

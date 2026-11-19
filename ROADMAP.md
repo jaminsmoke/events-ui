@@ -188,6 +188,14 @@ con el motivo, para no reabrirlo cada semana.
   cámara, se calcula aparte con dos `getBoundingClientRect()`.
   `e2e/escenarios/mapa-completo.mjs` comprueba que arrastrar mueve la vista y no
   los cables, y que el zoom tampoco los mueve.
+- **`ideas` por capas**: `ideas.py` (2 113 líneas) pasó a un paquete con la
+  misma API pública, así que ni el cliente ni los tests cambian de imports.
+  `base/` no sabe de ideas (rutas del almacén, esquema y migraciones, y
+  utilidades comunes); `modelo/` tiene las reglas del flujo (estados y fichas,
+  dependencias y compuertas de fases y protocolos); `trabajo/` el desglose
+  (fases, requisitos y anotación de archivos); y `consulta.py`/`crud.py` son las
+  dos caras de la API. `__init__.py` es la fachada. Cubierto por los 108 tests
+  existentes, sin tocarlos.
 - **CI**: `pnpm check` global en cada push a main y en PRs
   (`.github/workflows/ci.yml`). Batería e2e y builds de Tauri quedan fuera
   del CI a propósito (navegador y puertos; se corren en local).
@@ -213,13 +221,6 @@ con el motivo, para no reabrirlo cada semana.
 
 ## Pendientes
 
-- **Partir `ideas.py`.** 2 113 líneas y creciendo: dentro conviven las
-  migraciones históricas, las validaciones (dependencias, protocolos), el
-  movimiento entre carriles, las fases y requisitos y la anotación de archivos.
-  Siguiente paso, cuando el flujo vuelva a crecer: sacar
-  `ideas/migracion_legacy.py`, `ideas/validaciones.py` y `ideas/fases.py`
-  dejando `ideas.py` como fachada, para no tocar ni la API ni los tests (los dos
-  importan de ahí).
 
 ## No se hace (por ahora)
 

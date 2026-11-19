@@ -1,5 +1,7 @@
-# CI: lo desplegable de verdad —`pnpm check` (contrato, versiones, UI, py,
-# pytest y rust) en cada push y PR a main.
+# CI: lo desplegable de verdad, en cada push y PR a main. El job `check`
+# corre `pnpm check` entero (contrato, versiones, UI, py, pytest y rust) en
+# Ubuntu; el job `windows` repite ahí `check:py` y `check:ui`, que es donde se
+# notan las diferencias de plataforma.
 #
 # Fuera a propósito: la batería e2e (necesita el navegador de Playwright y
 # puertos libres; se corre en local con `pnpm e2e`) y los builds de Tauri
@@ -68,3 +70,36 @@ jobs:
 
       - name: check completo
         run: corepack pnpm check
+
+  windows:
+    # El desarrollo es Windows: aquí lo que depende de la plataforma y Ubuntu
+    # no cubre (rutas con unidad, `#` en el nombre del repo, venv de otra
+    # plataforma). Sin deps de Tauri ni placeholder del sidecar: no hay Rust.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.12
+
+      - name: uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: pnpm install
+        run: corepack pnpm install --frozen-lockfile
+
+      - name: check:py
+        run: corepack pnpm check:py
+
+      - name: check:ui
+        run: corepack pnpm check:ui

@@ -245,6 +245,11 @@ con el motivo, para no reabrirlo cada semana.
 - **CI**: `pnpm check` global en cada push a main y en PRs
   (`.github/workflows/ci.yml`). Batería e2e y builds de Tauri quedan fuera
   del CI a propósito (navegador y puertos; se corren en local).
+- **CI también en Windows**: un segundo job (`windows-latest`, Node 24, pnpm
+  12 y Python 3.12) corre `check:py` y `check:ui` con los mismos comandos que
+  en local, para que lo que solo se rompe en el sistema donde se desarrolla
+  falle en el CI (rutas con unidad, `#` en el nombre del repo, venv de otra
+  plataforma).
 - **Runtime fijado a 3.12**: `.python-version` y el CI apuntan a 3.12 y
   `requires-python` cierra el techo en `<3.14`, así que `uv` deja de resolver
   contra el 3.14 del sistema, donde las pruebas síncronas de `starlette` se han
@@ -269,9 +274,6 @@ con el motivo, para no reabrirlo cada semana.
 
 Revisión del 19 de noviembre de 2026, por orden de daño y no de esfuerzo.
 
-- **El CI solo corre en Linux** y el desarrollo es Windows: un job
-  `windows-latest` con `check:py` y `check:ui` cazaría lo que solo se rompe
-  aquí (rutas con unidad, `#` en el nombre del repo, venv de otra plataforma).
 - **Los parches anotados no tienen tope por almacén.** El parche de cada archivo
   se acota por tamaño, pero `idea_fase_archivo` acumula una fila por archivo y
   fase: un repo con muchas fases y binarios grandes engorda

@@ -74,6 +74,9 @@ compartida), `check:py` (`ruff check` y `ruff format --check`, config en
 y `check:rust` (`cargo check`). Para compilar de
 verdad están `build:web` (Vite) y `build` (bundle Tauri).
 
+En el CI (`.github/workflows/ci.yml`) el job `check` corre todo eso en
+Ubuntu; el job `windows` repite allí `check:py` y `check:ui`.
+
 Los **e2e** van aparte porque levantan procesos (no entran en `check`):
 `pnpm e2e` corre todos los escenarios de `e2e/escenarios/` y
 `pnpm e2e -- <nombre>` solo uno. Cada corrida levanta su core y su Vite

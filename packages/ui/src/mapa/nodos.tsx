@@ -732,9 +732,12 @@ function NodeRow({
         className="row-head"
         onClick={() => setExpandido((v) => !v)}
         aria-expanded={expandido}
+        aria-label={expandido && node.idea ? node.title : undefined}
       >
         {node.idea && <span className="dot" />}
-        <span className="row-title">{node.title}</span>
+        {/* Abierta, el título encabeza la ficha; la barra solo lleva los
+         * contadores y la flecha, con el hueco para alinearlos a la derecha. */}
+        <span className="row-title">{expandido ? "" : node.title}</span>
         {node.total > 0 && <span className="count">{node.total}</span>}
         {fases.length > 0 && (
           <span className="count fases-count" title="fases completadas">
@@ -746,7 +749,10 @@ function NodeRow({
       {expandido && node.idea && (
         <div className="fila-detalle">
           <div className="fila-cabecera">
-            <p className="fila-descripcion">{node.idea.description || "Sin descripción"}</p>
+            <div className="fila-texto">
+              <p className="fila-titulo">{node.title}</p>
+              <p className="fila-descripcion">{node.idea.description || "Sin descripción"}</p>
+            </div>
             <div className="fila-meta">
               <span className="fila-estado">
                 {ETIQUETA_ESTADO[node.idea.status] ?? node.idea.status}

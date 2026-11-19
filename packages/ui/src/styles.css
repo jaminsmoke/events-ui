@@ -7,6 +7,14 @@
   --warn: #d29922;
   --bad: #f85149;
   --accent: #58a6ff;
+  /* Escala de la ficha: título de idea, título de fila, subtítulo, cuerpo y
+   * rótulos. Los tamaños bajan en ese orden para que la jerarquía se lea de
+   * un vistazo y los controles no compitan con el contenido. */
+  --t-titulo: 14px;
+  --t-fila: 13px;
+  --t-subtitulo: 11px;
+  --t-cuerpo: 12px;
+  --t-rotulo: 9.5px;
   color-scheme: dark;
 }
 
@@ -393,16 +401,32 @@ header > div {
 .fila-cabecera {
   display: flex;
   align-items: flex-start;
-  gap: 6px;
+  gap: 8px;
+}
+
+/* Título y subtítulo de la ficha: el nombre de la idea manda y la
+ * descripción queda debajo, más pequeña y apagada. */
+.fila-texto {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fila-titulo {
+  margin: 0;
+  color: var(--fg);
+  font-size: var(--t-titulo);
+  font-weight: 600;
+  line-height: 1.2;
 }
 
 .fila-descripcion {
-  flex: 1;
-  min-width: 0;
   margin: 0;
-  color: #c7d3e0;
-  font-size: 12px;
-  line-height: 1.35;
+  color: #9aa8bb;
+  font-size: var(--t-subtitulo);
+  line-height: 1.4;
 }
 
 .fila-cabecera .fila-meta {
@@ -440,10 +464,10 @@ header > div {
   align-items: center;
   gap: 5px;
   margin: 0;
-  color: #9aa8bb;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  color: #8998ab;
+  font-size: var(--t-rotulo);
+  font-weight: 700;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
@@ -1475,6 +1499,15 @@ header > div {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: var(--t-fila);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+/* Abierta, la fila es la barra de control y el título vive en la ficha. */
+.row-head[aria-expanded="true"] {
+  padding-top: 4px;
+  padding-bottom: 4px;
 }
 
 .row .count {
@@ -1607,10 +1640,10 @@ code {
   align-items: center;
   gap: 5px;
   margin: 0;
-  color: #9aa8bb;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  color: #8998ab;
+  font-size: var(--t-rotulo);
+  font-weight: 700;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
@@ -1628,7 +1661,7 @@ code {
 }
 .fase-titulo {
   flex: 1;
-  font-size: 12px;
+  font-size: var(--t-cuerpo);
 }
 /* El número de fase separa los dos contadores: el de fases (arriba) y el de
  * requisitos de cada fase (bajo su título). */

@@ -99,7 +99,7 @@ def _en_lote(
 ]:
     """Detalle de roadmap, verificación, revisión y descarte, en lote."""
     if not uids:
-        return {}, {}, {}, {}
+        return {}, {}, {}, {}, {}
     marcas = ",".join("?" for _ in uids)
     roadmaps = {
         str(row["uid"]): row

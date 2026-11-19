@@ -28,22 +28,48 @@ from .routers import git as rutas_git
 from .routers import ideas as rutas_ideas
 from .routers import log as rutas_log
 
+# Orígenes con derecho a llamar a la API: la UI en dev (Vite, dos puertos) y el
+# webview de Tauri. CORS decide quién puede LEER la respuesta; las mutaciones
+# comprueban además el origen, porque un POST simple de otra web se ejecuta
+# igual aunque CORS esconda la respuesta.
+ORIGENES_PERMITIDOS = (
+    "http://localhost:15175",  # desktop (Vite)
+    "http://localhost:15174",  # web (Vite)
+    "tauri://localhost",
+    "http://tauri.localhost",
+)
+
 app = FastAPI(title="Events UI Core", version="0.2.1")
 
-# En dev la UI llega por el proxy de Vite. En producción Tauri sirve la UI desde
-# su propio origen, que varía según plataforma.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:15175",  # desktop (Vite)
-        "http://localhost:15174",  # web (Vite)
-        "tauri://localhost",
-        "http://tauri.localhost",
-    ],
+    allow_origins=list(ORIGENES_PERMITIDOS),
     allow_methods=["GET", "POST", "PATCH", "DELETE"],
     expose_headers=["Last-Event-ID"],
     allow_headers=["content-type"],
 )
+
+
+METODOS_QUE_ESCRIBEN = {"POST", "PUT", "PATCH", "DELETE"}
+
+
+@app.middleware("http")
+async def _origen_conocido(request: Request, call_next):
+    """Rechaza mutaciones que vengan de una web ajena.
+
+    Un navegador manda `Origin` en toda petición cross-origin; si falta (curl,
+    CLI, el runner e2e o los tests) se deja pasar: no hay una web detrás que
+    pueda falsificarlo. CORS no basta: impide leer la respuesta, pero el efecto
+    del POST ya ocurrió.
+    """
+    origen = request.headers.get("origin")
+    if (
+        request.method in METODOS_QUE_ESCRIBEN
+        and origen is not None
+        and origen not in ORIGENES_PERMITIDOS
+    ):
+        return JSONResponse(status_code=403, content={"detail": "origen no permitido"})
+    return await call_next(request)
 
 
 @app.exception_handler(FileNotFoundError)

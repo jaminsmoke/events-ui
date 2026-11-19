@@ -286,6 +286,21 @@ con el motivo, para no reabrirlo cada semana.
   `len(texto)` (caracteres), así que un árbol no ASCII podía pasarse de los
   512 KiB en disco. Ahora mide `len(texto.encode("utf-8"))` y el test deja
   claro que 20 caracteres de 40 bytes no caben en 30.
+- **Las mutaciones exigen origen conocido**: un `POST` con `Origin` ajeno
+  responde 403 en vez de ejecutarse; sin `Origin` (CLI, e2e, tests) pasa, que es
+  lo que un navegador no puede falsificar. Cubre POST, PATCH y DELETE, con test.
+- **El registro del sidecar va a datos del usuario**: congelado, el core ya no
+  usa el directorio de trabajo sino `%LOCALAPPDATA%/EventsUI`, y `lib.rs` arranca
+  el sidecar con `current_dir` en su carpeta. Comprobado ejecutando el binario
+  desde un CWD ajeno: allí solo queda el PID y el registro aparece en
+  `LOCALAPPDATA`.
+- **La instantánea abre el origen en solo lectura**, así que copiar no puede
+  recuperar journals ni dejar auxiliares en el almacén versionado; el test la
+  ejecuta con el fichero marcado de solo lectura.
+- **`release.mjs` incluye `Cargo.lock`** en el commit del bump, así que el
+  release deja de terminar con el árbol sucio.
+- **`bump.mjs` reconoce la versión con argumentos extra o en varias líneas**:
+  probado con el constructor de `FastAPI` partido y después restaurado.
 - **Runtime fijado a 3.12**: `.python-version` y el CI apuntan a 3.12 y
   `requires-python` cierra el techo en `<3.14`, así que `uv` deja de resolver
   contra el 3.14 del sistema, donde las pruebas síncronas de `starlette` se han
@@ -308,46 +323,8 @@ con el motivo, para no reabrirlo cada semana.
 
 ## Pendientes
 
-Revisión del 19 de noviembre de 2026, tercera pasada, por orden de daño y no
-de esfuerzo. Cada entrada dice cómo se comprobó.
-
-- **Cualquier web puede disparar las mutaciones del core.** CORS impide leer la
-  respuesta, no ejecutar la petición: un `POST` simple desde
-  `https://evil.example` a `/reiniciar`, `/git/eliminar`, `/eventos/compactar`
-  o `/log/purgar` se procesa igual (comprobado: `/reiniciar` con `Origin`
-  ajeno respondió 200 y vació la idea y el evento; sin
-  `Access-Control-Allow-Origin` en la respuesta, pero el borrado ya hecho). El
-  core escucha en 127.0.0.1 sin token ni comprobación de origen. Falta exigir
-  una cabecera que un formulario no pueda poner (un token local que genere el
-  sidecar) o validar `Origin`/`Sec-Fetch-Site` en los métodos que escriben, con
-  su test.
-- **El registro operativo del sidecar depende del directorio de trabajo.**
-  Congelado, `registro._raiz_del_repo` no reconoce la raíz del proyecto y usa
-  `Path.cwd()`; `lib.rs` lanza el sidecar sin `current_dir`, así que hereda el
-  del lanzador. Comprobado ejecutando el binario del release desde una carpeta
-  temporal: creó `data/registro.sqlite` allí y `/health` publicó un `db_path`
-  bajo esa carpeta. Instalado desde el menú de inicio el CWD puede ser
-  `System32`, donde la escritura falla y el registro se pierde en silencio.
-  Falta una ruta estable (`%LOCALAPPDATA%` o junto al ejecutable) y fijar
-  `current_dir` al arrancarlo.
-- **`release.mjs` deja `Cargo.lock` fuera del commit.** El build de Tauri
-  actualiza la versión del paquete en el lock y el script no lo añade a
-  `FICHEROS_RELEASE`, así que cada release deja el árbol sucio (pasó con la
-  0.2.1, que se registró aparte en `37845af`, y con la 0.2.0 en `e8f3099`).
-  Basta añadirlo a la lista.
-- **`bump.mjs` exige la línea exacta de `FastAPI`.** Detecta la versión del
-  core con `/FastAPI\(title="Events UI Core", version="([^"]+)"\)/`; al añadir
-  `lifespan=_vida` para cerrar los vigilantes, `check:versions` pasó a decir
-  «(sin version)» y tumbó el check (comprobado). Cualquier argumento nuevo en
-  el constructor rompe `pnpm check` y `pnpm release`. Conviene tolerar
-  argumentos o sacar la versión a una constante que lea también el bump.
-- **`instantanea.py` abre el origen en lectura/escritura.**
-  `copia_consistente` usa `sqlite3.connect(origen)` sin `mode=ro`; con un
-  journal caliente, abrir así recupera y escribe en el almacén que se quiere
-  solo leer, y puede dejar `-shm`/`-wal` al lado. Contradice la regla de la
-  casa y, con el `.EUI` versionado, ensucia el repo. Se lee sin más con
-  `open_read_only` o la URI `mode=ro`. (Leído en el código, no reproducido.)
-
+Sin pendientes abiertos: la revisión del 19 de noviembre de 2026 (tercera
+pasada) está toda en «Hecho».
 
 ## No se hace (por ahora)
 

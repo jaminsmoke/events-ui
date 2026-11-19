@@ -199,7 +199,29 @@ con el motivo, para no reabrirlo cada semana.
 
 ## Pendientes
 
-Nada abierto por ahora.
+- **Runtime de Python fijado a 3.12.** Hoy `services/core/pyproject.toml` pide
+  `>=3.12`, `services/core/.python-version` dice `3.14` y el CI instala 3.14:
+  `uv` resuelve contra el 3.14 del sistema y `starlette.testclient` con `httpx`
+  avisa en cada tanda de tests (y esa combinación en Windows se ha visto
+  quedarse colgada en pruebas síncronas). Siguiente paso: `.python-version` en
+  `3.12`, `requires-python = ">=3.12, <3.14"` (el `target-version` de ruff ya es
+  `py312`), `python-version: 3.12` en `.github/workflows/ci.yml` y `uv sync` para
+  rehacer el `.venv`; 3.12.14 ya está instalado por `uv` en esta máquina.
+- **Partir `ideas.py`.** 2 113 líneas y creciendo: dentro conviven las
+  migraciones históricas, las validaciones (dependencias, protocolos), el
+  movimiento entre carriles, las fases y requisitos y la anotación de archivos.
+  Siguiente paso, cuando el flujo vuelva a crecer: sacar
+  `ideas/migracion_legacy.py`, `ideas/validaciones.py` y `ideas/fases.py`
+  dejando `ideas.py` como fachada, para no tocar ni la API ni los tests (los dos
+  importan de ahí).
+- **Medir los cables solo cuando cambia el tamaño o el zoom.** `useCables`
+  vuelve a medir en cada cambio de `vista`, y `vista.x/y` cambian al arrastrar
+  el lienzo (`camara.ts`), así que un arrastre recalcula y repinta los cables
+  sin necesidad. El volumen de ideas no entra en la medición —se miden nueve
+  cajas, una por cabecera—, pero el `getBoundingClientRect()` de cada una se
+  repite en balde: a la medida solo le afecta `k`. Siguiente paso: quedarse con
+  `vista.k` en las dependencias del efecto y comprobar en `mapa-completo` que
+  los cables siguen clavados tras arrastrar y hacer zoom.
 
 ## No se hace (por ahora)
 

@@ -20,6 +20,19 @@ import { spawnSync } from "node:child_process";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const VERSION_RE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 
+// `FastAPI(...)` puede llevar argumentos extra o ir en varias líneas: se busca
+// su `version=` sin exigir la línea exacta. Con la forma anterior, añadir
+// `lifespan=` rompía `check:versions` y el release.
+const MAIN_VERSION_RE = /FastAPI\([\s\S]*?version="([^"]+)"/;
+
+function versionDeMain(texto) {
+  return texto.match(MAIN_VERSION_RE)?.[1] ?? null;
+}
+
+function conVersionDeMain(texto, version) {
+  return texto.replace(/(FastAPI\([\s\S]*?version=")[^"]+(")/, `$1${version}$2`);
+}
+
 /** Los ficheros que llevan la versión, con el camino hasta el valor. */
 const ARCHIVOS = [
   { ruta: "package.json", clave: "version" },
@@ -56,8 +69,10 @@ function vigentes() {
   const m = cargo.match(/^version = "([^"]+)"/m);
   versiones.set("apps/desktop/src-tauri/Cargo.toml", m ? m[1] : "(sin version)");
   const main = readFileSync(path.join(ROOT, "services/core/src/events_core/main.py"), "utf8");
-  const mm = main.match(/FastAPI\(title="Events UI Core", version="([^"]+)"\)/);
-  versiones.set("services/core/src/events_core/main.py", mm ? mm[1] : "(sin version)");
+  versiones.set(
+    "services/core/src/events_core/main.py",
+    versionDeMain(main) ?? "(sin version)",
+  );
   return versiones;
 }
 
@@ -105,11 +120,7 @@ writeFileSync(
 // Core: la versión que publica Swagger.
 const mainRuta = path.join(ROOT, "services/core/src/events_core/main.py");
 const main = readFileSync(mainRuta, "utf8");
-writeFileSync(
-  mainRuta,
-  main.replace(/FastAPI\(title="Events UI Core", version="[^"]+"\)/, `FastAPI(title="Events UI Core", version="${destino}")`),
-  "utf8",
-);
+writeFileSync(mainRuta, conVersionDeMain(main, destino), "utf8");
 
 console.log(`Versiones actualizadas a ${destino}:`);
 for (const { ruta } of ARCHIVOS) {

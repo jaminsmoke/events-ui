@@ -57,6 +57,7 @@ const FICHEROS_RELEASE = [
   "apps/web/package.json",
   "apps/desktop/src-tauri/tauri.conf.json",
   "apps/desktop/src-tauri/Cargo.toml",
+  "apps/desktop/src-tauri/Cargo.lock",
   "services/core/src/events_core/main.py",
   "packages/ui/openapi.json",
   "packages/ui/src/core/schema.ts",

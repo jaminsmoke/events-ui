@@ -142,7 +142,7 @@ corepack pnpm core:dev           # Swagger en http://127.0.0.1:18765/docs
 | GET | `/eventos?repo=<ruta>` — tail del log (`desde`, `limite`, `origen`) |
 | GET | `/eventos/stream?repo=<ruta>` — SSE en vivo con backfill |
 | POST | `/eventos/compactar?repo=<ruta>` — aplica la retención del log (90 días / 5 000) |
-| GET | `/proyecciones/repo?repo=<ruta>` — identidad (ruta, rama/commit git) y conteos del repo |
+| GET | `/proyecciones/repo?repo=<ruta>` — identidad (ruta, si es work tree Git, raíz, rama/commit) y conteos del repo |
 | GET | `/log` — registro operativo de la app (filtros `nivel`, `origen`) |
 | POST | `/log/purgar` — purga del registro forzada (también pasa sola al escribir) |
 | POST | `/reiniciar?repo=<ruta>` — vacía ideas, fichas y eventos del laboratorio |
@@ -197,6 +197,12 @@ sin un carril nuevo. Aprobar archiva: la idea cae en historial con sus fases y y
 ni se edita desde el mapa. El core admite un ítem activo en roadmap y consulta
 `protocolo_flujo` para autorizar los traslados entre grupos. La UI obtiene esas
 reglas con `GET /protocolos`.
+
+La línea termina en un nodo **Git** de solo lectura. Se enciende cuando la
+carpeta es un work tree Git —también con un `git init` sin commits— y se apaga
+si no lo es. Una carpeta ignorada por el repo que la contiene no cuenta, que es
+el caso del laboratorio dentro del repo de la aplicación. La proyección expone
+`git`, `git_root`, `branch` y `commit`; este último puede faltar.
 
 Una idea puede declarar `depende_de` (uids de otras ideas del repo): el core no
 la deja entrar en roadmap, verificación, revisión aprobada ni historial mientras

@@ -19,7 +19,7 @@ export default {
       await selector.or(pruebas).first().waitFor();
       if (await selector.isVisible()) await selector.click();
       await pruebas.waitFor();
-      await esperar(() => page.locator(".wire").count().then((n) => n === 9), "los nueve cables");
+      await esperar(() => page.locator(".wire").count().then((n) => n === 10), "los diez cables");
     };
 
     /** Deja la marca de la prueba como la dejaría una ejecución: `latido`

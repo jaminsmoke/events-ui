@@ -23,7 +23,7 @@ export default {
     await selector.or(pruebas).first().waitFor();
     if (await selector.isVisible()) await selector.click();
     await pruebas.waitFor();
-    await esperar(() => page.locator(".wire").count().then((n) => n === 9), "los nueve cables");
+    await esperar(() => page.locator(".wire").count().then((n) => n === 10), "los diez cables");
 
     await pruebas.click();
     const dialogo = page.getByRole("dialog", { name: "Pruebas del laboratorio" });
@@ -68,6 +68,16 @@ export default {
     expect(
       (await page.locator(".wire.rama").count()) === 3,
       "faltan los tres retornos de la revisión rechazada",
+    );
+    // El laboratorio del runner no es un work tree Git: el nodo terminal debe
+    // verse apagado y explicarlo, no heredar el repo de la aplicación.
+    await esperar(
+      () => page.locator(".nodo-git.apagado").count().then((n) => n === 1),
+      "el nodo Git apagado",
+    );
+    expect(
+      (await page.locator(".nodo-git").innerText()).includes("Sin repositorio local"),
+      "el nodo Git apagado debe explicar por qué",
     );
     // Los cables son pistas ortogonales: ni curvas libres ni diagonales.
     const trazados = await page.locator(".wire").evaluateAll((nodos) =>

@@ -1062,7 +1062,7 @@ header > div {
    * acciones. Con 300 entra el caso normal sin desplazarse. */
   --altura-cola: 300px;
   display: grid;
-  grid-template-columns: repeat(6, clamp(232px, 18vw, 340px));
+  grid-template-columns: repeat(7, clamp(232px, 18vw, 340px));
   /* El hueco de la rejilla *es* el cable. Con 56 px el chevrón, el nudo y la
    * compuerta quedaban apiñados; un mínimo de 72 px y algo de aire según la
    * ventana los dejan respirar sin comerse los nodos. */
@@ -1092,6 +1092,10 @@ header > div {
 .linea > .lane-descartadas {
   grid-column: 2;
   margin-top: calc(var(--altura-cola) + 36px);
+}
+
+.linea > .nodo-git {
+  grid-column: 7;
 }
 
 /* ---------- cables ----------
@@ -1167,6 +1171,14 @@ header > div {
 .wire.descartadas,
 .compuerta.descartadas {
   --wire: #c0704a;
+}
+
+.wire.git {
+  --wire: #3fb950;
+}
+
+.wire.git.apagado {
+  --wire: #6e7681;
 }
 
 /* Revisión rechazada: una bifurcación, no un carril. El tronco baja desde el
@@ -1364,6 +1376,84 @@ header > div {
   --tinte: #f0883e;
   --pulso: #f0883e44;
   border-color: #5c2f2f;
+}
+
+/* Git cierra la línea como un nodo de estado, no como un carril. Apagado
+ * conserva su sitio para que el mapa no cambie de forma al encenderse. */
+.node.nodo-git {
+  --tinte: #3fb950;
+  --pulso: #3fb95044;
+  border-color: #2b5c3f;
+}
+
+.node.nodo-git.apagado {
+  --tinte: #6e7681;
+  --pulso: #6e768144;
+  border-color: #30363d;
+}
+
+.nodo-git .node-head {
+  cursor: default;
+}
+
+.nodo-git .node-head:hover {
+  background: #122719;
+}
+
+.nodo-git.apagado .node-head {
+  background: #161b22;
+}
+
+.git-punto {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: #30363d;
+}
+
+.git-punto.on {
+  background: #3fb950;
+  box-shadow: 0 0 7px #3fb950;
+}
+
+.git-estado {
+  padding: 1px 7px;
+  border: 1px solid #30363d;
+  border-radius: 99px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.git-estado.on {
+  border-color: #2b5c3f;
+  color: #7ee2a8;
+}
+
+.git-detalle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 9px;
+  padding: 6px 9px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.git-rama {
+  color: #7ee2a8;
+  font-weight: 600;
+}
+
+.git-commit {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 10.5px;
+}
+
+.git-ayuda {
+  color: #6e7681;
 }
 
 .node.lane-cola > .node-head {

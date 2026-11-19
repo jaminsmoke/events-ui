@@ -11,7 +11,7 @@ import { duracionChispa, useCables } from "./mapa/cables";
 import { Compuerta, LeyendaCompuertas } from "./mapa/compuertas";
 import { useCamara } from "./mapa/camara";
 import type { LaneId, Status } from "./mapa/carriles";
-import { NodeBox, VueloFila } from "./mapa/nodos";
+import { NodeBox, NodoGit, VueloFila } from "./mapa/nodos";
 import { useVuelos } from "./mapa/vuelos";
 import { useEventos, resumenEvento } from "./core/useEventos";
 import { useProtocolos } from "./core/useProtocolos";
@@ -161,6 +161,7 @@ export default function App({
   const mapRef = useRef<HTMLDivElement | null>(null);
   const cajonRef = useRef<HTMLElement | null>(null);
   const carrilRefs = useRef<(HTMLElement | null)[]>([]);
+  const gitRef = useRef<HTMLElement | null>(null);
 
   const { vista, arrastrando, encuadrar, zoom, reset, olvidar, mano } = useCamara({
     repo,
@@ -176,6 +177,7 @@ export default function App({
     mapRef,
     cajonRef,
     carrilRefs,
+    gitRef,
   });
   const { vuelos, volando, aterrizado } = useVuelos({ repo, ideas, cerrados, vista, mapRef });
   const { chispas, pulsos, pulsoCajon } = useAnimaciones(repo, ideas);
@@ -402,17 +404,21 @@ export default function App({
                     const enMarcha = chispas.some(
                       (chispa) => chispa.lane === cable.lane && cableDeChispa(chispa)?.id === cable.id,
                     );
+                    const apagadoGit = cable.lane === "git" && proyeccion?.git !== true;
                     return (
                       <path
                         key={cable.id}
                         d={cable.d}
-                        className={`wire ${cable.lane}${cable.rama ? " rama" : ""}${enMarcha ? " marcha" : ""}`}
+                        className={`wire ${cable.lane}${cable.rama ? " rama" : ""}${
+                          apagadoGit ? " apagado" : ""
+                        }${enMarcha ? " marcha" : ""}`}
                         style={{
                           // El grosor cuenta lo que espera en el origen; la luz
                           // no: un cable no se enciende porque el carril del
                           // que sale reciba ideas, solo cuando algo lo cruza.
                           strokeWidth: entrada ? 1.3 + 1.5 * t : 1.8 + 2.2 * t,
-                          opacity: enMarcha ? 1 : entrada ? 0.46 : 0.56,
+                          opacity: enMarcha ? 1 : apagadoGit ? 0.25 : entrada ? 0.46 : 0.56,
+                          strokeDasharray: apagadoGit ? "4 5" : undefined,
                         }}
                       />
                     );
@@ -420,7 +426,7 @@ export default function App({
                   {/* Dirección sin depender del movimiento: un chevrón en el
                    *  punto medio. La rama de Descartadas no lo lleva. */}
                   {cables.map((cable) => {
-                    if (cable.lane === "descartadas" || cable.rama) return null;
+                    if (cable.lane === "descartadas" || cable.rama || cable.lane === "git") return null;
                     // El chevrón cae sobre un tramo recto de la ruta ortogonal.
                     const { x: mx, y: my, angulo } = cable.chevron;
                     return (
@@ -555,6 +561,13 @@ export default function App({
                       catalogo={ideas ?? []}
                     />
                   ))}
+                  <NodoGit
+                    activo={proyeccion?.git === true}
+                    branch={proyeccion?.branch}
+                    commit={proyeccion?.commit}
+                    gitRoot={proyeccion?.git_root}
+                    boxRef={gitRef}
+                  />
                 </div>
               </div>
             )}

@@ -6,7 +6,12 @@ parámetros de la propia query, nada que venga del cliente.
 
 La identidad de repo se resuelve así, en orden:
 1. **ruta** — la carpeta que la UI eligió (ya viene en el `repo`);
-2. **rama y commit** — de git, si la carpeta es un repo git.
+2. **work tree** — de `git rev-parse --show-toplevel`, que también responde
+   para una subcarpeta de otro repo; una carpeta ignorada por el repo
+   contenedor se queda fuera (el laboratorio dentro del repo de la app);
+3. **rama y commit** — de git, si hay work tree. La rama se lee con
+   `symbolic-ref` para que un repo recién inicializado, sin commits, también
+   la tenga; el commit puede faltar (`None`).
 
 Sin git no hay rama ni commit (`None`): el resto de la proyección no depende
 de ellos.
@@ -39,6 +44,36 @@ def _git(carpeta: Path, *args: str) -> str | None:
         return None
     valor = salida.stdout.strip()
     return valor or None
+
+
+def _git_repo(carpeta: Path) -> tuple[bool, Path | None]:
+    """La carpeta y el work tree Git que la contiene, si de verdad lo hay.
+
+    `rev-parse --show-toplevel` responde tanto para un repo propio como para
+    una subcarpeta de otro repo. Una carpeta ignorada por el repo contenedor
+    no cuenta: el laboratorio vive dentro del repo del proyecto, pero su
+    contenido no forma parte de él. Un `git init` propio siempre gana, porque
+    el toplevel pasa a ser la propia carpeta.
+    """
+    salida = _git(carpeta, "rev-parse", "--show-toplevel")
+    if not salida:
+        return False, None
+    try:
+        raiz = Path(salida).resolve()
+        resuelta = carpeta.resolve()
+    except (OSError, RuntimeError):
+        return False, None
+    if raiz == resuelta:
+        return True, raiz
+    try:
+        relativa = resuelta.relative_to(raiz).as_posix()
+    except ValueError:
+        return False, None
+    if not relativa:
+        return True, raiz
+    if _git(raiz, "check-ignore", "--", relativa):
+        return False, None
+    return True, raiz
 
 
 def repo_estado_actual(repo: str) -> dict[str, Any]:
@@ -76,11 +111,17 @@ def repo_estado_actual(repo: str) -> dict[str, Any]:
         except sqlite3.Error:
             ultima = None
 
+    es_git, git_root = _git_repo(carpeta)
     return {
         "repo": str(carpeta),
         "laboratorio": carpeta.parent == repos_root(),
-        "branch": _git(carpeta, "rev-parse", "--abbrev-ref", "HEAD"),
-        "commit": _git(carpeta, "rev-parse", "--short", "HEAD"),
+        "git": es_git,
+        "git_root": str(git_root) if git_root else None,
+        # `symbolic-ref` funciona en un repo recién inicializado, antes del
+        # primer commit; `rev-parse --abbrev-ref HEAD` no. El commit sí puede
+        # faltar y se queda en `None`.
+        "branch": _git(carpeta, "symbolic-ref", "--short", "HEAD") if es_git else None,
+        "commit": _git(carpeta, "rev-parse", "--short", "HEAD") if es_git else None,
         "ideas": ideas,
         "events": eventos,
         "por_estado": por_estado,

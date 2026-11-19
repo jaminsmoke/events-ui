@@ -9,6 +9,10 @@ import type { Vista } from "./camara";
 /** Un punto del trazado, en píxeles locales del mapa. */
 type Punto = { x: number; y: number };
 
+/** El nodo Git cierra la línea, pero no es un carril de ideas: solo aporta
+ *  su color y su cable. */
+export type DestinoCable = LaneId | "git";
+
 /** Un cable entre etapas de la línea, ya medido en píxeles del mapa.
  *  `lane` es el carril de destino: da el color y por dónde viaja la chispa.
  *  `origenLane` permite distinguir el cable de ida del de vuelta cuando los
@@ -22,9 +26,9 @@ type Punto = { x: number; y: number };
  *  acumula antes de la compuerta, no con lo que ya llegó al destino. */
 export type Cable = {
   id: string;
-  lane: LaneId;
+  lane: DestinoCable;
   origenLane: LaneId | "root";
-  destinoLane: LaneId;
+  destinoLane: DestinoCable;
   union: [Status, Status] | null;
   rama?: boolean;
   presion: number;
@@ -120,6 +124,7 @@ export function useCables({
   mapRef,
   cajonRef,
   carrilRefs,
+  gitRef,
 }: {
   tree: Tree | null;
   cerrados: ReadonlySet<string>;
@@ -128,6 +133,7 @@ export function useCables({
   mapRef: RefObject<HTMLDivElement | null>;
   cajonRef: RefObject<HTMLElement | null>;
   carrilRefs: RefObject<(HTMLElement | null)[]>;
+  gitRef: RefObject<HTMLElement | null>;
 }) {
   const [cables, setCables] = useState<Cable[]>([]);
   const [rama, setRama] = useState<RamaRechazo | null>(null);
@@ -160,6 +166,9 @@ export function useCables({
       const cajasNodo = new Map<LaneId, ReturnType<typeof rectLocal>>();
       const cabecera = (nodo: HTMLElement) => rectLocal(nodo.querySelector<HTMLElement>(".node-head")!);
       const cajaEntrada = rectLocal(cajon);
+      const nodoGit = gitRef.current;
+      const cabeceraGit = nodoGit ? cabecera(nodoGit) : null;
+      const cajaGit = nodoGit ? rectLocal(nodoGit) : null;
       cajas.set("root", cabecera(cajon));
       carrilRefs.current.forEach((el, i) => {
         const lane = LANES[i];
@@ -184,7 +193,7 @@ export function useCables({
         compuertaT = 0.5,
       }: {
         id: string;
-        lane: LaneId;
+        lane: DestinoCable;
         origen: LaneId | "root";
         union: [Status, Status] | null;
         desde: ReturnType<typeof rectLocal>;
@@ -274,6 +283,22 @@ export function useCables({
         }
       }
 
+      // El último nodo de la línea: Historial→Git. No lleva compuerta ni
+      // chispa; en la UI se apaga si el repo no tiene work tree.
+      const historial = cajas.get("historial");
+      if (historial && cabeceraGit) {
+        trazos.push(
+          trazar({
+            id: "etapa-git",
+            lane: "git",
+            origen: "historial",
+            union: null,
+            desde: historial,
+            hasta: cabeceraGit,
+          }),
+        );
+      }
+
       const cola = cajas.get("cola");
       const descartadas = cajas.get("descartadas");
       /* Una idea se descarta lo mismo desde la entrada que desde la cola: el
@@ -325,7 +350,9 @@ export function useCables({
       if (!revision) {
         setRama(null);
       } else {
-        const fondos = [...cajasNodo.values(), cajaEntrada].map((caja) => caja.y + caja.h);
+        const fondos = [...cajasNodo.values(), cajaEntrada, ...(cajaGit ? [cajaGit] : [])].map(
+          (caja) => caja.y + caja.h,
+        );
         const maxBottom = Math.max(...fondos);
         const ancho = 236;
         const alto = 44;
@@ -415,7 +442,7 @@ export function useCables({
       ro.disconnect();
       map.removeEventListener("scroll", medir, true);
     };
-  }, [tree, cerrados, vista, boardRef, mapRef, cajonRef, carrilRefs]);
+  }, [tree, cerrados, vista, boardRef, mapRef, cajonRef, carrilRefs, gitRef]);
 
   return { cables, nudo, rama, recortado };
 }

@@ -690,14 +690,20 @@ export interface components {
          * @description F2: el estado del repo en una lectura, con su identidad.
          *
          *     No es SQL libre desde la UI: es una proyección
-         *     fija y versionada. `repo` es la carpeta resuelta; `branch`/`commit` vienen
-         *     de git cuando hay repo git y son `None` si no.
+         *     fija y versionada. `repo` es la carpeta resuelta. `git` dice si esa carpeta
+         *     pertenece a un work tree Git —también con un `git init` sin commits— y
+         *     `git_root` es la raíz de ese work tree. `branch`/`commit` son `None` si no
+         *     hay Git; el commit también falta mientras el repo no tenga ninguno.
          */
         ProyeccionRepo: {
             /** Repo */
             repo: string;
             /** Laboratorio */
             laboratorio: boolean;
+            /** Git */
+            git: boolean;
+            /** Git Root */
+            git_root?: string | null;
             /** Branch */
             branch?: string | null;
             /** Commit */

@@ -1,5 +1,6 @@
 import type { Exigencia, Paso } from "../core/useProtocolos";
 import type { LaneId, Status } from "./carriles";
+import type { DestinoCable } from "./cables";
 
 /** La unión de protocolo que representa cada cable de etapa. Descartadas no
  *  es una etapa: su rama sirve tanto desde la entrada como desde la cola. */
@@ -17,10 +18,12 @@ const UNION: Record<Exclude<LaneId, "descartadas">, [Status, Status]> = {
  *  de Descartadas se juntan las dos salidas (entrada y cola): la compuerta se
  *  abre si alguna lo está y muestra cualquier exigencia de las dos. */
 function pasoDeCable(
-  lane: LaneId,
+  lane: DestinoCable,
   paso: (origen: Status, destino: Status) => Paso | null,
   union: [Status, Status] | null,
 ): Paso | null {
+  // Git no es una unión de protocolo: es un nodo de estado del repo.
+  if (lane === "git") return null;
   // Las ramas de revisión rechazada traen su pareja explícita: comparten
   // carril de destino con el flujo normal y no pueden deducirla del color.
   if (union) return paso(...union);
@@ -43,7 +46,7 @@ const TEXTO: Record<Exigencia, string> = {
   "fases-completas": "pide todas las fases completadas",
 };
 
-function titulo(paso: Paso, lane: LaneId, union: [Status, Status] | null): string {
+function titulo(paso: Paso, lane: DestinoCable, union: [Status, Status] | null): string {
   const prefijo =
     union?.[0] === "verificacion"
       ? `Revisión rechazada → ${union[1] === "proposed" ? "Cola" : union[1] === "roadmap" ? "Roadmap" : "Descartadas"}: `
@@ -113,12 +116,12 @@ export function Compuerta({
   x: number;
   y: number;
   angulo: number;
-  lane: LaneId;
+  lane: DestinoCable;
   union?: [Status, Status] | null;
 }) {
   // Archivar no es una unión de protocolo: la hace el core al aprobar, así
   // que el cable del historial no lleva compuerta (ni un aspa de prohibida).
-  if (lane === "historial") return null;
+  if (lane === "historial" || lane === "git") return null;
   const paso = pasoDeCable(lane, protocolo, union);
   if (!paso) return null;
   const barras = paso.exige.length;

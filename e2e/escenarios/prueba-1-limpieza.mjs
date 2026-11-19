@@ -39,9 +39,9 @@ export default {
       await selector.or(pruebas).first().waitFor();
       if (await selector.isVisible()) await selector.click();
       await pruebas.waitFor();
-      await esperar(() => page.locator(".wire").count().then((n) => n === 9), "los nueve cables");
+      await esperar(() => page.locator(".wire").count().then((n) => n === 10), "los diez cables");
       const inicial = await geometria(page);
-      expect(inicial.cabeceras.length === 7, "siete nodos");
+      expect(inicial.cabeceras.length === 8, "ocho nodos");
       await pruebas.click();
       const boton = (name) => page.getByRole("dialog", { name: "Pruebas del laboratorio" }).getByRole("button", { name, exact: true });
       await boton("Lanzar").click();

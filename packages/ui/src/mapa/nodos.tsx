@@ -1027,6 +1027,51 @@ function NodeRow({
   );
 }
 
+/** El nodo terminal de Git: no es un carril ni guarda ideas. Solo enseña si
+ *  la carpeta pertenece a un work tree y, cuando lo hace, su rama y commit. */
+export function NodoGit({
+  activo,
+  branch,
+  commit,
+  gitRoot,
+  boxRef,
+}: {
+  activo: boolean;
+  branch?: string | null;
+  commit?: string | null;
+  /** Raíz del work tree; se enseña en el `title` para no crecer el nodo. */
+  gitRoot?: string | null;
+  boxRef?: Ref<HTMLElement>;
+}) {
+  return (
+    <section
+      ref={boxRef}
+      className={`node nodo-git ${activo ? "activo" : "apagado"}`}
+      aria-label="Estado de Git"
+    >
+      <div className="node-head">
+        <span className={`git-punto${activo ? " on" : ""}`} aria-hidden="true" />
+        <span className="node-title">Git</span>
+        <span className={`git-estado${activo ? " on" : ""}`}>
+          {activo ? "asociado" : "apagado"}
+        </span>
+      </div>
+      <div className="git-detalle">
+        {activo ? (
+          <>
+            <span className="git-rama" title={gitRoot ?? undefined}>
+              {branch ?? "HEAD desprendido"}
+            </span>
+            <span className="git-commit">{commit ?? "sin commits"}</span>
+          </>
+        ) : (
+          <span className="git-ayuda">Sin repositorio local</span>
+        )}
+      </div>
+    </section>
+  );
+}
+
 /** Un nodo entero: cabecera plegable y, debajo, su propia lista. */
 export function NodeBox({
   node,

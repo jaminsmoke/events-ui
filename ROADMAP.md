@@ -141,6 +141,12 @@ con el motivo, para no reabrirlo cada semana.
   carril es terminal y la UI lo enseña de lectura. Las aprobadas existentes se
   archivan en la migración. Cubierto en `services/core/tests/test_flujo_items.py`
   y `e2e/escenarios/historial-aprobacion.mjs`.
+- **Nodo Git (F2)**: la línea de ideas cierra en un nodo de estado que se
+  enciende solo si la carpeta pertenece a un work tree Git. Un `git init` sin
+  commits ya cuenta; una carpeta ignorada por el repo contenedor, como el
+  laboratorio, no. La proyección separa `git`/`git_root` de `branch`/`commit`
+  para no confundir «no hay repo» con «repo sin commits». Cubierto en
+  `services/core/tests/test_git.py` y `e2e/escenarios/git-local.mjs`.
 - **Revisión rechazada (0027)**: desde verificación se vuelve a roadmap para
   rehacer, a la cola para replanificar o a descartadas con motivo. No hay un
   carril nuevo: el mapa dibuja un nodo de rechazo que cuelga del nudo del cable

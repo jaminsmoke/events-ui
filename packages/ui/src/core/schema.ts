@@ -332,6 +332,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/git/commits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Git Commits
+         * @description Los últimos commits de la rama actual, para el nodo Commits del mapa.
+         */
+        get: operations["get_git_commits_git_commits_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -372,6 +392,24 @@ export interface components {
             ruta: string;
             /** Origen */
             origen?: string | null;
+        };
+        /**
+         * CommitGit
+         * @description Un commit del historial de la rama, resumido para el Mapa de Git.
+         *
+         *     `hash` es el abreviado que enseña Git: basta para identificar el commit y
+         *     cabe en la fila. `fecha` es la de autoría en ISO 8601; la UI la acorta al
+         *     pintarla.
+         */
+        CommitGit: {
+            /** Hash */
+            hash: string;
+            /** Asunto */
+            asunto: string;
+            /** Autor */
+            autor: string;
+            /** Fecha */
+            fecha: string;
         };
         /**
          * EntradaLog
@@ -1745,6 +1783,58 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProyeccionRepo"];
+                };
+            };
+            /** @description Petición inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description No existe el repo o la idea */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_git_commits_git_commits_get: {
+        parameters: {
+            query: {
+                /** @description Carpeta del repo: ruta absoluta o nombre en el lab */
+                repo: string;
+                /** @description Máximo de commits */
+                limite?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommitGit"][];
                 };
             };
             /** @description Petición inválida */

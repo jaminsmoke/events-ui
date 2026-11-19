@@ -253,3 +253,46 @@ def test_las_rutas_con_acentos_o_almohadillas_llegan_tal_cual(client, tmp_path):
 
     cambios = {(c["estado"], c["ruta"], c.get("origen")) for c in datos["git_cambios"]}
     assert ("??", "con acentos ñ y #.txt", None) in cambios
+
+
+def test_historial_lista_los_commits_del_mas_nuevo_al_mas_viejo(client, tmp_path):  # noqa: ANN001, ANN202
+    carpeta = tmp_path / "historial"
+    _inicializar(carpeta)
+    (carpeta / "nota.txt").write_text("uno", encoding="utf-8")
+    _git(carpeta, "add", ".")
+    _git(carpeta, "commit", "-m", "primer commit")
+    (carpeta / "nota.txt").write_text("dos", encoding="utf-8")
+    _git(carpeta, "add", ".")
+    _git(carpeta, "commit", "-m", "segundo commit con ñ")
+
+    r = client.get("/git/commits", params={"repo": str(carpeta)})
+
+    assert r.status_code == 200, r.json()
+    commits = r.json()
+    assert [c["asunto"] for c in commits] == ["segundo commit con ñ", "primer commit"]
+    assert all(c["hash"] for c in commits)
+    assert commits[0]["autor"] == "Test"
+    assert "T" in commits[0]["fecha"]
+
+
+def test_historial_vacio_sin_commits_y_sin_git(client, tmp_path):  # noqa: ANN001, ANN202
+    sin_commits = tmp_path / "sin-commits"
+    _inicializar(sin_commits)
+    suelta = tmp_path / "suelta"
+    suelta.mkdir()
+
+    assert client.get("/git/commits", params={"repo": str(sin_commits)}).json() == []
+    assert client.get("/git/commits", params={"repo": str(suelta)}).json() == []
+
+
+def test_historial_respeta_el_limite(client, tmp_path):  # noqa: ANN001, ANN202
+    carpeta = tmp_path / "tres"
+    _inicializar(carpeta)
+    for n in range(3):
+        (carpeta / "nota.txt").write_text(str(n), encoding="utf-8")
+        _git(carpeta, "add", ".")
+        _git(carpeta, "commit", "-m", f"commit {n}")
+
+    commits = client.get("/git/commits", params={"repo": str(carpeta), "limite": 2}).json()
+
+    assert [c["asunto"] for c in commits] == ["commit 2", "commit 1"]

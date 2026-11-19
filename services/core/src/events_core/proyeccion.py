@@ -100,6 +100,49 @@ def _git_cambios(carpeta: Path) -> list[dict[str, str]]:
     return cambios
 
 
+def historial(carpeta: Path, limite: int = 20) -> list[dict[str, str]]:
+    """Los últimos commits de HEAD, del más nuevo al más viejo.
+
+    Sin work tree o sin commits se devuelve una lista vacía: un repo recién
+    inicializado no es un error, el mapa ya enseña que no hay historial. Se
+    separa con el carácter de unidad (0x1f) y no con el tabulador porque el
+    asunto puede llevar cualquier cosa sin partir la línea; `%h` da el hash
+    abreviado, que es el que cabe en la fila, y `%aI` la fecha de autoría en
+    ISO 8601.
+    """
+    es_git, git_root = _git_repo(carpeta)
+    if not es_git or git_root is None:
+        return []
+    try:
+        salida = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(git_root),
+                "log",
+                f"-n{limite}",
+                "--no-show-signature",
+                "--format=%h%x1f%s%x1f%an%x1f%aI",
+            ],
+            capture_output=True,
+            encoding="utf-8",
+            errors="surrogateescape",
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return []
+    if salida.returncode != 0:  # sin commits: `git log` sale con error
+        return []
+    commits: list[dict[str, str]] = []
+    for linea in salida.stdout.splitlines():
+        campos = linea.split(chr(31))
+        if len(campos) != 4:
+            continue
+        hash_corto, asunto, autor, fecha = campos
+        commits.append({"hash": hash_corto, "asunto": asunto, "autor": autor, "fecha": fecha})
+    return commits
+
+
 def _git_repo(carpeta: Path) -> tuple[bool, Path | None]:
     """La carpeta y el work tree Git que la contiene, si de verdad lo hay.
 

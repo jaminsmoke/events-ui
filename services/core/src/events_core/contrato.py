@@ -258,6 +258,20 @@ class CambioGit(BaseModel):
     origen: str | None = None
 
 
+class CommitGit(BaseModel):
+    """Un commit del historial de la rama, resumido para el Mapa de Git.
+
+    `hash` es el abreviado que enseña Git: basta para identificar el commit y
+    cabe en la fila. `fecha` es la de autoría en ISO 8601; la UI la acorta al
+    pintarla.
+    """
+
+    hash: str
+    asunto: str
+    autor: str
+    fecha: str
+
+
 class ProyeccionRepo(BaseModel):
     """F2: el estado del repo en una lectura, con su identidad.
 

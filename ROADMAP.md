@@ -263,6 +263,10 @@ con el motivo, para no reabrirlo cada semana.
   del final—. Ahora devuelve también el diccionario de fases;
   `test_listado_vacio.py` cubre el almacén vacío, el offset y un filtro sin
   resultados.
+- **`seed` ya no siembra al importarse**: el `raise SystemExit` estaba al nivel
+  del módulo, así que cualquier `import events_core.seed` imprimía el uso y
+  salía con 2. Queda bajo la guarda `__main__`, con `test_seed.py` cubriendo el
+  import y la CLI sin repo.
 - **Runtime fijado a 3.12**: `.python-version` y el CI apuntan a 3.12 y
   `requires-python` cierra el techo en `<3.14`, así que `uv` deja de resolver
   contra el 3.14 del sistema, donde las pruebas síncronas de `starlette` se han
@@ -288,11 +292,6 @@ con el motivo, para no reabrirlo cada semana.
 Revisión del 19 de noviembre de 2026, segunda pasada, por orden de daño y no
 de esfuerzo.
 
-- **`seed.py` se ejecuta al importarse.** El `raise SystemExit(main(...))` está
-  al nivel del módulo, así que `import events_core.seed` imprime el uso y sale
-  con 2 (comprobado). Hoy nadie lo importa, pero rompe cualquier herramienta que
-  lo haga (PyInstaller, un futuro test). Va bajo `if __name__ == "__main__":`,
-  como el resto de CLIs.
 - **Las conexiones vigilantes no se cierran nunca.** `db._VIGILANTES` cachea una
   conexión SQLite por almacén y variante para siempre: con muchos repos son
   descriptores acumulados y, en Windows, el `.EUI` queda abierto mientras viva

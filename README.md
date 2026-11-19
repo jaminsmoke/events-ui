@@ -286,7 +286,11 @@ y el detalle por `ON DELETE CASCADE`. El paso `0004` es el ejemplo: reconstruye
   van ruta y estado (`nuevo`, `modificado`, `borrado`); con Git, además, el
   parche del archivo, acotado por tamaño. La base del propio repo (`.EUI`) y lo
   ignorado por Git nunca cuentan. La fila resume con un contador (`2 archivos`) y
-  la ficha los lista; el que tiene parche se despliega al pulsarlo.
+  la ficha los lista; el que tiene parche se despliega al pulsarlo. Cada
+  requisito enseña los archivos que cambiaron mientras se hacía; lo que se marca
+  en bloque o lo cierra la fase se queda en la fase. Una idea que nace ya en
+  roadmap también toma su foto de partida, y un archivo movido se anota una vez
+  (`renombrado`, con su origen) en vez de como borrado y nuevo.
 - **Historial (0026)**. Aprobar es la compuerta: el core guarda la firma en
   `revision_node` y deja la idea en `historial` con sus fases y requisitos. El
   carril es terminal y se lee sin editar. La migración archiva las aprobadas

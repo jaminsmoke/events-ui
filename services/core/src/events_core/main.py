@@ -63,6 +63,21 @@ app.add_middleware(
 )
 
 
+class ArchivoFase(BaseModel):
+    """Un archivo que cambió durante una fase o un requisito (0028, 0029).
+
+    `estado` es el cambio entre las dos fotos del árbol; `renombrado` es un
+    archivo que se movió, y `desde` dice de dónde. `contenido` es el parche de
+    Git (o el texto del archivo nuevo); `None` cuando no hay Git, no hay
+    commits o el contenido no cabe: la ruta y el estado ya informan.
+    """
+
+    ruta: str
+    estado: Literal["nuevo", "modificado", "borrado", "renombrado"]
+    desde: str | None = None
+    contenido: str | None = None
+
+
 class Requisito(BaseModel):
     """Un requisito de una fase (0025): su criterio de hecho, binario."""
 
@@ -70,6 +85,9 @@ class Requisito(BaseModel):
     titulo: str = Field(min_length=1)
     hecho: bool = False
     done_at: str | None = None
+    # Los archivos que cambiaron mientras se hizo (0029); vacío si se marcó
+    # junto a otros o si lo cerró la fase.
+    archivos: list[ArchivoFase] = Field(default_factory=list)
 
 
 class RequisitoEntrada(BaseModel):
@@ -82,19 +100,6 @@ class RequisitoEntrada(BaseModel):
     orden: int | None = Field(default=None, ge=1)
     titulo: str = Field(min_length=1)
     hecho: bool = False
-
-
-class ArchivoFase(BaseModel):
-    """Un archivo que cambió durante una fase (0028).
-
-    `estado` es el cambio entre las dos fotos del árbol. `contenido` es el
-    parche de Git (o el texto del archivo nuevo); `None` cuando no hay Git, no
-    hay commits o el contenido no cabe: la ruta y el estado ya informan.
-    """
-
-    ruta: str
-    estado: Literal["nuevo", "modificado", "borrado"]
-    contenido: str | None = None
 
 
 class Fase(BaseModel):

@@ -338,11 +338,12 @@ export interface components {
     schemas: {
         /**
          * ArchivoFase
-         * @description Un archivo que cambió durante una fase (0028).
+         * @description Un archivo que cambió durante una fase o un requisito (0028, 0029).
          *
-         *     `estado` es el cambio entre las dos fotos del árbol. `contenido` es el
-         *     parche de Git (o el texto del archivo nuevo); `None` cuando no hay Git, no
-         *     hay commits o el contenido no cabe: la ruta y el estado ya informan.
+         *     `estado` es el cambio entre las dos fotos del árbol; `renombrado` es un
+         *     archivo que se movió, y `desde` dice de dónde. `contenido` es el parche de
+         *     Git (o el texto del archivo nuevo); `None` cuando no hay Git, no hay
+         *     commits o el contenido no cabe: la ruta y el estado ya informan.
          */
         ArchivoFase: {
             /** Ruta */
@@ -351,7 +352,9 @@ export interface components {
              * Estado
              * @enum {string}
              */
-            estado: "nuevo" | "modificado" | "borrado";
+            estado: "nuevo" | "modificado" | "borrado" | "renombrado";
+            /** Desde */
+            desde?: string | null;
             /** Contenido */
             contenido?: string | null;
         };
@@ -845,6 +848,8 @@ export interface components {
             hecho: boolean;
             /** Done At */
             done_at?: string | null;
+            /** Archivos */
+            archivos?: components["schemas"]["ArchivoFase"][];
         };
         /**
          * RequisitoEntrada

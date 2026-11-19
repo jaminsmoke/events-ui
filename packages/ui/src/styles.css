@@ -2284,6 +2284,9 @@ button.archivo-abrir:hover code {
 .archivo-estado.estado-borrado {
   color: #c25555;
 }
+.archivo-estado.estado-renombrado {
+  color: #c9a227;
+}
 .ficha-requisitos {
   margin: 2px 0 0;
   padding: 0;
@@ -2293,9 +2296,16 @@ button.archivo-abrir:hover code {
 }
 .ficha-requisito {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   gap: 6px;
   font-size: 12px;
+}
+/* Los archivos de un requisito (0029) van debajo de su fila, sangrados a la
+ * altura del título para que se vea que cuelgan de él. */
+.requisito-archivos {
+  flex-basis: 100%;
+  margin-left: 20px;
 }
 .ficha-requisito input {
   margin: 3px 0 0;

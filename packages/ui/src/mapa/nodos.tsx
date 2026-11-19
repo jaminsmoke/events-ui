@@ -462,6 +462,73 @@ const ETIQUETA_FASE: Record<string, string> = {
   rechazada: "Rechazada",
 };
 
+/** Un archivo anotado: ruta, estado y, si lo hay, su parche desplegable.
+ *  Sin contenido (sin Git, sin commits o demasiado grande) queda la fila: la
+ *  ruta y el estado ya informan. */
+function ArchivoAnotado({
+  archivo,
+  clave,
+  parche,
+  desplegado,
+  onAbrir,
+}: {
+  archivo: NonNullable<Fase["archivos"]>[number];
+  /** Identifica el despliegue: la misma ruta puede estar en fase y requisito. */
+  clave: string;
+  parche?: string;
+  desplegado: boolean;
+  onAbrir: (clave: string | null) => void;
+}) {
+  // Un renombrado sin Git solo se ve así: de dónde vino y a dónde fue.
+  const nombre = archivo.desde ? `${archivo.desde} → ${archivo.ruta}` : archivo.ruta;
+  return (
+    <li className="ficha-archivo">
+      {parche ? (
+        <button
+          type="button"
+          className="archivo-abrir"
+          aria-expanded={desplegado}
+          title="Ver el cambio"
+          onClick={() => onAbrir(desplegado ? null : clave)}
+        >
+          <span className={`archivo-estado estado-${archivo.estado}`}>{archivo.estado}</span>
+          <code>{nombre}</code>
+          <span className="archivo-flecha" aria-hidden="true">
+            {desplegado ? "▾" : "▸"}
+          </span>
+        </button>
+      ) : (
+        <span
+          className="archivo-abrir"
+          title="Sin contenido: sin Git, sin commits o demasiado grande"
+        >
+          <span className={`archivo-estado estado-${archivo.estado}`}>{archivo.estado}</span>
+          <code>{nombre}</code>
+        </span>
+      )}
+      {parche && desplegado && (
+        <pre className="ficha-parche">
+          {parche.split("\n").map((linea, indice) => (
+            <span
+              key={indice}
+              className={
+                linea.startsWith("+") && !linea.startsWith("+++")
+                  ? "linea-mas"
+                  : linea.startsWith("-") && !linea.startsWith("---")
+                    ? "linea-menos"
+                    : undefined
+              }
+            >
+              {linea}
+              {"\n"}
+            </span>
+          ))}
+        </pre>
+      )}
+    </li>
+  );
+}
+
 /** La ficha de fases: el detalle completo (estado, nota y fecha), que la
  *  fila no enseña para no crecer. Solo lectura: editar es cosa de la fila. */
 function FichaFases({
@@ -487,8 +554,9 @@ function FichaFases({
 }) {
   const [guardando, setGuardando] = useState(false);
   const [fallo, setFallo] = useState<string | null>(null);
-  // El parche se pide al abrir la ficha y se mezcla por `fase:ruta`: la lista
-  // que se edita sigue siendo la de la fila, y el contenido solo se pinta.
+  // El parche se pide al abrir la ficha y se mezcla por `fase:requisito:ruta`:
+  // la lista que se edita sigue siendo la de la fila, y el contenido solo se
+  // pinta. El requisito 0 es la fase entera.
   const [parches, setParches] = useState<ReadonlyMap<string, string>>(() => new Map());
   const [abierto, setAbierto] = useState<string | null>(null);
   const vista = fases;
@@ -503,7 +571,14 @@ function FichaFases({
         const mapa = new Map<string, string>();
         for (const fase of idea.fases ?? []) {
           for (const archivo of fase.archivos ?? []) {
-            if (archivo.contenido) mapa.set(`${fase.orden}:${archivo.ruta}`, archivo.contenido);
+            if (archivo.contenido) mapa.set(`${fase.orden}:0:${archivo.ruta}`, archivo.contenido);
+          }
+          for (const requisito of fase.requisitos ?? []) {
+            for (const archivo of requisito.archivos ?? []) {
+              if (archivo.contenido) {
+                mapa.set(`${fase.orden}:${requisito.orden}:${archivo.ruta}`, archivo.contenido);
+              }
+            }
           }
         }
         setParches(mapa);
@@ -622,6 +697,26 @@ function FichaFases({
                       {requisito.done_at && (
                         <time dateTime={requisito.done_at}>{fechaCorta(requisito.done_at)}</time>
                       )}
+                      {requisito.archivos && requisito.archivos.length > 0 && (
+                        <ul
+                          className="ficha-archivos requisito-archivos"
+                          aria-label={`Archivos de ${requisito.titulo}`}
+                        >
+                          {requisito.archivos.map((archivo) => {
+                            const clave = `${fase.orden}:${requisito.orden}:${archivo.ruta}`;
+                            return (
+                              <ArchivoAnotado
+                                key={archivo.ruta}
+                                archivo={archivo}
+                                clave={clave}
+                                parche={parches.get(clave)}
+                                desplegado={abierto === clave}
+                                onAbrir={setAbierto}
+                              />
+                            );
+                          })}
+                        </ul>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -629,58 +724,16 @@ function FichaFases({
               {fase.archivos && fase.archivos.length > 0 && (
                 <ul className="ficha-archivos" aria-label={`Archivos de ${fase.titulo}`}>
                   {fase.archivos.map((archivo) => {
-                    const clave = `${fase.orden}:${archivo.ruta}`;
-                    const parche = parches.get(clave);
-                    const desplegado = abierto === clave;
+                    const clave = `${fase.orden}:0:${archivo.ruta}`;
                     return (
-                      <li key={archivo.ruta} className="ficha-archivo">
-                        {parche ? (
-                          <button
-                            type="button"
-                            className="archivo-abrir"
-                            aria-expanded={desplegado}
-                            title="Ver el cambio"
-                            onClick={() => setAbierto(desplegado ? null : clave)}
-                          >
-                            <span className={`archivo-estado estado-${archivo.estado}`}>
-                              {archivo.estado}
-                            </span>
-                            <code>{archivo.ruta}</code>
-                            <span className="archivo-flecha" aria-hidden="true">
-                              {desplegado ? "▾" : "▸"}
-                            </span>
-                          </button>
-                        ) : (
-                          <span
-                            className="archivo-abrir"
-                            title="Sin contenido: sin Git, sin commits o demasiado grande"
-                          >
-                            <span className={`archivo-estado estado-${archivo.estado}`}>
-                              {archivo.estado}
-                            </span>
-                            <code>{archivo.ruta}</code>
-                          </span>
-                        )}
-                        {parche && desplegado && (
-                          <pre className="ficha-parche">
-                            {parche.split("\n").map((linea, indice) => (
-                              <span
-                                key={indice}
-                                className={
-                                  linea.startsWith("+") && !linea.startsWith("+++")
-                                    ? "linea-mas"
-                                    : linea.startsWith("-") && !linea.startsWith("---")
-                                      ? "linea-menos"
-                                      : undefined
-                                }
-                              >
-                                {linea}
-                                {"\n"}
-                              </span>
-                            ))}
-                          </pre>
-                        )}
-                      </li>
+                      <ArchivoAnotado
+                        key={archivo.ruta}
+                        archivo={archivo}
+                        clave={clave}
+                        parche={parches.get(clave)}
+                        desplegado={abierto === clave}
+                        onAbrir={setAbierto}
+                      />
                     );
                   })}
                 </ul>

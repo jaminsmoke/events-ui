@@ -173,18 +173,25 @@ CREATE TABLE IF NOT EXISTS idea_foto (
     archivos TEXT NOT NULL
 );
 
--- Los archivos que cambiaron durante cada fase (0028). No cuelga de `idea_fase`
--- a propósito: un PATCH reemplaza las fases enteras y una FK con cascada se
--- llevaría los archivos en cada edición; la jerarquía va por `fase_orden` y el
--- core poda los huérfanos. `contenido` es el parche de Git (o el texto del
--- archivo nuevo); `NULL` sin Git, sin commits o si no cabe.
+-- Los archivos que cambiaron durante una fase o un requisito (0028, 0029). No
+-- cuelga de `idea_fase` a propósito: un PATCH reemplaza las fases enteras y una
+-- FK con cascada se llevaría los archivos en cada edición; la jerarquía va por
+-- `fase_orden`/`requisito_orden` y el core poda los huérfanos. `contenido` es
+-- el parche de Git (o el texto del archivo nuevo); `NULL` sin Git, sin commits
+-- o si no cabe. `requisito_orden = 0` es «de la fase»: el cierre, una tanda de
+-- requisitos marcados a la vez o lo que quedó suelto.
 CREATE TABLE IF NOT EXISTS idea_fase_archivo (
-    idea_uid   TEXT    NOT NULL REFERENCES idea_data (uid) ON DELETE CASCADE,
-    fase_orden INTEGER NOT NULL CHECK (fase_orden > 0),
-    ruta       TEXT    NOT NULL,
-    estado     TEXT    NOT NULL CHECK (estado IN ('nuevo', 'modificado', 'borrado')),
-    contenido  TEXT,
-    PRIMARY KEY (idea_uid, fase_orden, ruta)
+    idea_uid        TEXT    NOT NULL REFERENCES idea_data (uid) ON DELETE CASCADE,
+    fase_orden      INTEGER NOT NULL CHECK (fase_orden > 0),
+    requisito_orden INTEGER NOT NULL DEFAULT 0 CHECK (requisito_orden >= 0),
+    ruta            TEXT    NOT NULL,
+    estado          TEXT    NOT NULL CHECK (
+        estado IN ('nuevo', 'modificado', 'borrado', 'renombrado')
+    ),
+    -- De dónde vino un archivo renombrado; `NULL` en el resto.
+    desde           TEXT,
+    contenido       TEXT,
+    PRIMARY KEY (idea_uid, fase_orden, requisito_orden, ruta)
 );
 
 -- Los protocolos de flujo: qué carriles pueden unirse a cuáles. Una allowlist:

@@ -65,7 +65,7 @@ MIGRATIONS_DIR = Path(__file__).with_name("migraciones")
 # desde verificación, sin un carril nuevo; la 0028 anota en cada fase los
 # archivos que cambiaron entre dos fotos del árbol, sin watcher: se fotografía
 # al entrar en roadmap y al cerrar una fase.
-SCHEMA_VERSION = 28
+SCHEMA_VERSION = 29
 
 REPOS_ROOT_ENV_VAR = "EVENTSUI_REPOS_ROOT"
 BUSY_TIMEOUT_MS = 5_000
@@ -639,19 +639,54 @@ def _requisitos(conn: sqlite3.Connection, uid: str) -> dict[int, list[dict[str, 
 def _archivos(conn: sqlite3.Connection, uid: str) -> dict[int, list[dict[str, Any]]]:
     """Los archivos anotados en cada fase (0028), por orden de fase.
 
-    Es la ficha: aquí sí viene el contenido (el parche de Git, si lo hubo). El
-    mapa los pide sin contenido con `_fases_en_lote` para no arrastrar parches.
+    Cada fila cuelga de un requisito (`requisito_orden`) o de la fase entera
+    (`0`). Es la ficha: aquí sí viene el contenido (el parche de Git, si lo
+    hubo). El mapa los pide sin contenido con `_fases_en_lote` para no
+    arrastrar parches.
     """
     por_fase: dict[int, list[dict[str, Any]]] = {}
     for fila in conn.execute(
-        "SELECT fase_orden, ruta, estado, contenido FROM idea_fase_archivo"
-        " WHERE idea_uid = ? ORDER BY fase_orden, ruta",
+        "SELECT fase_orden, requisito_orden, ruta, estado, desde, contenido"
+        " FROM idea_fase_archivo WHERE idea_uid = ?"
+        " ORDER BY fase_orden, requisito_orden, ruta",
         (uid,),
     ):
         por_fase.setdefault(int(fila["fase_orden"]), []).append(
-            {"ruta": fila["ruta"], "estado": fila["estado"], "contenido": fila["contenido"]}
+            {
+                "requisito_orden": int(fila["requisito_orden"]),
+                "ruta": fila["ruta"],
+                "estado": fila["estado"],
+                "desde": fila["desde"],
+                "contenido": fila["contenido"],
+            }
         )
     return por_fase
+
+
+def _con_archivos(
+    fase: dict[str, Any], requisitos: list[dict[str, Any]], archivos: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """Cuelga cada archivo de su requisito y deja la lista entera en la fase.
+
+    Un archivo con `requisito_orden` 0 no se pudo atar a un requisito (lo cerró
+    la fase, se marcaron varios a la vez o quedó suelto): se queda en la fase.
+    La fase suma siempre todo, así el cierre sigue enseñando el total.
+    """
+    por_requisito: dict[int, list[dict[str, Any]]] = {}
+    for archivo in archivos:
+        limpio = {clave: valor for clave, valor in archivo.items() if clave != "requisito_orden"}
+        por_requisito.setdefault(int(archivo["requisito_orden"]), []).append(limpio)
+    return {
+        **fase,
+        "requisitos": [
+            {**requisito, "archivos": por_requisito.get(int(requisito["orden"]), [])}
+            for requisito in requisitos
+        ],
+        "archivos": [
+            {clave: valor for clave, valor in archivo.items() if clave != "requisito_orden"}
+            for archivo in archivos
+        ],
+    }
 
 
 def _fases(conn: sqlite3.Connection, uid: str) -> list[dict[str, Any]]:
@@ -664,11 +699,11 @@ def _fases(conn: sqlite3.Connection, uid: str) -> list[dict[str, Any]]:
     requisitos = _requisitos(conn, uid)
     anotados = _archivos(conn, uid)
     return [
-        {
-            **dict(fila),
-            "requisitos": requisitos.get(int(fila["orden"]), []),
-            "archivos": anotados.get(int(fila["orden"]), []),
-        }
+        _con_archivos(
+            dict(fila),
+            requisitos.get(int(fila["orden"]), []),
+            anotados.get(int(fila["orden"]), []),
+        )
         for fila in filas
     ]
 
@@ -697,12 +732,19 @@ def _fases_en_lote(conn: sqlite3.Connection, uids: list[str]) -> dict[str, list[
     # recuento y la ruta, no el parche (eso es la ficha, una idea a la vez).
     anotados: dict[tuple[str, int], list[dict[str, Any]]] = {}
     for fila in conn.execute(
-        "SELECT idea_uid, fase_orden, ruta, estado FROM idea_fase_archivo"
-        f" WHERE idea_uid IN ({marcas}) ORDER BY idea_uid, fase_orden, ruta",
+        "SELECT idea_uid, fase_orden, requisito_orden, ruta, estado, desde"
+        " FROM idea_fase_archivo"
+        f" WHERE idea_uid IN ({marcas}) ORDER BY idea_uid, fase_orden, requisito_orden, ruta",
         uids,
     ):
         anotados.setdefault((str(fila["idea_uid"]), int(fila["fase_orden"])), []).append(
-            {"ruta": fila["ruta"], "estado": fila["estado"], "contenido": None}
+            {
+                "requisito_orden": int(fila["requisito_orden"]),
+                "ruta": fila["ruta"],
+                "estado": fila["estado"],
+                "desde": fila["desde"],
+                "contenido": None,
+            }
         )
     for fila in conn.execute(
         "SELECT idea_uid, orden, titulo, estado, nota, entered_at"
@@ -711,15 +753,17 @@ def _fases_en_lote(conn: sqlite3.Connection, uids: list[str]) -> dict[str, list[
     ):
         uid = str(fila["idea_uid"])
         por_uid[uid].append(
-            {
-                "orden": fila["orden"],
-                "titulo": fila["titulo"],
-                "estado": fila["estado"],
-                "nota": fila["nota"],
-                "entered_at": fila["entered_at"],
-                "requisitos": requisitos.get((uid, int(fila["orden"])), []),
-                "archivos": anotados.get((uid, int(fila["orden"])), []),
-            }
+            _con_archivos(
+                {
+                    "orden": fila["orden"],
+                    "titulo": fila["titulo"],
+                    "estado": fila["estado"],
+                    "nota": fila["nota"],
+                    "entered_at": fila["entered_at"],
+                },
+                requisitos.get((uid, int(fila["orden"])), []),
+                anotados.get((uid, int(fila["orden"])), []),
+            )
         )
     return por_uid
 
@@ -1161,6 +1205,13 @@ def create_idea(
             (uid, ts),
         )
         _escribir_estado(conn, uid, status, {})
+        # Nacer ya en roadmap también es entrar: sin foto de partida, la primera
+        # fase anotaría como suyo todo el árbol que ya estaba.
+        if _grupo(status) == "roadmap":
+            try:
+                _foto_guardar(conn, uid, archivos.foto(resolve_repo(repo)))
+            except OSError as exc:
+                registro.escribir("aviso", f"No se pudo fotografiar el árbol de {uid}: {exc}")
         _emitir(conn, "idea.created", {"uid": uid, "title": title})
         conn.commit()
     return get_idea(repo, uid)
@@ -1515,17 +1566,32 @@ def _foto_guardar(conn: sqlite3.Connection, uid: str, estado: dict[str, tuple[in
 
 
 def _escribir_archivos(
-    conn: sqlite3.Connection, uid: str, orden: int, cambios: list[dict[str, Any]]
+    conn: sqlite3.Connection,
+    uid: str,
+    orden: int,
+    requisito: int,
+    cambios: list[dict[str, Any]],
 ) -> None:
-    """Reemplaza los archivos anotados de una fase (un reintento los rehace)."""
+    """Reemplaza los archivos de una fase o de uno de sus requisitos (0029)."""
     conn.execute(
-        "DELETE FROM idea_fase_archivo WHERE idea_uid = ? AND fase_orden = ?", (uid, orden)
+        "DELETE FROM idea_fase_archivo"
+        " WHERE idea_uid = ? AND fase_orden = ? AND requisito_orden = ?",
+        (uid, orden, requisito),
     )
     conn.executemany(
-        "INSERT INTO idea_fase_archivo (idea_uid, fase_orden, ruta, estado, contenido)"
-        " VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO idea_fase_archivo"
+        " (idea_uid, fase_orden, requisito_orden, ruta, estado, desde, contenido)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?)",
         [
-            (uid, orden, cambio["ruta"], cambio["estado"], cambio.get("contenido"))
+            (
+                uid,
+                orden,
+                requisito,
+                cambio["ruta"],
+                cambio["estado"],
+                cambio.get("desde"),
+                cambio.get("contenido"),
+            )
             for cambio in cambios
         ],
     )
@@ -1540,13 +1606,14 @@ def _anotar_archivos(
     *,
     inicio: bool,
 ) -> None:
-    """Anota en cada fase que se cierra los archivos que cambiaron (0028).
+    """Anota los archivos que cambiaron, por fase y por requisito (0029).
 
     Se comparan dos fotos del árbol, no se vigila nada: la de partida es la
     última guardada (o la de la entrada en roadmap, que es donde empieza el
-    trabajo). Sin foto previa no se inventa un cambio: se toma la primera y la
-    fase siguiente ya mide de verdad. Sin Git la foto da rutas y estado; con Git
-    se añade el parche (`archivos.contenidos`).
+    trabajo). Cada evento —cerrar una fase o marcar un requisito— se lleva lo
+    que cambió desde la foto anterior. Sin foto previa no se inventa un cambio:
+    se toma la primera y el evento siguiente ya mide de verdad. Sin Git la foto
+    da rutas y estado; con Git se añade el parche (`archivos.contenidos`).
 
     Un fallo del árbol no puede tumbar el PATCH: la fase se cierra igual y el
     aviso queda en el registro.
@@ -1562,10 +1629,15 @@ def _anotar_archivos(
     else:
         conn.execute("DELETE FROM idea_fase_archivo WHERE idea_uid = ?", (uid,))
 
-    cierres: list[dict[str, Any]] = []
+    # Cada evento pendiente es (fase, requisito); el requisito 0 es «la fase».
+    eventos: list[tuple[int, int]] = []
     for fase in despues:
         orden = int(fase["orden"])
         previa = previas.get(orden)
+        hechos_antes = {
+            int(requisito["orden"]): bool(requisito["hecho"])
+            for requisito in (previa or {}).get("requisitos", [])
+        }
         if previa is None:
             # Una fase nueva con un número que fue de otra no hereda sus archivos.
             conn.execute(
@@ -1579,9 +1651,33 @@ def _anotar_archivos(
                 (uid, orden),
             )
         elif fase["estado"] in FASE_CIERRE and previa["estado"] != fase["estado"]:
-            cierres.append(fase)
+            eventos.append((orden, 0))
+        else:
+            hechos_ahora = {
+                int(requisito["orden"]) for requisito in fase["requisitos"] if requisito["hecho"]
+            }
+            # Un requisito que vuelve a estar pendiente (o que ya no existe)
+            # suelta lo suyo: si se repite, se vuelve a medir.
+            for orden_requisito in sorted(set(hechos_antes) - hechos_ahora):
+                conn.execute(
+                    "DELETE FROM idea_fase_archivo"
+                    " WHERE idea_uid = ? AND fase_orden = ? AND requisito_orden = ?",
+                    (uid, orden, orden_requisito),
+                )
+            nuevos = sorted(
+                orden_requisito
+                for orden_requisito in hechos_ahora
+                if not hechos_antes.get(orden_requisito)
+            )
+            if len(nuevos) == 1:
+                eventos.append((orden, nuevos[0]))
+            elif nuevos:
+                # Varios a la vez: no hay forma de repartir el trabajo entre
+                # ellos, así que se anota en la fase y cada uno se queda sin
+                # lista propia.
+                eventos.append((orden, 0))
 
-    if not cierres and not inicio:
+    if not eventos and not inicio:
         return
 
     try:
@@ -1594,7 +1690,7 @@ def _anotar_archivos(
         )
         if inicio:
             base = archivos.foto(carpeta)
-        for fase in sorted(cierres, key=lambda anotada: int(anotada["orden"])):
+        for orden, requisito in eventos:
             ahora = archivos.foto(carpeta)
             if base is None:
                 # Primera foto: no hay contra qué comparar, así que no se anota
@@ -1603,9 +1699,10 @@ def _anotar_archivos(
                 break
             cambios = archivos.cambios(base, ahora)
             archivos.contenidos(carpeta, cambios)
-            _escribir_archivos(conn, uid, int(fase["orden"]), cambios)
+            _escribir_archivos(conn, uid, orden, requisito, cambios)
             base = ahora
-        _foto_guardar(conn, uid, base)
+        if base is not None:
+            _foto_guardar(conn, uid, base)
     except OSError as exc:
         registro.escribir("aviso", f"No se pudieron anotar los archivos de {uid}: {exc}")
 

@@ -142,18 +142,53 @@ def cambios(
     `nuevo` es lo que no estaba, `borrado` lo que ya no está y `modificado` lo
     que cambió de tamaño o de fecha. Una idea que no tocó nada da lista vacía:
     no se inventa un cambio por el simple paso del tiempo.
+
+    Mover un archivo sin Git deja un borrado y un nuevo con la misma huella
+    (tamaño y fecha se conservan): se juntan en una fila `renombrado` con su
+    `desde`, para no contar dos veces el mismo trabajo.
     """
     resultado: list[dict[str, Any]] = []
     for ruta, huella in ahora.items():
         previa = antes.get(ruta)
         if previa is None:
-            resultado.append({"ruta": ruta, "estado": "nuevo", "contenido": None})
+            resultado.append({"ruta": ruta, "estado": "nuevo", "contenido": None, "desde": None})
         elif previa != huella:
-            resultado.append({"ruta": ruta, "estado": "modificado", "contenido": None})
+            resultado.append(
+                {"ruta": ruta, "estado": "modificado", "contenido": None, "desde": None}
+            )
     for ruta in antes:
         if ruta not in ahora:
-            resultado.append({"ruta": ruta, "estado": "borrado", "contenido": None})
-    return sorted(resultado, key=lambda cambio: str(cambio["ruta"]))
+            resultado.append({"ruta": ruta, "estado": "borrado", "contenido": None, "desde": None})
+    return sorted(_juntar_renombrados(resultado, antes, ahora), key=lambda c: str(c["ruta"]))
+
+
+def _juntar_renombrados(
+    cambios: list[dict[str, Any]],
+    antes: dict[str, tuple[int, int]],
+    ahora: dict[str, tuple[int, int]],
+) -> list[dict[str, Any]]:
+    """Empareja cada nuevo con el borrado que tiene su misma huella.
+
+    Se indexa por huella para no comparar todos con todos: un árbol grande no
+    puede convertir esto en un cuadrado. Un archivo copiado y borrado encaja
+    igual que un `mv`, y en los dos casos es el mismo cambio visto desde fuera.
+    """
+    borrados: dict[tuple[int, int], list[str]] = {}
+    for cambio in cambios:
+        if cambio["estado"] == "borrado":
+            borrados.setdefault(antes[str(cambio["ruta"])], []).append(str(cambio["ruta"]))
+    juntados: list[dict[str, Any]] = []
+    anulados: set[str] = set()
+    for cambio in cambios:
+        if cambio["estado"] == "nuevo":
+            candidatos = borrados.get(ahora[str(cambio["ruta"])])
+            if candidatos:
+                viejo = candidatos.pop(0)
+                anulados.add(viejo)
+                juntados.append({**cambio, "estado": "renombrado", "desde": viejo})
+                continue
+        juntados.append(cambio)
+    return [cambio for cambio in juntados if str(cambio["ruta"]) not in anulados]
 
 
 def _partir_diff(texto: str, rutas: set[str]) -> dict[str, str]:
@@ -198,10 +233,11 @@ def _leer_texto(fichero: Path) -> str | None:
 def contenidos(carpeta: Path, cambios: list[dict[str, Any]]) -> None:
     """Rellena `contenido` en cada cambio: parche de Git o texto del nuevo.
 
-    Los modificados y los borrados salen de un solo `git diff HEAD` —incluye lo
-    preparado y lo que no—, que es justo lo que añade Git a la foto. Los nuevos
-    no aparecen en un diff, así que se leen enteros (con su tope). Sin Git, o
-    sin commits todavía, se quedan sin contenido: la ruta y el estado bastan.
+    Los modificados, los borrados y los renombrados salen de un solo
+    `git diff HEAD` —incluye lo preparado y lo que no—, que es justo lo que
+    añade Git a la foto. Los nuevos no aparecen en un diff, así que se leen
+    enteros (con su tope). Sin Git, o sin commits todavía, se quedan sin
+    contenido: la ruta y el estado bastan.
     """
     if not cambios or not hay_git(carpeta):
         return

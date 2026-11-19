@@ -91,7 +91,29 @@ def test_sin_git_anota_el_borrado(client, tmp_path):  # noqa: ANN001, ANN202
     (carpeta / "se-va.txt").unlink()
     fase = _cerrar(client, carpeta, uid)
 
-    assert fase["archivos"] == [{"ruta": "se-va.txt", "estado": "borrado", "contenido": None}]
+    assert fase["archivos"] == [
+        {"ruta": "se-va.txt", "estado": "borrado", "desde": None, "contenido": None}
+    ]
+
+
+def test_sin_git_un_renombrado_es_una_sola_fila(client, tmp_path):  # noqa: ANN001, ANN202
+    """Mover un archivo conserva su huella: no son un borrado y un nuevo."""
+    carpeta = tmp_path / "renombrado"
+    carpeta.mkdir()
+    (carpeta / "viejo.txt").write_text("contenido", encoding="utf-8")
+    uid = _en_roadmap(client, carpeta)
+
+    (carpeta / "viejo.txt").rename(carpeta / "nuevo.txt")
+    fase = _cerrar(client, carpeta, uid)
+
+    assert fase["archivos"] == [
+        {
+            "ruta": "nuevo.txt",
+            "estado": "renombrado",
+            "desde": "viejo.txt",
+            "contenido": None,
+        }
+    ]
 
 
 def test_cada_cierre_mide_desde_el_anterior(client, tmp_path):  # noqa: ANN001, ANN202
@@ -198,3 +220,109 @@ def test_con_git_guarda_el_parche(client, tmp_path):  # noqa: ANN001, ANN202
     assert "hola" in (por_ruta["nuevo.txt"]["contenido"] or "")
     # La base del repo se escribe sola: no es un archivo de la fase.
     assert all(".EUI" not in archivo["ruta"] for archivo in fase["archivos"])
+
+
+def _fases_payload(client, carpeta: Path, uid: str):  # noqa: ANN001, ANN202
+    """Las fases como payload del PATCH, para retocarlas en el test."""
+    ficha = client.get(f"/ideas/{uid}", params={"repo": str(carpeta)}).json()
+    return [
+        {
+            "orden": fase["orden"],
+            "titulo": fase["titulo"],
+            "estado": fase["estado"],
+            "requisitos": [
+                {
+                    "orden": requisito["orden"],
+                    "titulo": requisito["titulo"],
+                    "hecho": requisito["hecho"],
+                }
+                for requisito in fase["requisitos"]
+            ],
+        }
+        for fase in ficha["fases"]
+    ]
+
+
+def _guardar_fases(client, carpeta: Path, uid: str, fases):  # noqa: ANN001, ANN202
+    """Manda las fases y devuelve la idea tal como queda."""
+    r = client.patch(f"/ideas/{uid}", params={"repo": str(carpeta)}, json={"fases": fases})
+    assert r.status_code == 200, r.json()
+    return r.json()
+
+
+def test_marcar_un_requisito_anota_lo_suyo(client, tmp_path):  # noqa: ANN001, ANN202
+    """El evento es el requisito: lo que cambió hasta marcarlo es lo suyo."""
+    carpeta = tmp_path / "requisito"
+    carpeta.mkdir()
+    uid = _en_roadmap(client, carpeta)
+    (carpeta / "pieza.py").write_text("x", encoding="utf-8")
+
+    fases = _fases_payload(client, carpeta, uid)
+    fases[0]["requisitos"][0]["hecho"] = True
+    idea = _guardar_fases(client, carpeta, uid, fases)
+
+    assert [archivo["ruta"] for archivo in idea["fases"][0]["requisitos"][0]["archivos"]] == [
+        "pieza.py"
+    ]
+    # La fase suma lo de sus requisitos: el cierre sigue enseñando el total.
+    assert [archivo["ruta"] for archivo in idea["fases"][0]["archivos"]] == ["pieza.py"]
+
+
+def test_dos_requisitos_a_la_vez_se_quedan_en_la_fase(client, tmp_path):  # noqa: ANN001, ANN202
+    """Marcar varios en el mismo PATCH no se puede repartir: va a la fase."""
+    carpeta = tmp_path / "tanda"
+    carpeta.mkdir()
+    uid = _en_roadmap(client, carpeta)
+
+    fases = _fases_payload(client, carpeta, uid)
+    fases[0]["requisitos"].append({"orden": 2, "titulo": "Y el otro"})
+    _guardar_fases(client, carpeta, uid, fases)
+
+    (carpeta / "dos.py").write_text("x", encoding="utf-8")
+    fases = _fases_payload(client, carpeta, uid)
+    for requisito in fases[0]["requisitos"]:
+        requisito["hecho"] = True
+    idea = _guardar_fases(client, carpeta, uid, fases)
+
+    assert all(not requisito["archivos"] for requisito in idea["fases"][0]["requisitos"])
+    assert [archivo["ruta"] for archivo in idea["fases"][0]["archivos"]] == ["dos.py"]
+
+
+def test_destildar_un_requisito_suelta_sus_archivos(client, tmp_path):  # noqa: ANN001, ANN202
+    """Volver a pendiente es deshacer: lo anotado se va con él."""
+    carpeta = tmp_path / "destildado"
+    carpeta.mkdir()
+    uid = _en_roadmap(client, carpeta)
+    (carpeta / "pieza.py").write_text("x", encoding="utf-8")
+
+    fases = _fases_payload(client, carpeta, uid)
+    fases[0]["requisitos"][0]["hecho"] = True
+    assert _guardar_fases(client, carpeta, uid, fases)["fases"][0]["archivos"]
+
+    fases = _fases_payload(client, carpeta, uid)
+    fases[0]["requisitos"][0]["hecho"] = False
+    idea = _guardar_fases(client, carpeta, uid, fases)
+
+    assert idea["fases"][0]["requisitos"][0]["archivos"] == []
+    assert idea["fases"][0]["archivos"] == []
+
+
+def test_nacer_en_roadmap_toma_la_foto_de_partida(client, tmp_path):  # noqa: ANN001, ANN202
+    """Crear la idea ya en roadmap no puede anotar todo el árbol existente."""
+    carpeta = tmp_path / "ya-en-roadmap"
+    carpeta.mkdir()
+    (carpeta / "viejo.txt").write_text("antes", encoding="utf-8")
+
+    r = client.post(
+        "/ideas",
+        params={"repo": str(carpeta)},
+        json={"title": "A", "status": "roadmap"},
+    )
+    assert r.status_code == 201, r.json()
+    uid = r.json()["uid"]
+    fases = [{"titulo": "Diseño", "requisitos": [{"titulo": "Cubre el borde"}]}]
+    assert _guardar_fases(client, carpeta, uid, fases)["fases"][0]["archivos"] == []
+
+    (carpeta / "nuevo.txt").write_text("después", encoding="utf-8")
+    fase = _cerrar(client, carpeta, uid)
+    assert [archivo["ruta"] for archivo in fase["archivos"]] == ["nuevo.txt"]

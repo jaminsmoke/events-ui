@@ -164,8 +164,12 @@ con el motivo, para no reabrirlo cada semana.
   árbol al entrar en roadmap y al cerrar la fase, y el cambio es la diferencia
   entre las dos. Sin Git se anotan ruta y estado; con Git, además, el parche de
   cada archivo (acotado por tamaño). El mapa resume con un contador y la ficha
-  lista los archivos; al pulsar uno con parche se despliega el cambio. Cubierto
-  en `services/core/tests/test_archivos.py` y `e2e/escenarios/archivos-fase.mjs`.
+  lista los archivos; al pulsar uno con parche se despliega el cambio. Desde la
+  0029 el evento también puede ser un requisito: lo que cambió hasta marcarlo es
+  lo suyo, y la fase suma siempre a sus requisitos. Un archivo movido se anota
+  una vez como `renombrado` (con su `desde`), también sin Git, y una idea que
+  nace en roadmap toma su foto de partida. Cubierto en
+  `services/core/tests/test_archivos.py` y `e2e/escenarios/archivos-fase.mjs`.
 - **Formato de etiquetas**: `tags` es una lista JSON de cadenas en el
   esquema (migración 0017, que sanea `{}` y los elementos no textuales) y en
   la API (422 con valores que no son cadenas); una fila antigua se lee como

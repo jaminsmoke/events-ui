@@ -7,10 +7,24 @@ function git(carpeta, ...args) {
   return execFileSync("git", ["-C", carpeta, ...args], { encoding: "utf8" });
 }
 
+/** Las fases de la idea como payload del PATCH: lo que llega es lo que queda. */
+function fasesDe(idea) {
+  return idea.fases.map((fase) => ({
+    orden: fase.orden,
+    titulo: fase.titulo,
+    estado: fase.estado,
+    requisitos: fase.requisitos.map((requisito) => ({
+      orden: requisito.orden,
+      titulo: requisito.titulo,
+      hecho: requisito.hecho,
+    })),
+  }));
+}
+
 export default {
   nombre: "archivos-fase",
   descripcion:
-    "Cerrar una fase anota sus archivos, con el parche cuando hay Git, y la ficha los enseña",
+    "Marcar un requisito y cerrar la fase anotan sus archivos, con el parche si hay Git",
   run: async ({ page, UI, api, esperar, expect, resultado, tmp }) => {
     const lab = path.join(tmp, "repos", "lab");
     const cabeceras = { "content-type": "application/json" };
@@ -42,29 +56,37 @@ export default {
       const idea = async () => (await api(`/ideas/${uid}?repo=lab`)).data;
 
       // Entrar en roadmap toma la foto de partida; lo que se toque después es
-      // lo que toca la fase.
+      // lo que toca el evento siguiente.
       const aRoadmap = await mover({
         status: "roadmap",
         fases: [{ titulo: "Diseño", requisitos: [{ titulo: "Cubre el borde" }] }],
       });
       expect(aRoadmap.status === 200, `no se pudo entrar en roadmap: ${aRoadmap.status}`);
+
+      // Un requisito marcado es un evento: lo que cambió hasta ahí es lo suyo.
       writeFileSync(path.join(lab, "nota.txt"), "uno\ndos\n");
+      const conRequisito = fasesDe(await idea());
+      conRequisito[0].requisitos[0].hecho = true;
+      const marcado = await mover({ fases: conRequisito });
+      expect(marcado.status === 200, `no se pudo marcar el requisito: ${marcado.status}`);
+      const requisito = (await idea()).fases[0].requisitos[0];
+      expect(
+        requisito.archivos.some(
+          (archivo) => archivo.ruta === "nota.txt" && archivo.estado === "modificado",
+        ),
+        "el archivo modificado debe quedar anotado en el requisito",
+      );
+
+      // Cerrar la fase es otro evento: se lleva lo que quedó después.
       writeFileSync(path.join(lab, "nuevo.txt"), "hola\n");
-      const cerrar = await mover({
-        fases: [
-          {
-            orden: 1,
-            titulo: "Diseño",
-            estado: "completada",
-            requisitos: [{ orden: 1, titulo: "Cubre el borde", hecho: true }],
-          },
-        ],
-      });
-      expect(cerrar.status === 200, `no se pudo cerrar la fase: ${cerrar.status}`);
+      const aCerrar = fasesDe(await idea());
+      aCerrar[0].estado = "completada";
+      const cerrado = await mover({ fases: aCerrar });
+      expect(cerrado.status === 200, `no se pudo cerrar la fase: ${cerrado.status}`);
       const archivos = (await idea()).fases[0].archivos;
       expect(
         archivos.some((archivo) => archivo.ruta === "nota.txt" && archivo.estado === "modificado"),
-        "el archivo modificado debe quedar anotado en la fase",
+        "el archivo del requisito también cuenta en la fase",
       );
       expect(
         archivos.some((archivo) => archivo.ruta === "nuevo.txt" && archivo.estado === "nuevo"),
@@ -75,7 +97,7 @@ export default {
         "la base del repo no es trabajo de la fase",
       );
 
-      // La UI: el chip en la fila y el parche en la ficha.
+      // La UI: el chip en la fila y el parche en la ficha, por requisito y fase.
       await page.goto(UI, { waitUntil: "domcontentloaded" });
       const selector = page.getByRole("button", { name: "lab", exact: true });
       const pruebas = page.getByRole("button", { name: "Pruebas", exact: true });
@@ -94,21 +116,25 @@ export default {
       await fila.getByRole("button", { name: /Fases · 1\/1/ }).click();
       const ficha = page.getByRole("dialog", { name: "Fases de la idea" });
       await ficha.waitFor();
+      const requisitoUI = ficha.locator(".ficha-requisito").first();
       await esperar(
-        () => ficha.locator(".ficha-archivo").count().then((n) => n === 2),
-        "los dos archivos en la ficha",
+        () => requisitoUI.locator("button.archivo-abrir").count().then((n) => n >= 1),
+        "el archivo del requisito en la ficha",
         15_000,
+      );
+      expect(
+        (await requisitoUI.locator(".ficha-archivo code").allInnerTexts()).includes("nota.txt"),
+        "el requisito debe enseñar su archivo",
+      );
+      expect(
+        (await ficha.locator(".ficha-fase > .ficha-archivos .ficha-archivo").count()) === 2,
+        "la fase debe enseñar los dos archivos",
       );
 
       // El parche se pide al abrir la ficha: el botón llega con el contenido.
-      const modificado = ficha.locator(".ficha-archivo", { hasText: "nota.txt" }).first();
-      await esperar(
-        () => modificado.locator("button.archivo-abrir").count().then((n) => n === 1),
-        "el parche de nota.txt",
-        15_000,
-      );
-      await modificado.locator("button.archivo-abrir").click();
-      const parche = modificado.locator(".ficha-parche");
+      const delRequisito = requisitoUI.locator(".ficha-archivo", { hasText: "nota.txt" }).first();
+      await delRequisito.locator("button.archivo-abrir").click();
+      const parche = delRequisito.locator(".ficha-parche");
       await parche.waitFor();
       expect(
         (await parche.innerText()).includes("+dos"),

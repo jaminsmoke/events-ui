@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { z } from "zod";
 
 import { api, unwrap } from "./api";
+import { suscribirSondeo } from "./sondeo";
 import type { Status } from "../mapa/carriles";
 
 /** Los protocolos de flujo (`GET /protocolos`): la allowlist de uniones
@@ -12,6 +13,9 @@ import type { Status } from "../mapa/carriles";
  *  La UI solo apaga lo prohibido (el core impone de verdad y responde 400):
  *  sin protocolos cargados aún o si la respuesta no valida, se ofrece todo
  *  y el core decide.
+ *
+ *  Se refresca con el latido compartido de `sondeo`, uno de cada tres (~6 s):
+ *  es configuración y cambia poco.
  */
 const Grupo = z.enum([
   "draft",
@@ -83,15 +87,19 @@ export function useProtocolos(repo: string | null): ProtocolosFlujo {
 
   useEffect(() => {
     if (!repo) return;
-    const controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout> | undefined;
+    let vivo = true;
+    let ocupado = false;
+    let latido = 0;
+
     const vigilar = async () => {
+      if (latido++ % 3 !== 0 || ocupado) return;
+      ocupado = true;
       try {
         const datos = await unwrap(
-          api.GET("/protocolos", { params: { query: { repo } }, signal: controller.signal }),
+          api.GET("/protocolos", { params: { query: { repo } } }),
         );
         const filas = Protocolos.parse(datos);
-        if (!controller.signal.aborted) {
+        if (vivo) {
           setEstado({
             repo,
             pares: new Set(filas.map((f) => `${f.origen}→${f.destino}`)),
@@ -111,13 +119,15 @@ export function useProtocolos(repo: string | null): ProtocolosFlujo {
       } catch {
         // Sin protocolos se deja la puerta como estaba: el core manda.
       } finally {
-        if (!controller.signal.aborted) timer = setTimeout(vigilar, 5000);
+        ocupado = false;
       }
     };
+
+    const baja = suscribirSondeo(() => void vigilar());
     void vigilar();
     return () => {
-      controller.abort();
-      clearTimeout(timer);
+      vivo = false;
+      baja();
     };
   }, [repo]);
 

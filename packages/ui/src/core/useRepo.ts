@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { api, unwrap } from "./api";
+import { suscribirSondeo } from "./sondeo";
 import type { IdeaCreate, IdeaUpdate, Mapa, ProyeccionRepo, Reinicio } from "./api";
 import { STORAGE_KEY } from "./repo";
 
@@ -13,29 +14,32 @@ type Fallo = { repo: string; mensaje: string };
  *
  *  El refresco no es un watcher de ficheros: se pregunta `GET /revision`, cuya
  *  firma sale de `PRAGMA data_version` del almacén. Si cambia, se relee el mapa.
- *  Se esperan 2 s entre intentos para que las lecturas no se solapen. */
+ *  El ritmo lo marca `sondeo`: un latido común cada 2 s que se para con la
+ *  ventana oculta; si un turno llega con una lectura en vuelo, se salta. */
 export function useRepo(repo: string | null) {
   const [cargado, setCargado] = useState<Cargado | null>(null);
   const [fallo, setFallo] = useState<Fallo | null>(null);
 
   // Los `setState` van en continuaciones async, nunca en el cuerpo del efecto;
-  // el abort cancela lo pendiente si se cambia de repo a mitad.
+  // si se cambia de repo a mitad, `vivo` descarta lo que llegue tarde.
   //
   // El core siembra el almacén si falta; un 404 aquí es que la carpeta no existe.
   useEffect(() => {
     if (!repo) return;
-    const controller = new AbortController();
+    let vivo = true;
+    let ocupado = false;
     let firma: string | null = null;
-    let timer: ReturnType<typeof setTimeout> | undefined;
 
     const vigilar = async () => {
+      if (ocupado) return;
+      ocupado = true;
       try {
-        const rev = await unwrap(api.GET("/revision", { params: { query: { repo } }, signal: controller.signal }));
-        if (controller.signal.aborted) return;
+        const rev = await unwrap(api.GET("/revision", { params: { query: { repo } } }));
+        if (!vivo) return;
         const actual = `${rev.instance}/${rev.data_version}/${rev.ideas}`;
         if (actual !== firma) {
-          const mapa: Mapa = await unwrap(api.GET("/mapa", { params: { query: { repo } }, signal: controller.signal }));
-          if (controller.signal.aborted) return;
+          const mapa: Mapa = await unwrap(api.GET("/mapa", { params: { query: { repo } } }));
+          if (!vivo) return;
           if (firma === null) {
             try {
               localStorage.setItem(STORAGE_KEY, repo);
@@ -48,18 +52,19 @@ export function useRepo(repo: string | null) {
         }
         setFallo(null);
       } catch (err) {
-        if (!controller.signal.aborted) {
+        if (vivo) {
           setFallo({ repo, mensaje: err instanceof Error ? err.message : String(err) });
         }
       } finally {
-        if (!controller.signal.aborted) timer = setTimeout(vigilar, 2000);
+        ocupado = false;
       }
     };
 
+    const baja = suscribirSondeo(() => void vigilar());
     void vigilar();
     return () => {
-      controller.abort();
-      clearTimeout(timer);
+      vivo = false;
+      baja();
     };
   }, [repo]);
 
@@ -130,35 +135,40 @@ export function useRepo(repo: string | null) {
     datos: ProyeccionRepo;
   } | null>(null);
 
+  // La proyección cambia poco: se pide uno de cada tres latidos (~6 s) y al
+  // montar, en vez de con su propio temporizador.
   useEffect(() => {
     if (!repo) return;
-    const controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout> | undefined;
+    let vivo = true;
+    let ocupado = false;
+    let latido = 0;
+
     const vigilar = async () => {
+      if (latido++ % 3 !== 0 || ocupado) return;
+      ocupado = true;
       try {
         const p: ProyeccionRepo = await unwrap(
-          api.GET("/proyecciones/repo", {
-            params: { query: { repo } },
-            signal: controller.signal,
-          }),
+          api.GET("/proyecciones/repo", { params: { query: { repo } } }),
         );
-        if (!controller.signal.aborted) setProyeccionEstado({ repo, datos: p });
+        if (vivo) setProyeccionEstado({ repo, datos: p });
       } catch {
         // La proyección no bloquea el mapa: si falla, simplemente no se ve.
       } finally {
-        if (!controller.signal.aborted) timer = setTimeout(vigilar, 5000);
+        ocupado = false;
       }
     };
+
+    const baja = suscribirSondeo(() => void vigilar());
     void vigilar();
     return () => {
-      controller.abort();
-      clearTimeout(timer);
+      vivo = false;
+      baja();
     };
   }, [repo]);
 
   // Crear o eliminar el repo local: la respuesta ya trae la proyección
   // actualizada, así que el puente y la pestaña reaccionan al instante sin
-  // esperar al sondeo de 5 s.
+  // esperar al siguiente latido.
   const crearRepoGit = useCallback(async (): Promise<ProyeccionRepo | null> => {
     if (!repo) return null;
     const p: ProyeccionRepo = await unwrap(api.POST("/git/inicializar", { params: { query: { repo } } }));

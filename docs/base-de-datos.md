@@ -2,7 +2,7 @@
 
 Cada repositorio guarda sus ideas, relaciones y protocolos en
 `.EUI/EUI_DATABASE.sqlite`. El core activa WAL y las claves foráneas en sus
-conexiones de escritura. La versión del esquema de ideas es 26. El registro
+conexiones de escritura. La versión del esquema de ideas es 29. El registro
 operativo de la aplicación vive en otro fichero y abarca varios repositorios.
 
 ## Tablas y relaciones
@@ -11,6 +11,9 @@ operativo de la aplicación vive en otro fichero y abarca varios repositorios.
 | --- | --- | --- |
 | `idea_data` | `id` local y `uid` único | Qué es la idea: título, descripción, contenido, tipo, etiquetas, intentos acumulados de verificación, fechas y sus dependencias (`depende_de`, migración 0018). Las relaciones usan el UID. |
 | `idea_fase` | Una fila por fase y orden | Descomposición de la idea en trabajo: título, estado (`pendiente`, `completada`, `fallida`, `rechazada`), nota y cuándo entró en ese estado. Cuelga de `idea_data`, así que sobrevive a los cambios de carril. |
+| `idea_requisito` | Una fila por requisito de una fase | Criterio de hecho que cierra la fase: título, `hecho` y `done_at`. Cuelga de `idea_fase` con borrado en cascada y no tiene estado propio. |
+| `idea_foto` | Una fila por idea | Última foto del árbol, `ruta<TAB>tamaño<TAB>mtime_ns` por línea. Es el punto desde el que se mide el cierre de cada fase; una idea que nace en roadmap toma la suya al crearse. |
+| `idea_fase_archivo` | Una fila por archivo anotado | Lo que cambió mientras una fase o un requisito estuvo abierto: `estado` (`nuevo`, `modificado`, `borrado`, `renombrado`), `desde` en el renombrado y el parche de Git acotado por tamaño. `requisito_orden = 0` es «de la fase». |
 | `idea_node` | Una fila por UID | Dónde está: `estado`, `posicion` (solo en cola) y `entered_at`, la fecha de entrada en el carril actual. La entrada (`draft`) es un estado más; el historial es terminal. |
 | `roadmap_node` | Una fila por UID mientras dura | Resultado y referencia del trabajo en curso. Un índice parcial impide dos ideas en roadmap. |
 | `verificacion_node` | Una fila por UID mientras dura | Intentos de la estancia, último resultado, comentario y fecha de finalización del roadmap previo. |

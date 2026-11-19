@@ -217,6 +217,10 @@ con el motivo, para no reabrirlo cada semana.
   el hijo muere, lo vuelve a arrancar con espera creciente. Si el puerto ya lo
   atiende otro core, se usa ese en vez de arrancar otro encima. «Salir» marca la
   parada antes de matarlo, para que el vigilante no lo resucite.
+- **La documentación va con el esquema**: `docs/base-de-datos.md` está en la
+  versión 29 y lista `idea_requisito`, `idea_foto` y `idea_fase_archivo`; el
+  README ya cuenta que el runner de e2e elige puertos libres en vez de negarse
+  a arrancar.
 - **CI**: `pnpm check` global en cada push a main y en PRs
   (`.github/workflows/ci.yml`). Batería e2e y builds de Tauri quedan fuera
   del CI a propósito (navegador y puertos; se corren en local).
@@ -257,11 +261,6 @@ Revisión del 19 de noviembre de 2026, por orden de daño y no de esfuerzo.
 - **`main.py` es 618 líneas de rutas** de cuatro dominios (ideas, eventos, log,
   git). Un grupo por dominio dejaría el `app` en la fábrica; sin prisa, porque
   el contrato manda y regenerarlo es un comando.
-- **La documentación se ha desfasado del esquema.** `docs/base-de-datos.md`
-  dice que la versión es 26 (van 29), su comprobación local sigue en v13 y sus
-  tablas no listan `idea_requisito`, `idea_fase_archivo` ni `idea_foto`. El
-  README, en la sección de e2e, aún dice que el runner «se niega a arrancar»
-  con los puertos ocupados, cuando ahora elige otros libres.
 - **El CI solo corre en Linux** y el desarrollo es Windows: un job
   `windows-latest` con `check:py` y `check:ui` cazaría lo que solo se rompe
   aquí (rutas con unidad, `#` en el nombre del repo, venv de otra plataforma).

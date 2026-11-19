@@ -70,15 +70,16 @@ corepack pnpm fix          # aplica ruff --fix + ruff format + eslint --fix
 `openapi.json`/`schema.ts` no coinciden con el core: cambiar la API sin
 `gen:api` no pasa), `check:ui` (`tsc --noEmit` y ESLint en desktop, web y la UI
 compartida), `check:py` (`ruff check` y `ruff format --check`, config en
-`services/core/pyproject.toml`), `check:test` (`pytest` en `services/core/tests`,
-semántica de cola y migración 0009) y `check:rust` (`cargo check`). Para compilar de
+`services/core/pyproject.toml`), `check:test` (`pytest` en `services/core/tests`)
+y `check:rust` (`cargo check`). Para compilar de
 verdad están `build:web` (Vite) y `build` (bundle Tauri).
 
 Los **e2e** van aparte porque levantan procesos (no entran en `check`):
 `pnpm e2e` corre todos los escenarios de `e2e/escenarios/` y
-`pnpm e2e -- <nombre>` solo uno. Cada escenario usa su core y su Vite
-temporales en 18765/15175: si esos puertos ya están ocupados (p. ej. tu
-`pnpm dev`), el runner se niega a arrancar sin tocar ese proceso; al terminar
+`pnpm e2e -- <nombre>` solo uno. Cada corrida levanta su core y su Vite
+temporales: si 18765 o 15175 están ocupados (p. ej. tu `pnpm dev`), el runner
+elige otros libres y lo dice, sin matar lo ajeno; `--core-port` y `--ui-port`
+los fijan, y un explícito ocupado avisa y no arranca. Al terminar
 —pase, falle o se interrumpa con Ctrl+C— cierra lo que levantó y comprueba
 que los puertos quedan libres. Las capturas de cada corrida quedan en
 `e2e/resultados/`.

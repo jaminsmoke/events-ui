@@ -272,6 +272,11 @@ con el motivo, para no reabrirlo cada semana.
   renombrado viaja aparte en `CambioGit.origen`; el nodo de cambios lo enseña
   como «viejo → nuevo». Dos tests cubren un `git mv` con espacios y acentos y
   una ruta suelta con acentos y `#`.
+- **Las conexiones vigilantes caducan**: cada entrada guarda el inodo del
+  fichero y su último uso. Se suelta al recrearse el almacén (si no, seguía
+  mirando el inodo viejo y `data_version` dejaba de subir), tras cinco minutos
+  inactiva y con `cerrar_vigilantes()`. `test_db_vigilante.py` cubre
+  reutilizar, recrear, caducar y soltar.
 - **Runtime fijado a 3.12**: `.python-version` y el CI apuntan a 3.12 y
   `requires-python` cierra el techo en `<3.14`, así que `uv` deja de resolver
   contra el 3.14 del sistema, donde las pruebas síncronas de `starlette` se han
@@ -297,13 +302,6 @@ con el motivo, para no reabrirlo cada semana.
 Revisión del 19 de noviembre de 2026, segunda pasada, por orden de daño y no
 de esfuerzo.
 
-- **Las conexiones vigilantes no se cierran nunca.** `db._VIGILANTES` cachea una
-  conexión SQLite por almacén y variante para siempre: con muchos repos son
-  descriptores acumulados y, en Windows, el `.EUI` queda abierto mientras viva
-  el core (renombrar o borrar la carpeta falla). Además, si el fichero se
-  recrea, la conexión vieja ya no ve los commits, así que `/revision` y el
-  stream dejan de despertar. Falta cierre al cambiar de repo o caducidad por
-  uso.
 - **Hay tres sondeos permanentes por repo.** `/revision` cada 2 s,
   `/protocolos` y `/proyecciones/repo` cada 5 s, cada uno con su temporizador y
   ninguno se pausa con la ventana oculta. No es un fallo, pero son tres

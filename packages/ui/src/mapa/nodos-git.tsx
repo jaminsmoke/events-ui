@@ -2,6 +2,8 @@
 
 import type { Ref } from "react";
 
+import type { CommitGit } from "../core/api";
+
 /** El primer nodo del Mapa de Git: los cambios que aún no tienen commit.
  *  No es un carril de ideas; solo enseña lo que Git ve en el árbol de trabajo. */
 /** «viejo → nuevo» para un renombrado; la ruta sola en el resto. */
@@ -40,6 +42,57 @@ export function NodoCambios({
                 <span className="cambio-ruta" title={rutaVisible(cambio)}>
                   {rutaVisible(cambio)}
                 </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/** Los últimos commits de la rama: lo que ya entró en Git. Cada fila es un
+ *  commit con su hash abreviado y el asunto; el autor y la fecha van en el
+ *  `title` porque el asunto es lo que se lee de un vistazo. */
+const FECHA_COMMIT = new Intl.DateTimeFormat("es-ES", { day: "2-digit", month: "short" });
+
+function fechaCommit(iso: string): string {
+  const fecha = new Date(iso);
+  return Number.isNaN(fecha.getTime()) ? iso : FECHA_COMMIT.format(fecha);
+}
+
+export function NodoCommits({
+  activo,
+  commits,
+}: {
+  activo: boolean;
+  commits: readonly CommitGit[];
+}) {
+  return (
+    <section
+      className={`node nodo-commits ${activo ? "activo" : "apagado"}`}
+      aria-label="Últimos commits"
+    >
+      <div className="node-head">
+        <span className="node-title">Commits</span>
+        <span className="count">{commits.length}</span>
+      </div>
+      <div className="commits-cuerpo">
+        {!activo ? (
+          <p className="cambios-vacio">Sin repositorio local</p>
+        ) : commits.length === 0 ? (
+          <p className="cambios-vacio">Sin commits todavía</p>
+        ) : (
+          <ul className="commits-lista">
+            {commits.map((commit) => (
+              <li
+                key={commit.hash}
+                className="fila-commit"
+                title={`${commit.autor} · ${fechaCommit(commit.fecha)}`}
+              >
+                <span className="commit-hash">{commit.hash}</span>
+                <span className="commit-asunto">{commit.asunto}</span>
+                <span className="commit-autor">{commit.autor}</span>
               </li>
             ))}
           </ul>

@@ -32,6 +32,10 @@ export type Evento = Schemas["Evento"];
 /** F2: la proyección `repo_state` con su identidad de repo. */
 export type ProyeccionRepo = Schemas["ProyeccionRepo"];
 
+/** Un commit del historial de la rama (GET /git/commits), para el nodo del
+ *  Mapa de Git. */
+export type CommitGit = Schemas["CommitGit"];
+
 /** La respuesta de POST /reiniciar (LAB): cuántas filas se vaciaron. */
 export type Reinicio = Schemas["Reinicio"];
 

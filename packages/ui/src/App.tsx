@@ -11,7 +11,7 @@ import { duracionChispa, useCables } from "./mapa/cables";
 import { Compuerta, LeyendaCompuertas } from "./mapa/compuertas";
 import { useCamara } from "./mapa/camara";
 import type { LaneId, Status } from "./mapa/carriles";
-import { NodeBox, NodoCambios, NodoGit, NodoPuenteGit, VueloFila } from "./mapa/nodos";
+import { NodeBox, NodoCambios, NodoCommits, NodoGit, NodoPuenteGit, VueloFila } from "./mapa/nodos";
 import { useVuelos } from "./mapa/vuelos";
 import { useEventos, resumenEvento } from "./core/useEventos";
 import { useProtocolos } from "./core/useProtocolos";
@@ -90,6 +90,7 @@ export default function App({
     ideas,
     error,
     proyeccion,
+    commits,
     crear,
     mover,
     editar,
@@ -650,6 +651,7 @@ export default function App({
                     activo={gitActivo}
                     cambios={proyeccion?.git_cambios ?? []}
                   />
+                  <NodoCommits activo={gitActivo} commits={commits} />
                 </div>
                 )}
               </div>

@@ -291,6 +291,10 @@
   animation-delay: 0.12s;
 }
 
+.linea-git > .node:nth-of-type(3) {
+  animation-delay: 0.19s;
+}
+
 @keyframes mapa-funde {
   from {
     opacity: 0;
@@ -400,6 +404,73 @@
   color: #b7c0cc;
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Commits: el historial que ya entró en Git. Ocupa el ancho de la línea
+ * porque el asunto manda y el autor solo acompaña. */
+.nodo-commits {
+  grid-column: 1 / -1;
+}
+
+.nodo-commits .node-head {
+  cursor: default;
+}
+
+.nodo-commits .node-head:hover {
+  background: #122719;
+}
+
+.nodo-commits.apagado .node-head {
+  background: #161b22;
+}
+
+.commits-cuerpo {
+  padding: 6px 9px 7px;
+  border-top: 1px solid var(--line);
+}
+
+.commits-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 190px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.fila-commit {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  font-size: 11px;
+}
+
+.commit-hash {
+  flex: none;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 10px;
+}
+
+.commit-asunto {
+  overflow: hidden;
+  color: #b7c0cc;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commit-autor {
+  flex: none;
+  max-width: 30%;
+  margin-left: auto;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

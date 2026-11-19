@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { api, unwrap } from "./api";
 import { suscribirSondeo } from "./sondeo";
-import type { IdeaCreate, IdeaUpdate, Mapa, ProyeccionRepo, Reinicio } from "./api";
+import type { CommitGit, IdeaCreate, IdeaUpdate, Mapa, ProyeccionRepo, Reinicio } from "./api";
 import { STORAGE_KEY } from "./repo";
 
 /** Lo cargado pertenece a *un* repo: si se cambia de carpeta, lo viejo deja de
@@ -186,6 +186,32 @@ export function useRepo(repo: string | null) {
   const proyeccion =
     repo && proyeccionEstado?.repo === repo ? proyeccionEstado.datos : null;
 
+  // El historial de Git cambia solo cuando cambia HEAD —también con commits
+  // hechos fuera de la app—, así que se pide al montar y cuando cambia el
+  // hash, no en cada latido. Sin work tree no se pide: el nodo se apaga solo.
+  const [historialEstado, setHistorialEstado] = useState<{
+    repo: string | null;
+    datos: CommitGit[];
+  } | null>(null);
+  const firmaHistorial = repo && proyeccion?.git ? (proyeccion.commit ?? "sin-commits") : null;
+
+  useEffect(() => {
+    if (!repo || firmaHistorial === null) return;
+    let vivo = true;
+    void unwrap(api.GET("/git/commits", { params: { query: { repo } } }))
+      .then((datos) => {
+        if (vivo) setHistorialEstado({ repo, datos });
+      })
+      .catch(() => {
+        // El historial no bloquea el mapa: si falla, el nodo se queda vacío.
+      });
+    return () => {
+      vivo = false;
+    };
+  }, [repo, firmaHistorial]);
+
+  const commits = repo && historialEstado?.repo === repo ? historialEstado.datos : [];
+
   const fresco = cargado && cargado.repo === repo ? cargado : null;
 
   return {
@@ -193,6 +219,7 @@ export function useRepo(repo: string | null) {
     ideas: fresco?.mapa.ideas ?? null,
     error: fallo && fallo.repo === repo ? fallo.mensaje : null,
     proyeccion: repo ? proyeccion : null,
+    commits,
     crear,
     mover,
     editar,

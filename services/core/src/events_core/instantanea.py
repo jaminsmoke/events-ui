@@ -17,7 +17,7 @@ import sys
 from contextlib import closing
 from pathlib import Path
 
-BUSY_TIMEOUT_MS = 5_000
+from .db import open_read_only
 
 
 def copia_consistente(origen: Path, destino: Path) -> None:
@@ -42,10 +42,9 @@ def copia_consistente(origen: Path, destino: Path) -> None:
     for sufijo in ("-wal", "-shm"):
         Path(f"{destino}{sufijo}").unlink(missing_ok=True)
 
-    with (
-        closing(sqlite3.connect(origen, timeout=BUSY_TIMEOUT_MS / 1000)) as src,
-        closing(sqlite3.connect(destino)) as dst,
-    ):
+    # El origen se abre en solo lectura, como el resto del core: así ningún
+    # journal caliente hace que esta herramienta escriba lo que solo copia.
+    with closing(open_read_only(origen)) as src, closing(sqlite3.connect(destino)) as dst:
         src.backup(dst)
 
     with closing(sqlite3.connect(destino)) as copia:

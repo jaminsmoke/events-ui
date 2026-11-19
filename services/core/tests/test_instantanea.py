@@ -71,3 +71,19 @@ def test_errores_de_uso(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError):
         copia_consistente(tmp_path / "falta.sqlite", tmp_path / "copia.sqlite")
     assert main([]) == 2
+
+
+def test_el_origen_se_abre_en_solo_lectura(tmp_path: Path) -> None:
+    origen = tmp_path / "EUI_DATABASE.sqlite"
+    _almacen_con_wal(origen).close()
+    copia = tmp_path / "copia.sqlite"
+
+    # Con el fichero marcado de solo lectura, una apertura de escritura falla;
+    # la instantánea tiene que seguir funcionando.
+    origen.chmod(0o444)
+    try:
+        copia_consistente(origen, copia)
+    finally:
+        origen.chmod(0o666)
+
+    assert _uids(copia) == ["uno"]

@@ -587,6 +587,7 @@ export default function App({
                     }
                     onEditar={editar}
                     onBorrar={borrar}
+                    onCargarIdea={cargarIdea}
                     puedeIr={puedeIr}
                     exigeFases={exigeFases}
                     exigeFasesListas={exigeFasesListas}
@@ -611,6 +612,7 @@ export default function App({
                       }
                       onEditar={editar}
                       onBorrar={borrar}
+                      onCargarIdea={cargarIdea}
                       puedeIr={puedeIr}
                       exigeFases={exigeFases}
                       exigeFasesListas={exigeFasesListas}

@@ -163,8 +163,9 @@ con el motivo, para no reabrirlo cada semana.
   mientras estuvo abierta. Va por eventos, sin watcher: se toma una foto del
   árbol al entrar en roadmap y al cerrar la fase, y el cambio es la diferencia
   entre las dos. Sin Git se anotan ruta y estado; con Git, además, el parche de
-  cada archivo (acotado por tamaño). La ficha y el mapa enseñan el recuento; el
-  parche queda en la ficha. Cubierto en `services/core/tests/test_archivos.py`.
+  cada archivo (acotado por tamaño). El mapa resume con un contador y la ficha
+  lista los archivos; al pulsar uno con parche se despliega el cambio. Cubierto
+  en `services/core/tests/test_archivos.py` y `e2e/escenarios/archivos-fase.mjs`.
 - **Formato de etiquetas**: `tags` es una lista JSON de cadenas en el
   esquema (migración 0017, que sanea `{}` y los elementos no textuales) y en
   la API (422 con valores que no son cadenas); una fila antigua se lee como

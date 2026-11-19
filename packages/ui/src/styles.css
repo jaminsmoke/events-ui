@@ -2222,11 +2222,49 @@ code {
   gap: 2px;
 }
 .ficha-archivo {
+  display: grid;
+  gap: 3px;
+  font-size: 11px;
+  min-width: 0;
+}
+/* Cada archivo es una fila; si hay parche, se despliega al pulsar. */
+.archivo-abrir {
   display: flex;
   align-items: baseline;
   gap: 5px;
-  font-size: 11px;
   min-width: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+}
+button.archivo-abrir:hover code {
+  text-decoration: underline;
+}
+.archivo-flecha {
+  margin-left: auto;
+  padding-left: 6px;
+  opacity: 0.6;
+}
+/* El parche tal cual lo da Git: monoespaciado y con el signo a la vista. */
+.ficha-parche {
+  margin: 0;
+  padding: 4px 6px;
+  max-height: 40vh;
+  overflow: auto;
+  font-size: 10.5px;
+  line-height: 1.35;
+  white-space: pre;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+  border-radius: 4px;
+}
+.ficha-parche .linea-mas {
+  color: #4ea36b;
+}
+.ficha-parche .linea-menos {
+  color: #c25555;
 }
 .ficha-archivo code {
   overflow: hidden;

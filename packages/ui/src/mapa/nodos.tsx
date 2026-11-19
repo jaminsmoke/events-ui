@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import type { Ref } from "react";
 import { createPortal } from "react-dom";
 
@@ -465,24 +465,56 @@ const ETIQUETA_FASE: Record<string, string> = {
 /** La ficha de fases: el detalle completo (estado, nota y fecha), que la
  *  fila no enseña para no crecer. Solo lectura: editar es cosa de la fila. */
 function FichaFases({
+  uid,
   estado,
   titulo,
   fases,
   alGuardar,
+  cargarIdea,
   onCerrar,
 }: {
+  uid?: string;
   /** El carril de la idea: el motivo se toca en roadmap, como en la fila. */
   estado: Status;
   titulo: string;
   fases: readonly Fase[];
   /** La copia optimista vive en la fila; sin él, la ficha es de lectura. */
   alGuardar?: (siguientes: readonly Fase[]) => Promise<void>;
+  /** La idea completa: el mapa no trae el parche de cada archivo, solo el
+   *  recuento. Sin esto, la ficha enseña rutas y estado, que ya vienen. */
+  cargarIdea?: (uid: string) => Promise<Idea | null>;
   onCerrar: () => void;
 }) {
   const [guardando, setGuardando] = useState(false);
   const [fallo, setFallo] = useState<string | null>(null);
+  // El parche se pide al abrir la ficha y se mezcla por `fase:ruta`: la lista
+  // que se edita sigue siendo la de la fila, y el contenido solo se pinta.
+  const [parches, setParches] = useState<ReadonlyMap<string, string>>(() => new Map());
+  const [abierto, setAbierto] = useState<string | null>(null);
   const vista = fases;
   const hechas = vista.filter((fase) => fase.estado === "completada").length;
+
+  useEffect(() => {
+    if (!cargarIdea || !uid) return;
+    let vivo = true;
+    void cargarIdea(uid)
+      .then((idea) => {
+        if (!vivo || !idea) return;
+        const mapa = new Map<string, string>();
+        for (const fase of idea.fases ?? []) {
+          for (const archivo of fase.archivos ?? []) {
+            if (archivo.contenido) mapa.set(`${fase.orden}:${archivo.ruta}`, archivo.contenido);
+          }
+        }
+        setParches(mapa);
+      })
+      .catch(() => {
+        // Sin detalle la ficha sigue sirviendo: ruta, estado y fecha.
+      });
+    return () => {
+      vivo = false;
+    };
+  }, [cargarIdea, uid]);
 
   const guardar = (siguientes: readonly Fase[]) => {
     if (!alGuardar) return;
@@ -596,14 +628,61 @@ function FichaFases({
               )}
               {fase.archivos && fase.archivos.length > 0 && (
                 <ul className="ficha-archivos" aria-label={`Archivos de ${fase.titulo}`}>
-                  {fase.archivos.map((archivo) => (
-                    <li key={archivo.ruta} className="ficha-archivo">
-                      <span className={`archivo-estado estado-${archivo.estado}`}>
-                        {archivo.estado}
-                      </span>
-                      <code>{archivo.ruta}</code>
-                    </li>
-                  ))}
+                  {fase.archivos.map((archivo) => {
+                    const clave = `${fase.orden}:${archivo.ruta}`;
+                    const parche = parches.get(clave);
+                    const desplegado = abierto === clave;
+                    return (
+                      <li key={archivo.ruta} className="ficha-archivo">
+                        {parche ? (
+                          <button
+                            type="button"
+                            className="archivo-abrir"
+                            aria-expanded={desplegado}
+                            title="Ver el cambio"
+                            onClick={() => setAbierto(desplegado ? null : clave)}
+                          >
+                            <span className={`archivo-estado estado-${archivo.estado}`}>
+                              {archivo.estado}
+                            </span>
+                            <code>{archivo.ruta}</code>
+                            <span className="archivo-flecha" aria-hidden="true">
+                              {desplegado ? "▾" : "▸"}
+                            </span>
+                          </button>
+                        ) : (
+                          <span
+                            className="archivo-abrir"
+                            title="Sin contenido: sin Git, sin commits o demasiado grande"
+                          >
+                            <span className={`archivo-estado estado-${archivo.estado}`}>
+                              {archivo.estado}
+                            </span>
+                            <code>{archivo.ruta}</code>
+                          </span>
+                        )}
+                        {parche && desplegado && (
+                          <pre className="ficha-parche">
+                            {parche.split("\n").map((linea, indice) => (
+                              <span
+                                key={indice}
+                                className={
+                                  linea.startsWith("+") && !linea.startsWith("+++")
+                                    ? "linea-mas"
+                                    : linea.startsWith("-") && !linea.startsWith("---")
+                                      ? "linea-menos"
+                                      : undefined
+                                }
+                              >
+                                {linea}
+                                {"\n"}
+                              </span>
+                            ))}
+                          </pre>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
               <time className="ficha-fase-fecha" dateTime={fase.entered_at}>
@@ -655,6 +734,7 @@ function NodeRow({
   onPideEditar,
   onEditar,
   onBorrar,
+  onCargarIdea,
   puedeIr,
   exigeFases,
   exigeFasesListas,
@@ -670,6 +750,9 @@ function NodeRow({
   onPideEditar?: (uid: string, titulo: string, descripcion: string) => void;
   onEditar?: (uid: string, cambios: IdeaUpdate) => Promise<void>;
   onBorrar?: (uid: string) => Promise<void>;
+  /** La idea completa, para el parche de los archivos de cada fase: el mapa
+   *  solo trae ruta y estado. */
+  onCargarIdea?: (uid: string) => Promise<Idea | null>;
   /** Los protocolos de flujo (`GET /protocolos`): si está, la fila no ofrece
    *  un traslado que el core rechazaría (las descartadas no vuelven a cola,
    *  p. ej.). Sin él se ofrece todo y el core manda. */
@@ -1015,10 +1098,12 @@ function NodeRow({
 
       {node.idea && fichaFases && (
         <FichaFases
+          uid={uid}
           estado={node.idea.status}
           titulo={node.title}
           fases={vistaFases}
           alGuardar={onEditar && editando && !enHistorial ? guardarFases : undefined}
+          cargarIdea={onCargarIdea}
           onCerrar={() => setFichaFases(false)}
         />
       )}
@@ -1038,6 +1123,7 @@ function NodeRow({
               onPideEditar={onPideEditar}
               onEditar={onEditar}
               onBorrar={onBorrar}
+              onCargarIdea={onCargarIdea}
               puedeIr={puedeIr}
               exigeFases={exigeFases}
               exigeFasesListas={exigeFasesListas}
@@ -1216,6 +1302,7 @@ export function NodeBox({
   onPideEditar,
   onEditar,
   onBorrar,
+  onCargarIdea,
   puedeIr,
   exigeFases,
   exigeFasesListas,
@@ -1235,6 +1322,8 @@ export function NodeBox({
   onPideEditar?: (uid: string, titulo: string, descripcion: string) => void;
   onEditar?: (uid: string, cambios: IdeaUpdate) => Promise<void>;
   onBorrar?: (uid: string) => Promise<void>;
+  /** La idea completa (con el parche de sus archivos), vía `useRepo`. */
+  onCargarIdea?: (uid: string) => Promise<Idea | null>;
   puedeIr?: PuedeIr;
   exigeFases?: PuedeIr;
   exigeFasesListas?: PuedeIr;
@@ -1273,6 +1362,7 @@ export function NodeBox({
               onPideEditar={onPideEditar}
               onEditar={onEditar}
               onBorrar={onBorrar}
+              onCargarIdea={onCargarIdea}
               puedeIr={puedeIr}
               exigeFases={exigeFases}
               exigeFasesListas={exigeFasesListas}

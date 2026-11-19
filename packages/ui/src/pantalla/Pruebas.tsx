@@ -25,22 +25,22 @@ const LATIDO_MS = 3000;
 const PRUEBAS: Prueba[] = [
   {
     id: "prueba-1",
-    nombre: "Prueba 1",
+    nombre: "Reparto y limpieza",
     descripcion:
-      "Crea 10 ideas, mueve 7 a En cola y descarta 3. El reparto queda visible seis segundos. " +
-      "Al terminar, detenerse o fallar, se vacían todas las ideas, fichas, conexiones y eventos del laboratorio, incluidos los datos anteriores.",
+      "Crea 10 ideas, mueve 7 a En cola y descarta 3. Deja seis segundos para ver el reparto. " +
+      "Al terminar, detenerse o fallar, se vacían todas las ideas, fichas y eventos del laboratorio, incluidos los datos anteriores.",
     construir: ({ crear, mover, editar }) => {
       const creadas: string[] = [];
       const pasos: Paso[] = [];
       for (let i = 1; i <= 10; i++) {
-        const titulo = `Prueba 1 · ${i}`;
+        const titulo = `Reparto · ${i}`;
         pasos.push({
           texto: `Crear «${titulo}»`,
           ejecutar: async () => {
             const idea = await crear({
               title: titulo,
-              description: `Elemento ${i} de la prueba 1.`,
-              content: `Elemento ${i} de la prueba 1.`,
+              description: `Elemento ${i} del reparto.`,
+              content: `Elemento ${i} del reparto.`,
               kind: "idea",
               status: "draft",
             });
@@ -51,7 +51,7 @@ const PRUEBAS: Prueba[] = [
       }
       for (let i = 0; i < 7; i++) {
         pasos.push({
-          texto: `En cola: «Prueba 1 · ${i + 1}»`,
+          texto: `En cola: «Reparto · ${i + 1}»`,
           ejecutar: async () => {
             const uid = creadas[i];
             if (!uid) throw new Error("Falta el uid de una idea creada.");
@@ -67,7 +67,7 @@ const PRUEBAS: Prueba[] = [
       motivos.forEach((motivo, i) => {
         const indice = 7 + i;
         pasos.push({
-          texto: `Descartar «Prueba 1 · ${indice + 1}» (${motivo})`,
+          texto: `Descartar «Reparto · ${indice + 1}» (${motivo})`,
           ejecutar: async () => {
             const uid = creadas[indice];
             if (!uid) throw new Error("Falta el uid de una idea creada.");
@@ -76,6 +76,175 @@ const PRUEBAS: Prueba[] = [
         });
       });
       return pasos;
+    },
+  },
+  {
+    id: "mapa-completo",
+    nombre: "Mapa completo por carriles",
+    descripcion:
+      "Siembra ideas en todos los carriles —entrada, cola, roadmap, verificación, aprobadas y descartadas— " +
+      "para ver los cinco cables, sus compuertas y el grosor según la presión. Después vacía el laboratorio.",
+    construir: ({ crear }) => {
+      const lotes: {
+        prefijo: string;
+        cuantos: number;
+        status: IdeaCreate["status"];
+        donde: string;
+      }[] = [
+        { prefijo: "Entrada", cuantos: 4, status: "draft", donde: "la entrada" },
+        { prefijo: "Cola", cuantos: 3, status: "proposed", donde: "En cola" },
+        { prefijo: "Roadmap", cuantos: 1, status: "roadmap", donde: "roadmap" },
+        { prefijo: "Verificación", cuantos: 2, status: "verificacion", donde: "verificación" },
+        { prefijo: "Aprobada", cuantos: 3, status: "revision_aprobada", donde: "revisión aprobada" },
+        { prefijo: "Descartada", cuantos: 3, status: "rejected", donde: "Descartadas" },
+      ];
+      return lotes.flatMap(({ prefijo, cuantos, status, donde }) =>
+        Array.from({ length: cuantos }, (_, i) => {
+          const titulo = `${prefijo} ${i + 1}`;
+          return {
+            texto: `Crear «${titulo}» en ${donde}`,
+            ejecutar: async () => {
+              const idea = await crear({
+                title: titulo,
+                description: `Elemento ${i + 1} de ${prefijo.toLowerCase()}.`,
+                content: `Elemento ${i + 1} de ${prefijo.toLowerCase()}.`,
+                kind: "idea",
+                status,
+              });
+              if (!idea) throw new Error("El core no devolvió la idea creada.");
+            },
+          };
+        }),
+      );
+    },
+  },
+  {
+    id: "fases-aprobacion",
+    nombre: "Fases hasta aprobar",
+    descripcion:
+      "Una idea con la fase «Diseño» recorre cola, roadmap, verificación y aprobación: " +
+      "se ve la compuerta pedir una fase, después exigirla completada y el pulso verde al aprobar.",
+    construir: ({ crear, mover, editar }) => {
+      let uid: string | null = null;
+      const conUid = () => {
+        if (!uid) throw new Error("Falta el uid de la idea creada.");
+        return uid;
+      };
+      const fases = (estado: "pendiente" | "completada") => [
+        { orden: 1, titulo: "Diseño", estado, nota: "" },
+      ];
+      return [
+        {
+          texto: "Crear la idea en En cola",
+          ejecutar: async () => {
+            const idea = await crear({
+              title: "Fases · aprobación",
+              description: "Una idea que recorre el flujo con una fase.",
+              content: "Una idea que recorre el flujo con una fase.",
+              kind: "idea",
+              status: "proposed",
+            });
+            if (!idea) throw new Error("El core no devolvió la idea creada.");
+            uid = idea.uid;
+          },
+        },
+        {
+          texto: "Añadir la fase «Diseño» (pendiente)",
+          ejecutar: async () => {
+            await editar(conUid(), { fases: fases("pendiente") });
+          },
+        },
+        {
+          texto: "Mover a roadmap (pide al menos una fase)",
+          ejecutar: async () => {
+            await mover(conUid(), "roadmap");
+          },
+        },
+        {
+          texto: "Completar la fase «Diseño»",
+          ejecutar: async () => {
+            await editar(conUid(), { fases: fases("completada") });
+          },
+        },
+        {
+          texto: "Mover a verificación (sin fases abiertas)",
+          ejecutar: async () => {
+            await mover(conUid(), "verificacion");
+          },
+        },
+        {
+          texto: "Aprobar la revisión (todas completadas)",
+          ejecutar: async () => {
+            await mover(conUid(), "revision_aprobada");
+          },
+        },
+      ];
+    },
+  },
+  {
+    id: "vuelta-descarte",
+    nombre: "Ida y vuelta y descarte",
+    descripcion:
+      "Una idea llega a verificación, vuelve a la cola y se descarta con motivo: " +
+      "se ven la vuelta de carril y la rama punteada de Descartadas.",
+    construir: ({ crear, mover, editar }) => {
+      let uid: string | null = null;
+      const conUid = () => {
+        if (!uid) throw new Error("Falta el uid de la idea creada.");
+        return uid;
+      };
+      const fase = [
+        { orden: 1, titulo: "Verificar", estado: "completada" as const, nota: "" },
+      ];
+      return [
+        {
+          texto: "Crear la idea en En cola",
+          ejecutar: async () => {
+            const idea = await crear({
+              title: "Vuelta · descarte",
+              description: "Una idea que vuelve y se descarta.",
+              content: "Una idea que vuelve y se descarta.",
+              kind: "idea",
+              status: "proposed",
+            });
+            if (!idea) throw new Error("El core no devolvió la idea creada.");
+            uid = idea.uid;
+          },
+        },
+        {
+          texto: "Añadir la fase «Verificar» completada",
+          ejecutar: async () => {
+            await editar(conUid(), { fases: fase });
+          },
+        },
+        {
+          texto: "Mover a roadmap",
+          ejecutar: async () => {
+            await mover(conUid(), "roadmap");
+          },
+        },
+        {
+          texto: "Mover a verificación",
+          ejecutar: async () => {
+            await mover(conUid(), "verificacion");
+          },
+        },
+        {
+          texto: "Volver a En cola",
+          ejecutar: async () => {
+            await mover(conUid(), "proposed");
+          },
+        },
+        {
+          texto: "Descartar con motivo «Ya no hace falta»",
+          ejecutar: async () => {
+            await editar(conUid(), {
+              status: "rejected",
+              rejected_description: "Ya no hace falta",
+            });
+          },
+        },
+      ];
     },
   },
 ];
@@ -188,7 +357,8 @@ export function Pruebas({
     // Otra ventana con la prueba viva manda: su latido es reciente.
     const otra = ejecucion.current ? null : pruebaVigente(repo);
     if (otra) {
-      setAvisoArranque(`Otra ejecución de ${otra.prueba} está en curso en este laboratorio.`);
+      const nombreOtra = PRUEBAS.find((p) => p.id === otra.prueba)?.nombre ?? otra.prueba;
+      setAvisoArranque(`Otra ejecución de «${nombreOtra}» está en curso en este laboratorio.`);
       return;
     }
     setAvisoArranque(null);

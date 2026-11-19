@@ -147,17 +147,26 @@ corepack pnpm core:dev           # Swagger en http://127.0.0.1:18765/docs
 | POST | `/log/purgar` — purga del registro forzada (también pasa sola al escribir) |
 | POST | `/reiniciar?repo=<ruta>` — vacía ideas, fichas y eventos del laboratorio |
 
-### Prueba 1 en el laboratorio
+### Pruebas en el laboratorio
 
 En escritorio, abre un repo de `repoprobe/repos` (o de la raíz configurada en
 `EVENTSUI_REPOS_ROOT`) y pulsa **Pruebas → Lanzar**. Puedes cerrar el diálogo
-para ver el movimiento y volver a abrirlo para consultar los pasos.
+para ver el movimiento y volver a abrirlo para consultar los pasos. El selector
+del lanzador ofrece:
 
-La prueba crea diez ideas y deja seis segundos para ver siete en cola y tres
-descartadas. Después **vacía todos los datos operativos del lab**, incluidos
-los anteriores a la prueba. Detenerla o fallar un paso también activa la limpieza.
-Se conservan las reglas del repo, el esquema y el registro operativo de la app.
-Si el core falla durante el vaciado, el diálogo ofrece **Reintentar limpieza**.
+- **Reparto y limpieza**: diez ideas, siete en cola y tres descartadas.
+- **Mapa completo por carriles**: siembra ideas en todos los carriles para ver
+  los cables, sus compuertas y el grosor según la presión.
+- **Fases hasta aprobar**: una idea con una fase recorre el flujo hasta la
+  aprobación, con las compuertas de fases en el camino.
+- **Ida y vuelta y descarte**: una idea llega a verificación, vuelve a la cola y
+  se descarta con motivo.
+
+Cada prueba deja seis segundos para ver el resultado y después **vacía todos los
+datos operativos del lab**, incluidos los anteriores a la prueba. Detenerla o
+fallar un paso también activa la limpieza. Se conservan las reglas del repo, el
+esquema y el registro operativo de la app. Si el core falla durante el vaciado,
+el diálogo ofrece **Reintentar limpieza**.
 
 Si la app se cierra a mitad de la prueba, al reabrir el mismo laboratorio se
 cobra el vaciado pendiente: la ejecución deja una marca con latido en

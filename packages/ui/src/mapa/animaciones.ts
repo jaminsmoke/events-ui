@@ -12,8 +12,8 @@ export type Animacion = { lane: LaneId; id: number };
 export type NodoId = LaneId | "cajon";
 
 /** Código de colores del pulso de borde de cada nodo:
- *  - `azul`: una idea **entra** (se crea o se mueve a un carril);
- *  - `rojo`: una idea **sale** (se borra del repo o se mueve a Descartadas);
+ *  - `azul`: una idea **entra** (se crea o llega a un carril);
+ *  - `rojo`: una idea **sale** (se borra, se descarta o deja un carril);
  *  - `verde`: una idea llega a **revisión aprobada**.
  *  Verde queda reservado al estado final, no a entradas normales. */
 export type TonoPulso = "azul" | "rojo" | "verde";
@@ -22,7 +22,9 @@ export type Pulso = { lane: NodoId; tono: TonoPulso };
 const PRIORIDAD: Record<TonoPulso, number> = { azul: 1, rojo: 2, verde: 3 };
 
 /** Señala entradas y salidas aunque dos ideas se crucen y los totales coincidan.
- *  El pulso va al nodo (borde y contador), la chispa al cable del carril. */
+ *  El pulso va al nodo (borde y contador); la chispa recorre solo el cable de
+ *  llegada. Una salida no lanza chispa en el cable de entrada del carril que
+ *  deja: eso haría creer que también llega algo. */
 export function useAnimaciones(repo: string | null, ideas: Idea[] | null) {
   const [actividad, setActividad] = useState<{
     repo: string;
@@ -56,7 +58,8 @@ export function useAnimaciones(repo: string | null, ideas: Idea[] | null) {
     const fijarCajon = (tono: TonoPulso) => {
       if (!cajon || PRIORIDAD[tono] > PRIORIDAD[cajon]) cajon = tono;
     };
-    const cambian = new Set<LaneId>();
+    // Solo los carriles que reciben una idea generan chispa; el resto, pulso.
+    const llegan = new Set<LaneId>();
 
     for (const idea of ideas) {
       const lane = laneOf(idea.status);
@@ -67,38 +70,38 @@ export function useAnimaciones(repo: string | null, ideas: Idea[] | null) {
       ) {
         if (lane) {
           fijar(lane, "verde");
-          cambian.add(lane);
+          llegan.add(lane);
         }
       } else if (lanePrevio === undefined) {
         if (lane) {
           fijar(lane, "azul");
-          cambian.add(lane);
+          llegan.add(lane);
         }
         fijarCajon("azul");
       } else if (lanePrevio !== lane) {
         if (lane) {
           fijar(lane, lane === "descartadas" ? "rojo" : "azul");
-          cambian.add(lane);
+          llegan.add(lane);
         }
-        if (lanePrevio) cambian.add(lanePrevio);
+        // El carril que deja la idea pulsa en rojo, pero su cable de entrada
+        // no se enciende: la chispa pertenece al carril de llegada.
+        if (lanePrevio) fijar(lanePrevio, "rojo");
         // Salir del cajón a un carril: el cajón pulsa en rojo (sale de aquí).
         if (lanePrevio === null) fijarCajon("rojo");
       }
     }
     // Borrada del repo: su carril y el cajón pulsan en rojo aunque ya no
-    // tengan la fila.
+    // tengan la fila. No hay chispa: no llega nada a ningún sitio.
     for (const [uid, lane] of previo.carriles) {
       if (!carriles.has(uid)) {
-        if (lane) {
-          fijar(lane, "rojo");
-          cambian.add(lane);
-        }
+        if (lane) fijar(lane, "rojo");
         fijarCajon("rojo");
       }
     }
-    if (cambian.size === 0) return;
+    // Una salida (o un cajón que solo pulsa) no tiene chispas, pero sí pulso.
+    if (llegan.size === 0 && pulsos.size === 0 && !cajon) return;
 
-    const chispas = Array.from(cambian, (lane) => ({ lane, id: ++secuencia.current }));
+    const chispas = Array.from(llegan, (lane) => ({ lane, id: ++secuencia.current }));
     const raf = requestAnimationFrame(() => {
       setActividad({
         repo,

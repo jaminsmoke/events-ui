@@ -46,7 +46,7 @@ export default {
       expect(typeof repo === "string" && repo.length > 0, "la UI no recordó el repo abierto");
 
       // Prueba interrumpida: datos en el laboratorio y una marca sin latido.
-      await sembrar("Prueba 1 · interrumpida");
+      await sembrar("Reparto · interrumpida");
       await marcar(repo, Date.now() - 60_000);
       await page.reload({ waitUntil: "domcontentloaded" });
       await page.getByText(/el laboratorio quedó vacío/).waitFor({ timeout: 20_000 });

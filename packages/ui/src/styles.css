@@ -364,30 +364,114 @@ header > div {
 .fila-acciones {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 10.5px;
 }
 
 .fila-fallo {
   padding: 0 9px 6px;
 }
 
-/* Panel de la fila expandida: descripción, estado y botones. La fila cerrada
- * solo enseña la cabecera; nada de botones flotando junto al título. */
+/* Panel de la fila expandida: la descripción, el estado y bloques con las
+ * fases, las dependencias y las acciones. Va en columna y con separadores:
+ * antes todo caía en el mismo flujo y un traslado acababa junto al formulario. */
 .fila-detalle {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 6px;
-  padding: 6px 9px 8px;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 9px 7px;
   border-top: 1px dashed #1f2a3a;
+  background: #0c1117;
+}
+
+/* Descripción y estado en la misma línea: la descripción manda y el chip
+ * informa sin robarle un renglón al panel. */
+.fila-cabecera {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
 }
 
 .fila-descripcion {
-  flex: 1 1 100%;
+  flex: 1;
+  min-width: 0;
   margin: 0;
   color: var(--muted);
   font-size: 11.5px;
+  line-height: 1.35;
+}
+
+.fila-cabecera .fila-meta {
+  flex: none;
+}
+
+/* Estado de la idea y, cuando la hay, la fecha del descarte. */
+.fila-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Un bloque del panel: rótulo pequeño en mayúsculas y su contenido. */
+.fila-bloque {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 5px;
+  border-top: 1px solid #19212c;
+}
+
+.fila-rotulo {
+  margin: 0;
+  color: #8b97a8;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Aviso de protocolo: por qué el traslado todavía no se puede hacer. */
+.fila-aviso {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+/* Pie: los traslados a la izquierda y, a la derecha, la ficha y el borrado. */
+.fila-pie {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-top: 5px;
+  border-top: 1px solid #19212c;
+}
+
+.fila-mover,
+.fila-secundaria {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.fila-secundaria {
+  margin-left: auto;
+}
+
+/* Las de la ficha pesan menos que los traslados: texto, no botón. */
+.fila-secundaria .btn.ghost.mover {
+  padding: 1px 6px;
+  border-color: transparent;
+  color: var(--muted);
+  font-size: 10.5px;
+}
+
+.fila-secundaria .btn.ghost.mover:hover:not(:disabled) {
+  border-color: #33465e;
+  color: var(--fg);
 }
 
 /* F2: proyección del repo con su identidad. */
@@ -648,10 +732,9 @@ header > div {
 }
 
 .fila-rechazo {
-  flex: 1 1 100%;
   margin: 0;
   color: #f0883e;
-  font-size: 11.5px;
+  font-size: 11px;
 }
 
 .fila-estado {
@@ -665,7 +748,6 @@ header > div {
 /* Dependencias del ítem (0018): a quién espera antes de avanzar. Una
  * dependencia aprobada se ve en verde; la que sigue pendiente, en ámbar. */
 .fila-depende {
-  flex: 1 1 100%;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -702,7 +784,7 @@ header > div {
 }
 
 .select-depende {
-  flex: 1 1 100%;
+  width: 100%;
   max-width: 220px;
   padding: 2px 6px;
   border: 1px solid #33465e;
@@ -918,7 +1000,10 @@ header > div {
 }
 
 .linea {
-  --altura-cola: 264px;
+  /* El panel de una fila abierta (descripción, fases, dependencias y pie) no
+   * cabe en 264: el cuerpo del nodo lo recortaba justo por encima de las
+   * acciones. Con 300 entra el caso normal sin desplazarse. */
+  --altura-cola: 300px;
   display: grid;
   grid-template-columns: repeat(5, clamp(232px, 18vw, 340px));
   /* El hueco de la rejilla *es* el cable. Con 56 px el chevrón, el nudo y la
@@ -1476,14 +1561,19 @@ code {
 
 /* Fases de la idea (0021): lista corta con su estado, dentro de la fila. */
 .fases {
-  margin: 6px 0 2px;
+  margin: 0;
   display: grid;
   gap: 4px;
 }
+
+/* La cabecera de fases es el rótulo del bloque: mismo tono que los demás. */
 .fases-cabecera {
   margin: 0;
-  font-size: 11px;
-  opacity: 0.75;
+  color: #8b97a8;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 .fase {
   display: flex;
@@ -1499,8 +1589,9 @@ code {
   padding: 1px 4px;
 }
 .fase-nueva {
-  display: flex;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
 }
 .fase-nueva input {
   flex: 1;

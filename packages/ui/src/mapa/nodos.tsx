@@ -290,6 +290,8 @@ function NodeRow({
   const descripcion = node.idea?.description ?? "";
   const deps = node.idea?.depende_de ?? [];
   const fases = node.idea?.fases ?? [];
+  // Candidatas a dependencia: ni ella misma ni las que ya espera.
+  const candidatas = catalogo.filter((otra) => otra.uid !== uid && !deps.includes(otra.uid));
   const hechas = fases.filter((fase) => fase.estado === "completada").length;
   const abiertas = fases.filter(
     (fase) => fase.estado === "pendiente" || fase.estado === "fallida",
@@ -358,137 +360,165 @@ function NodeRow({
       </button>
       {expandido && node.idea && (
         <div className="fila-detalle">
-          <p className="fila-descripcion">{node.idea.description || "Sin descripción"}</p>
-          <span className="fila-estado">{ETIQUETA_ESTADO[node.idea.status] ?? node.idea.status}</span>
-      {node.idea.rejected_at && <p className="fila-rechazo">
-        Rechazada el {fechaCorta(node.idea.rejected_at)}
-        {node.idea.rejected_description ? ` — ${node.idea.rejected_description}` : ""}
-      </p>}
-      {deps.length > 0 && (
-        <p className="fila-depende">
-          Espera a:{" "}
-          {deps.map((dep) => {
-            const otra = catalogo.find((i) => i.uid === dep);
-            const aprobada = otra?.status === "revision_aprobada";
-            return (
-              <span key={dep} className={`chip-depende${aprobada ? " aprobada" : ""}`}>
-                {otra?.title ?? dep}
-                {onEditar && (
-                  <button
-                    type="button"
-                    className="chip-quitar"
-                    title="Quitar dependencia"
-                    onClick={() =>
-                      hacer(() =>
-                        onEditar(uid!, {
-                          depende_de: deps.filter((otro) => otro !== dep),
-                        }),
-                      )
-                    }
-                  >
-                    ×
-                  </button>
-                )}
+          <div className="fila-cabecera">
+            <p className="fila-descripcion">{node.idea.description || "Sin descripción"}</p>
+            <div className="fila-meta">
+              <span className="fila-estado">
+                {ETIQUETA_ESTADO[node.idea.status] ?? node.idea.status}
               </span>
-            );
-          })}
-        </p>
+              {node.idea.rejected_at && (
+                <span className="fila-rechazo">
+                  Rechazada el {fechaCorta(node.idea.rejected_at)}
+                  {node.idea.rejected_description ? ` — ${node.idea.rejected_description}` : ""}
+                </span>
+              )}
+            </div>
+          </div>
+      {(deps.length > 0 || (onEditar && candidatas.length > 0)) && (
+        <div className="fila-bloque">
+          <span className="fila-rotulo">Dependencias</span>
+          {deps.length > 0 && (
+            <p className="fila-depende">
+              Espera a:{" "}
+              {deps.map((dep) => {
+                const otra = catalogo.find((i) => i.uid === dep);
+                const aprobada = otra?.status === "revision_aprobada";
+                return (
+                  <span key={dep} className={`chip-depende${aprobada ? " aprobada" : ""}`}>
+                    {otra?.title ?? dep}
+                    {onEditar && (
+                      <button
+                        type="button"
+                        className="chip-quitar"
+                        title="Quitar dependencia"
+                        onClick={() =>
+                          hacer(() =>
+                            onEditar(uid!, {
+                              depende_de: deps.filter((otro) => otro !== dep),
+                            }),
+                          )
+                        }
+                      >
+                        ×
+                      </button>
+                    )}
+                  </span>
+                );
+              })}
+            </p>
+          )}
+          {onEditar && candidatas.length > 0 && (
+            <select
+              className="select-depende"
+              value=""
+              disabled={trabajando}
+              aria-label="Añadir dependencia"
+              onChange={(e) => {
+                const dep = e.target.value;
+                if (!dep) return;
+                hacer(() => onEditar(uid!, { depende_de: [...deps, dep] }));
+              }}
+            >
+              <option value="">Añadir dependencia…</option>
+              {candidatas.map((otra) => (
+                <option key={otra.uid} value={otra.uid}>
+                  {otra.title}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
       )}
-      {onEditar && (
-        <select
-          className="select-depende"
-          value=""
-          disabled={trabajando}
-          aria-label="Añadir dependencia"
-          onChange={(e) => {
-            const dep = e.target.value;
-            if (!dep) return;
-            hacer(() => onEditar(uid!, { depende_de: [...deps, dep] }));
-          }}
-        >
-          <option value="">Añadir dependencia…</option>
-          {catalogo
-            .filter((otra) => otra.uid !== uid && !deps.includes(otra.uid))
-            .map((otra) => (
-              <option key={otra.uid} value={otra.uid}>
-                {otra.title}
-              </option>
-            ))}
-        </select>
+      {onEditar && estado && estado !== "rejected" && estado !== "superseded" && (
+        <div className="fila-bloque">
+          <FasesIdea uid={uid!} fases={fases} onEditar={onEditar} />
+          {estado === "proposed" && fases.length === 0 && exigeFases?.(estado, "roadmap") && (
+            <p className="fila-aviso">Añade una fase para pasar a roadmap.</p>
+          )}
+          {estado === "roadmap" && abiertas > 0 && exigeFasesListas?.(estado, "verificacion") && (
+            <p className="fila-aviso">Cierra las fases abiertas.</p>
+          )}
+          {estado === "verificacion" &&
+            fases.length === 0 &&
+            exigeFases?.(estado, "revision_aprobada") && (
+              <p className="fila-aviso">Añade una fase para aprobar.</p>
+            )}
+          {estado === "verificacion" &&
+            !fases.every((fase) => fase.estado === "completada") &&
+            exigeFasesCompletas?.(estado, "revision_aprobada") && (
+              <p className="fila-aviso">Completa las fases para aprobar.</p>
+            )}
+        </div>
       )}
-      {node.idea && onEditar && estado !== "rejected" && estado !== "superseded" && (
-        <FasesIdea uid={uid!} fases={fases} onEditar={onEditar} />
-      )}
-      {node.idea &&
-        estado &&
-        onMover &&
-        ACCIONES_ESTADO[estado]
-          .filter((accion) => !puedeIr || puedeIr(estado, accion.estado))
-          .map((accion) => {
-            const bloqueo = motivoBloqueo(accion.estado);
-            return (
+      <div className="fila-pie">
+        <div className="fila-mover">
+          {estado &&
+            onMover &&
+            ACCIONES_ESTADO[estado]
+              .filter((accion) => !puedeIr || puedeIr(estado, accion.estado))
+              .map((accion) => {
+                const bloqueo = motivoBloqueo(accion.estado);
+                return (
+                  <button
+                    key={accion.estado}
+                    type="button"
+                    className="btn ghost mover"
+                    title={bloqueo ?? accion.etiqueta}
+                    disabled={trabajando || bloqueo !== null}
+                    onClick={() => {
+                      // Descartar pide el motivo (detalle `rejected_node`); los
+                      // demás traslados van directos.
+                      if (accion.descartar && onEditar) setDescartando(true);
+                      else onMover(uid!, accion.estado);
+                    }}
+                  >
+                    {accion.etiqueta}
+                  </button>
+                );
+              })}
+        </div>
+        <div className="fila-secundaria">
+          {onPideEditar && (
+            <button
+              type="button"
+              className="btn ghost mover"
+              onClick={() => onPideEditar(uid!, node.title, descripcion)}
+            >
+              Editar
+            </button>
+          )}
+          {fases.length > 0 && (
+            <button type="button" className="btn ghost mover" onClick={() => setFichaFases(true)}>
+              Fases · {hechas}/{fases.length}
+            </button>
+          )}
+          {onBorrar && !confirmando && (
+            <button type="button" className="btn ghost mover" onClick={() => setConfirmando(true)}>
+              Borrar
+            </button>
+          )}
+          {onBorrar && confirmando && (
+            <span className="fila-acciones">
+              ¿Borrar?
               <button
-                key={accion.estado}
-                type="button"
                 className="btn ghost mover"
-                title={bloqueo ?? accion.etiqueta}
-                disabled={trabajando || bloqueo !== null}
-                onClick={() => {
-                  // Descartar pide el motivo (detalle `rejected_node`); los demás
-                  // traslados van directos.
-                  if (accion.descartar && onEditar) setDescartando(true);
-                  else onMover(uid!, accion.estado);
-                }}
+                type="button"
+                disabled={trabajando}
+                onClick={() => hacer(() => onBorrar(uid!))}
               >
-                {accion.etiqueta}
+                Sí
               </button>
-            );
-          })}
-      {estado === "proposed" && fases.length === 0 && exigeFases?.(estado, "roadmap") && (
-        <span className="hint">Añade al menos una fase para pasar a roadmap.</span>
-      )}
-      {estado === "roadmap" &&
-        abiertas > 0 &&
-        exigeFasesListas?.(estado, "verificacion") && (
-          <span className="hint">
-            Cierra las fases pendientes o fallidas para pasar a verificación.
-          </span>
-        )}
-      {estado === "verificacion" &&
-        fases.length === 0 &&
-        exigeFases?.(estado, "revision_aprobada") && (
-          <span className="hint">Añade al menos una fase para aprobar la revisión.</span>
-        )}
-      {estado === "verificacion" &&
-        !fases.every((fase) => fase.estado === "completada") &&
-        exigeFasesCompletas?.(estado, "revision_aprobada") && (
-          <span className="hint">
-            Completa todas las fases para aprobar la revisión.
-          </span>
-        )}
-      {node.idea && onPideEditar && (
-        <button
-          type="button"
-          className="btn ghost mover"
-          onClick={() => onPideEditar(uid!, node.title, descripcion)}
-        >
-          Editar
-        </button>
-      )}
-      {node.idea && fases.length > 0 && (
-        <button
-          type="button"
-          className="btn ghost mover"
-          onClick={() => setFichaFases(true)}
-        >
-          Fases · {hechas}/{fases.length}
-        </button>
-      )}
-      {node.idea && onBorrar && !confirmando && (
-        <button type="button" className="btn ghost mover" onClick={() => setConfirmando(true)}>
-          Borrar
-        </button>
-      )}
+              <button
+                className="btn ghost mover"
+                type="button"
+                onClick={() => setConfirmando(false)}
+              >
+                No
+              </button>
+            </span>
+          )}
+        </div>
+      </div>
 
       {node.idea && descartando && onEditar &&
         createPortal(
@@ -506,23 +536,6 @@ function NodeRow({
       {node.idea && fichaFases && (
         <FichaFases titulo={node.title} fases={fases} onCerrar={() => setFichaFases(false)} />
       )}
-      {node.idea && confirmando && onBorrar && (
-        <span className="fila-acciones">
-          ¿Borrar?
-          <button
-            className="btn ghost mover"
-            type="button"
-            disabled={trabajando}
-            onClick={() => hacer(() => onBorrar(uid!))}
-          >
-            Sí
-          </button>
-          <button className="btn ghost mover" type="button" onClick={() => setConfirmando(false)}>
-            No
-          </button>
-        </span>
-      )}
-
       {fallo && <span className="hint error fila-fallo">{fallo}</span>}
         </div>
       )}

@@ -498,6 +498,21 @@ function FichaFases({
   );
 }
 
+/** ¿La ficha se abre sola en este estado? `undefined` deja decidir a la rama:
+ *  un nodo con hijos sigue abierto para que se vea el nivel siguiente. */
+function seAbreSola(estado: Status | undefined): boolean | undefined {
+  if (estado === "roadmap" || estado === "verificacion") return true;
+  if (
+    estado === "draft" ||
+    estado === "proposed" ||
+    estado === "rejected" ||
+    estado === "superseded"
+  ) {
+    return false;
+  }
+  return undefined;
+}
+
 /** Una fila del nodo: solo título, contador y su botón de expandir.
  *  Al expandirla aparece un panel con los detalles (descripción, estado) y
  *  los botones de la idea —mover, completar, editar, borrar—, más sus hijos,
@@ -543,11 +558,14 @@ function NodeRow({
   catalogo?: readonly Idea[];
 }) {
   const tiene = node.kids.length > 0;
-  // Una sola expansión por fila: detalles, botones e hijos. Las filas con
-  // hijos arrancan abiertas para que se vea la rama; las hoja, cerradas.
-  const [expandido, setExpandido] = useState(tiene);
   const uid = node.idea?.uid;
   const estado = node.idea?.status;
+  // Una sola expansión por fila: detalles, botones e hijos. Al llegar a
+  // roadmap o verificación la ficha se abre sola; en entrada, cola y
+  // descartadas se queda plegada. Al cambiar de carril la fila se vuelve a
+  // montar, así que este estado inicial ya fija lo que toca en el carril
+  // nuevo; en el resto de casos manda la rama (con hijos, abierta).
+  const [expandido, setExpandido] = useState(() => seAbreSola(estado) ?? tiene);
   const descripcion = node.idea?.description ?? "";
   const deps = node.idea?.depende_de ?? [];
   const fases = node.idea?.fases ?? [];

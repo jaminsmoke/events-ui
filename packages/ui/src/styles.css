@@ -382,7 +382,10 @@ header > div {
   gap: 6px;
   padding: 6px 9px 7px;
   border-top: 1px dashed #1f2a3a;
-  background: #0c1117;
+  background: #0d141c;
+  /* Filo del carril: la ficha se lee como parte del nodo, no como un
+   * formulario suelto. Va en sombra para no robarle ancho al contenido. */
+  box-shadow: inset 2px 0 0 var(--tinte, var(--accent));
 }
 
 /* Descripción y estado en la misma línea: la descripción manda y el chip
@@ -397,13 +400,22 @@ header > div {
   flex: 1;
   min-width: 0;
   margin: 0;
-  color: var(--muted);
-  font-size: 11.5px;
+  color: #c7d3e0;
+  font-size: 12px;
   line-height: 1.35;
 }
 
 .fila-cabecera .fila-meta {
   flex: none;
+}
+
+/* El estado de la idea toma el color de su carril: es el dato que sitúa la
+ * ficha. El chip de estado de fase de la ficha no entra aquí. */
+.fila-cabecera .fila-estado {
+  color: var(--tinte, var(--muted));
+  border-color: color-mix(in srgb, var(--tinte, #33465e) 55%, transparent);
+  background: color-mix(in srgb, var(--tinte, #33465e) 14%, transparent);
+  font-weight: 600;
 }
 
 /* Estado de la idea y, cuando la hay, la fecha del descarte. */
@@ -424,12 +436,24 @@ header > div {
 }
 
 .fila-rotulo {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   margin: 0;
-  color: #8b97a8;
+  color: #9aa8bb;
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+/* Punto del carril junto al rótulo: da color a la estructura sin padding. */
+.fila-rotulo::before {
+  content: "";
+  width: 4px;
+  height: 4px;
+  border-radius: 1px;
+  background: var(--tinte, var(--muted));
 }
 
 /* Aviso de protocolo: por qué el traslado todavía no se puede hacer. */
@@ -467,11 +491,13 @@ header > div {
   border-color: transparent;
   color: var(--muted);
   font-size: 10.5px;
+  opacity: 0.75;
 }
 
 .fila-secundaria .btn.ghost.mover:hover:not(:disabled) {
   border-color: #33465e;
   color: var(--fg);
+  opacity: 1;
 }
 
 /* F2: proyección del repo con su identidad. */
@@ -1215,26 +1241,35 @@ header > div {
   overflow: hidden;
 }
 
+.node.lane-root {
+  --tinte: #58a6ff;
+}
+
 .node.lane-cola {
+  --tinte: #58a6ff;
   border-color: #2e4a6b;
 }
 
 .node.lane-roadmap {
+  --tinte: #a98bf0;
   --pulso: #8b6be055;
   border-color: #4c3a6b;
 }
 
 .node.lane-verificacion {
+  --tinte: #38b6a5;
   --pulso: #38b6a555;
   border-color: #1f5568;
 }
 
 .node.lane-revision_aprobada {
+  --tinte: #3fb950;
   --pulso: #3fb95055;
   border-color: #2b5c3f;
 }
 
 .node.lane-descartadas {
+  --tinte: #f0883e;
   --pulso: #f0883e44;
   border-color: #5c2f2f;
 }
@@ -1568,12 +1603,23 @@ code {
 
 /* La cabecera de fases es el rótulo del bloque: mismo tono que los demás. */
 .fases-cabecera {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   margin: 0;
-  color: #8b97a8;
+  color: #9aa8bb;
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.fases-cabecera::before {
+  content: "";
+  width: 4px;
+  height: 4px;
+  border-radius: 1px;
+  background: var(--tinte, var(--muted));
 }
 .fase {
   display: flex;

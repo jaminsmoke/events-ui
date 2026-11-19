@@ -414,6 +414,12 @@
   grid-column: 1 / -1;
 }
 
+/* El nodo base topa en 340px (`.node`, que se importa después): aquí el
+ * asunto manda y el historial ocupa el ancho de la línea. */
+.linea-git > .nodo-commits {
+  max-width: none;
+}
+
 .nodo-commits .node-head {
   cursor: default;
 }

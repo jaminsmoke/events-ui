@@ -560,6 +560,7 @@ export function NodeBox({
   boxRef,
   volando,
   pulso,
+  destello,
   onMover,
   onPideEditar,
   onEditar,
@@ -576,6 +577,9 @@ export function NodeBox({
   boxRef?: Ref<HTMLElement>;
   volando: (uid: string, nodo: string) => boolean;
   pulso?: TonoPulso;
+  /** Fogonazo de llegada: la clave es la chispa que lo provoca, para que dos
+   *  llegadas seguidas reinicien la animación en vez de fundirse. */
+  destello?: { clave: number };
   onMover?: (uid: string, status: Status) => void;
   onPideEditar?: (uid: string, titulo: string, descripcion: string) => void;
   onEditar?: (uid: string, cambios: IdeaUpdate) => Promise<void>;
@@ -594,6 +598,7 @@ export function NodeBox({
       ref={boxRef}
       className={`node${node.tone ? ` lane-${node.tone}` : ""}${pulso ? ` pulso-${pulso}` : ""}`}
     >
+      {destello && <span key={destello.clave} className="destello" aria-hidden="true" />}
       <button
         type="button"
         className="node-head"

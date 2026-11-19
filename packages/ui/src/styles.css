@@ -1040,8 +1040,10 @@ header > div {
     animation: none;
   }
 
-  /* Sin viaje: el pulso del nodo sigue contando el cambio. */
-  .spark {
+  /* Sin viaje: el pulso del nodo sigue contando el cambio, y el destello de
+   *  llegada ya no tiene recorrido al que esperar. */
+  .spark,
+  .destello {
     display: none;
   }
 }
@@ -1118,6 +1120,8 @@ header > div {
 
 .node {
   --pulso: #58a6ff44;
+  --destello: #58a6ff;
+  position: relative;
   min-width: 232px;
   max-width: 340px;
   background: #10151c;
@@ -1219,11 +1223,13 @@ header > div {
 
 .node.pulso-rojo {
   --pulso: #f8514955;
+  --destello: #f85149;
   animation: pulso-borde 900ms cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
 .node.pulso-verde {
   --pulso: #3fb95066;
+  --destello: #3fb950;
   animation: pulso-borde 900ms cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
@@ -1236,6 +1242,34 @@ header > div {
   }
   100% {
     box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+/* Fogonazo de llegada: la chispa tarda lo que mide su cable y, al terminar, el
+ *  nodo da un golpe breve de luz. Confirma la llegada; el pulso del borde la
+ *  avisa en cuanto se sabe el cambio. Sin relleno, solo borde y halo interior:
+ *  el nodo recorta lo que sobresale. */
+.destello {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow:
+    inset 0 0 0 1px var(--destello),
+    inset 0 0 14px var(--destello);
+  animation: destello-llegada 380ms ease-out both;
+}
+
+@keyframes destello-llegada {
+  0% {
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
   }
 }
 

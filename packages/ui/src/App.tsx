@@ -10,7 +10,7 @@ import { buildTree } from "./mapa/arbol";
 import { duracionChispa, useCables } from "./mapa/cables";
 import { Compuerta, LeyendaCompuertas } from "./mapa/compuertas";
 import { useCamara } from "./mapa/camara";
-import type { Status } from "./mapa/carriles";
+import type { LaneId, Status } from "./mapa/carriles";
 import { NodeBox, VueloFila } from "./mapa/nodos";
 import { useVuelos } from "./mapa/vuelos";
 import { useEventos, resumenEvento } from "./core/useEventos";
@@ -179,6 +179,41 @@ export default function App({
   });
   const { vuelos, volando, aterrizado } = useVuelos({ repo, ideas, cerrados, vista, mapRef });
   const { chispas, pulsos, pulsoCajon } = useAnimaciones(repo, ideas);
+
+  /* Fogonazo de llegada: la chispa tarda lo que mide su cable; cuando termina,
+   *  el nodo da un golpe breve de luz. Va por su cuenta y no con la actividad,
+   *  que se apaga en 1,15 s y a veces corta el viaje antes de tiempo. Se anota
+   *  por `id` para no repetir el destello de una chispa ya vista. */
+  const [destellos, setDestellos] = useState<{ lane: LaneId; id: number }[]>([]);
+  const vistos = useRef(new Set<number>());
+  const temporizadores = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  useEffect(() => {
+    for (const chispa of chispas) {
+      if (vistos.current.has(chispa.id)) continue;
+      vistos.current.add(chispa.id);
+      const cable = cables.find((c) => c.lane === chispa.lane);
+      if (!cable) continue;
+      temporizadores.current.push(
+        setTimeout(() => {
+          setDestellos((prev) => [...prev, chispa]);
+          temporizadores.current.push(
+            setTimeout(
+              () => setDestellos((prev) => prev.filter((d) => d.id !== chispa.id)),
+              400,
+            ),
+          );
+        }, duracionChispa(cable.longitud) * 1000),
+      );
+    }
+  }, [chispas, cables]);
+
+  useEffect(() => () => temporizadores.current.forEach(clearTimeout), []);
+
+  const destelloDe = (lane: string | undefined) => {
+    const destello = destellos.find((d) => d.lane === lane);
+    return destello ? { clave: destello.id } : undefined;
+  };
 
   const abrir = useCallback(
     (path: string) => {
@@ -449,6 +484,7 @@ export default function App({
                       }}
                       volando={volando}
                       pulso={pulsos.find((p) => p.lane === lane.tone)?.tono}
+                      destello={destelloDe(lane.tone)}
                       onMover={alMover}
                       onPideEditar={(uid, titulo, descripcion) =>
                         setEditando({ uid, titulo, descripcion })

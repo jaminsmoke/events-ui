@@ -184,6 +184,13 @@ con el motivo, para no reabrirlo cada semana.
 - **CI**: `pnpm check` global en cada push a main y en PRs
   (`.github/workflows/ci.yml`). Batería e2e y builds de Tauri quedan fuera
   del CI a propósito (navegador y puertos; se corren en local).
+- **Runtime fijado a 3.12**: `.python-version` y el CI apuntan a 3.12 y
+  `requires-python` cierra el techo en `<3.14`, así que `uv` deja de resolver
+  contra el 3.14 del sistema, donde las pruebas síncronas de `starlette` se han
+  visto quedarse colgadas en Windows. Ruff ya compilaba a `py312`. El aviso de
+  `starlette.testclient` con `httpx` no venía del intérprete: lo emite
+  `starlette` 1.10 y sigue saliendo en 3.12; si molesta, se va por `httpx2` o
+  fijando `starlette`, no bajando Python.
 
 - **Nodos y cables estables.** Las seis cabeceras mantienen su posición al llenar o plegar el mapa. Los cables se trazan en ángulo recto, como pistas de circuito impreso. Los cables de etapa se anclan a las cabeceras; la rama de Descartadas nace de un nudo en mitad del cable Entrada↔En cola y la de rechazo, del nudo del cable Verificación→Revisión aprobada.
 - **Limpieza de la prueba manual.** La Prueba 1 deja ver el reparto y después vacía el laboratorio en una transacción, también al detenerla o fallar un paso. El E2E compara coordenadas y trazados, consulta las siete tablas operativas y comprueba los protocolos antes de que el runner haga su propia limpieza.
@@ -199,14 +206,6 @@ con el motivo, para no reabrirlo cada semana.
 
 ## Pendientes
 
-- **Runtime de Python fijado a 3.12.** Hoy `services/core/pyproject.toml` pide
-  `>=3.12`, `services/core/.python-version` dice `3.14` y el CI instala 3.14:
-  `uv` resuelve contra el 3.14 del sistema y `starlette.testclient` con `httpx`
-  avisa en cada tanda de tests (y esa combinación en Windows se ha visto
-  quedarse colgada en pruebas síncronas). Siguiente paso: `.python-version` en
-  `3.12`, `requires-python = ">=3.12, <3.14"` (el `target-version` de ruff ya es
-  `py312`), `python-version: 3.12` en `.github/workflows/ci.yml` y `uv sync` para
-  rehacer el `.venv`; 3.12.14 ya está instalado por `uv` en esta máquina.
 - **Partir `ideas.py`.** 2 113 líneas y creciendo: dentro conviven las
   migraciones históricas, las validaciones (dependencias, protocolos), el
   movimiento entre carriles, las fases y requisitos y la anotación de archivos.

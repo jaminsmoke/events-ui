@@ -2,7 +2,10 @@
 name = "events-core"
 version = "0.0.0"
 description = "Capa de lectura sobre el log de eventos SQLite."
-requires-python = ">=3.12"
+# Probado con 3.12 y 3.13. El 3.14 cambia el runtime de anyio/httpx y las
+# peticiones síncronas de `starlette.testclient` avisan en cada test y se han
+# visto quedarse colgadas en Windows; el techo evita que `uv` resuelva contra él.
+requires-python = ">=3.12, <3.14"
 dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",

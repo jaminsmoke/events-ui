@@ -119,6 +119,60 @@ const PRUEBAS: Prueba[] = [
     },
   },
   {
+    id: "cable-en-marcha",
+    nombre: "Cable en marcha",
+    descripcion:
+      "Una idea con la fase «Diseño» completada salta de carril en carril: cada salto abre en guiones el " +
+      "cable de llegada y lo hace correr con la chispa. Encadena cinco saltos para poder mirarlo sin prisa. " +
+      "Después vacía el laboratorio.",
+    construir: ({ crear, mover, editar }) => {
+      let uid: string | null = null;
+      const conUid = () => {
+        if (!uid) throw new Error("Falta el uid de la idea creada.");
+        return uid;
+      };
+      // Con la fase completada pasan las compuertas de roadmap y verificación.
+      // Volver a la cola es la única forma de repetir un cable ya visto.
+      const saltos: { destino: IdeaCreate["status"]; texto: string }[] = [
+        { destino: "roadmap", texto: "Mover a roadmap" },
+        { destino: "verificacion", texto: "Mover a verificación" },
+        { destino: "proposed", texto: "Volver a En cola" },
+        { destino: "roadmap", texto: "Mover otra vez a roadmap" },
+        { destino: "verificacion", texto: "Mover otra vez a verificación" },
+      ];
+      return [
+        {
+          texto: "Crear la idea en En cola",
+          ejecutar: async () => {
+            const idea = await crear({
+              title: "Marcha · cable",
+              description: "Una idea que salta de carril para ver el cable en marcha.",
+              content: "Una idea que salta de carril para ver el cable en marcha.",
+              kind: "idea",
+              status: "proposed",
+            });
+            if (!idea) throw new Error("El core no devolvió la idea creada.");
+            uid = idea.uid;
+          },
+        },
+        {
+          texto: "Añadir la fase «Diseño» completada",
+          ejecutar: async () => {
+            await editar(conUid(), {
+              fases: [{ orden: 1, titulo: "Diseño", estado: "completada", nota: "" }],
+            });
+          },
+        },
+        ...saltos.map(({ destino, texto }) => ({
+          texto,
+          ejecutar: async () => {
+            await mover(conUid(), destino);
+          },
+        })),
+      ];
+    },
+  },
+  {
     id: "fases-aprobacion",
     nombre: "Fases hasta aprobar",
     descripcion:

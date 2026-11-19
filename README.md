@@ -157,6 +157,8 @@ del lanzador ofrece:
 - **Reparto y limpieza**: diez ideas, siete en cola y tres descartadas.
 - **Mapa completo por carriles**: siembra ideas en todos los carriles para ver
   los cables, sus compuertas y el grosor según la presión.
+- **Cable en marcha**: una idea salta de carril en carril cinco veces para ver
+  el cable de llegada abrirse en guiones y correr con la chispa.
 - **Fases hasta aprobar**: una idea con una fase recorre el flujo hasta la
   aprobación, con las compuertas de fases en el camino.
 - **Ida y vuelta y descarte**: una idea llega a verificación, vuelve a la cola y

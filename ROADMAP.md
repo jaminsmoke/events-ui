@@ -207,6 +207,16 @@ con el motivo, para no reabrirlo cada semana.
   comprobarlo, y un intento fallido no deja la marca. Cubierto en
   `services/core/tests/test_almacen_al_dia.py`. El `.gitignore` de `.EUI` se
   sigue repasando en cada lectura: es un fichero de dos líneas y se deja.
+- **El registro operativo se prepara una vez**: `registro.conectar` creaba la
+  tabla y el índice (`IF NOT EXISTS`) en cada línea escrita; ahora la primera
+  conexión del proceso prepara el fichero y las demás solo insertan. Si el
+  fichero se recrea por debajo, la marca se olvida y la línea se reintenta una
+  vez. Cubierto en `services/core/tests/test_registro_preparado.py`.
+- **El sidecar se vigila**: en release un hilo arranca `events-core` si no hay
+  nadie, espera `/health` (un GET mínimo escrito a mano, sin dependencias) y, si
+  el hijo muere, lo vuelve a arrancar con espera creciente. Si el puerto ya lo
+  atiende otro core, se usa ese en vez de arrancar otro encima. «Salir» marca la
+  parada antes de matarlo, para que el vigilante no lo resucite.
 - **CI**: `pnpm check` global en cada push a main y en PRs
   (`.github/workflows/ci.yml`). Batería e2e y builds de Tauri quedan fuera
   del CI a propósito (navegador y puertos; se corren en local).
@@ -234,15 +244,6 @@ con el motivo, para no reabrirlo cada semana.
 
 Revisión del 19 de noviembre de 2026, por orden de daño y no de esfuerzo.
 
-- **El registro operativo se prepara entero en cada línea.** `registro.escribir`
-  crea la tabla y el índice (`IF NOT EXISTS`), inserta y purga en una conexión
-  nueva cada vez. Con el log del core en marcha son muchas aperturas por minuto;
-  basta con una conexión por proceso o recordar la ruta ya preparada.
-- **El sidecar no se vigila.** En release `lib.rs` arranca `events-core` una
-  vez y guarda el `Child`; si el core muere (crash, puerto tomado, disco lleno)
-  la UI se queda sin API hasta cerrar y reabrir, sin aviso ni reintento. Toca
-  esperar `/health` al arrancar y reintentar (o avisar en la bandeja) si el hijo
-  sale.
 - **`packages/ui/src/styles.css` son 2.324 líneas.** Los comentarios ya marcan
   las zonas (frame, selector, fila, ficha, log, mapa, compuertas, Git). Partirlo
   en `styles/` por zona, importadas desde un índice, deja los cambios de una

@@ -58,8 +58,9 @@ MIGRATIONS_DIR = Path(__file__).with_name("migraciones")
 # exigirlas para cruzar una unión (`exige_fases`). La 0022 añade el otro
 # requisito del protocolo: no salir de un carril con fases abiertas
 # (`exige_fases_listas`) y la 0023 exige todas completadas para aprobar
-# (`exige_fases_completas`); la 0024 reutiliza `exige_fases` para que aprobar exija al menos una.
-SCHEMA_VERSION = 24
+# (`exige_fases_completas`); la 0024 reutiliza `exige_fases` para que aprobar
+# exija al menos una; la 0025 añade los requisitos de cada fase (`idea_requisito`).
+SCHEMA_VERSION = 25
 
 REPOS_ROOT_ENV_VAR = "EVENTSUI_REPOS_ROOT"
 BUSY_TIMEOUT_MS = 5_000
@@ -607,14 +608,34 @@ def _rechazo(conn: sqlite3.Connection, uid: str) -> sqlite3.Row | None:
     ).fetchone()
 
 
+def _requisitos(conn: sqlite3.Connection, uid: str) -> dict[int, list[dict[str, Any]]]:
+    """Los requisitos de la idea, agrupados por el orden de su fase (0025)."""
+    por_fase: dict[int, list[dict[str, Any]]] = {}
+    for fila in conn.execute(
+        "SELECT fase_orden, orden, titulo, hecho, done_at"
+        " FROM idea_requisito WHERE idea_uid = ? ORDER BY fase_orden, orden",
+        (uid,),
+    ):
+        por_fase.setdefault(int(fila["fase_orden"]), []).append(
+            {
+                "orden": fila["orden"],
+                "titulo": fila["titulo"],
+                "hecho": bool(fila["hecho"]),
+                "done_at": fila["done_at"],
+            }
+        )
+    return por_fase
+
+
 def _fases(conn: sqlite3.Connection, uid: str) -> list[dict[str, Any]]:
-    """Las fases de una idea, en orden (`idea_fase`, 0021)."""
+    """Las fases de una idea, en orden (`idea_fase`, 0021), con sus requisitos."""
     filas = conn.execute(
         "SELECT orden, titulo, estado, nota, entered_at"
         " FROM idea_fase WHERE idea_uid = ? ORDER BY orden",
         (uid,),
     ).fetchall()
-    return [dict(fila) for fila in filas]
+    requisitos = _requisitos(conn, uid)
+    return [{**dict(fila), "requisitos": requisitos.get(int(fila["orden"]), [])} for fila in filas]
 
 
 def _fases_en_lote(conn: sqlite3.Connection, uids: list[str]) -> dict[str, list[dict[str, Any]]]:
@@ -623,18 +644,34 @@ def _fases_en_lote(conn: sqlite3.Connection, uids: list[str]) -> dict[str, list[
     if not uids:
         return por_uid
     marcas = ",".join("?" for _ in uids)
+    requisitos: dict[tuple[str, int], list[dict[str, Any]]] = {}
+    for fila in conn.execute(
+        "SELECT idea_uid, fase_orden, orden, titulo, hecho, done_at"
+        f" FROM idea_requisito WHERE idea_uid IN ({marcas}) ORDER BY idea_uid, fase_orden, orden",
+        uids,
+    ):
+        requisitos.setdefault((str(fila["idea_uid"]), int(fila["fase_orden"])), []).append(
+            {
+                "orden": fila["orden"],
+                "titulo": fila["titulo"],
+                "hecho": bool(fila["hecho"]),
+                "done_at": fila["done_at"],
+            }
+        )
     for fila in conn.execute(
         "SELECT idea_uid, orden, titulo, estado, nota, entered_at"
         f" FROM idea_fase WHERE idea_uid IN ({marcas}) ORDER BY idea_uid, orden",
         uids,
     ):
-        por_uid[str(fila["idea_uid"])].append(
+        uid = str(fila["idea_uid"])
+        por_uid[uid].append(
             {
                 "orden": fila["orden"],
                 "titulo": fila["titulo"],
                 "estado": fila["estado"],
                 "nota": fila["nota"],
                 "entered_at": fila["entered_at"],
+                "requisitos": requisitos.get((uid, int(fila["orden"])), []),
             }
         )
     return por_uid
@@ -884,13 +921,18 @@ def _escribir_estado(
         (_grupo(estado), posicion, ts, uid),
     )
     if estado in ("draft", "proposed"):
-        # En la entrada y la cola las fases solo pueden estar pendientes (ver
-        # `_validar_fases_en_lane`): volver allí reinicia las que estaban
-        # cerradas, porque el trabajo ya no está activo.
+        # En la entrada y la cola las fases y los requisitos están pendientes
+        # (ver `_validar_fases_en_lane`): volver allí reinicia lo cerrado,
+        # porque el trabajo ya no está activo. Los títulos y las notas se
+        # quedan; solo se sueltan el estado y las fechas.
         conn.execute(
             "UPDATE idea_fase SET estado = 'pendiente', entered_at = ?"
             " WHERE idea_uid = ? AND estado <> 'pendiente'",
             (ts, uid),
+        )
+        conn.execute(
+            "UPDATE idea_requisito SET hecho = 0, done_at = NULL WHERE idea_uid = ? AND hecho = 1",
+            (uid,),
         )
     conn.execute("DELETE FROM roadmap_node WHERE uid = ?", (uid,))
     conn.execute("DELETE FROM verificacion_node WHERE uid = ?", (uid,))
@@ -1172,12 +1214,12 @@ def _actualizar_ficha_activa(
 
 
 def _validar_fases_en_lane(destino: str, fases: list[dict[str, Any]]) -> None:
-    """En la entrada y la cola las fases solo pueden estar pendientes.
+    """En la entrada y la cola las fases y sus requisitos están pendientes.
 
-    Hasta roadmap la idea es un plan: completar, fallar o rechazar una fase es
-    trabajo, y el trabajo se lleva allí, que es donde la idea está activa.
-    Volver a estos carriles devuelve las fases a pendiente (ver
-    `_escribir_estado`).
+    Hasta roadmap la idea es un plan: completar, fallar o rechazar una fase —o
+    marcar un requisito— es trabajo, y el trabajo se lleva allí, que es donde
+    la idea está activa. Volver a estos carriles lo devuelve todo a pendiente
+    (ver `_escribir_estado`).
     """
     if destino not in ("draft", "proposed"):
         return
@@ -1187,6 +1229,80 @@ def _validar_fases_en_lane(destino: str, fases: list[dict[str, Any]]) -> None:
             "en la entrada y la cola las fases solo pueden estar pendientes: "
             + ", ".join(no_pendientes)
         )
+    marcados = [
+        f"{fase['titulo']} · {requisito['titulo']}"
+        for fase in fases
+        for requisito in fase["requisitos"]
+        if requisito["hecho"]
+    ]
+    if marcados:
+        raise InvalidInput(
+            "en la entrada y la cola los requisitos están pendientes: " + ", ".join(marcados)
+        )
+
+
+def _validar_fases_completadas(fases: list[dict[str, Any]]) -> None:
+    """Una fase completada no puede dejar requisitos sin completar.
+
+    Los requisitos son su criterio de hecho: si la fase se da por hecha con
+    uno pendiente, el checklist no significa nada. Una fase sin requisitos se
+    completa igual (el vacío no bloquea), como el resto de gates.
+    """
+    for fase in fases:
+        if fase["estado"] != "completada":
+            continue
+        pendientes = [
+            requisito["titulo"] for requisito in fase["requisitos"] if not requisito["hecho"]
+        ]
+        if pendientes:
+            raise InvalidInput(
+                f"no se puede completar «{fase['titulo']}»: quedan requisitos sin completar: "
+                + ", ".join(pendientes)
+            )
+
+
+def _normalizar_requisitos(pedidos: Any, existentes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Valida los requisitos de una fase y conserva `done_at` si no cambian.
+
+    Sin `requisitos` en el PATCH se quedan los que había (una fase editada
+    desde un cliente viejo no borra su checklist); con lista, aunque vacía, se
+    reemplazan enteros. Sin `orden`, el requisito se añade al final.
+    """
+    if pedidos is None:
+        return [dict(requisito) for requisito in existentes]
+    if not isinstance(pedidos, list):
+        raise InvalidInput("requisitos tiene que ser una lista")
+    previos = {int(requisito["orden"]): requisito for requisito in existentes}
+    siguiente = max(previos, default=0)
+    normalizados: list[dict[str, Any]] = []
+    vistas: set[int] = set()
+    for item in pedidos:
+        if not isinstance(item, dict):
+            raise InvalidInput("cada requisito tiene que ser un objeto")
+        titulo = str(item.get("titulo") or "").strip()
+        if not titulo:
+            raise InvalidInput("un requisito sin título no vale")
+        orden = item.get("orden")
+        if orden is None:
+            siguiente += 1
+            orden = siguiente
+        try:
+            orden = int(orden)
+        except (TypeError, ValueError) as exc:
+            raise InvalidInput("el orden de un requisito tiene que ser un entero") from exc
+        if orden < 1:
+            raise InvalidInput("el orden de un requisito empieza en 1")
+        if orden in vistas:
+            raise InvalidInput(f"el orden de requisito {orden} está repetido")
+        vistas.add(orden)
+        hecho = bool(item.get("hecho"))
+        previo = previos.get(orden)
+        done_at = None
+        if hecho:
+            conserva = previo is not None and previo["hecho"] and previo["done_at"]
+            done_at = str(previo["done_at"]) if conserva else now_iso()
+        normalizados.append({"orden": orden, "titulo": titulo, "hecho": hecho, "done_at": done_at})
+    return sorted(normalizados, key=lambda requisito: requisito["orden"])
 
 
 def _normalizar_fases(fases: Any, existentes: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -1236,13 +1352,20 @@ def _normalizar_fases(fases: Any, existentes: list[dict[str, Any]]) -> list[dict
                     if previa is not None and previa["estado"] == estado
                     else now_iso()
                 ),
+                "requisitos": _normalizar_requisitos(
+                    item.get("requisitos"), (previa or {}).get("requisitos", [])
+                ),
             }
         )
     return sorted(normalizadas, key=lambda fase: fase["orden"])
 
 
 def _escribir_fases(conn: sqlite3.Connection, uid: str, fases: list[dict[str, Any]]) -> None:
-    """Reemplaza las fases de la idea (borra e inserta, en su transacción)."""
+    """Reemplaza las fases de la idea (borra e inserta, en su transacción).
+
+    El borrado se lleva los requisitos por la cascada; después se insertan los
+    que traiga cada fase, en el mismo orden. Todo o nada.
+    """
     conn.execute("DELETE FROM idea_fase WHERE idea_uid = ?", (uid,))
     conn.executemany(
         "INSERT INTO idea_fase (idea_uid, orden, titulo, estado, nota, entered_at)"
@@ -1250,6 +1373,22 @@ def _escribir_fases(conn: sqlite3.Connection, uid: str, fases: list[dict[str, An
         [
             (uid, fase["orden"], fase["titulo"], fase["estado"], fase["nota"], fase["entered_at"])
             for fase in fases
+        ],
+    )
+    conn.executemany(
+        "INSERT INTO idea_requisito (idea_uid, fase_orden, orden, titulo, hecho, done_at)"
+        " VALUES (?, ?, ?, ?, ?, ?)",
+        [
+            (
+                uid,
+                fase["orden"],
+                requisito["orden"],
+                requisito["titulo"],
+                int(requisito["hecho"]),
+                requisito["done_at"],
+            )
+            for fase in fases
+            for requisito in fase["requisitos"]
         ],
     )
 
@@ -1314,6 +1453,7 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
             )
             if fases_finales is not None:
                 _validar_fases_en_lane(destino, fases_finales)
+                _validar_fases_completadas(fases_finales)
             # El gate mira la lista que quedará: la que llega en este PATCH o,
             # si no hay, la que ya tiene la idea.
             fases_quedan = (

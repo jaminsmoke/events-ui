@@ -62,6 +62,27 @@ app.add_middleware(
 )
 
 
+class Requisito(BaseModel):
+    """Un requisito de una fase (0025): su criterio de hecho, binario."""
+
+    orden: int = Field(ge=1)
+    titulo: str = Field(min_length=1)
+    hecho: bool = False
+    done_at: str | None = None
+
+
+class RequisitoEntrada(BaseModel):
+    """Un requisito en el PATCH; sin `orden`, se añade al final.
+
+    Si la fase no trae `requisitos`, se conservan los que tenía; una lista
+    vacía los retira.
+    """
+
+    orden: int | None = Field(default=None, ge=1)
+    titulo: str = Field(min_length=1)
+    hecho: bool = False
+
+
 class Fase(BaseModel):
     """Una fase de la idea (0021), con su propio estado y fecha de entrada."""
 
@@ -70,6 +91,8 @@ class Fase(BaseModel):
     estado: FaseEstado = "pendiente"
     nota: str = ""
     entered_at: str
+    # Sus requisitos (0025), en orden.
+    requisitos: list[Requisito] = Field(default_factory=list)
 
 
 class FaseEntrada(BaseModel):
@@ -80,6 +103,7 @@ class FaseEntrada(BaseModel):
     titulo: str = Field(min_length=1)
     estado: FaseEstado = "pendiente"
     nota: str = ""
+    requisitos: list[RequisitoEntrada] | None = None
 
 
 class IdeaCreate(BaseModel):

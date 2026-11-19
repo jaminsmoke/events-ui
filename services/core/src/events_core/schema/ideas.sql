@@ -144,6 +144,22 @@ CREATE TABLE IF NOT EXISTS idea_fase (
     PRIMARY KEY (idea_uid, orden)
 );
 
+-- Los requisitos de cada fase (0025): su criterio de hecho. Cuelgan de la fase
+-- —no de la idea— para que borrar una fase se lleve los suyos; `hecho` es
+-- binario y `done_at` guarda cuándo se marcó, para la ficha. Sin estado
+-- `fallida` propio: lo que falla es la fase.
+CREATE TABLE IF NOT EXISTS idea_requisito (
+    idea_uid   TEXT    NOT NULL,
+    fase_orden INTEGER NOT NULL CHECK (fase_orden > 0),
+    orden      INTEGER NOT NULL CHECK (orden > 0),
+    titulo     TEXT    NOT NULL CHECK (length(trim(titulo)) > 0),
+    hecho      INTEGER NOT NULL DEFAULT 0 CHECK (hecho IN (0, 1)),
+    done_at    TEXT,
+    PRIMARY KEY (idea_uid, fase_orden, orden),
+    FOREIGN KEY (idea_uid, fase_orden) REFERENCES idea_fase (idea_uid, orden)
+        ON DELETE CASCADE
+);
+
 -- Los protocolos de flujo: qué carriles pueden unirse a cuáles. Una allowlist:
 -- solo las parejas listadas están permitidas; el resto se prohíbe. Las
 -- descartadas y la revisión aprobada son terminales: no hay fila que salga

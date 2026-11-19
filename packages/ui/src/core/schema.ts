@@ -395,6 +395,8 @@ export interface components {
             nota: string;
             /** Entered At */
             entered_at: string;
+            /** Requisitos */
+            requisitos?: components["schemas"]["Requisito"][];
         };
         /**
          * FaseEntrada
@@ -417,6 +419,8 @@ export interface components {
              * @default
              */
             nota: string;
+            /** Requisitos */
+            requisitos?: components["schemas"]["RequisitoEntrada"][] | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -742,6 +746,41 @@ export interface components {
             repo: string;
             /** Db Path */
             db_path: string;
+        };
+        /**
+         * Requisito
+         * @description Un requisito de una fase (0025): su criterio de hecho, binario.
+         */
+        Requisito: {
+            /** Orden */
+            orden: number;
+            /** Titulo */
+            titulo: string;
+            /**
+             * Hecho
+             * @default false
+             */
+            hecho: boolean;
+            /** Done At */
+            done_at?: string | null;
+        };
+        /**
+         * RequisitoEntrada
+         * @description Un requisito en el PATCH; sin `orden`, se añade al final.
+         *
+         *     Si la fase no trae `requisitos`, se conservan los que tenía; una lista
+         *     vacía los retira.
+         */
+        RequisitoEntrada: {
+            /** Orden */
+            orden?: number | null;
+            /** Titulo */
+            titulo: string;
+            /**
+             * Hecho
+             * @default false
+             */
+            hecho: boolean;
         };
         /**
          * Revision

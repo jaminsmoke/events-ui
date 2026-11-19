@@ -115,13 +115,17 @@ def test_borrar_la_idea_se_lleva_sus_fases(client, repo):  # noqa: ANN001, ANN20
     r = client.patch(
         f"/ideas/{uid}",
         params={"repo": repo},
-        json={"status": "roadmap", "fases": [{"titulo": "Única"}]},
+        json={
+            "status": "roadmap",
+            "fases": [{"titulo": "Única", "requisitos": [{"titulo": "Uno"}]}],
+        },
     )
     assert r.status_code == 200, r.json()
 
     assert client.delete(f"/ideas/{uid}", params={"repo": repo}).status_code == 204
     with sqlite3.connect(str(ideas.db_file_for(repo))) as conn:
         assert conn.execute("SELECT count(*) FROM idea_fase").fetchone()[0] == 0
+        assert conn.execute("SELECT count(*) FROM idea_requisito").fetchone()[0] == 0
 
 
 def test_salir_de_roadmap_exige_fases_cerradas(client, repo):  # noqa: ANN001, ANN202
@@ -337,7 +341,12 @@ def test_volver_a_la_cola_conserva_el_motivo(client, repo):  # noqa: ANN001, ANN
         params={"repo": repo},
         json={
             "fases": [
-                {"orden": 1, "titulo": "Revisar", "estado": "rechazada", "nota": "No cubre el borde"}
+                {
+                    "orden": 1,
+                    "titulo": "Revisar",
+                    "estado": "rechazada",
+                    "nota": "No cubre el borde",
+                }
             ]
         },
     )
@@ -350,6 +359,176 @@ def test_volver_a_la_cola_conserva_el_motivo(client, repo):  # noqa: ANN001, ANN
     fase = r.json()["fases"][0]
     assert fase["estado"] == "pendiente"
     assert fase["nota"] == "No cubre el borde"
+
+
+def _crear_roadmap(client, repo, fases):  # noqa: ANN001, ANN202
+    uid = _crear(client, repo, status="proposed")
+    r = client.patch(
+        f"/ideas/{uid}", params={"repo": repo}, json={"status": "roadmap", "fases": fases}
+    )
+    assert r.status_code == 200, r.json()
+    return uid, r.json()
+
+
+def test_los_requisitos_viajan_con_su_fase(client, repo):  # noqa: ANN001, ANN202
+    _, ficha = _crear_roadmap(
+        client,
+        repo,
+        [
+            {
+                "titulo": "Diseño",
+                "requisitos": [{"titulo": "Cubre el borde"}, {"titulo": "Pasa lint"}],
+            }
+        ],
+    )
+    requisitos = ficha["fases"][0]["requisitos"]
+    assert [(r["orden"], r["titulo"], r["hecho"], r["done_at"]) for r in requisitos] == [
+        (1, "Cubre el borde", False, None),
+        (2, "Pasa lint", False, None),
+    ]
+
+
+def test_completar_una_fase_exige_sus_requisitos(client, repo):  # noqa: ANN001, ANN202
+    uid, _ = _crear_roadmap(
+        client,
+        repo,
+        [{"titulo": "Diseño", "requisitos": [{"titulo": "Uno"}, {"titulo": "Dos"}]}],
+    )
+
+    def patch(estado, hechos):  # noqa: ANN001, ANN202
+        return client.patch(
+            f"/ideas/{uid}",
+            params={"repo": repo},
+            json={
+                "fases": [
+                    {
+                        "orden": 1,
+                        "titulo": "Diseño",
+                        "estado": estado,
+                        "requisitos": [
+                            {"orden": 1, "titulo": "Uno", "hecho": hechos[0]},
+                            {"orden": 2, "titulo": "Dos", "hecho": hechos[1]},
+                        ],
+                    }
+                ]
+            },
+        )
+
+    r = patch("completada", (False, False))
+    assert r.status_code == 400
+    assert "requisitos sin completar" in r.json()["detail"]
+    assert "Uno" in r.json()["detail"] and "Dos" in r.json()["detail"]
+
+    # Marcar uno sella su fecha; la fase sigue pendiente.
+    r = patch("pendiente", (True, False))
+    assert r.status_code == 200, r.json()
+    requisitos = r.json()["fases"][0]["requisitos"]
+    assert requisitos[0]["hecho"] is True and requisitos[0]["done_at"]
+    assert requisitos[1]["hecho"] is False and requisitos[1]["done_at"] is None
+
+    r = patch("completada", (True, False))
+    assert r.status_code == 400
+    assert "Dos" in r.json()["detail"]
+
+    r = patch("completada", (True, True))
+    assert r.status_code == 200, r.json()
+    assert r.json()["fases"][0]["estado"] == "completada"
+
+
+def test_sin_requisitos_en_el_patch_se_conservan(client, repo):  # noqa: ANN001, ANN202
+    uid, _ = _crear_roadmap(
+        client,
+        repo,
+        [{"titulo": "Diseño", "requisitos": [{"titulo": "Uno"}, {"titulo": "Dos"}]}],
+    )
+    r = client.patch(
+        f"/ideas/{uid}", params={"repo": repo}, json={"fases": [{"orden": 1, "titulo": "Diseño"}]}
+    )
+    assert r.status_code == 200, r.json()
+    assert [q["titulo"] for q in r.json()["fases"][0]["requisitos"]] == ["Uno", "Dos"]
+
+    # Una lista vacía sí los retira.
+    r = client.patch(
+        f"/ideas/{uid}",
+        params={"repo": repo},
+        json={"fases": [{"orden": 1, "titulo": "Diseño", "requisitos": []}]},
+    )
+    assert r.status_code == 200, r.json()
+    assert r.json()["fases"][0]["requisitos"] == []
+
+
+def test_volver_a_la_cola_reinicia_los_requisitos(client, repo):  # noqa: ANN001, ANN202
+    uid, _ = _crear_roadmap(
+        client,
+        repo,
+        [{"titulo": "Diseño", "requisitos": [{"titulo": "Uno"}, {"titulo": "Dos"}]}],
+    )
+    r = client.patch(
+        f"/ideas/{uid}",
+        params={"repo": repo},
+        json={
+            "fases": [
+                {
+                    "orden": 1,
+                    "titulo": "Diseño",
+                    "estado": "completada",
+                    "requisitos": [
+                        {"orden": 1, "titulo": "Uno", "hecho": True},
+                        {"orden": 2, "titulo": "Dos", "hecho": True},
+                    ],
+                }
+            ]
+        },
+    )
+    assert r.status_code == 200, r.json()
+    r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": "verificacion"})
+    assert r.status_code == 200, r.json()
+
+    r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": "proposed"})
+    assert r.status_code == 200, r.json()
+    fase = r.json()["fases"][0]
+    assert fase["estado"] == "pendiente"
+    assert [(q["titulo"], q["hecho"], q["done_at"]) for q in fase["requisitos"]] == [
+        ("Uno", False, None),
+        ("Dos", False, None),
+    ]
+
+    # Y desde la cola no se pueden volver a marcar.
+    r = client.patch(
+        f"/ideas/{uid}",
+        params={"repo": repo},
+        json={
+            "fases": [
+                {
+                    "orden": 1,
+                    "titulo": "Diseño",
+                    "requisitos": [
+                        {"orden": 1, "titulo": "Uno", "hecho": True},
+                        {"orden": 2, "titulo": "Dos"},
+                    ],
+                }
+            ]
+        },
+    )
+    assert r.status_code == 400
+    assert "requisitos están pendientes" in r.json()["detail"]
+
+
+def test_requisitos_invalidos_no_escriben(client, repo):  # noqa: ANN001, ANN202
+    uid, _ = _crear_roadmap(client, repo, [{"titulo": "Diseño", "requisitos": [{"titulo": "Uno"}]}])
+    for requisitos, codigo in (
+        ([{"titulo": "   "}], 400),
+        ([{"orden": 1, "titulo": "A"}, {"orden": 1, "titulo": "B"}], 400),
+        ([{"orden": 0, "titulo": "A"}], 422),
+    ):
+        r = client.patch(
+            f"/ideas/{uid}",
+            params={"repo": repo},
+            json={"fases": [{"orden": 1, "titulo": "Diseño", "requisitos": requisitos}]},
+        )
+        assert r.status_code == codigo, requisitos
+
+    assert [q["titulo"] for q in _fases(client, repo, uid)[0]["requisitos"]] == ["Uno"]
 
 
 def test_protocolos_publican_el_requisito(client, repo):  # noqa: ANN001, ANN202

@@ -956,7 +956,8 @@ header > div {
  *  su rama sale de un nudo en medio del cable Entrada↔En cola. Todos los
  *  cables van continuos y apagados en reposo; se abren en guiones solo
  *  mientras algo los recorre (la chispa de llegada). El grosor mide lo que
- *  espera en el origen, y cada cable brilla con su propio color.
+ *  espera en el origen; el brillo no cuenta lo acumulado, solo la marcha, y
+ *  cada cable lleva el color de su carril.
  */
 
 .cables {
@@ -982,6 +983,7 @@ header > div {
   stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
+  opacity: 0.7;
 }
 
 .wire.cola,
@@ -1013,22 +1015,15 @@ header > div {
   --wire: #c0704a;
 }
 
-/* En marcha: el cable se abre en guiones y corre mientras lo cruza una chispa.
- *  Así el discontinuo significa movimiento de verdad y no un adorno fijo. Los
- *  26 px del ciclo a 0.3 s son ~87 px/s, la velocidad de la chispa (90 px/s):
- *  el trazo acompaña al punto en vez de quedarse atrás y parecer que patina. */
+/* En marcha: el cable se abre en guiones, corre y brilla mientras lo cruza una
+ *  chispa. Así el discontinuo y la luz significan movimiento de verdad y no un
+ *  adorno fijo; lo que se acumula en el origen solo engorda el trazo. Los 26 px
+ *  del ciclo a 0.3 s son ~87 px/s, la velocidad de la chispa (90 px/s): el
+ *  trazo acompaña al punto en vez de quedarse atrás y parecer que patina. */
 .wire.marcha {
   stroke-dasharray: 6 7;
   animation: fluir 0.3s linear infinite;
-}
-
-/* Carril cargado: el cable brilla con su propio color, no en azul. */
-.wire.fuerte {
   filter: drop-shadow(0 0 4px var(--wire));
-}
-
-.wire.fuerte.descartadas {
-  filter: none;
 }
 
 @keyframes fluir {

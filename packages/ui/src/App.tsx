@@ -355,18 +355,13 @@ export default function App({
                       <path
                         key={cable.lane}
                         d={cable.d}
-                        className={`wire ${cable.lane}${t >= 0.66 ? " fuerte" : ""}${
-                          enMarcha ? " marcha" : ""
-                        }`}
+                        className={`wire ${cable.lane}${enMarcha ? " marcha" : ""}`}
                         style={{
-                          // La entrada se queda más fina que las etapas. En
-                          // reposo todo va apagado; en marcha, a plena luz.
+                          // El grosor cuenta lo que espera en el origen; la luz
+                          // no: un cable no se enciende porque el carril del
+                          // que sale reciba ideas, solo cuando algo lo cruza.
                           strokeWidth: entrada ? 1.3 + 1.5 * t : 1.8 + 2.2 * t,
-                          opacity: enMarcha
-                            ? 1
-                            : entrada
-                              ? 0.44 + 0.32 * t
-                              : 0.52 + 0.32 * t,
+                          opacity: enMarcha ? 1 : entrada ? 0.5 : 0.62,
                         }}
                       />
                     );
@@ -375,7 +370,6 @@ export default function App({
                    *  punto medio. La rama de Descartadas no lo lleva. */}
                   {cables.map((cable) => {
                     if (cable.lane === "descartadas") return null;
-                    const t = cable.presion / maximo;
                     // El chevrón baja al tercio: la compuerta ocupa el medio.
                     const mx = cable.x1 + (cable.x2 - cable.x1) * 0.3;
                     const my = cable.y1 + (cable.y2 - cable.y1) * 0.3;
@@ -387,7 +381,6 @@ export default function App({
                         className={`chevron ${cable.lane}`}
                         d="M -5 -4 L 0 0 L -5 4"
                         transform={`translate(${mx} ${my}) rotate(${angulo})`}
-                        style={{ opacity: 0.5 + 0.45 * t }}
                       />
                     );
                   })}

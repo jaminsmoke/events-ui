@@ -11,7 +11,7 @@ import { duracionChispa, useCables } from "./mapa/cables";
 import { Compuerta, LeyendaCompuertas } from "./mapa/compuertas";
 import { useCamara } from "./mapa/camara";
 import type { LaneId, Status } from "./mapa/carriles";
-import { NodeBox, NodoGit, VueloFila } from "./mapa/nodos";
+import { NodeBox, NodoCambios, NodoGit, VueloFila } from "./mapa/nodos";
 import { useVuelos } from "./mapa/vuelos";
 import { useEventos, resumenEvento } from "./core/useEventos";
 import { useProtocolos } from "./core/useProtocolos";
@@ -567,6 +567,10 @@ export default function App({
                     commit={proyeccion?.commit}
                     gitRoot={proyeccion?.git_root}
                     boxRef={gitRef}
+                  />
+                  <NodoCambios
+                    activo={proyeccion?.git === true}
+                    cambios={proyeccion?.git_cambios ?? []}
                   />
                 </div>
               </div>

@@ -202,7 +202,12 @@ La línea termina en un nodo **Git** de solo lectura. Se enciende cuando la
 carpeta es un work tree Git —también con un `git init` sin commits— y se apaga
 si no lo es. Una carpeta ignorada por el repo que la contiene no cuenta, que es
 el caso del laboratorio dentro del repo de la aplicación. La proyección expone
-`git`, `git_root`, `branch` y `commit`; este último puede faltar.
+`git`, `git_root`, `branch`, `commit` y `git_cambios`; este último puede faltar.
+
+Debajo de Entrada arranca la rama **Control de versiones**, separada del flujo
+de ideas. Su primer nodo, **Cambios sin commit**, lista lo que ve
+`git status --porcelain`: archivos modificados, preparados o sin seguimiento.
+Si Git está apagado, el nodo también lo está y no inventa cambios.
 
 Una idea puede declarar `depende_de` (uids de otras ideas del repo): el core no
 la deja entrar en roadmap, verificación, revisión aprobada ni historial mientras

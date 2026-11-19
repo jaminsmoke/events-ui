@@ -256,6 +256,13 @@ class Evento(BaseModel):
     dedupe_key: str | None = None
 
 
+class CambioGit(BaseModel):
+    """Un archivo con cambios sin commit, en el formato de `git status`."""
+
+    estado: str
+    ruta: str
+
+
 class ProyeccionRepo(BaseModel):
     """F2: el estado del repo en una lectura, con su identidad.
 
@@ -272,6 +279,7 @@ class ProyeccionRepo(BaseModel):
     git_root: str | None = None
     branch: str | None = None
     commit: str | None = None
+    git_cambios: list[CambioGit] = []
     ideas: int
     events: int
     por_estado: dict[str, int]

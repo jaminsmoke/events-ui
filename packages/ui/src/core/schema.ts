@@ -297,6 +297,16 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * CambioGit
+         * @description Un archivo con cambios sin commit, en el formato de `git status`.
+         */
+        CambioGit: {
+            /** Estado */
+            estado: string;
+            /** Ruta */
+            ruta: string;
+        };
+        /**
          * EntradaLog
          * @description Una línea del registro operativo (`GET /log`): de la app, no del repo.
          */
@@ -708,6 +718,11 @@ export interface components {
             branch?: string | null;
             /** Commit */
             commit?: string | null;
+            /**
+             * Git Cambios
+             * @default []
+             */
+            git_cambios: components["schemas"]["CambioGit"][];
             /** Ideas */
             ideas: number;
             /** Events */

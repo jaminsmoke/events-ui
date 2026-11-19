@@ -1027,6 +1027,51 @@ function NodeRow({
   );
 }
 
+/** El primer nodo de la rama inferior: los cambios que aún no tienen commit.
+ *  No es un carril de ideas; solo enseña lo que Git ve en el árbol de trabajo. */
+export function NodoCambios({
+  activo,
+  cambios,
+}: {
+  activo: boolean;
+  cambios: readonly { estado: string; ruta: string }[];
+}) {
+  return (
+    <section
+      className={`rama-git ${activo ? "activo" : "apagado"}`}
+      aria-label="Control de versiones"
+    >
+      <div className="rama-git-kicker">Control de versiones</div>
+      <section className={`node nodo-cambios ${activo ? "activo" : "apagado"}`}>
+        <div className="node-head">
+          <span className="node-title">Cambios sin commit</span>
+          <span className="count">{cambios.length}</span>
+        </div>
+        <div className="cambios-cuerpo">
+          {!activo ? (
+            <p className="cambios-vacio">Sin repositorio local</p>
+          ) : cambios.length === 0 ? (
+            <p className="cambios-vacio">Sin cambios pendientes</p>
+          ) : (
+            <ul className="cambios-lista">
+              {cambios.map((cambio) => (
+                <li key={`${cambio.estado}:${cambio.ruta}`} className="fila-cambio">
+                  <span className="cambio-estado" title={cambio.estado}>
+                    {cambio.estado}
+                  </span>
+                  <span className="cambio-ruta" title={cambio.ruta}>
+                    {cambio.ruta}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
+    </section>
+  );
+}
+
 /** El nodo terminal de Git: no es un carril ni guarda ideas. Solo enseña si
  *  la carpeta pertenece a un work tree y, cuando lo hace, su rama y commit. */
 export function NodoGit({

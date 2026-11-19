@@ -53,6 +53,7 @@ def test_carpeta_sin_git_se_queda_apagada(client, tmp_path):  # noqa: ANN001, AN
     assert datos["git_root"] is None
     assert datos["branch"] is None
     assert datos["commit"] is None
+    assert datos["git_cambios"] == []
 
 
 def test_git_init_sin_commits_enciende_y_conserva_la_rama(client, tmp_path):  # noqa: ANN001, ANN202
@@ -79,6 +80,22 @@ def test_repo_con_commit_expone_rama_y_hash(client, tmp_path):  # noqa: ANN001, 
     assert datos["git"] is True
     assert datos["branch"] == "main"
     assert isinstance(datos["commit"], str) and len(datos["commit"]) >= 7
+
+
+def test_cambios_sin_commit_incluyen_modificados_y_sin_seguimiento(client, tmp_path):  # noqa: ANN001, ANN202
+    carpeta = tmp_path / "cambios"
+    _inicializar(carpeta)
+    (carpeta / "nota.txt").write_text("hola", encoding="utf-8")
+    _git(carpeta, "add", "nota.txt")
+    _git(carpeta, "commit", "-m", "inicial")
+    (carpeta / "nota.txt").write_text("hola cambiado", encoding="utf-8")
+    (carpeta / "nuevo.txt").write_text("nuevo", encoding="utf-8")
+
+    datos = _proyeccion(client, carpeta)
+
+    cambios = {(cambio["estado"], cambio["ruta"]) for cambio in datos["git_cambios"]}
+    assert ("M", "nota.txt") in cambios
+    assert ("??", "nuevo.txt") in cambios
 
 
 def test_subcarpeta_de_un_repo_hereda_el_work_tree(client, tmp_path):  # noqa: ANN001, ANN202
@@ -113,6 +130,7 @@ def test_carpeta_ignorada_por_el_repo_contenedor_no_cuenta(client, tmp_path):  #
     assert datos["git_root"] is None
     assert datos["branch"] is None
     assert datos["commit"] is None
+    assert datos["git_cambios"] == []
 
 
 def test_repo_propio_dentro_de_una_carpeta_ignorada_si_cuenta(client, tmp_path):  # noqa: ANN001, ANN202

@@ -33,6 +33,7 @@ export default {
       await esperar(() => page.locator(".wire").count().then((n) => n === 10), "los diez cables");
 
       const nodo = page.locator(".nodo-git");
+      const rama = page.locator(".rama-git");
       await esperar(
         () => nodo.evaluate((el) => el.classList.contains("apagado")),
         "Git apagado en el lab ignorado",
@@ -41,6 +42,10 @@ export default {
       expect(
         (await nodo.innerText()).includes("Sin repositorio local"),
         "el nodo apagado debe explicar que no hay work tree",
+      );
+      expect(
+        (await rama.innerText()).includes("Sin repositorio local"),
+        "la rama de cambios debe estar apagada sin Git",
       );
 
       // `git init` en el propio lab gana al repo contenedor que lo ignora.
@@ -53,6 +58,16 @@ export default {
       const texto = await nodo.innerText();
       expect(texto.includes("main"), "el nodo activo debe mostrar la rama main");
       expect(texto.includes("sin commits"), "un repo vacío no debe inventar un commit");
+      await esperar(
+        () => rama.evaluate((el) => el.classList.contains("activo")),
+        "la rama de cambios activa con Git",
+        15_000,
+      );
+      await esperar(
+        () => page.locator(".rama-git .fila-cambio").count().then((n) => n > 0),
+        "los cambios sin commit en el primer nodo",
+        15_000,
+      );
       await page.screenshot({ path: resultado("git-local.png") });
 
       // Sin repo propio vuelve a mandar el contenedor, que lo ignora.
@@ -60,6 +75,11 @@ export default {
       await esperar(
         () => nodo.evaluate((el) => el.classList.contains("apagado")),
         "Git apagado al quitar el repo",
+        15_000,
+      );
+      await esperar(
+        () => rama.evaluate((el) => el.classList.contains("apagado")),
+        "la rama de cambios apagada al quitar el repo",
         15_000,
       );
     } finally {

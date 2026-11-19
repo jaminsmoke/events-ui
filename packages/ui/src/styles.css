@@ -1098,6 +1098,93 @@ header > div {
   grid-column: 7;
 }
 
+/* La rama de Control de versiones empieza debajo de Entrada, como una línea
+ * aparte. El primer nodo enseña los cambios sin commit; los siguientes se
+ * colocarán a su derecha. */
+.linea > .rama-git {
+  grid-column: 1;
+  grid-row: 2;
+  margin-top: 34px;
+  min-width: 0;
+}
+
+.rama-git-kicker {
+  margin: 0 2px 5px;
+  color: var(--muted);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.nodo-cambios .node-head {
+  cursor: default;
+}
+
+.nodo-cambios .node-head:hover {
+  background: #122719;
+}
+
+.nodo-cambios.apagado .node-head {
+  background: #161b22;
+}
+
+.cambios-cuerpo {
+  padding: 6px 9px 7px;
+  border-top: 1px solid var(--line);
+}
+
+.cambios-vacio {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.nodo-cambios.apagado .cambios-vacio {
+  color: #6e7681;
+}
+
+.cambios-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 190px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.fila-cambio {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
+  font-size: 11px;
+}
+
+.cambio-estado {
+  flex: none;
+  min-width: 19px;
+  padding: 0 4px;
+  border: 1px solid #4a3a1c;
+  border-radius: 4px;
+  color: var(--warn);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 9.5px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.cambio-ruta {
+  overflow: hidden;
+  color: #b7c0cc;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ---------- cables ----------
  *
  *  Se miden del DOM porque los nodos crecen al desplegarse. Cada cable une

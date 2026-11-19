@@ -79,6 +79,14 @@ export default {
       (await page.locator(".nodo-git").innerText()).includes("Sin repositorio local"),
       "el nodo Git apagado debe explicar por qué",
     );
+    await esperar(
+      () => page.locator(".rama-git.apagado").count().then((n) => n === 1),
+      "la rama de Control de versiones apagada",
+    );
+    expect(
+      (await page.locator(".rama-git").innerText()).includes("Sin repositorio local"),
+      "la rama de cambios debe explicar que no hay Git",
+    );
     // Los cables son pistas ortogonales: ni curvas libres ni diagonales.
     const trazados = await page.locator(".wire").evaluateAll((nodos) =>
       nodos.map((nodo) => nodo.getAttribute("d") ?? ""),

@@ -8,10 +8,15 @@ const tablasOperativas = [
 
 async function geometria(page) {
   return page.evaluate(() => ({
-    cabeceras: Array.from(document.querySelectorAll(".node-head"), (n) => {
-      const { x, y } = n.getBoundingClientRect();
-      return [x, y];
-    }),
+    // Solo la fila principal: la rama de Control de versiones vive en la
+    // fila de abajo y se desplaza con la altura de las fichas abiertas.
+    cabeceras: Array.from(
+      document.querySelectorAll(".linea > .node > .node-head"),
+      (n) => {
+        const { x, y } = n.getBoundingClientRect();
+        return [x, y];
+      },
+    ),
     // Los cables de etapa se anclan a las cabeceras y no se mueven. El ramal
     // de revisión rechazada sí depende de la altura de las fichas abiertas.
     cables: Array.from(document.querySelectorAll(".wire:not(.rama)"), (n) => n.getAttribute("d")),
@@ -41,7 +46,7 @@ export default {
       await pruebas.waitFor();
       await esperar(() => page.locator(".wire").count().then((n) => n === 10), "los diez cables");
       const inicial = await geometria(page);
-      expect(inicial.cabeceras.length === 8, "ocho nodos");
+      expect(inicial.cabeceras.length === 8, "ocho nodos de la fila principal");
       await pruebas.click();
       const boton = (name) => page.getByRole("dialog", { name: "Pruebas del laboratorio" }).getByRole("button", { name, exact: true });
       await boton("Lanzar").click();

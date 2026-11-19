@@ -46,6 +46,42 @@ def _git(carpeta: Path, *args: str) -> str | None:
     return valor or None
 
 
+def _git_cambios(carpeta: Path) -> list[dict[str, str]]:
+    """Los cambios sin commit, tal como los resume `git status --porcelain`.
+
+    Se incluyen staged, unstaged y sin seguimiento. No se usa `_git` porque
+    `strip()` se comería el espacio del primer estado (` M archivo`) y el
+    recorte de la primera línea dejaría el código de dos letras mal alineado.
+    """
+    try:
+        salida = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(carpeta),
+                "status",
+                "--porcelain=v1",
+                "--untracked-files=all",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return []
+    if salida.returncode != 0:
+        return []
+    cambios: list[dict[str, str]] = []
+    for linea in salida.stdout.splitlines():
+        if len(linea) < 4:
+            continue
+        estado = linea[:2].strip() or "?"
+        ruta = linea[3:].strip()
+        if ruta:
+            cambios.append({"estado": estado, "ruta": ruta})
+    return cambios
+
+
 def _git_repo(carpeta: Path) -> tuple[bool, Path | None]:
     """La carpeta y el work tree Git que la contiene, si de verdad lo hay.
 
@@ -122,6 +158,7 @@ def repo_estado_actual(repo: str) -> dict[str, Any]:
         # faltar y se queda en `None`.
         "branch": _git(carpeta, "symbolic-ref", "--short", "HEAD") if es_git else None,
         "commit": _git(carpeta, "rev-parse", "--short", "HEAD") if es_git else None,
+        "git_cambios": _git_cambios(carpeta) if es_git else [],
         "ideas": ideas,
         "events": eventos,
         "por_estado": por_estado,

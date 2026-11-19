@@ -31,6 +31,9 @@ export default {
       await cabeza.waitFor();
       if ((await cabeza.getAttribute("aria-expanded")) !== "true") await cabeza.click();
       await actual.locator(".fases").waitFor();
+      // La ficha nace de lectura: los campos se encienden con Editar.
+      await actual.getByRole("button", { name: "Editar", exact: true }).click();
+      await actual.locator(".fase-nueva").waitFor();
       return actual;
     };
 

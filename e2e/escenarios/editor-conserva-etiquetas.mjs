@@ -19,7 +19,8 @@ export default {
         30_000,
       );
       await page.getByRole("button", { name: new RegExp(titulo) }).click();
-      await page.getByRole("button", { name: "Editar" }).click();
+      await page.getByRole("button", { name: "Editar", exact: true }).click();
+      await page.getByRole("button", { name: "Datos…", exact: true }).click();
       await esperar(
         () => page.getByRole("dialog", { name: "Editar idea" }).isVisible(),
         "el editor abierto",

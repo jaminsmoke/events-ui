@@ -524,6 +524,13 @@ header > div {
   opacity: 1;
 }
 
+/* Editar es un modo: mientras está activo, el botón lo dice. */
+.fila-secundaria .btn.ghost.mover[aria-pressed="true"] {
+  color: var(--fg);
+  border-color: #33465e;
+  opacity: 1;
+}
+
 /* F2: proyección del repo con su identidad. */
 .proyeccion-linea {
   margin: 0;
@@ -1777,6 +1784,11 @@ code {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 6px;
+}
+/* En solo lectura los formularios se quedan en el DOM pero no ocupan sitio. */
+.fase-nueva[hidden],
+.requisito-nuevo[hidden] {
+  display: none;
 }
 .fase-nueva input {
   flex: 1;

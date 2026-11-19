@@ -88,12 +88,15 @@ function FasesIdea({
   fases,
   estado,
   alGuardar,
+  soloLectura,
 }: {
   fases: readonly Fase[];
   /** El carril de la idea: el estado de una fase solo se toca en roadmap. */
   estado: Status;
   /** La copia optimista vive en la fila: así la ficha y la fila no se pisan. */
   alGuardar: (siguientes: readonly Fase[]) => Promise<void>;
+  /** En solo lectura no se pintan campos: los controles llegan con Editar. */
+  soloLectura: boolean;
 }) {
   const [nuevo, setNuevo] = useState("");
   const [primerRequisito, setPrimerRequisito] = useState("");
@@ -179,7 +182,7 @@ function FasesIdea({
               {hechosReq}/{requisitos.length}{" "}
               {requisitos.length === 1 ? "requisito" : "requisitos"}
             </button>
-            {motivoPendiente === fase.orden ? (
+            {!soloLectura && motivoPendiente === fase.orden ? (
               <form
                 className="fase-motivo-form"
                 onSubmit={(e) => {
@@ -224,7 +227,7 @@ function FasesIdea({
                   </button>
                 </div>
               </form>
-            ) : estado === "roadmap" && (fase.estado === "fallida" || fase.estado === "rechazada") ? (
+            ) : !soloLectura && estado === "roadmap" && (fase.estado === "fallida" || fase.estado === "rechazada") ? (
               <input
                 key={fase.nota}
                 className="fase-motivo"
@@ -249,7 +252,7 @@ function FasesIdea({
               fase.nota && <span className="fase-nota">{fase.nota}</span>
             )}
           </div>
-          {estado === "roadmap" ? (
+          {estado === "roadmap" && !soloLectura ? (
             <select
               className="fase-estado"
               value={fase.estado}
@@ -287,7 +290,11 @@ function FasesIdea({
           ) : (
             <span
               className="fase-estado-texto"
-              title="El estado de la fase se lleva en roadmap"
+              title={
+                soloLectura
+                  ? "Pulsa Editar para cambiar el estado"
+                  : "El estado de la fase se lleva en roadmap"
+              }
             >
               {ETIQUETA_FASE[fase.estado] ?? fase.estado}
             </span>
@@ -296,6 +303,7 @@ function FasesIdea({
             type="button"
             className="chip-quitar"
             title="Quitar fase"
+            hidden={soloLectura}
             disabled={guardando}
             onClick={() => guardar(vista.filter((otra) => otra.orden !== fase.orden))}
           >
@@ -312,7 +320,7 @@ function FasesIdea({
                 <input
                   type="checkbox"
                   checked={requisito.hecho}
-                  disabled={guardando || estado !== "roadmap"}
+                  disabled={guardando || estado !== "roadmap" || soloLectura}
                   aria-label={`Requisito ${requisito.titulo}`}
                   onChange={() =>
                     guardar(
@@ -340,6 +348,7 @@ function FasesIdea({
                       ? "Una fase necesita al menos un requisito"
                       : "Quitar requisito"
                   }
+                  hidden={soloLectura}
                   disabled={guardando || requisitos.length === 1}
                   onClick={(e) => {
                     e.preventDefault();
@@ -363,6 +372,7 @@ function FasesIdea({
             ))}
             <form
               className="requisito-nuevo"
+              hidden={soloLectura}
               onSubmit={(e) => {
                 e.preventDefault();
                 const titulo = requisitoNuevo.trim();
@@ -400,7 +410,7 @@ function FasesIdea({
         </div>
         );
       })}
-      <form className="fase-nueva" onSubmit={anadir}>
+      <form className="fase-nueva" hidden={soloLectura} onSubmit={anadir}>
         <input
           className="fase-nueva-titulo"
           value={nuevo}
@@ -709,6 +719,9 @@ function NodeRow({
   const [fallo, setFallo] = useState<string | null>(null);
   const [trabajando, setTrabajando] = useState(false);
   const [fichaFases, setFichaFases] = useState(false);
+  // La ficha nace de lectura: Editar enseña los campos y Listo los retira.
+  const [editando, setEditando] = useState(false);
+  const soloLectura = !editando;
 
   const hacer = (fn: () => Promise<void>, alOk?: () => void) => {
     setTrabajando(true);
@@ -730,7 +743,10 @@ function NodeRow({
       <button
         type="button"
         className="row-head"
-        onClick={() => setExpandido((v) => !v)}
+        onClick={() => {
+          setEditando(false);
+          setExpandido((v) => !v);
+        }}
         aria-expanded={expandido}
         aria-label={expandido && node.idea ? node.title : undefined}
       >
@@ -765,7 +781,7 @@ function NodeRow({
               )}
             </div>
           </div>
-      {(deps.length > 0 || (onEditar && candidatas.length > 0)) && (
+      {(deps.length > 0 || (!soloLectura && onEditar && candidatas.length > 0)) && (
         <div className="fila-bloque">
           <span className="fila-rotulo">Dependencias</span>
           {deps.length > 0 && (
@@ -777,7 +793,7 @@ function NodeRow({
                 return (
                   <span key={dep} className={`chip-depende${aprobada ? " aprobada" : ""}`}>
                     {otra?.title ?? dep}
-                    {onEditar && (
+                    {onEditar && !soloLectura && (
                       <button
                         type="button"
                         className="chip-quitar"
@@ -798,7 +814,7 @@ function NodeRow({
               })}
             </p>
           )}
-          {onEditar && candidatas.length > 0 && (
+          {onEditar && !soloLectura && candidatas.length > 0 && (
             <select
               className="select-depende"
               value=""
@@ -822,7 +838,12 @@ function NodeRow({
       )}
       {onEditar && estado && estado !== "rejected" && estado !== "superseded" && (
         <div className="fila-bloque">
-          <FasesIdea fases={vistaFases} estado={estado} alGuardar={guardarFases} />
+          <FasesIdea
+            fases={vistaFases}
+            estado={estado}
+            alGuardar={guardarFases}
+            soloLectura={soloLectura}
+          />
           {estado === "proposed" && fases.length === 0 && exigeFases?.(estado, "roadmap") && (
             <p className="fila-aviso">Añade una fase para pasar a roadmap.</p>
           )}
@@ -872,13 +893,23 @@ function NodeRow({
               })}
         </div>
         <div className="fila-secundaria">
-          {onPideEditar && (
+          {onEditar && (
+            <button
+              type="button"
+              className="btn ghost mover"
+              aria-pressed={editando}
+              onClick={() => setEditando((v) => !v)}
+            >
+              {editando ? "Listo" : "Editar"}
+            </button>
+          )}
+          {onPideEditar && editando && (
             <button
               type="button"
               className="btn ghost mover"
               onClick={() => onPideEditar(uid!, node.title, descripcion)}
             >
-              Editar
+              Datos…
             </button>
           )}
           {fases.length > 0 && (

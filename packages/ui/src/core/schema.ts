@@ -361,12 +361,17 @@ export interface components {
         /**
          * CambioGit
          * @description Un archivo con cambios sin commit, en el formato de `git status`.
+         *
+         *     `origen` solo llega en renombrados y copias: dice de dónde salió el
+         *     archivo, sin la flecha que Git mete en la ruta.
          */
         CambioGit: {
             /** Estado */
             estado: string;
             /** Ruta */
             ruta: string;
+            /** Origen */
+            origen?: string | null;
         };
         /**
          * EntradaLog

@@ -4,12 +4,17 @@ import type { Ref } from "react";
 
 /** El primer nodo del Mapa de Git: los cambios que aún no tienen commit.
  *  No es un carril de ideas; solo enseña lo que Git ve en el árbol de trabajo. */
+/** «viejo → nuevo» para un renombrado; la ruta sola en el resto. */
+function rutaVisible(cambio: { ruta: string; origen?: string | null }): string {
+  return cambio.origen ? `${cambio.origen} → ${cambio.ruta}` : cambio.ruta;
+}
+
 export function NodoCambios({
   activo,
   cambios,
 }: {
   activo: boolean;
-  cambios: readonly { estado: string; ruta: string }[];
+  cambios: readonly { estado: string; ruta: string; origen?: string | null }[];
 }) {
   return (
     <section
@@ -32,8 +37,8 @@ export function NodoCambios({
                 <span className="cambio-estado" title={cambio.estado}>
                   {cambio.estado}
                 </span>
-                <span className="cambio-ruta" title={cambio.ruta}>
-                  {cambio.ruta}
+                <span className="cambio-ruta" title={rutaVisible(cambio)}>
+                  {rutaVisible(cambio)}
                 </span>
               </li>
             ))}

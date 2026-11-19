@@ -247,10 +247,15 @@ class Evento(BaseModel):
 
 
 class CambioGit(BaseModel):
-    """Un archivo con cambios sin commit, en el formato de `git status`."""
+    """Un archivo con cambios sin commit, en el formato de `git status`.
+
+    `origen` solo llega en renombrados y copias: dice de dónde salió el
+    archivo, sin la flecha que Git mete en la ruta.
+    """
 
     estado: str
     ruta: str
+    origen: str | None = None
 
 
 class ProyeccionRepo(BaseModel):

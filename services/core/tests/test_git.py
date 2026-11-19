@@ -227,3 +227,29 @@ def test_inicializar_en_carpeta_ignorada_gana_al_contenedor(client, tmp_path):  
     assert r.status_code == 200, r.json()
     assert r.json()["git"] is True
     assert (laboratorio / ".git").is_dir()
+
+
+def test_los_renombrados_separan_origen_y_destino(client, tmp_path):  # noqa: ANN001, ANN202
+    carpeta = tmp_path / "renombres"
+    _inicializar(carpeta)
+    (carpeta / "viejo nombre.txt").write_text("hola", encoding="utf-8")
+    _git(carpeta, "add", ".")
+    _git(carpeta, "commit", "-m", "inicial")
+    _git(carpeta, "mv", "viejo nombre.txt", "nuevo ñ.txt")
+
+    datos = _proyeccion(client, carpeta)
+
+    cambios = {(c["estado"], c["ruta"], c.get("origen")) for c in datos["git_cambios"]}
+    assert ("R", "nuevo ñ.txt", "viejo nombre.txt") in cambios
+    assert not any("->" in c["ruta"] for c in datos["git_cambios"])
+
+
+def test_las_rutas_con_acentos_o_almohadillas_llegan_tal_cual(client, tmp_path):  # noqa: ANN001, ANN202
+    carpeta = tmp_path / "raras"
+    _inicializar(carpeta)
+    (carpeta / "con acentos ñ y #.txt").write_text("hola", encoding="utf-8")
+
+    datos = _proyeccion(client, carpeta)
+
+    cambios = {(c["estado"], c["ruta"], c.get("origen")) for c in datos["git_cambios"]}
+    assert ("??", "con acentos ñ y #.txt", None) in cambios

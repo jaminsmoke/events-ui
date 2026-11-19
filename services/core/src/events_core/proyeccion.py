@@ -50,9 +50,13 @@ def _git(carpeta: Path, *args: str) -> str | None:
 def _git_cambios(carpeta: Path) -> list[dict[str, str]]:
     """Los cambios sin commit, tal como los resume `git status --porcelain`.
 
-    Se incluyen staged, unstaged y sin seguimiento. No se usa `_git` porque
-    `strip()` se comería el espacio del primer estado (` M archivo`) y el
-    recorte de la primera línea dejaría el código de dos letras mal alineado.
+    Se incluyen staged, unstaged y sin seguimiento. Se pide `-z` porque en ese
+    formato Git no entrecomilla ni escapa las rutas: un nombre con espacios,
+    acentos o comillas llega tal cual. En un renombrado o una copia, el campo
+    siguiente es el origen, que se devuelve aparte (`origen`) para no perder de
+    dónde vino. No se usa `_git` porque `strip()` se comería el espacio del
+    primer estado (` M archivo`) y el recorte de la primera línea dejaría el
+    código de dos letras mal alineado.
     """
     try:
         salida = subprocess.run(
@@ -62,24 +66,37 @@ def _git_cambios(carpeta: Path) -> list[dict[str, str]]:
                 str(carpeta),
                 "status",
                 "--porcelain=v1",
+                "-z",
                 "--untracked-files=all",
             ],
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="surrogateescape",
             timeout=5,
         )
     except (OSError, subprocess.SubprocessError):
         return []
     if salida.returncode != 0:
         return []
+    campos = salida.stdout.split(chr(0))
     cambios: list[dict[str, str]] = []
-    for linea in salida.stdout.splitlines():
+    i = 0
+    while i < len(campos):
+        linea = campos[i]
+        i += 1
         if len(linea) < 4:
             continue
         estado = linea[:2].strip() or "?"
-        ruta = linea[3:].strip()
-        if ruta:
-            cambios.append({"estado": estado, "ruta": ruta})
+        ruta = linea[3:]
+        if not ruta:
+            continue
+        cambio = {"estado": estado, "ruta": ruta}
+        # Renombrado o copia: el origen viene en el campo siguiente.
+        if "R" in estado or "C" in estado:
+            if i < len(campos) and campos[i]:
+                cambio["origen"] = campos[i]
+            i += 1
+        cambios.append(cambio)
     return cambios
 
 

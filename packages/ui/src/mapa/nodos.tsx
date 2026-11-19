@@ -141,6 +141,20 @@ function FasesIdea({
               {" · "}
               {fase.titulo}
             </span>
+            <button
+              type="button"
+              className="fase-check"
+              title={`Requisitos: ${hechosReq} de ${requisitos.length}`}
+              aria-label={`Requisitos de ${fase.titulo}: ${hechosReq} de ${requisitos.length}`}
+              aria-expanded={verRequisitos === fase.orden}
+              onClick={() => {
+                setVerRequisitos(verRequisitos === fase.orden ? null : fase.orden);
+                setRequisitoNuevo("");
+              }}
+            >
+              {hechosReq}/{requisitos.length}{" "}
+              {requisitos.length === 1 ? "requisito" : "requisitos"}
+            </button>
             {estado === "roadmap" && (fase.estado === "fallida" || fase.estado === "rechazada") ? (
               <input
                 key={fase.nota}
@@ -166,19 +180,6 @@ function FasesIdea({
               fase.nota && <span className="fase-nota">{fase.nota}</span>
             )}
           </div>
-          <button
-            type="button"
-            className="fase-check"
-            title={`Requisitos: ${hechosReq} de ${requisitos.length}`}
-            aria-label={`Requisitos de ${fase.titulo}: ${hechosReq} de ${requisitos.length}`}
-            aria-expanded={verRequisitos === fase.orden}
-            onClick={() => {
-              setVerRequisitos(verRequisitos === fase.orden ? null : fase.orden);
-              setRequisitoNuevo("");
-            }}
-          >
-            {hechosReq}/{requisitos.length}
-          </button>
           {estado === "roadmap" ? (
             <select
               className="fase-estado"

@@ -1585,7 +1585,7 @@ code {
   font-size: 12px;
 }
 /* El número de fase separa los dos contadores: el de fases (arriba) y el de
- * requisitos de cada fase (a la derecha de su título). */
+ * requisitos de cada fase (bajo su título). */
 .fase-indice {
   color: var(--muted);
   font-size: 10.5px;
@@ -1627,10 +1627,11 @@ code {
   display: grid;
   gap: 2px;
 }
-/* Contador de requisitos: abre y cierra la checklist de la fase. */
+/* Contador de requisitos: bajo el título y con su nombre, para que no se
+ * confunda con el contador de fases de arriba. Abre la checklist. */
 .fase-check {
-  min-width: 30px;
-  padding: 0 3px;
+  align-self: flex-start;
+  padding: 0 4px;
   font-size: 10px;
   color: var(--muted);
   background: transparent;

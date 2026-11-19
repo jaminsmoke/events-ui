@@ -365,8 +365,8 @@ export default function App({
                           opacity: enMarcha
                             ? 1
                             : entrada
-                              ? 0.34 + 0.32 * t
-                              : 0.42 + 0.34 * t,
+                              ? 0.44 + 0.32 * t
+                              : 0.52 + 0.32 * t,
                         }}
                       />
                     );

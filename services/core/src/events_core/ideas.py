@@ -1572,16 +1572,27 @@ def _escribir_archivos(
     requisito: int,
     cambios: list[dict[str, Any]],
 ) -> None:
-    """Reemplaza los archivos de una fase o de uno de sus requisitos (0029)."""
-    conn.execute(
-        "DELETE FROM idea_fase_archivo"
-        " WHERE idea_uid = ? AND fase_orden = ? AND requisito_orden = ?",
-        (uid, orden, requisito),
-    )
+    """Escribe los archivos de una fase o de uno de sus requisitos (0029).
+
+    La fase se reescribe: su lista es el cambio del último evento. El requisito
+    se suma: deshacer la marca no borra lo anotado y volver a marcarlo no lo
+    pisa, así que un clic de más no se lleva el registro. El `COALESCE` conserva
+    el parche bueno si el evento nuevo no trae contenido.
+    """
+    if requisito == 0:
+        conn.execute(
+            "DELETE FROM idea_fase_archivo"
+            " WHERE idea_uid = ? AND fase_orden = ? AND requisito_orden = 0",
+            (uid, orden),
+        )
     conn.executemany(
         "INSERT INTO idea_fase_archivo"
         " (idea_uid, fase_orden, requisito_orden, ruta, estado, desde, contenido)"
-        " VALUES (?, ?, ?, ?, ?, ?, ?)",
+        " VALUES (?, ?, ?, ?, ?, ?, ?)"
+        " ON CONFLICT (idea_uid, fase_orden, requisito_orden, ruta) DO UPDATE SET"
+        "   estado = excluded.estado,"
+        "   desde = excluded.desde,"
+        "   contenido = COALESCE(excluded.contenido, idea_fase_archivo.contenido)",
         [
             (
                 uid,
@@ -1656,9 +1667,13 @@ def _anotar_archivos(
             hechos_ahora = {
                 int(requisito["orden"]) for requisito in fase["requisitos"] if requisito["hecho"]
             }
-            # Un requisito que vuelve a estar pendiente (o que ya no existe)
-            # suelta lo suyo: si se repite, se vuelve a medir.
-            for orden_requisito in sorted(set(hechos_antes) - hechos_ahora):
+            # Un requisito que ya no existe suelta su carril: sus archivos no
+            # pueden colgar de algo que se borró. Deshacer la marca, en cambio,
+            # no borra nada: lo anotado es lo que cambió mientras se hizo, y un
+            # clic de más no puede llevarse el registro (se puede volver a
+            # marcar y sigue ahí).
+            vigentes_requisitos = {int(requisito["orden"]) for requisito in fase["requisitos"]}
+            for orden_requisito in sorted(set(hechos_antes) - vigentes_requisitos):
                 conn.execute(
                     "DELETE FROM idea_fase_archivo"
                     " WHERE idea_uid = ? AND fase_orden = ? AND requisito_orden = ?",

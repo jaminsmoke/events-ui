@@ -166,7 +166,8 @@ con el motivo, para no reabrirlo cada semana.
   cada archivo (acotado por tamaño). El mapa resume con un contador y la ficha
   lista los archivos; al pulsar uno con parche se despliega el cambio. Desde la
   0029 el evento también puede ser un requisito: lo que cambió hasta marcarlo es
-  lo suyo, y la fase suma siempre a sus requisitos. Un archivo movido se anota
+  lo suyo, y la fase suma siempre a sus requisitos. Deshacer la marca no pierde
+  lo anotado (solo se va si el requisito desaparece); volver a marcarlo suma. Un archivo movido se anota
   una vez como `renombrado` (con su `desde`), también sin Git, y una idea que
   nace en roadmap toma su foto de partida. Cubierto en
   `services/core/tests/test_archivos.py` y `e2e/escenarios/archivos-fase.mjs`.

@@ -288,8 +288,8 @@ def test_dos_requisitos_a_la_vez_se_quedan_en_la_fase(client, tmp_path):  # noqa
     assert [archivo["ruta"] for archivo in idea["fases"][0]["archivos"]] == ["dos.py"]
 
 
-def test_destildar_un_requisito_suelta_sus_archivos(client, tmp_path):  # noqa: ANN001, ANN202
-    """Volver a pendiente es deshacer: lo anotado se va con él."""
+def test_destildar_un_requisito_no_pierde_lo_anotado(client, tmp_path):  # noqa: ANN001, ANN202
+    """Un clic de más no borra el registro: deshacer la marca solo deshace."""
     carpeta = tmp_path / "destildado"
     carpeta.mkdir()
     uid = _en_roadmap(client, carpeta)
@@ -303,8 +303,42 @@ def test_destildar_un_requisito_suelta_sus_archivos(client, tmp_path):  # noqa: 
     fases[0]["requisitos"][0]["hecho"] = False
     idea = _guardar_fases(client, carpeta, uid, fases)
 
-    assert idea["fases"][0]["requisitos"][0]["archivos"] == []
+    assert [archivo["ruta"] for archivo in idea["fases"][0]["requisitos"][0]["archivos"]] == [
+        "pieza.py"
+    ]
+    assert [archivo["ruta"] for archivo in idea["fases"][0]["archivos"]] == ["pieza.py"]
+
+    # Volver a marcarlo tampoco reescribe vacío: lo de antes sigue y lo nuevo
+    # se suma.
+    (carpeta / "segunda.py").write_text("y", encoding="utf-8")
+    fases = _fases_payload(client, carpeta, uid)
+    fases[0]["requisitos"][0]["hecho"] = True
+    idea = _guardar_fases(client, carpeta, uid, fases)
+    assert [archivo["ruta"] for archivo in idea["fases"][0]["requisitos"][0]["archivos"]] == [
+        "pieza.py",
+        "segunda.py",
+    ]
+
+
+def test_quitar_un_requisito_borra_sus_archivos(client, tmp_path):  # noqa: ANN001, ANN202
+    """Lo que no se borra al destildar sí se va con el requisito que desaparece."""
+    carpeta = tmp_path / "quitado"
+    carpeta.mkdir()
+    uid = _en_roadmap(client, carpeta)
+    (carpeta / "pieza.py").write_text("x", encoding="utf-8")
+
+    fases = _fases_payload(client, carpeta, uid)
+    fases[0]["requisitos"][0]["hecho"] = True
+    assert _guardar_fases(client, carpeta, uid, fases)["fases"][0]["archivos"]
+
+    idea = _guardar_fases(
+        client,
+        carpeta,
+        uid,
+        [{"orden": 1, "titulo": "Diseño", "requisitos": [{"titulo": "Otro criterio"}]}],
+    )
     assert idea["fases"][0]["archivos"] == []
+    assert idea["fases"][0]["requisitos"][0]["archivos"] == []
 
 
 def test_nacer_en_roadmap_toma_la_foto_de_partida(client, tmp_path):  # noqa: ANN001, ANN202

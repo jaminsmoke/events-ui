@@ -288,7 +288,8 @@ y el detalle por `ON DELETE CASCADE`. El paso `0004` es el ejemplo: reconstruye
   ignorado por Git nunca cuentan. La fila resume con un contador (`2 archivos`) y
   la ficha los lista; el que tiene parche se despliega al pulsarlo. Cada
   requisito enseña los archivos que cambiaron mientras se hacía; lo que se marca
-  en bloque o lo cierra la fase se queda en la fase. Una idea que nace ya en
+  en bloque o lo cierra la fase se queda en la fase. Deshacer la marca de un
+  requisito no borra lo anotado: un clic de más no se lleva el registro. Una idea que nace ya en
   roadmap también toma su foto de partida, y un archivo movido se anota una vez
   (`renombrado`, con su origen) en vez de como borrado y nuevo.
 - **Historial (0026)**. Aprobar es la compuerta: el core guarda la firma en

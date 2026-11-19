@@ -52,7 +52,7 @@ jobs:
           python-version: 3.12
 
       - name: uv
-        uses: astral-sh/setup-uv@v10
+        uses: astral-sh/setup-uv@v7
 
       - name: Rust (estable)
         uses: dtolnay/rust-toolchain@stable
@@ -93,7 +93,7 @@ jobs:
           python-version: 3.12
 
       - name: uv
-        uses: astral-sh/setup-uv@v10
+        uses: astral-sh/setup-uv@v7
 
       - name: pnpm install
         run: corepack pnpm install --frozen-lockfile

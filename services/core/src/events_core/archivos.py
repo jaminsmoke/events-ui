@@ -24,8 +24,9 @@ from typing import Any
 # alfabético: el árbol de una idea no suele acercarse, pero un `vendor/` suelto
 # no puede convertir cada cierre de fase en media base de datos.
 LIMITE_ARCHIVOS = 5000
-# Espacio para el contenido: por archivo y por fase. Lo que no cabe se queda sin
-# contenido (`None`), nunca con medio parche.
+# Espacio para el contenido: por archivo y por fase, contado en bytes —lo que
+# ocupa el texto al guardarse, no cuántos caracteres tiene—. Lo que no cabe se
+# queda sin contenido (`None`), nunca con medio parche.
 LIMITE_CONTENIDO = 64 * 1024
 LIMITE_TOTAL = 512 * 1024
 # Carpetas que nunca cuentan como trabajo de la idea: dependencias, cachés y la
@@ -266,10 +267,11 @@ def contenidos(carpeta: Path, cambios: list[dict[str, Any]]) -> None:
             texto = parches.get(str(cambio["ruta"]))
         if texto is None:
             continue
-        if total + len(texto) > LIMITE_TOTAL:
+        tamano = len(texto.encode("utf-8"))
+        if total + tamano > LIMITE_TOTAL:
             break
         cambio["contenido"] = texto
-        total += len(texto)
+        total += tamano
 
 
 def serializar(estado: dict[str, tuple[int, int]]) -> str:

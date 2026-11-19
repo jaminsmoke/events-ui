@@ -13,6 +13,8 @@ from pathlib import Path
 
 import pytest
 
+from events_core import archivos
+
 GIT = shutil.which("git")
 
 
@@ -360,3 +362,19 @@ def test_nacer_en_roadmap_toma_la_foto_de_partida(client, tmp_path):  # noqa: AN
     (carpeta / "nuevo.txt").write_text("después", encoding="utf-8")
     fase = _cerrar(client, carpeta, uid)
     assert [archivo["ruta"] for archivo in fase["archivos"]] == ["nuevo.txt"]
+
+
+def test_el_tope_por_fase_cuenta_bytes_y_no_caracteres(monkeypatch):  # noqa: ANN001, ANN202
+    texto = "ñ" * 20  # 20 caracteres, 40 bytes en UTF-8
+    monkeypatch.setattr(archivos, "hay_git", lambda _carpeta: True)
+    monkeypatch.setattr(archivos, "_leer_texto", lambda _ruta: texto)
+    monkeypatch.setattr(archivos, "LIMITE_TOTAL", 30)
+
+    cambios = [
+        {"estado": "nuevo", "ruta": "a.txt"},
+        {"estado": "nuevo", "ruta": "b.txt"},
+    ]
+    archivos.contenidos(Path("."), cambios)
+
+    # Los 20 caracteres caben en 30, pero sus 40 bytes no: antes se colaba.
+    assert all("contenido" not in cambio for cambio in cambios)

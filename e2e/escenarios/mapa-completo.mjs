@@ -69,24 +69,28 @@ export default {
       (await page.locator(".wire.rama").count()) === 3,
       "faltan los tres retornos de la revisión rechazada",
     );
-    // El laboratorio del runner no es un work tree Git: el nodo terminal debe
-    // verse apagado y explicarlo, no heredar el repo de la aplicación.
+    // El laboratorio del runner no es un work tree Git: el puente debe verse
+    // apagado y explicarlo, no heredar el repo de la aplicación.
     await esperar(
       () => page.locator(".nodo-git.apagado").count().then((n) => n === 1),
-      "el nodo Git apagado",
+      "el puente a Git apagado",
     );
     expect(
       (await page.locator(".nodo-git").innerText()).includes("Sin repositorio local"),
-      "el nodo Git apagado debe explicar por qué",
+      "el puente apagado debe explicar por qué",
     );
+    // El Mapa de Git separado también está apagado sin work tree.
+    await page.getByRole("button", { name: "Mapa de Git", exact: true }).click();
     await esperar(
-      () => page.locator(".rama-git.apagado").count().then((n) => n === 1),
-      "la rama de Control de versiones apagada",
+      () => page.locator(".nodo-cambios.apagado").count().then((n) => n === 1),
+      "los cambios apagados en el Mapa de Git",
     );
     expect(
-      (await page.locator(".rama-git").innerText()).includes("Sin repositorio local"),
-      "la rama de cambios debe explicar que no hay Git",
+      (await page.locator(".nodo-cambios").innerText()).includes("Sin repositorio local"),
+      "los cambios deben explicar que no hay Git",
     );
+    await page.getByRole("button", { name: "Mapa de ideas", exact: true }).click();
+    await esperar(() => page.locator(".wire").count().then((n) => n === 10), "de vuelta a Ideas");
     // Los cables son pistas ortogonales: ni curvas libres ni diagonales.
     const trazados = await page.locator(".wire").evaluateAll((nodos) =>
       nodos.map((nodo) => nodo.getAttribute("d") ?? ""),

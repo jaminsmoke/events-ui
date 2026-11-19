@@ -11,7 +11,7 @@ import { duracionChispa, useCables } from "./mapa/cables";
 import { Compuerta, LeyendaCompuertas } from "./mapa/compuertas";
 import { useCamara } from "./mapa/camara";
 import type { LaneId, Status } from "./mapa/carriles";
-import { NodeBox, NodoCambios, NodoGit, VueloFila } from "./mapa/nodos";
+import { NodeBox, NodoCambios, NodoGit, NodoPuenteGit, VueloFila } from "./mapa/nodos";
 import { useVuelos } from "./mapa/vuelos";
 import { useEventos, resumenEvento } from "./core/useEventos";
 import { useProtocolos } from "./core/useProtocolos";
@@ -55,6 +55,9 @@ export default function App({
   const [ajustesAbiertos, setAjustesAbiertos] = useState(false);
   const [pruebaEnCurso, setPruebaEnCurso] = useState(false);
   const [pruebasAbiertas, setPruebasAbiertas] = useState(false);
+  // Dos mapas enlazados: el de Ideas y el de Git. El puente de Ideas solo
+  // abre el de Git cuando hay work tree; la vista se anima al cambiar.
+  const [mapa, setMapa] = useState<"ideas" | "git">("ideas");
   const [avisoRecuperacion, setAvisoRecuperacion] = useState<string | null>(null);
   // El editor de la fila vive aquí, no dentro de la fila: la fila le monta
   // un `createPortal` a body y con el ratón sus clics no llegaban (Guardar/
@@ -165,6 +168,7 @@ export default function App({
 
   const { vista, arrastrando, encuadrar, zoom, reset, olvidar, mano } = useCamara({
     repo,
+    mapa,
     listo: tree !== null,
     boardRef,
     mapRef,
@@ -173,13 +177,14 @@ export default function App({
     tree,
     cerrados,
     vista,
+    mapa,
     boardRef,
     mapRef,
     cajonRef,
     carrilRefs,
     gitRef,
   });
-  const { vuelos, volando, aterrizado } = useVuelos({ repo, ideas, cerrados, vista, mapRef });
+  const { vuelos, volando, aterrizado } = useVuelos({ repo, mapa, ideas, cerrados, vista, mapRef });
   const { chispas, pulsos, pulsoCajon } = useAnimaciones(repo, ideas);
 
   /* Un carril puede tener cable de ida y de vuelta (verificación↔cola,
@@ -235,10 +240,18 @@ export default function App({
     (path: string) => {
       olvidar();
       setRepo(path);
+      setMapa("ideas");
       setSelectorAbierto(false);
     },
     [olvidar],
   );
+
+  const gitActivo = proyeccion?.git === true;
+  const irGit = useCallback(() => {
+    if (gitActivo) setMapa("git");
+  }, [gitActivo]);
+  const verGit = useCallback(() => setMapa("git"), []);
+  const irIdeas = useCallback(() => setMapa("ideas"), []);
 
   // Mover entre carriles es cambiar el `status` (PATCH tipado). El sondeo
   // de `/revision` relee el mapa y el vuelo existente anima la fila.
@@ -386,16 +399,41 @@ export default function App({
               <p className="hint">Todavía no hay ideas en este repo.</p>
             )}
             {!busy && tree && (
+              <nav className="mapas-nav" aria-label="Mapas">
+                <button
+                  type="button"
+                  className={`btn mapas-pestana${mapa === "ideas" ? " activa" : ""}`}
+                  aria-pressed={mapa === "ideas"}
+                  onClick={irIdeas}
+                >
+                  Mapa de ideas
+                </button>
+                <button
+                  type="button"
+                  className={`btn mapas-pestana${mapa === "git" ? " activa" : ""}`}
+                  aria-pressed={mapa === "git"}
+                  onClick={verGit}
+                  title={gitActivo ? "Ver cambios sin commit" : "Sin repositorio local"}
+                >
+                  Mapa de Git
+                </button>
+              </nav>
+            )}
+            {!busy && tree && (
               <div
-                className="map"
+                key={mapa}
+                className={`map mapa-${mapa}`}
                 ref={mapRef}
                 style={{ transform: `translate(${vista.x}px, ${vista.y}px) scale(${vista.k})` }}
               >
+                {mapa === "ideas" && (
                 <div className="vuelos">
                   {vuelos.map((vuelo) => (
                     <VueloFila key={vuelo.id} vuelo={vuelo} onDone={aterrizado} />
                   ))}
                 </div>
+                )}
+                {mapa === "ideas" && (
                 <svg className="cables" aria-hidden="true">
                   {cables.map((cable) => {
                     const t = cable.presion / maximo;
@@ -516,6 +554,8 @@ export default function App({
                     ) : null;
                   })}
                 </svg>
+                )}
+                {mapa === "ideas" ? (
                 <div className="linea">
                   <NodeBox
                     node={tree.cajon}
@@ -561,18 +601,39 @@ export default function App({
                       catalogo={ideas ?? []}
                     />
                   ))}
+                  <NodoPuenteGit
+                    activo={gitActivo}
+                    branch={proyeccion?.branch}
+                    commit={proyeccion?.commit}
+                    gitRoot={proyeccion?.git_root}
+                    boxRef={gitRef}
+                    onAbrir={irGit}
+                  />
+                </div>
+                ) : (
+                <div className="linea linea-git">
+                  <div className="git-cabecera">
+                    <div>
+                      <p className="git-kicker">Control de versiones</p>
+                      <p className="git-titulo">Mapa de Git</p>
+                    </div>
+                    <button type="button" className="btn ghost" onClick={irIdeas}>
+                      ← Volver a Ideas
+                    </button>
+                  </div>
                   <NodoGit
-                    activo={proyeccion?.git === true}
+                    activo={gitActivo}
                     branch={proyeccion?.branch}
                     commit={proyeccion?.commit}
                     gitRoot={proyeccion?.git_root}
                     boxRef={gitRef}
                   />
                   <NodoCambios
-                    activo={proyeccion?.git === true}
+                    activo={gitActivo}
                     cambios={proyeccion?.git_cambios ?? []}
                   />
                 </div>
+                )}
               </div>
             )}
             {recortado && <AvisoRecorte onEncuadrar={encuadrar} />}

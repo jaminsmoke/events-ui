@@ -10,7 +10,7 @@ function git(carpeta, ...args) {
 export default {
   nombre: "git-local",
   descripcion:
-    "El nodo Git se apaga si el lab solo está dentro de otro repo, se enciende con un git init propio y vuelve a apagarse al quitarlo",
+    "El puente se apaga si el lab solo está dentro de otro repo, se enciende con un git init propio y vuelve a apagarse al quitarlo",
   run: async ({ page, UI, esperar, expect, resultado, tmp }) => {
     const repos = path.join(tmp, "repos");
     const lab = path.join(repos, "lab");
@@ -32,54 +32,74 @@ export default {
       await pruebas.waitFor();
       await esperar(() => page.locator(".wire").count().then((n) => n === 10), "los diez cables");
 
-      const nodo = page.locator(".nodo-git");
-      const rama = page.locator(".rama-git");
+      // En el Mapa de Ideas solo vive el puente: apagado si el lab está ignorado.
+      const puente = page.locator(".nodo-git");
       await esperar(
-        () => nodo.evaluate((el) => el.classList.contains("apagado")),
+        () => puente.evaluate((el) => el.classList.contains("apagado")),
         "Git apagado en el lab ignorado",
         15_000,
       );
       expect(
-        (await nodo.innerText()).includes("Sin repositorio local"),
-        "el nodo apagado debe explicar que no hay work tree",
+        (await puente.innerText()).includes("Sin repositorio local"),
+        "el puente apagado debe explicar que no hay work tree",
+      );
+      // El Mapa de Git existe pero sus cambios también están apagados sin repo.
+      await page.getByRole("button", { name: "Mapa de Git", exact: true }).click();
+      const cambios = page.locator(".nodo-cambios");
+      await esperar(
+        () => cambios.evaluate((el) => el.classList.contains("apagado")),
+        "los cambios apagados sin Git",
+        15_000,
       );
       expect(
-        (await rama.innerText()).includes("Sin repositorio local"),
-        "la rama de cambios debe estar apagada sin Git",
+        (await cambios.innerText()).includes("Sin repositorio local"),
+        "los cambios deben estar apagados sin Git",
       );
+      await page.getByRole("button", { name: "Mapa de ideas", exact: true }).click();
+      await esperar(() => page.locator(".wire").count().then((n) => n === 10), "de vuelta a Ideas");
 
       // `git init` en el propio lab gana al repo contenedor que lo ignora.
       git(lab, "init", "-b", "main");
       await esperar(
-        () => nodo.evaluate((el) => el.classList.contains("activo")),
+        () => puente.evaluate((el) => el.classList.contains("activo")),
         "Git activo tras git init",
         15_000,
       );
-      const texto = await nodo.innerText();
-      expect(texto.includes("main"), "el nodo activo debe mostrar la rama main");
+      const texto = await puente.innerText();
+      expect(texto.includes("main"), "el puente activo debe mostrar la rama main");
       expect(texto.includes("sin commits"), "un repo vacío no debe inventar un commit");
+      // El puente abre el Mapa de Git: el primer nodo muestra los cambios.
+      await page.getByRole("button", { name: /Abrir mapa de Git/ }).click();
       await esperar(
-        () => rama.evaluate((el) => el.classList.contains("activo")),
-        "la rama de cambios activa con Git",
+        () => page.locator(".linea-git").count().then((n) => n === 1),
+        "el Mapa de Git",
         15_000,
       );
       await esperar(
-        () => page.locator(".rama-git .fila-cambio").count().then((n) => n > 0),
+        () => cambios.evaluate((el) => el.classList.contains("activo")),
+        "los cambios activos con Git",
+        15_000,
+      );
+      await esperar(
+        () => page.locator(".nodo-cambios .fila-cambio").count().then((n) => n > 0),
         "los cambios sin commit en el primer nodo",
         15_000,
       );
+      // La vista se funde al cambiar de mapa: se espera a que asiente.
+      await page.waitForTimeout(900);
       await page.screenshot({ path: resultado("git-local.png") });
 
       // Sin repo propio vuelve a mandar el contenedor, que lo ignora.
       rmSync(path.join(lab, ".git"), { recursive: true, force: true });
       await esperar(
-        () => nodo.evaluate((el) => el.classList.contains("apagado")),
-        "Git apagado al quitar el repo",
+        () => cambios.evaluate((el) => el.classList.contains("apagado")),
+        "los cambios apagados al quitar el repo",
         15_000,
       );
+      await page.getByRole("button", { name: "Mapa de ideas", exact: true }).click();
       await esperar(
-        () => rama.evaluate((el) => el.classList.contains("apagado")),
-        "la rama de cambios apagada al quitar el repo",
+        () => puente.evaluate((el) => el.classList.contains("apagado")),
+        "Git apagado al quitar el repo",
         15_000,
       );
     } finally {

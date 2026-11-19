@@ -204,10 +204,13 @@ si no lo es. Una carpeta ignorada por el repo que la contiene no cuenta, que es
 el caso del laboratorio dentro del repo de la aplicación. La proyección expone
 `git`, `git_root`, `branch`, `commit` y `git_cambios`; este último puede faltar.
 
-Debajo de Entrada arranca la rama **Control de versiones**, separada del flujo
-de ideas. Su primer nodo, **Cambios sin commit**, lista lo que ve
+Hay dos mapas enlazados. El **Mapa de ideas** termina en el puente **Entregar
+a Git**, que solo se activa con work tree y abre el **Mapa de Git**.
+Su primer nodo, **Cambios sin commit**, lista lo que ve
 `git status --porcelain`: archivos modificados, preparados o sin seguimiento.
-Si Git está apagado, el nodo también lo está y no inventa cambios.
+Si Git está apagado, el puente y el nodo también lo están y no inventan cambios.
+Se cambia con las pestañas de arriba o con el botón del puente; al cambiar,
+la cámara reencuadra y los nodos se funden en cascada.
 
 Una idea puede declarar `depende_de` (uids de otras ideas del repo): el core no
 la deja entrar en roadmap, verificación, revisión aprobada ni historial mientras

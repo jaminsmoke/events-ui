@@ -145,10 +145,10 @@ con el motivo, para no reabrirlo cada semana.
   enciende solo si la carpeta pertenece a un work tree Git. Un `git init` sin
   commits ya cuenta; una carpeta ignorada por el repo contenedor, como el
   laboratorio, no. La proyección separa `git`/`git_root` de `branch`/`commit`
-  para no confundir «no hay repo» con «repo sin commits». Debajo de Entrada
-  arranca **Control de versiones**; su primer nodo lista los cambios sin
-  commit desde `git_cambios`. Cubierto en `services/core/tests/test_git.py` y
-  `e2e/escenarios/git-local.mjs`.
+  para no confundir «no hay repo» con «repo sin commits». El flujo de ideas
+  cierra en el puente **Entregar a Git**, que abre el **Mapa de Git**; su
+  primer nodo lista los cambios sin commit desde `git_cambios`. Cubierto en
+  `services/core/tests/test_git.py` y `e2e/escenarios/git-local.mjs`.
 - **Revisión rechazada (0027)**: desde verificación se vuelve a roadmap para
   rehacer, a la cola para replanificar o a descartadas con motivo. No hay un
   carril nuevo: el mapa dibuja un nodo de rechazo que cuelga del nudo del cable

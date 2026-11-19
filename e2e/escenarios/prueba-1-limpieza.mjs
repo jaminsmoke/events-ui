@@ -8,8 +8,7 @@ const tablasOperativas = [
 
 async function geometria(page) {
   return page.evaluate(() => ({
-    // Solo la fila principal: la rama de Control de versiones vive en la
-    // fila de abajo y se desplaza con la altura de las fichas abiertas.
+    // Solo el Mapa de Ideas: el Mapa de Git es otra vista y no se mide aquí.
     cabeceras: Array.from(
       document.querySelectorAll(".linea > .node > .node-head"),
       (n) => {

@@ -120,6 +120,7 @@ export function useCables({
   tree,
   cerrados,
   vista,
+  mapa,
   boardRef,
   mapRef,
   cajonRef,
@@ -129,6 +130,7 @@ export function useCables({
   tree: Tree | null;
   cerrados: ReadonlySet<string>;
   vista: Vista;
+  mapa: string;
   boardRef: RefObject<HTMLElement | null>;
   mapRef: RefObject<HTMLDivElement | null>;
   cajonRef: RefObject<HTMLElement | null>;
@@ -142,6 +144,8 @@ export function useCables({
   const [nudo, setNudo] = useState<{ x: number; y: number } | null>(null);
 
   useLayoutEffect(() => {
+    // En el Mapa de Git no hay cables que medir: el cajón no existe.
+    if (mapa !== "ideas") return;
     const map = mapRef.current;
     const cajon = cajonRef.current;
     if (!map || !cajon || !tree) return;
@@ -442,7 +446,13 @@ export function useCables({
       ro.disconnect();
       map.removeEventListener("scroll", medir, true);
     };
-  }, [tree, cerrados, vista, boardRef, mapRef, cajonRef, carrilRefs, gitRef]);
+  }, [tree, cerrados, vista, mapa, boardRef, mapRef, cajonRef, carrilRefs, gitRef]);
 
-  return { cables, nudo, rama, recortado };
+  const enIdeas = mapa === "ideas";
+  return {
+    cables: enIdeas ? cables : [],
+    nudo: enIdeas ? nudo : null,
+    rama: enIdeas ? rama : null,
+    recortado: enIdeas ? recortado : false,
+  };
 }

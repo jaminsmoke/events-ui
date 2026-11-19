@@ -27,12 +27,14 @@ export type Vuelo = {
  *  hasta que aterriza. El dato llega en un instante; el viaje no. */
 export function useVuelos({
   repo,
+  mapa,
   ideas,
   cerrados,
   vista,
   mapRef,
 }: {
   repo: string | null;
+  mapa: string;
   ideas: Idea[] | null;
   cerrados: ReadonlySet<string>;
   vista: Vista;
@@ -48,6 +50,8 @@ export function useVuelos({
   const k = vista.k;
 
   useLayoutEffect(() => {
+    // En el Mapa de Git no hay filas que medir.
+    if (mapa !== "ideas") return;
     const map = mapRef.current;
     if (!repo || !map || !ideas) return;
 
@@ -123,7 +127,7 @@ export function useVuelos({
     // puede entrar en cascada con el render que acaba de pintar las filas.
     const raf = requestAnimationFrame(() => setVuelos(nuevos));
     return () => cancelAnimationFrame(raf);
-  }, [repo, ideas, cerrados, k, mapRef]);
+  }, [repo, mapa, ideas, cerrados, k, mapRef]);
 
   // Solo se oculta la fila del carril de destino: la del cajón no se mueve.
   const volando = useCallback(
@@ -135,5 +139,9 @@ export function useVuelos({
     setVuelos((prev) => prev.filter((v) => v.id !== id));
   }, []);
 
-  return { vuelos: vuelos.filter((vuelo) => vuelo.repo === repo), volando, aterrizado };
+  return {
+    vuelos: mapa === "ideas" ? vuelos.filter((vuelo) => vuelo.repo === repo) : [],
+    volando,
+    aterrizado,
+  };
 }

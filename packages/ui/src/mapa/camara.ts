@@ -24,11 +24,13 @@ const acotar = (valor: number, min: number, max: number) => Math.min(max, Math.m
  *  el árbol. */
 export function useCamara({
   repo,
+  mapa,
   listo,
   boardRef,
   mapRef,
 }: {
   repo: string | null;
+  mapa: string;
   listo: boolean;
   boardRef: RefObject<HTMLElement | null>;
   mapRef: RefObject<HTMLDivElement | null>;
@@ -97,14 +99,17 @@ export function useCamara({
     movida.current = false;
   }, []);
 
-  /* Bienvenida: al abrir un repo se encuadra una vez. Después manda el ratón. */
+  /* Bienvenida: al abrir un repo se encuadra una vez por mapa. Después
+   *  manda el ratón; al cambiar de vista se vuelve a encuadrar solo. */
   useLayoutEffect(() => {
-    if (!listo || !repo || encuadrado.current === repo) return;
+    if (!listo || !repo) return;
+    const clave = `${repo}|${mapa}`;
+    if (encuadrado.current === clave) return;
     if (!boardRef.current || !mapRef.current) return;
-    encuadrado.current = repo;
+    encuadrado.current = clave;
     const raf = requestAnimationFrame(encuadrar);
     return () => cancelAnimationFrame(raf);
-  }, [repo, listo, encuadrar, boardRef, mapRef]);
+  }, [repo, mapa, listo, encuadrar, boardRef, mapRef]);
 
   // Rueda: acerca y aleja sobre el punto donde está el cursor, no sobre el
   // centro. Escucha nativa porque React registra `wheel` como pasivo y no deja
@@ -187,7 +192,7 @@ export function useCamara({
        * el tablero capturaba el puntero y el clic se quedaba aquí: el botón no
        * llegaba a pulsarse nunca. */
       if (!e.currentTarget.contains(e.target as Node)) return;
-      if ((e.target as HTMLElement).closest(".node, .vista, .aviso-recorte")) return;
+      if ((e.target as HTMLElement).closest(".node, .vista, .aviso-recorte, .mapas-nav")) return;
       agarre.current = { x: e.clientX, y: e.clientY };
       movida.current = true;
       setArrastrando(true);

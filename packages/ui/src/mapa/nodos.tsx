@@ -1027,7 +1027,7 @@ function NodeRow({
   );
 }
 
-/** El primer nodo de la rama inferior: los cambios que aún no tienen commit.
+/** El primer nodo del Mapa de Git: los cambios que aún no tienen commit.
  *  No es un carril de ideas; solo enseña lo que Git ve en el árbol de trabajo. */
 export function NodoCambios({
   activo,
@@ -1038,36 +1038,33 @@ export function NodoCambios({
 }) {
   return (
     <section
-      className={`rama-git ${activo ? "activo" : "apagado"}`}
-      aria-label="Control de versiones"
+      className={`node nodo-cambios ${activo ? "activo" : "apagado"}`}
+      aria-label="Cambios sin commit"
     >
-      <div className="rama-git-kicker">Control de versiones</div>
-      <section className={`node nodo-cambios ${activo ? "activo" : "apagado"}`}>
-        <div className="node-head">
-          <span className="node-title">Cambios sin commit</span>
-          <span className="count">{cambios.length}</span>
-        </div>
-        <div className="cambios-cuerpo">
-          {!activo ? (
-            <p className="cambios-vacio">Sin repositorio local</p>
-          ) : cambios.length === 0 ? (
-            <p className="cambios-vacio">Sin cambios pendientes</p>
-          ) : (
-            <ul className="cambios-lista">
-              {cambios.map((cambio) => (
-                <li key={`${cambio.estado}:${cambio.ruta}`} className="fila-cambio">
-                  <span className="cambio-estado" title={cambio.estado}>
-                    {cambio.estado}
-                  </span>
-                  <span className="cambio-ruta" title={cambio.ruta}>
-                    {cambio.ruta}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </section>
+      <div className="node-head">
+        <span className="node-title">Cambios sin commit</span>
+        <span className="count">{cambios.length}</span>
+      </div>
+      <div className="cambios-cuerpo">
+        {!activo ? (
+          <p className="cambios-vacio">Sin repositorio local</p>
+        ) : cambios.length === 0 ? (
+          <p className="cambios-vacio">Sin cambios pendientes</p>
+        ) : (
+          <ul className="cambios-lista">
+            {cambios.map((cambio) => (
+              <li key={`${cambio.estado}:${cambio.ruta}`} className="fila-cambio">
+                <span className="cambio-estado" title={cambio.estado}>
+                  {cambio.estado}
+                </span>
+                <span className="cambio-ruta" title={cambio.ruta}>
+                  {cambio.ruta}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </section>
   );
 }
@@ -1113,6 +1110,60 @@ export function NodoGit({
           <span className="git-ayuda">Sin repositorio local</span>
         )}
       </div>
+    </section>
+  );
+}
+
+/** El puente al Mapa de Git: cierra el flujo de Ideas y solo se activa con
+ *  work tree. No guarda ideas; abre la vista de Control de versiones. */
+export function NodoPuenteGit({
+  activo,
+  branch,
+  commit,
+  gitRoot,
+  boxRef,
+  onAbrir,
+}: {
+  activo: boolean;
+  branch?: string | null;
+  commit?: string | null;
+  gitRoot?: string | null;
+  boxRef?: Ref<HTMLElement>;
+  onAbrir: () => void;
+}) {
+  return (
+    <section
+      ref={boxRef}
+      className={`node nodo-git nodo-puente ${activo ? "activo" : "apagado"}`}
+      aria-label="Entregar a Git"
+    >
+      <div className="node-head">
+        <span className={`git-punto${activo ? " on" : ""}`} aria-hidden="true" />
+        <span className="node-title">Entregar a Git</span>
+        <span className={`git-estado${activo ? " on" : ""}`}>
+          {activo ? "asociado" : "apagado"}
+        </span>
+      </div>
+      <div className="git-detalle">
+        {activo ? (
+          <>
+            <span className="git-rama" title={gitRoot ?? undefined}>
+              {branch ?? "HEAD desprendido"}
+            </span>
+            <span className="git-commit">{commit ?? "sin commits"}</span>
+          </>
+        ) : (
+          <span className="git-ayuda">Sin repositorio local</span>
+        )}
+      </div>
+      <button
+        type="button"
+        className="btn puente-abrir"
+        disabled={!activo}
+        onClick={onAbrir}
+      >
+        Abrir mapa de Git <span aria-hidden="true">→</span>
+      </button>
     </section>
   );
 }

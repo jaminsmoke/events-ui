@@ -1014,10 +1014,12 @@ header > div {
 }
 
 /* En marcha: el cable se abre en guiones y corre mientras lo cruza una chispa.
- *  Así el discontinuo significa movimiento de verdad y no un adorno fijo. */
+ *  Así el discontinuo significa movimiento de verdad y no un adorno fijo. Los
+ *  26 px del ciclo a 0.3 s son ~87 px/s, la velocidad de la chispa (90 px/s):
+ *  el trazo acompaña al punto en vez de quedarse atrás y parecer que patina. */
 .wire.marcha {
   stroke-dasharray: 6 7;
-  animation: fluir 0.5s linear infinite;
+  animation: fluir 0.3s linear infinite;
 }
 
 /* Carril cargado: el cable brilla con su propio color, no en azul. */

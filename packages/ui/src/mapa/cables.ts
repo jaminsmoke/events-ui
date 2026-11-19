@@ -7,8 +7,18 @@ import type { LaneId } from "./carriles";
 import type { Vista } from "./camara";
 
 /** Un cable entre etapas de la línea, ya medido en píxeles del mapa.
- *  `lane` es el carril de destino: da el color y por dónde viaja la chispa. */
-export type Cable = { lane: LaneId; d: string; x1: number; y1: number };
+ *  `lane` es el carril de destino: da el color y por dónde viaja la chispa.
+ *  `presion` es lo que espera en el origen: el cable engorda con lo que se
+ *  acumula antes de la compuerta, no con lo que ya llegó al destino. */
+export type Cable = {
+  lane: LaneId;
+  presion: number;
+  d: string;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+};
 
 /** Los cables y la respuesta a «¿queda algo fuera del lienzo?».
  *
@@ -64,15 +74,30 @@ export function useCables({
         if (el && lane) cajas.set(lane.id, cabecera(el));
       });
 
+      const total = (lane: LaneId | "root") =>
+        lane === "root"
+          ? tree.cajon.total
+          : (tree.carriles.find((carril) => carril.tone === lane)?.total ?? 0);
+
       const trazar = (
         lane: LaneId,
+        origen: LaneId | "root",
         desde: ReturnType<typeof rectLocal>,
         hasta: ReturnType<typeof rectLocal>,
       ): Cable => {
         const y1 = desde.y + desde.h / 2;
         const y2 = hasta.y + hasta.h / 2;
         const x1 = desde.x + desde.w;
-        return { lane, x1, y1, d: `M ${x1} ${y1} L ${hasta.x} ${y2}` };
+        const x2 = hasta.x;
+        return {
+          lane,
+          presion: total(origen),
+          x1,
+          y1,
+          x2,
+          y2,
+          d: `M ${x1} ${y1} L ${x2} ${y2}`,
+        };
       };
 
       // La línea de producción, etapa a etapa. Descartadas no es una etapa:
@@ -87,7 +112,7 @@ export function useCables({
       for (const [origen, destino] of secuencia) {
         const desde = cajas.get(origen);
         const hasta = cajas.get(destino);
-        if (desde && hasta) trazos.push(trazar(destino, desde, hasta));
+        if (desde && hasta) trazos.push(trazar(destino, origen, desde, hasta));
       }
       const cola = cajas.get("cola");
       const descartadas = cajas.get("descartadas");
@@ -107,8 +132,11 @@ export function useCables({
         const x2 = descartadas.x - 1;
         trazos.push({
           lane: "descartadas",
+          presion: total("descartadas"),
           x1: medio.x,
           y1: medio.y,
+          x2,
+          y2,
           d: `M ${medio.x} ${medio.y} V ${y2 - 8} Q ${medio.x} ${y2} ${medio.x + 8} ${y2} H ${x2}`,
         });
       }

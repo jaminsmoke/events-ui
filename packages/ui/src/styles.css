@@ -884,8 +884,10 @@ header > div {
  *
  *  Se miden del DOM porque los nodos crecen al desplegarse. Cada cable une
  *  una etapa con la siguiente de la línea; Descartadas no cuelga de un nodo:
- *  su rama sale de un nudo en medio del cable Entrada↔En cola. El carril en
- *  cola entra con línea discontinua que fluye; el de descartadas, macizo y apagado.
+ *  su rama sale de un nudo en medio del cable Entrada↔En cola. La entrada es
+ *  la única frontera discontinua y en marcha; las etapas van continuas y el
+ *  movimiento es un evento (la chispa). El grosor mide lo que espera en el
+ *  origen, y cada cable brilla con su propio color.
  */
 
 .cables {
@@ -897,45 +899,81 @@ header > div {
   pointer-events: none;
 }
 
-.wire {
+.wire,
+.chevron {
   fill: none;
+  stroke: var(--wire);
+}
+
+.wire {
   stroke-width: 1.4;
 }
 
-.wire.cola {
-  stroke: #3f6aa8;
-  stroke-dasharray: 5 6;
-  animation: fluir 2.6s linear infinite;
+.chevron {
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.wire.roadmap {
-  stroke: #8b6be0;
+.wire.cola,
+.chevron.cola {
+  --wire: #3f6aa8;
 }
 
-.wire.verificacion {
-  stroke: #38b6a5;
+.wire.roadmap,
+.chevron.roadmap {
+  --wire: #8b6be0;
 }
 
-.wire.revision_aprobada {
-  stroke: #3fb950;
+.wire.verificacion,
+.chevron.verificacion {
+  --wire: #38b6a5;
+}
+
+.wire.revision_aprobada,
+.chevron.revision_aprobada {
+  --wire: #3fb950;
 }
 
 .wire.descartadas {
-  stroke: #8a4a32;
+  --wire: #8a4a32;
 }
 
-/* Carril cargado: el cable, además de grueso, brilla. */
+/* La entrada es la única frontera: trazo discontinuo y lento. Dentro del
+ * pipeline la línea es continua y el movimiento es un evento (la chispa). */
+.wire.cola {
+  stroke-dasharray: 6 7;
+  animation: fluir 4s linear infinite;
+}
+
+/* Descartadas no es una etapa: sale punteada, apagada y sin brillo. */
+.wire.descartadas {
+  stroke-dasharray: 2 5;
+}
+
+/* Carril cargado: el cable brilla con su propio color, no en azul. */
 .wire.fuerte {
-  filter: drop-shadow(0 0 4px #1f6feb);
+  filter: drop-shadow(0 0 4px var(--wire));
 }
 
 .wire.fuerte.descartadas {
-  filter: drop-shadow(0 0 4px #7a3b33);
+  filter: none;
 }
 
 @keyframes fluir {
   to {
-    stroke-dashoffset: -22;
+    stroke-dashoffset: -26;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wire.cola {
+    animation: none;
+  }
+
+  /* Sin viaje: el pulso del nodo sigue contando el cambio. */
+  .spark {
+    display: none;
   }
 }
 

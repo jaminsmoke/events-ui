@@ -9,7 +9,7 @@ import { useAnimaciones } from "./mapa/animaciones";
 import { buildTree } from "./mapa/arbol";
 import { useCables } from "./mapa/cables";
 import { useCamara } from "./mapa/camara";
-import type { LaneId, Status } from "./mapa/carriles";
+import type { Status } from "./mapa/carriles";
 import { NodeBox, VueloFila } from "./mapa/nodos";
 import { useVuelos } from "./mapa/vuelos";
 import { useEventos, resumenEvento } from "./core/useEventos";
@@ -212,15 +212,9 @@ export default function App({
   // `null` = todavía sin respuesta; `[]` = el repo está sembrado pero vacío.
   const busy = repo !== null && ideas === null && error === null;
 
-  // El cable engorda con su carril: más ideas dentro, más intensidad.
-  const volumen = useMemo(() => {
-    const totales = new Map<LaneId, number>();
-    for (const lane of tree?.carriles ?? []) {
-      if (lane.tone && lane.tone !== "root") totales.set(lane.tone, lane.total);
-    }
-    return totales;
-  }, [tree]);
-  const maximo = Math.max(1, ...volumen.values());
+  /* El cable engorda con lo que espera en su origen: la presión se acumula
+   *  antes de la compuerta, no después. */
+  const maximo = Math.max(1, ...cables.map((cable) => cable.presion));
 
   /* Frame: topbar, viewport (el graph) y statusbar *abajo*. Antes, el
    *  `main.shell` era un cajón único con la proyección y la actividad
@@ -352,7 +346,8 @@ export default function App({
                 </div>
                 <svg className="cables" aria-hidden="true">
                   {cables.map((cable) => {
-                    const t = (volumen.get(cable.lane) ?? 0) / maximo;
+                    const t = cable.presion / maximo;
+                    const entrada = cable.lane === "cola";
                     return (
                       <path
                         key={cable.lane}
@@ -360,16 +355,48 @@ export default function App({
                         className={`wire ${cable.lane}${t >= 0.66 ? " fuerte" : ""}`}
                         style={{
                           strokeWidth: 1.1 + 1.9 * t,
-                          opacity: 0.45 + 0.55 * t,
-                          animationDuration: `${3.4 - 2 * t}s`,
+                          // La entrada se queda apagada: no debe competir con
+                          // las etapas, que son el flujo de verdad.
+                          opacity: entrada ? 0.4 + 0.3 * t : 0.45 + 0.55 * t,
+                          ...(entrada
+                            ? { animationDuration: `${4.4 - 1.6 * t}s` }
+                            : {}),
                         }}
+                      />
+                    );
+                  })}
+                  {/* Dirección sin depender del movimiento: un chevrón en el
+                   *  punto medio. La rama de Descartadas no lo lleva. */}
+                  {cables.map((cable) => {
+                    if (cable.lane === "descartadas") return null;
+                    const t = cable.presion / maximo;
+                    const mx = (cable.x1 + cable.x2) / 2;
+                    const my = (cable.y1 + cable.y2) / 2;
+                    const angulo =
+                      (Math.atan2(cable.y2 - cable.y1, cable.x2 - cable.x1) * 180) / Math.PI;
+                    return (
+                      <path
+                        key={`chevron-${cable.lane}`}
+                        className={`chevron ${cable.lane}`}
+                        d="M -4 -3.5 L 0 0 L -4 3.5"
+                        transform={`translate(${mx} ${my}) rotate(${angulo})`}
+                        style={{ opacity: 0.4 + 0.5 * t }}
                       />
                     );
                   })}
                   {cables[0] && (
                     <circle className="junction" cx={cables[0].x1} cy={cables[0].y1} r={4} />
                   )}
-                  {nudo && <circle className="nudo" cx={nudo.x} cy={nudo.y} r={3.4} />}
+                  {nudo && (
+                    <rect
+                      className="nudo"
+                      x={nudo.x - 3.6}
+                      y={nudo.y - 3.6}
+                      width={7.2}
+                      height={7.2}
+                      transform={`rotate(45 ${nudo.x} ${nudo.y})`}
+                    />
+                  )}
                   {chispas.map((chispa) => {
                     const cable = cables.find((c) => c.lane === chispa.lane);
                     return cable ? (

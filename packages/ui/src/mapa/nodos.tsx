@@ -136,7 +136,11 @@ function FasesIdea({
         <div className="fase-grupo" key={fase.orden}>
         <div className="fase">
           <div className="fase-texto">
-            <span className="fase-titulo">{fase.titulo}</span>
+            <span className="fase-titulo">
+              <span className="fase-indice">Fase {fase.orden}</span>
+              {" · "}
+              {fase.titulo}
+            </span>
             {estado === "roadmap" && (fase.estado === "fallida" || fase.estado === "rechazada") ? (
               <input
                 key={fase.nota}
@@ -165,7 +169,8 @@ function FasesIdea({
           <button
             type="button"
             className="fase-check"
-            title={`Requisitos: ${hechosReq}/${requisitos.length}`}
+            title={`Requisitos: ${hechosReq} de ${requisitos.length}`}
+            aria-label={`Requisitos de ${fase.titulo}: ${hechosReq} de ${requisitos.length}`}
             aria-expanded={verRequisitos === fase.orden}
             onClick={() => {
               setVerRequisitos(verRequisitos === fase.orden ? null : fase.orden);
@@ -396,7 +401,11 @@ function FichaFases({
         <ol className="ficha-fases">
           {vista.map((fase) => (
             <li key={fase.orden} className={`ficha-fase estado-${fase.estado}`}>
-              <span className="ficha-fase-titulo">{fase.titulo}</span>
+              <span className="ficha-fase-titulo">
+                <span className="fase-indice">Fase {fase.orden}</span>
+                {" · "}
+                {fase.titulo}
+              </span>
               <span className="fila-estado">{ETIQUETA_FASE[fase.estado] ?? fase.estado}</span>
               {alGuardar &&
               estado === "roadmap" &&

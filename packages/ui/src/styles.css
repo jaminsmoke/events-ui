@@ -1584,6 +1584,13 @@ code {
   flex: 1;
   font-size: 12px;
 }
+/* El número de fase separa los dos contadores: el de fases (arriba) y el de
+ * requisitos de cada fase (a la derecha de su título). */
+.fase-indice {
+  color: var(--muted);
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+}
 .fase-estado {
   font-size: 11px;
   padding: 1px 4px;

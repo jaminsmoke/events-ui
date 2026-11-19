@@ -10,6 +10,13 @@ from ..base.comun import now_iso
 from ..base.rutas import resolve_repo
 from ..modelo.estados import FASE_CIERRE
 
+# El tope por fase (`LIMITE_TOTAL` de `archivos.py`) no acota el almacén: hay una
+# fila por archivo y fase, y un repo con muchas fases lo engorda sin límite.
+# Este tope es global por base. Al pasarse se sueltan los parches de las fases
+# más viejas —la ruta y el estado se quedan—, que es el trabajo que ya no se
+# consulta; el reciente se conserva entero.
+LIMITE_PARQUES = 8 * 1024 * 1024
+
 
 def _foto_texto(conn: sqlite3.Connection, uid: str) -> str | None:
     """La última foto del árbol de la idea, si ya se tomó alguna (0028)."""
@@ -67,6 +74,50 @@ def _escribir_archivos(
             for cambio in cambios
         ],
     )
+
+
+def _podar_parches(conn: sqlite3.Connection) -> int:
+    """Suelta el contenido de las fases más viejas si la base pasa del tope.
+
+    Se cuentan bytes, no caracteres (`CAST … AS BLOB`), que es lo que ocupa el
+    fichero. El orden es el de entrada de la fase en su estado: lo que se cerró
+    antes es lo que antes deja de mirarse. Se poda una fase entera de golpe para
+    no dejar medio registro con parche y medio sin él. Devuelve cuántas fases se
+    quedaron sin contenido.
+    """
+    total = int(
+        conn.execute(
+            "SELECT COALESCE(SUM(LENGTH(CAST(contenido AS BLOB))), 0) FROM idea_fase_archivo"
+        ).fetchone()[0]
+    )
+    if total <= LIMITE_PARQUES:
+        return 0
+    grupos = conn.execute(
+        "SELECT a.idea_uid, a.fase_orden FROM idea_fase_archivo a"
+        " LEFT JOIN idea_fase f ON f.idea_uid = a.idea_uid AND f.orden = a.fase_orden"
+        " WHERE a.contenido IS NOT NULL"
+        " GROUP BY a.idea_uid, a.fase_orden"
+        " ORDER BY COALESCE(f.entered_at, '') ASC, a.idea_uid, a.fase_orden"
+    ).fetchall()
+    podadas = 0
+    for idea_uid, fase_orden in grupos:
+        if total <= LIMITE_PARQUES:
+            break
+        pesa = int(
+            conn.execute(
+                "SELECT COALESCE(SUM(LENGTH(CAST(contenido AS BLOB))), 0)"
+                " FROM idea_fase_archivo WHERE idea_uid = ? AND fase_orden = ?",
+                (idea_uid, fase_orden),
+            ).fetchone()[0]
+        )
+        conn.execute(
+            "UPDATE idea_fase_archivo SET contenido = NULL"
+            " WHERE idea_uid = ? AND fase_orden = ? AND contenido IS NOT NULL",
+            (idea_uid, fase_orden),
+        )
+        total -= pesa
+        podadas += 1
+    return podadas
 
 
 def _anotar_archivos(
@@ -179,5 +230,12 @@ def _anotar_archivos(
             base = ahora
         if base is not None:
             _foto_guardar(conn, uid, base)
+        podadas = _podar_parches(conn)
+        if podadas:
+            registro.escribir(
+                "aviso",
+                f"Parches sueltos de {uid}: {podadas} fases antiguas, tope de "
+                f"{LIMITE_PARQUES // (1024 * 1024)} MiB por almacén",
+            )
     except OSError as exc:
         registro.escribir("aviso", f"No se pudieron anotar los archivos de {uid}: {exc}")

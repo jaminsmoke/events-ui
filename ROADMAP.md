@@ -250,6 +250,13 @@ con el motivo, para no reabrirlo cada semana.
   en local, para que lo que solo se rompe en el sistema donde se desarrolla
   falle en el CI (rutas con unidad, `#` en el nombre del repo, venv de otra
   plataforma).
+- **Tope global de parches por almacén**: `idea_fase_archivo` guarda una fila
+  por archivo y fase, así que el tope por fase (512 KiB) no acotaba la base. Al
+  escribir, si los parches pasan de 8 MiB se sueltan los de las fases más
+  viejas —por `entered_at`, la fase entera y conservando ruta y estado— y el
+  aviso queda en el registro. Medido: 16 fases llenas son 8 MiB de parches y un
+  fichero de 8,02 MiB; hoy no hay almacenes en el repo, así que ese era el techo
+  real, sin límite de fases.
 - **Runtime fijado a 3.12**: `.python-version` y el CI apuntan a 3.12 y
   `requires-python` cierra el techo en `<3.14`, así que `uv` deja de resolver
   contra el 3.14 del sistema, donde las pruebas síncronas de `starlette` se han
@@ -274,11 +281,6 @@ con el motivo, para no reabrirlo cada semana.
 
 Revisión del 19 de noviembre de 2026, por orden de daño y no de esfuerzo.
 
-- **Los parches anotados no tienen tope por almacén.** El parche de cada archivo
-  se acota por tamaño, pero `idea_fase_archivo` acumula una fila por archivo y
-  fase: un repo con muchas fases y binarios grandes engorda
-  `.EUI/EUI_DATABASE.sqlite` sin límite. Falta un tope global —o purgar los
-  parches de las fases viejas— y medir cuánto ocupa hoy.
 
 ## No se hace (por ahora)
 

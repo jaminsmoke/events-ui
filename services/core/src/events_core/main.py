@@ -39,7 +39,7 @@ ORIGENES_PERMITIDOS = (
     "http://tauri.localhost",
 )
 
-app = FastAPI(title="Events UI Core", version="0.2.1")
+app = FastAPI(title="Events UI Core", version="0.2.2")
 
 app.add_middleware(
     CORSMiddleware,

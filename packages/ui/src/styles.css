@@ -2203,6 +2203,49 @@ code {
   font-size: 11px;
   opacity: 0.6;
 }
+/* Los archivos que tocó la fase (0028): en la fila solo el recuento, el
+ * detalle en la ficha. Sin Git son rutas y estado; el parche no se pinta. */
+.fase-archivos {
+  align-self: flex-start;
+  padding: 0 4px;
+  font-size: 10px;
+  color: var(--muted);
+  border: 1px dashed var(--linea, #444);
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.ficha-archivos {
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+}
+.ficha-archivo {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 11px;
+  min-width: 0;
+}
+.ficha-archivo code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.archivo-estado {
+  flex: none;
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+.archivo-estado.estado-nuevo {
+  color: #4ea36b;
+}
+.archivo-estado.estado-borrado {
+  color: #c25555;
+}
 .ficha-requisitos {
   margin: 2px 0 0;
   padding: 0;

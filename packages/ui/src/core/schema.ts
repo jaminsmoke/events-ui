@@ -337,6 +337,25 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * ArchivoFase
+         * @description Un archivo que cambió durante una fase (0028).
+         *
+         *     `estado` es el cambio entre las dos fotos del árbol. `contenido` es el
+         *     parche de Git (o el texto del archivo nuevo); `None` cuando no hay Git, no
+         *     hay commits o el contenido no cabe: la ruta y el estado ya informan.
+         */
+        ArchivoFase: {
+            /** Ruta */
+            ruta: string;
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "nuevo" | "modificado" | "borrado";
+            /** Contenido */
+            contenido?: string | null;
+        };
+        /**
          * CambioGit
          * @description Un archivo con cambios sin commit, en el formato de `git status`.
          */
@@ -447,6 +466,8 @@ export interface components {
             entered_at: string;
             /** Requisitos */
             requisitos?: components["schemas"]["Requisito"][];
+            /** Archivos */
+            archivos?: components["schemas"]["ArchivoFase"][];
         };
         /**
          * FaseEntrada

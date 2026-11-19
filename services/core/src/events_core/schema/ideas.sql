@@ -163,6 +163,30 @@ CREATE TABLE IF NOT EXISTS idea_requisito (
         ON DELETE CASCADE
 );
 
+-- La última foto del árbol por idea (0028): la huella desde la que se mide el
+-- próximo cierre de fase. Una fila por idea —es el estado, no un historial— y
+-- el texto es `ruta<TAB>tamaño<TAB>mtime_ns` por línea. Sin watcher: solo se
+-- fotografía al entrar en roadmap y al cerrar una fase.
+CREATE TABLE IF NOT EXISTS idea_foto (
+    idea_uid TEXT PRIMARY KEY REFERENCES idea_data (uid) ON DELETE CASCADE,
+    ts       TEXT NOT NULL,
+    archivos TEXT NOT NULL
+);
+
+-- Los archivos que cambiaron durante cada fase (0028). No cuelga de `idea_fase`
+-- a propósito: un PATCH reemplaza las fases enteras y una FK con cascada se
+-- llevaría los archivos en cada edición; la jerarquía va por `fase_orden` y el
+-- core poda los huérfanos. `contenido` es el parche de Git (o el texto del
+-- archivo nuevo); `NULL` sin Git, sin commits o si no cabe.
+CREATE TABLE IF NOT EXISTS idea_fase_archivo (
+    idea_uid   TEXT    NOT NULL REFERENCES idea_data (uid) ON DELETE CASCADE,
+    fase_orden INTEGER NOT NULL CHECK (fase_orden > 0),
+    ruta       TEXT    NOT NULL,
+    estado     TEXT    NOT NULL CHECK (estado IN ('nuevo', 'modificado', 'borrado')),
+    contenido  TEXT,
+    PRIMARY KEY (idea_uid, fase_orden, ruta)
+);
+
 -- Los protocolos de flujo: qué carriles pueden unirse a cuáles. Una allowlist:
 -- solo las parejas listadas están permitidas; el resto se prohíbe. Las
 -- descartadas y el historial son terminales: no hay fila que salga de ellas.

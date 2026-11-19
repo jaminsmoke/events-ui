@@ -279,6 +279,13 @@ y el detalle por `ON DELETE CASCADE`. El paso `0004` es el ejemplo: reconstruye
   (`exige_fases_completas`, 0023). La lista viaja en el `PATCH` y se reemplaza
   en la misma transacción que el traslado. Al aprobar se exige además que todos
   los requisitos estén hechos y la idea se archiva en historial.
+- **Archivos por fase (0028)**: `idea_foto` guarda la última foto del árbol y
+  `idea_fase_archivo` los cambios de cada fase. No hay watcher: se fotografía al
+  entrar en roadmap (donde empieza el trabajo) y cada vez que una fase se
+  cierra; lo que cambió entre dos fotos es lo que tocó esa fase. Sin Git solo
+  van ruta y estado (`nuevo`, `modificado`, `borrado`); con Git, además, el
+  parche del archivo, acotado por tamaño. La base del propio repo (`.EUI`) y lo
+  ignorado por Git nunca cuentan.
 - **Historial (0026)**. Aprobar es la compuerta: el core guarda la firma en
   `revision_node` y deja la idea en `historial` con sus fases y requisitos. El
   carril es terminal y se lee sin editar. La migración archiva las aprobadas

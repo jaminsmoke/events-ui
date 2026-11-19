@@ -84,6 +84,19 @@ class RequisitoEntrada(BaseModel):
     hecho: bool = False
 
 
+class ArchivoFase(BaseModel):
+    """Un archivo que cambió durante una fase (0028).
+
+    `estado` es el cambio entre las dos fotos del árbol. `contenido` es el
+    parche de Git (o el texto del archivo nuevo); `None` cuando no hay Git, no
+    hay commits o el contenido no cabe: la ruta y el estado ya informan.
+    """
+
+    ruta: str
+    estado: Literal["nuevo", "modificado", "borrado"]
+    contenido: str | None = None
+
+
 class Fase(BaseModel):
     """Una fase de la idea (0021), con su propio estado y fecha de entrada."""
 
@@ -94,6 +107,8 @@ class Fase(BaseModel):
     entered_at: str
     # Sus requisitos (0025), en orden.
     requisitos: list[Requisito] = Field(default_factory=list)
+    # Los archivos que tocó al cerrarse (0028); vacío mientras está pendiente.
+    archivos: list[ArchivoFase] = Field(default_factory=list)
 
 
 class FaseEntrada(BaseModel):

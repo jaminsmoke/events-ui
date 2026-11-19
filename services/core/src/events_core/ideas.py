@@ -20,7 +20,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from . import registro
+from . import archivos, registro
 from .db import data_version, open_read_only, uri_lectura, vigilante
 
 EUI_DIR = ".EUI"
@@ -62,8 +62,10 @@ MIGRATIONS_DIR = Path(__file__).with_name("migraciones")
 # exija al menos una; la 0025 añade los requisitos de cada fase (`idea_requisito`);
 # la 0026 añade el historial: aprobar archiva y deja la firma en `revision_node`;
 # la 0027 permite que una revisión rechazada vuelva a roadmap o se descarte
-# desde verificación, sin un carril nuevo.
-SCHEMA_VERSION = 27
+# desde verificación, sin un carril nuevo; la 0028 anota en cada fase los
+# archivos que cambiaron entre dos fotos del árbol, sin watcher: se fotografía
+# al entrar en roadmap y al cerrar una fase.
+SCHEMA_VERSION = 28
 
 REPOS_ROOT_ENV_VAR = "EVENTSUI_REPOS_ROOT"
 BUSY_TIMEOUT_MS = 5_000
@@ -106,6 +108,8 @@ CAMPOS_FICHA = {
 
 # Estados de una fase (0021). La fase pertenece a la idea, no a la estancia:
 # sobrevive al paso por verificación y a la vuelta a la cola.
+# Estados que cierran una fase: es cuando se anotan sus archivos (0028).
+FASE_CIERRE = ("completada", "fallida", "rechazada")
 FASE_ESTADOS = ("pendiente", "completada", "fallida", "rechazada")
 
 
@@ -632,6 +636,24 @@ def _requisitos(conn: sqlite3.Connection, uid: str) -> dict[int, list[dict[str, 
     return por_fase
 
 
+def _archivos(conn: sqlite3.Connection, uid: str) -> dict[int, list[dict[str, Any]]]:
+    """Los archivos anotados en cada fase (0028), por orden de fase.
+
+    Es la ficha: aquí sí viene el contenido (el parche de Git, si lo hubo). El
+    mapa los pide sin contenido con `_fases_en_lote` para no arrastrar parches.
+    """
+    por_fase: dict[int, list[dict[str, Any]]] = {}
+    for fila in conn.execute(
+        "SELECT fase_orden, ruta, estado, contenido FROM idea_fase_archivo"
+        " WHERE idea_uid = ? ORDER BY fase_orden, ruta",
+        (uid,),
+    ):
+        por_fase.setdefault(int(fila["fase_orden"]), []).append(
+            {"ruta": fila["ruta"], "estado": fila["estado"], "contenido": fila["contenido"]}
+        )
+    return por_fase
+
+
 def _fases(conn: sqlite3.Connection, uid: str) -> list[dict[str, Any]]:
     """Las fases de una idea, en orden (`idea_fase`, 0021), con sus requisitos."""
     filas = conn.execute(
@@ -640,7 +662,15 @@ def _fases(conn: sqlite3.Connection, uid: str) -> list[dict[str, Any]]:
         (uid,),
     ).fetchall()
     requisitos = _requisitos(conn, uid)
-    return [{**dict(fila), "requisitos": requisitos.get(int(fila["orden"]), [])} for fila in filas]
+    anotados = _archivos(conn, uid)
+    return [
+        {
+            **dict(fila),
+            "requisitos": requisitos.get(int(fila["orden"]), []),
+            "archivos": anotados.get(int(fila["orden"]), []),
+        }
+        for fila in filas
+    ]
 
 
 def _fases_en_lote(conn: sqlite3.Connection, uids: list[str]) -> dict[str, list[dict[str, Any]]]:
@@ -663,6 +693,17 @@ def _fases_en_lote(conn: sqlite3.Connection, uids: list[str]) -> dict[str, list[
                 "done_at": fila["done_at"],
             }
         )
+    # Los archivos viajan sin contenido: el mapa y el listado enseñan el
+    # recuento y la ruta, no el parche (eso es la ficha, una idea a la vez).
+    anotados: dict[tuple[str, int], list[dict[str, Any]]] = {}
+    for fila in conn.execute(
+        "SELECT idea_uid, fase_orden, ruta, estado FROM idea_fase_archivo"
+        f" WHERE idea_uid IN ({marcas}) ORDER BY idea_uid, fase_orden, ruta",
+        uids,
+    ):
+        anotados.setdefault((str(fila["idea_uid"]), int(fila["fase_orden"])), []).append(
+            {"ruta": fila["ruta"], "estado": fila["estado"], "contenido": None}
+        )
     for fila in conn.execute(
         "SELECT idea_uid, orden, titulo, estado, nota, entered_at"
         f" FROM idea_fase WHERE idea_uid IN ({marcas}) ORDER BY idea_uid, orden",
@@ -677,6 +718,7 @@ def _fases_en_lote(conn: sqlite3.Connection, uids: list[str]) -> dict[str, list[
                 "nota": fila["nota"],
                 "entered_at": fila["entered_at"],
                 "requisitos": requisitos.get((uid, int(fila["orden"])), []),
+                "archivos": anotados.get((uid, int(fila["orden"])), []),
             }
         )
     return por_uid
@@ -945,6 +987,9 @@ def _escribir_estado(
             "UPDATE idea_requisito SET hecho = 0, done_at = NULL WHERE idea_uid = ? AND hecho = 1",
             (uid,),
         )
+        # El trabajo se rehace desde cero: lo que anotaron los cierres ya no
+        # describe estas fases (el próximo cierre vuelve a medir).
+        conn.execute("DELETE FROM idea_fase_archivo WHERE idea_uid = ?", (uid,))
     conn.execute("DELETE FROM roadmap_node WHERE uid = ?", (uid,))
     conn.execute("DELETE FROM verificacion_node WHERE uid = ?", (uid,))
     conn.execute("DELETE FROM revision_node WHERE uid = ?", (uid,))
@@ -1425,6 +1470,17 @@ def _escribir_fases(conn: sqlite3.Connection, uid: str, fases: list[dict[str, An
             for fase in fases
         ],
     )
+    # Los archivos anotados no cuelgan de `idea_fase` (la tabla se reemplaza
+    # entera): se poda a mano lo que ya no tiene fase, para no dejar huérfanos.
+    ordenes = [int(fase["orden"]) for fase in fases]
+    if ordenes:
+        marcas = ",".join("?" for _ in ordenes)
+        conn.execute(
+            f"DELETE FROM idea_fase_archivo WHERE idea_uid = ? AND fase_orden NOT IN ({marcas})",
+            (uid, *ordenes),
+        )
+    else:
+        conn.execute("DELETE FROM idea_fase_archivo WHERE idea_uid = ?", (uid,))
     conn.executemany(
         "INSERT INTO idea_requisito (idea_uid, fase_orden, orden, titulo, hecho, done_at)"
         " VALUES (?, ?, ?, ?, ?, ?)",
@@ -1441,6 +1497,117 @@ def _escribir_fases(conn: sqlite3.Connection, uid: str, fases: list[dict[str, An
             for requisito in fase["requisitos"]
         ],
     )
+
+
+def _foto_texto(conn: sqlite3.Connection, uid: str) -> str | None:
+    """La última foto del árbol de la idea, si ya se tomó alguna (0028)."""
+    fila = conn.execute("SELECT archivos FROM idea_foto WHERE idea_uid = ?", (uid,)).fetchone()
+    return str(fila[0]) if fila else None
+
+
+def _foto_guardar(conn: sqlite3.Connection, uid: str, estado: dict[str, tuple[int, int]]) -> None:
+    """Reemplaza la foto de la idea: es el estado actual, no un historial."""
+    conn.execute(
+        "INSERT INTO idea_foto (idea_uid, ts, archivos) VALUES (?, ?, ?)"
+        " ON CONFLICT (idea_uid) DO UPDATE SET ts = excluded.ts, archivos = excluded.archivos",
+        (uid, now_iso(), archivos.serializar(estado)),
+    )
+
+
+def _escribir_archivos(
+    conn: sqlite3.Connection, uid: str, orden: int, cambios: list[dict[str, Any]]
+) -> None:
+    """Reemplaza los archivos anotados de una fase (un reintento los rehace)."""
+    conn.execute(
+        "DELETE FROM idea_fase_archivo WHERE idea_uid = ? AND fase_orden = ?", (uid, orden)
+    )
+    conn.executemany(
+        "INSERT INTO idea_fase_archivo (idea_uid, fase_orden, ruta, estado, contenido)"
+        " VALUES (?, ?, ?, ?, ?)",
+        [
+            (uid, orden, cambio["ruta"], cambio["estado"], cambio.get("contenido"))
+            for cambio in cambios
+        ],
+    )
+
+
+def _anotar_archivos(
+    conn: sqlite3.Connection,
+    repo: str,
+    uid: str,
+    antes: list[dict[str, Any]],
+    despues: list[dict[str, Any]],
+    *,
+    inicio: bool,
+) -> None:
+    """Anota en cada fase que se cierra los archivos que cambiaron (0028).
+
+    Se comparan dos fotos del árbol, no se vigila nada: la de partida es la
+    última guardada (o la de la entrada en roadmap, que es donde empieza el
+    trabajo). Sin foto previa no se inventa un cambio: se toma la primera y la
+    fase siguiente ya mide de verdad. Sin Git la foto da rutas y estado; con Git
+    se añade el parche (`archivos.contenidos`).
+
+    Un fallo del árbol no puede tumbar el PATCH: la fase se cierra igual y el
+    aviso queda en el registro.
+    """
+    previas = {int(fase["orden"]): fase for fase in antes}
+    vigentes = [int(fase["orden"]) for fase in despues]
+    if vigentes:
+        marcas = ",".join("?" for _ in vigentes)
+        conn.execute(
+            f"DELETE FROM idea_fase_archivo WHERE idea_uid = ? AND fase_orden NOT IN ({marcas})",
+            (uid, *vigentes),
+        )
+    else:
+        conn.execute("DELETE FROM idea_fase_archivo WHERE idea_uid = ?", (uid,))
+
+    cierres: list[dict[str, Any]] = []
+    for fase in despues:
+        orden = int(fase["orden"])
+        previa = previas.get(orden)
+        if previa is None:
+            # Una fase nueva con un número que fue de otra no hereda sus archivos.
+            conn.execute(
+                "DELETE FROM idea_fase_archivo WHERE idea_uid = ? AND fase_orden = ?",
+                (uid, orden),
+            )
+        elif fase["estado"] == "pendiente" and previa["estado"] != "pendiente":
+            # Reabrir la fase suelta lo anotado: todavía no ha hecho nada nuevo.
+            conn.execute(
+                "DELETE FROM idea_fase_archivo WHERE idea_uid = ? AND fase_orden = ?",
+                (uid, orden),
+            )
+        elif fase["estado"] in FASE_CIERRE and previa["estado"] != fase["estado"]:
+            cierres.append(fase)
+
+    if not cierres and not inicio:
+        return
+
+    try:
+        carpeta = resolve_repo(repo)
+        # `None` es «no hay foto»; `{}` es un árbol vacío, que sí es una foto
+        # (una idea que empieza en una carpeta limpia anota lo que crea).
+        texto = _foto_texto(conn, uid)
+        base: dict[str, tuple[int, int]] | None = (
+            archivos.deserializar(texto) if texto is not None else None
+        )
+        if inicio:
+            base = archivos.foto(carpeta)
+        for fase in sorted(cierres, key=lambda anotada: int(anotada["orden"])):
+            ahora = archivos.foto(carpeta)
+            if base is None:
+                # Primera foto: no hay contra qué comparar, así que no se anota
+                # un cambio que no se sabe si hubo.
+                base = ahora
+                break
+            cambios = archivos.cambios(base, ahora)
+            archivos.contenidos(carpeta, cambios)
+            _escribir_archivos(conn, uid, int(fase["orden"]), cambios)
+            base = ahora
+        _foto_guardar(conn, uid, base)
+    except OSError as exc:
+        registro.escribir("aviso", f"No se pudieron anotar los archivos de {uid}: {exc}")
 
 
 def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
@@ -1471,6 +1638,9 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
         if conn.execute("SELECT 1 FROM idea_data WHERE uid = ?", (uid,)).fetchone() is None:
             raise KeyError(uid)
         actual = _estado(conn, uid)
+        # Las fases se leen una vez: el mismo dato decide la validación, las
+        # compuertas y los archivos que se anotan al cerrar (0028).
+        fases_previas = _fases(conn, uid)
         destino = nuevo_estado or actual
         _validar_campos_ficha(detalle_ficha, destino)
         # Las dependencias se validan antes del UPDATE: se deduplican, tienen
@@ -1497,7 +1667,7 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
             # Las fases se reemplazan enteras y se validan antes de escribir
             # nada: el gate mira lo que quedará, no lo que había.
             fases_finales = (
-                _normalizar_fases(fases_pedidas, _fases(conn, uid))
+                _normalizar_fases(fases_pedidas, fases_previas)
                 if fases_pedidas is not None
                 else None
             )
@@ -1507,7 +1677,7 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
             # El gate mira la lista que quedará: la que llega en este PATCH o,
             # si no hay, la que ya tiene la idea.
             fases_quedan = (
-                (fases_finales if fases_finales is not None else _fases(conn, uid))
+                (fases_finales if fases_finales is not None else fases_previas)
                 if cambiado_estado
                 else []
             )
@@ -1557,6 +1727,17 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
                 _actualizar_ficha_activa(conn, uid, actual, detalle_ficha)
             if fases_finales is not None:
                 _escribir_fases(conn, uid, fases_finales)
+            # Cerrar una fase es el evento que anota sus archivos: se mira el
+            # árbol aquí, con las fases ya definitivas y en la misma
+            # transacción. Entrar en roadmap toma la foto de partida.
+            _anotar_archivos(
+                conn,
+                repo,
+                uid,
+                fases_previas,
+                fases_finales if fases_finales is not None else fases_previas,
+                inicio=cambiado_estado and _grupo(str(nuevo_estado)) == "roadmap",
+            )
             idea = _row(
                 conn,
                 conn.execute(

@@ -170,6 +170,18 @@ function FasesIdea({
               {" · "}
               {fase.titulo}
             </span>
+            {/* Lo que tocó la fase al cerrarse (0028): recuento, sin parche. */}
+            {fase.archivos && fase.archivos.length > 0 && (
+              <span
+                className="fase-archivos"
+                title={fase.archivos
+                  .map((archivo) => `${archivo.estado}: ${archivo.ruta}`)
+                  .join("\n")}
+              >
+                {fase.archivos.length}{" "}
+                {fase.archivos.length === 1 ? "archivo" : "archivos"}
+              </span>
+            )}
             <button
               type="button"
               className="fase-check"
@@ -578,6 +590,18 @@ function FichaFases({
                       {requisito.done_at && (
                         <time dateTime={requisito.done_at}>{fechaCorta(requisito.done_at)}</time>
                       )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {fase.archivos && fase.archivos.length > 0 && (
+                <ul className="ficha-archivos" aria-label={`Archivos de ${fase.titulo}`}>
+                  {fase.archivos.map((archivo) => (
+                    <li key={archivo.ruta} className="ficha-archivo">
+                      <span className={`archivo-estado estado-${archivo.estado}`}>
+                        {archivo.estado}
+                      </span>
+                      <code>{archivo.ruta}</code>
                     </li>
                   ))}
                 </ul>

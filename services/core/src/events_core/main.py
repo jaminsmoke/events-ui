@@ -28,7 +28,7 @@ from .routers import git as rutas_git
 from .routers import ideas as rutas_ideas
 from .routers import log as rutas_log
 
-app = FastAPI(title="Events UI Core", version="0.2.0")
+app = FastAPI(title="Events UI Core", version="0.2.1")
 
 # En dev la UI llega por el proxy de Vite. En producción Tauri sirve la UI desde
 # su propio origen, que varía según plataforma.

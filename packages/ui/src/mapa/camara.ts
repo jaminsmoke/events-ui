@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
+import type {
+  MouseEvent as ReactMouseEvent,
+  PointerEvent as ReactPointerEvent,
+  RefObject,
+} from "react";
 
 /** Zoom del lienzo, acotado a lo útil.
  *
@@ -177,6 +181,12 @@ export function useCamara({
     onPointerDown: (e: ReactPointerEvent<HTMLElement>) => {
       // Arrastrar solo desde el fondo: sobre un nodo o un mando no se mueve nada.
       if (e.button !== 0) return;
+      /* Los diálogos se portalean a `document.body`, pero React les hace
+       * burbujear el evento por el árbol hasta este `section`. Sin el corte,
+       * pulsar «Descartar» (o cualquier botón del portal) empezaba un arrastre,
+       * el tablero capturaba el puntero y el clic se quedaba aquí: el botón no
+       * llegaba a pulsarse nunca. */
+      if (!e.currentTarget.contains(e.target as Node)) return;
       if ((e.target as HTMLElement).closest(".node, .vista, .aviso-recorte")) return;
       agarre.current = { x: e.clientX, y: e.clientY };
       movida.current = true;
@@ -204,7 +214,10 @@ export function useCamara({
       agarre.current = null;
       setArrastrando(false);
     },
-    onDoubleClick: reset,
+    // Mismo corte que en el arrastre: el portal no debe reencuadrar el mapa.
+    onDoubleClick: (e: ReactMouseEvent<HTMLElement>) => {
+      if (e.currentTarget.contains(e.target as Node)) reset();
+    },
   };
 
   return { vista, arrastrando, encuadrar, zoom, reset, olvidar, mano };

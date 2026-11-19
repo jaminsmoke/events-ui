@@ -43,20 +43,13 @@ export default {
         (await puente.innerText()).includes("Sin repositorio local"),
         "el puente apagado debe explicar que no hay work tree",
       );
-      // El Mapa de Git existe pero sus cambios también están apagados sin repo.
-      await page.getByRole("button", { name: "Mapa de Git", exact: true }).click();
-      const cambios = page.locator(".nodo-cambios");
-      await esperar(
-        () => cambios.evaluate((el) => el.classList.contains("apagado")),
-        "los cambios apagados sin Git",
-        15_000,
-      );
+      // Sin repo, la pestaña de Git se deshabilita y explica por qué.
+      const pestanaGit = page.getByRole("button", { name: "Mapa de Git", exact: true });
+      expect(await pestanaGit.isDisabled(), "la pestaña de Git debe estar deshabilitada sin repo");
       expect(
-        (await cambios.innerText()).includes("Sin repositorio local"),
-        "los cambios deben estar apagados sin Git",
+        (await pestanaGit.getAttribute("title")) === "Sin repositorio local",
+        "la pestaña deshabilitada debe explicar que no hay work tree",
       );
-      await page.getByRole("button", { name: "Mapa de ideas", exact: true }).click();
-      await esperar(() => page.locator(".wire").count().then((n) => n === 10), "de vuelta a Ideas");
 
       // `git init` en el propio lab gana al repo contenedor que lo ignora.
       git(lab, "init", "-b", "main");
@@ -69,6 +62,7 @@ export default {
       expect(texto.includes("main"), "el puente activo debe mostrar la rama main");
       expect(texto.includes("sin commits"), "un repo vacío no debe inventar un commit");
       // El puente abre el Mapa de Git: el primer nodo muestra los cambios.
+      const cambios = page.locator(".nodo-cambios");
       await page.getByRole("button", { name: /Abrir mapa de Git/ }).click();
       await esperar(
         () => page.locator(".linea-git").count().then((n) => n === 1),

@@ -250,7 +250,6 @@ export default function App({
   const irGit = useCallback(() => {
     if (gitActivo) setMapa("git");
   }, [gitActivo]);
-  const verGit = useCallback(() => setMapa("git"), []);
   const irIdeas = useCallback(() => setMapa("ideas"), []);
 
   // Mover entre carriles es cambiar el `status` (PATCH tipado). El sondeo
@@ -412,7 +411,8 @@ export default function App({
                   type="button"
                   className={`btn mapas-pestana${mapa === "git" ? " activa" : ""}`}
                   aria-pressed={mapa === "git"}
-                  onClick={verGit}
+                  onClick={irGit}
+                  disabled={!gitActivo}
                   title={gitActivo ? "Ver cambios sin commit" : "Sin repositorio local"}
                 >
                   Mapa de Git

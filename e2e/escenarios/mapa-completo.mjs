@@ -1,5 +1,12 @@
+import { execFileSync } from "node:child_process";
+import { rmSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
+
+/** Git del sistema, siempre dentro de la carpeta indicada. */
+function git(carpeta, ...args) {
+  return execFileSync("git", ["-C", carpeta, ...args], { encoding: "utf8" });
+}
 
 const tablasOperativas = [
   "idea_data",
@@ -24,6 +31,55 @@ export default {
     if (await selector.isVisible()) await selector.click();
     await pruebas.waitFor();
     await esperar(() => page.locator(".wire").count().then((n) => n === 10), "los diez cables");
+
+    // Git se simula con el lab vacío, antes de sembrar: la prueba se vacía sola
+    // seis segundos después de sembrada y estas comprobaciones no caben a la vez.
+    await esperar(
+      () => page.locator(".nodo-git.apagado").count().then((n) => n === 1),
+      "el puente a Git apagado",
+    );
+    expect(
+      (await page.locator(".nodo-git").innerText()).includes("Sin repositorio local"),
+      "el puente apagado debe explicar por qué",
+    );
+    const pestanaGit = page.getByRole("button", { name: "Mapa de Git", exact: true });
+    expect(await pestanaGit.isDisabled(), "la pestaña de Git debe estar deshabilitada sin repo");
+    expect(
+      (await pestanaGit.getAttribute("title")) === "Sin repositorio local",
+      "la pestaña deshabilitada debe explicar que no hay work tree",
+    );
+    // Un `git init` propio enciende el puente y el Mapa de Git con sus cambios.
+    const lab = path.join(tmp, "repos", "lab");
+    git(lab, "init", "-b", "main");
+    await esperar(
+      () => page.locator(".nodo-git.activo").count().then((n) => n === 1),
+      "el puente a Git activo tras git init",
+      15_000,
+    );
+    const puenteActivo = await page.locator(".nodo-git").innerText();
+    expect(puenteActivo.includes("main"), "el puente activo debe mostrar la rama main");
+    expect(puenteActivo.includes("sin commits"), "un repo vacío no debe inventar un commit");
+    await page.getByRole("button", { name: /Abrir mapa de Git/ }).click();
+    await esperar(
+      () => page.locator(".linea-git").count().then((n) => n === 1),
+      "el Mapa de Git",
+      15_000,
+    );
+    await esperar(
+      () => page.locator(".nodo-cambios.activo").count().then((n) => n === 1),
+      "los cambios activos en el Mapa de Git",
+      15_000,
+    );
+    await esperar(
+      () => page.locator(".nodo-cambios .fila-cambio").count().then((n) => n > 0),
+      "los cambios sin commit en el Mapa de Git",
+      15_000,
+    );
+    // La vista se funde al cambiar de mapa: se espera a que asiente.
+    await page.waitForTimeout(900);
+    await page.screenshot({ path: resultado("mapa-completo-git.png") });
+    await page.getByRole("button", { name: "Mapa de ideas", exact: true }).click();
+    await esperar(() => page.locator(".wire").count().then((n) => n === 10), "de vuelta a Ideas");
 
     await pruebas.click();
     const dialogo = page.getByRole("dialog", { name: "Pruebas del laboratorio" });
@@ -69,28 +125,6 @@ export default {
       (await page.locator(".wire.rama").count()) === 3,
       "faltan los tres retornos de la revisión rechazada",
     );
-    // El laboratorio del runner no es un work tree Git: el puente debe verse
-    // apagado y explicarlo, no heredar el repo de la aplicación.
-    await esperar(
-      () => page.locator(".nodo-git.apagado").count().then((n) => n === 1),
-      "el puente a Git apagado",
-    );
-    expect(
-      (await page.locator(".nodo-git").innerText()).includes("Sin repositorio local"),
-      "el puente apagado debe explicar por qué",
-    );
-    // El Mapa de Git separado también está apagado sin work tree.
-    await page.getByRole("button", { name: "Mapa de Git", exact: true }).click();
-    await esperar(
-      () => page.locator(".nodo-cambios.apagado").count().then((n) => n === 1),
-      "los cambios apagados en el Mapa de Git",
-    );
-    expect(
-      (await page.locator(".nodo-cambios").innerText()).includes("Sin repositorio local"),
-      "los cambios deben explicar que no hay Git",
-    );
-    await page.getByRole("button", { name: "Mapa de ideas", exact: true }).click();
-    await esperar(() => page.locator(".wire").count().then((n) => n === 10), "de vuelta a Ideas");
     // Los cables son pistas ortogonales: ni curvas libres ni diagonales.
     const trazados = await page.locator(".wire").evaluateAll((nodos) =>
       nodos.map((nodo) => nodo.getAttribute("d") ?? ""),
@@ -105,6 +139,18 @@ export default {
       "la dependencia archivada en verde",
     );
     await page.screenshot({ path: resultado("mapa-completo.png") });
+
+    // Fuera el repo propio: el puente y la pestaña vuelven a apagarse.
+    rmSync(path.join(lab, ".git"), { recursive: true, force: true });
+    await esperar(
+      () => page.locator(".nodo-git.apagado").count().then((n) => n === 1),
+      "el puente apagado al quitar el repo",
+      15_000,
+    );
+    expect(
+      await page.getByRole("button", { name: "Mapa de Git", exact: true }).isDisabled(),
+      "la pestaña de Git debe volver a deshabilitarse",
+    );
 
     await pruebas.click();
     await page.getByText(/Completada.*Laboratorio limpio/).waitFor({ timeout: 90_000 });

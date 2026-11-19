@@ -421,11 +421,8 @@ export default function App({
                    *  punto medio. La rama de Descartadas no lo lleva. */}
                   {cables.map((cable) => {
                     if (cable.lane === "descartadas" || cable.rama) return null;
-                    // El chevrón baja al tercio: la compuerta ocupa el medio.
-                    const mx = cable.x1 + (cable.x2 - cable.x1) * 0.3;
-                    const my = cable.y1 + (cable.y2 - cable.y1) * 0.3;
-                    const angulo =
-                      (Math.atan2(cable.y2 - cable.y1, cable.x2 - cable.x1) * 180) / Math.PI;
+                    // El chevrón cae sobre un tramo recto de la ruta ortogonal.
+                    const { x: mx, y: my, angulo } = cable.chevron;
                     return (
                       <path
                         key={`chevron-${cable.id}`}
@@ -448,26 +445,40 @@ export default function App({
                     <g className="rama-rechazo">
                       <path className="rama-tronco" d={rama.tronco} />
                       <rect
+                        className="nudo rechazo"
+                        x={rama.nudo.x - 3.6}
+                        y={rama.nudo.y - 3.6}
+                        width={7.2}
+                        height={7.2}
+                        transform={`rotate(45 ${rama.nudo.x} ${rama.nudo.y})`}
+                      />
+                      <rect
                         className="rama-caja"
-                        x={rama.fork.x}
-                        y={rama.fork.y}
-                        width={rama.fork.w}
-                        height={rama.fork.h}
-                        rx={7}
+                        x={rama.caja.x}
+                        y={rama.caja.y}
+                        width={rama.caja.w}
+                        height={rama.caja.h}
+                        rx={6}
+                      />
+                      <circle
+                        className="rama-punto"
+                        cx={rama.caja.x + 12}
+                        cy={rama.caja.y + 17}
+                        r={3.2}
                       />
                       <text
                         className="rama-titulo"
-                        x={rama.fork.x + rama.fork.w / 2}
-                        y={rama.fork.y + 23}
-                        textAnchor="middle"
+                        x={rama.caja.x + 23}
+                        y={rama.caja.y + 21}
+                        textAnchor="start"
                       >
                         Revisión rechazada
                       </text>
                       <text
                         className="rama-sub"
-                        x={rama.fork.x + rama.fork.w / 2}
-                        y={rama.fork.y + 40}
-                        textAnchor="middle"
+                        x={rama.caja.x + 23}
+                        y={rama.caja.y + 35}
+                        textAnchor="start"
                       >
                         vuelve a cola · roadmap · descartadas
                       </text>

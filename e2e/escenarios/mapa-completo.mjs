@@ -69,6 +69,14 @@ export default {
       (await page.locator(".wire.rama").count()) === 3,
       "faltan los tres retornos de la revisión rechazada",
     );
+    // Los cables son pistas ortogonales: ni curvas libres ni diagonales.
+    const trazados = await page.locator(".wire").evaluateAll((nodos) =>
+      nodos.map((nodo) => nodo.getAttribute("d") ?? ""),
+    );
+    expect(
+      trazados.every((d) => !/[QC]/.test(d)),
+      "los cables deben trazarse con tramos rectos y codos de 90°",
+    );
     // En verificación la dependencia apunta al historial: también está aprobada.
     await esperar(
       () => page.locator(".lane-verificacion .chip-depende.aprobada").count().then((n) => n === 1),

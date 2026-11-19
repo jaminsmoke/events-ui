@@ -191,8 +191,9 @@ o 15175 están ocupados por la app, el runner elige otros libres;
 El recorrido por defecto es **entrada → cola → roadmap → verificación → revisión aprobada → historial**.
 Desde entrada o cola se puede descartar una idea. Desde verificación se puede
 devolver al final de la cola, volver a roadmap para rehacerla o descartarla con
-su motivo; el mapa dibuja ese ramal como **Revisión rechazada**, sin un carril
-nuevo. Aprobar archiva: la idea cae en historial con sus fases y ya no se mueve
+su motivo; el mapa dibuja un nodo de **Revisión rechazada** que cuelga del nudo
+del cable Verificación→Revisión aprobada y tres cables ortogonales de vuelta,
+sin un carril nuevo. Aprobar archiva: la idea cae en historial con sus fases y ya no se mueve
 ni se edita desde el mapa. El core admite un ítem activo en roadmap y consulta
 `protocolo_flujo` para autorizar los traslados entre grupos. La UI obtiene esas
 reglas con `GET /protocolos`.

@@ -143,9 +143,10 @@ con el motivo, para no reabrirlo cada semana.
   y `e2e/escenarios/historial-aprobacion.mjs`.
 - **Revisión rechazada (0027)**: desde verificación se vuelve a roadmap para
   rehacer, a la cola para replanificar o a descartadas con motivo. No hay un
-  carril nuevo: el mapa dibuja una bifurcación bajo Verificación y tres cables
-  de vuelta con sus compuertas. La vuelta a roadmap conserva las fases; el
-  descarte guarda su motivo. Cubierto en `services/core/tests/test_flujo_items.py`
+  carril nuevo: el mapa dibuja un nodo de rechazo que cuelga del nudo del cable
+  Verificación→Revisión aprobada y tres cables ortogonales de vuelta con sus
+  compuertas. La vuelta a roadmap conserva las fases; el descarte guarda su
+  motivo. Cubierto en `services/core/tests/test_flujo_items.py`
   y `e2e/escenarios/mapa-completo.mjs`.
 - **Formato de etiquetas**: `tags` es una lista JSON de cadenas en el
   esquema (migración 0017, que sanea `{}` y los elementos no textuales) y en
@@ -161,7 +162,7 @@ con el motivo, para no reabrirlo cada semana.
   (`.github/workflows/ci.yml`). Batería e2e y builds de Tauri quedan fuera
   del CI a propósito (navegador y puertos; se corren en local).
 
-- **Nodos y cables estables.** Las seis cabeceras mantienen su posición al llenar o plegar el mapa. Los cables de etapa se anclan a las cabeceras y la rama de Descartadas nace de un nudo en mitad del cable Entrada↔En cola.
+- **Nodos y cables estables.** Las seis cabeceras mantienen su posición al llenar o plegar el mapa. Los cables se trazan en ángulo recto, como pistas de circuito impreso. Los cables de etapa se anclan a las cabeceras; la rama de Descartadas nace de un nudo en mitad del cable Entrada↔En cola y la de rechazo, del nudo del cable Verificación→Revisión aprobada.
 - **Limpieza de la prueba manual.** La Prueba 1 deja ver el reparto y después vacía el laboratorio en una transacción, también al detenerla o fallar un paso. El E2E compara coordenadas y trazados, consulta las siete tablas operativas y comprueba los protocolos antes de que el runner haga su propia limpieza.
 
 - **Prueba interrumpida al cerrar la app.** La ejecución deja una marca con

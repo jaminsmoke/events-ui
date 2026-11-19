@@ -1,0 +1,127 @@
+# Release: al empujar un tag `vX.Y.Z`, construye el sidecar y los dos
+# instaladores en Windows y los adjunta a la GitHub Release del tag.
+#
+# El flujo local (`corepack pnpm release`) sigue siendo el que sube la versión,
+# commitea y etiqueta; este workflow solo empaqueta y publica. Así el tag no
+# se crea aquí y no hay dos fuentes de verdad para la versión.
+#
+# `workflow_dispatch` existe para reconstruir un tag antiguo (por ejemplo, si
+# un build falló): con `publicar: false` solo construye y deja los instaladores
+# como artefactos del run, sin tocar la release publicada.
+#
+# Si la release del tag ya existe, los instaladores se suben con `--clobber`
+# en vez de crear otra; si no existe, se crea con las notas generadas por
+# GitHub a partir de los commits desde el tag anterior.
+
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag a empaquetar (p. ej. v0.2.2)"
+        required: true
+        type: string
+      publicar:
+        description: "Adjuntar los instaladores a la GitHub Release del tag"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      # El tag y la versión del repo tienen que decir lo mismo: si no, los
+      # instaladores saldrían con un nombre que no es el del tag.
+      - name: Comprobar el tag contra la versión
+        shell: bash
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "tag=$TAG versión=$version"
+          if [ "$TAG" != "v$version" ]; then
+            echo "::error::El tag $TAG no coincide con la versión $version del repo."
+            exit 1
+          fi
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 12
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: 3.12
+
+      - name: uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Rust (estable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: pnpm install
+        run: corepack pnpm install --frozen-lockfile
+
+      # `tauri build` falla si no existe el `externalBin`, así que el sidecar
+      # va antes. El script lo arranca en frío y comprueba `/health`.
+      - name: Sidecar (PyInstaller)
+        run: corepack pnpm build:sidecar
+
+      - name: Bundles (MSI y NSIS)
+        run: corepack pnpm build
+
+      - name: Instaladores
+        id: instaladores
+        shell: bash
+        run: |
+          msi=$(ls apps/desktop/src-tauri/target/release/bundle/msi/*.msi | head -1)
+          exe=$(ls apps/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe | head -1)
+          echo "msi=$msi" >> "$GITHUB_OUTPUT"
+          echo "exe=$exe" >> "$GITHUB_OUTPUT"
+          ls -l "$msi" "$exe"
+
+      - name: Artefactos del run (sin publicar)
+        if: ${{ inputs.publicar == false }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: instaladores-${{ env.TAG }}
+          path: |
+            ${{ steps.instaladores.outputs.msi }}
+            ${{ steps.instaladores.outputs.exe }}
+          if-no-files-found: error
+
+      - name: Publicar en GitHub Releases
+        if: ${{ inputs.publicar != false }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          msi="${{ steps.instaladores.outputs.msi }}"
+          exe="${{ steps.instaladores.outputs.exe }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "La release $TAG ya existe: se reemplazan los instaladores."
+            gh release upload "$TAG" "$msi" "$exe" --clobber
+          else
+            gh release create "$TAG" "$msi" "$exe" \
+              --verify-tag --title "Events UI $TAG" --generate-notes
+          fi

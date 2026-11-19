@@ -80,6 +80,23 @@ function trazoDe(puntos: readonly Punto[]): string {
   return puntos.map((punto, i) => `${i === 0 ? "M" : "L"} ${punto.x} ${punto.y}`).join(" ");
 }
 
+/** ¿El esquema se sale de la ventana del tablero?
+ *
+ *  Es lo único que depende de dónde esté la cámara: arrastrar cambia los
+ *  cantos y hay que ofrecer reencuadrar. La medida de los nodos, en cambio, va
+ *  en coordenadas del mapa y solo la mueve el zoom (o un cambio de tamaño). */
+function recortadoDe(map: HTMLElement, board: HTMLElement | null): boolean {
+  if (!board) return false;
+  const vista = map.getBoundingClientRect();
+  const hueco = board.getBoundingClientRect();
+  return (
+    vista.left < hueco.left - 1 ||
+    vista.right > hueco.right + 1 ||
+    vista.top < hueco.top - 1 ||
+    vista.bottom > hueco.bottom + 1
+  );
+}
+
 /** Punto y ángulo a una fracción de la longitud total. Sirve para colocar la
  *  compuerta y el chevrón sobre un tramo recto de la ruta. */
 function puntoEnTrazo(
@@ -142,6 +159,9 @@ export function useCables({
   const [recortado, setRecortado] = useState(false);
   // Punto medio del cable Entrada↔En cola, donde nace la rama de Descartadas.
   const [nudo, setNudo] = useState<{ x: number; y: number } | null>(null);
+  // Solo el zoom entra en la medida (`rectLocal` divide por él); `vista.x/y`
+  // cambian al arrastrar y no tocan ni un trazado.
+  const k = vista.k;
 
   useLayoutEffect(() => {
     // En el Mapa de Git no hay cables que medir: el cajón no existe.
@@ -152,7 +172,6 @@ export function useCables({
 
     // Todo se mide en coordenadas locales del mapa: el `scale` del lienzo no
     // puede contarse dos veces al dibujar los cables.
-    const k = vista.k;
     const rectLocal = (el: HTMLElement) => {
       const caja = map.getBoundingClientRect();
       const r = el.getBoundingClientRect();
@@ -421,17 +440,9 @@ export function useCables({
       }
       setCables(trazos);
 
-      // ¿Queda algo fuera del lienzo? Entonces se ofrece reencuadrar.
-      const vistaMapa = map.getBoundingClientRect();
-      const hueco = boardRef.current?.getBoundingClientRect();
-      setRecortado(
-        hueco
-          ? vistaMapa.left < hueco.left - 1 ||
-              vistaMapa.right > hueco.right + 1 ||
-              vistaMapa.top < hueco.top - 1 ||
-              vistaMapa.bottom > hueco.bottom + 1
-          : false,
-      );
+      // Medir también refresca el recorte: un nodo que crece puede sacar el
+      // esquema de la ventana sin que se mueva la cámara.
+      setRecortado(recortadoDe(map, boardRef.current));
     };
 
     medir();
@@ -446,7 +457,18 @@ export function useCables({
       ro.disconnect();
       map.removeEventListener("scroll", medir, true);
     };
-  }, [tree, cerrados, vista, mapa, boardRef, mapRef, cajonRef, carrilRefs, gitRef]);
+  }, [tree, cerrados, k, mapa, boardRef, mapRef, cajonRef, carrilRefs, gitRef]);
+
+  /* Arrastrar mueve la cámara pero no la medida: los cables viven en
+   *  coordenadas del mapa y solo el zoom entra en la cuenta. Aquí se revisa lo
+   *  único que sí cambia al moverse —si el esquema se sale de la ventana—, en
+   *  vez de volver a medir los nueve nodos y repintar los cables por píxel. */
+  useLayoutEffect(() => {
+    if (mapa !== "ideas") return;
+    const map = mapRef.current;
+    if (!map) return;
+    setRecortado(recortadoDe(map, boardRef.current));
+  }, [vista, mapa, mapRef, boardRef]);
 
   const enIdeas = mapa === "ideas";
   return {

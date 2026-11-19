@@ -133,6 +133,40 @@ export default {
       trazados.every((d) => !/[QC]/.test(d)),
       "los cables deben trazarse con tramos rectos y codos de 90°",
     );
+
+    /* Arrastrar mueve la cámara, no la medida: los cables van en coordenadas
+     * del mapa, así que ni el arrastre ni el zoom (que sí entra en la cuenta)
+     * pueden mover un trazado. Antes, cada arrastre volvía a medir los nodos. */
+    const trazadosAhora = () =>
+      page.locator(".wire").evaluateAll((nodos) =>
+        nodos.map((nodo) => nodo.getAttribute("d") ?? ""),
+      );
+    const cercanos = (a, b) =>
+      a.length === b.length &&
+      a.every((d, i) => {
+        const na = d.match(/-?\d+(?:\.\d+)?/g) ?? [];
+        const nb = (b[i] ?? "").match(/-?\d+(?:\.\d+)?/g) ?? [];
+        return (
+          na.length === nb.length &&
+          na.every((n, j) => Math.abs(Number(n) - Number(nb[j])) <= 0.75)
+        );
+      });
+    const tablero = await page.locator(".board").boundingBox();
+    const transform = () => page.locator(".mapa-ideas").evaluate((el) => el.style.transform);
+    const vistaAntes = await transform();
+    // Desde el fondo del tablero, lejos de nodos y mandos: ahí sí arrastra.
+    const desde = { x: tablero.x + tablero.width / 2, y: tablero.y + tablero.height - 14 };
+    await page.mouse.move(desde.x, desde.y);
+    await page.mouse.down();
+    await page.mouse.move(desde.x + 70, desde.y - 26, { steps: 6 });
+    await page.mouse.up();
+    await page.waitForTimeout(120);
+    expect((await transform()) !== vistaAntes, "el arrastre debe mover la vista");
+    expect(cercanos(trazados, await trazadosAhora()), "el arrastre no debe mover los cables");
+
+    await page.getByRole("button", { name: "Acercar" }).click();
+    await page.waitForTimeout(150);
+    expect(cercanos(trazados, await trazadosAhora()), "el zoom no debe mover los cables");
     // En verificación la dependencia apunta al historial: también está aprobada.
     await esperar(
       () => page.locator(".lane-verificacion .chip-depende.aprobada").count().then((n) => n === 1),

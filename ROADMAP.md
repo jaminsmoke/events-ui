@@ -181,6 +181,13 @@ con el motivo, para no reabrirlo cada semana.
   arranque (el empaquetado, sin el marcador del repo, conserva el cwd);
   `EVENTSUI_REGISTRO_DB` sigue mandando. Cubierto en
   `services/core/tests/test_registro_ruta.py`.
+- **Los cables se miden solo cuando toca**: `useCables` vuelve a medir con el
+  zoom, con el tamaño del tablero y cuando cambia un nodo, pero ya no al
+  arrastrar el lienzo: la medida va en coordenadas del mapa, así que `vista.x/y`
+  no mueven ni un trazado. El aviso de recorte, que sí depende de dónde esté la
+  cámara, se calcula aparte con dos `getBoundingClientRect()`.
+  `e2e/escenarios/mapa-completo.mjs` comprueba que arrastrar mueve la vista y no
+  los cables, y que el zoom tampoco los mueve.
 - **CI**: `pnpm check` global en cada push a main y en PRs
   (`.github/workflows/ci.yml`). Batería e2e y builds de Tauri quedan fuera
   del CI a propósito (navegador y puertos; se corren en local).
@@ -213,14 +220,6 @@ con el motivo, para no reabrirlo cada semana.
   `ideas/migracion_legacy.py`, `ideas/validaciones.py` y `ideas/fases.py`
   dejando `ideas.py` como fachada, para no tocar ni la API ni los tests (los dos
   importan de ahí).
-- **Medir los cables solo cuando cambia el tamaño o el zoom.** `useCables`
-  vuelve a medir en cada cambio de `vista`, y `vista.x/y` cambian al arrastrar
-  el lienzo (`camara.ts`), así que un arrastre recalcula y repinta los cables
-  sin necesidad. El volumen de ideas no entra en la medición —se miden nueve
-  cajas, una por cabecera—, pero el `getBoundingClientRect()` de cada una se
-  repite en balde: a la medida solo le afecta `k`. Siguiente paso: quedarse con
-  `vista.k` en las dependencias del efecto y comprobar en `mapa-completo` que
-  los cables siguen clavados tras arrastrar y hacer zoom.
 
 ## No se hace (por ahora)
 

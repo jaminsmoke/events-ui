@@ -192,7 +192,9 @@
   /* Se nombran porque Descartadas se desplaza media columna y medio hueco
    * para centrarse bajo el cable del nudo Entrada↔En cola. */
   --col: clamp(232px, 18vw, 340px);
-  --gap: clamp(72px, 6.5vw, 104px);
+  /* Más aire que antes (72–104): el hueco es el cable y ahora lleva rombo y
+   * celda dentro, así que se le da sitio de sobra. */
+  --gap: clamp(96px, 7.5vw, 128px);
   display: grid;
   grid-template-columns: repeat(7, var(--col));
   /* El hueco de la rejilla *es* el cable. Con 56 px el chevrón, el nudo y la

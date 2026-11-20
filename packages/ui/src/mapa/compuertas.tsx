@@ -1,42 +1,26 @@
 import type { Exigencia, Paso } from "../core/useProtocolos";
-import type { LaneId, Status } from "./carriles";
+import { CELDA } from "./cables";
 import type { DestinoCable } from "./cables";
+import type { Union } from "./protocolos";
 
-/** La unión de protocolo que representa cada cable de etapa. Descartadas no
- *  es una etapa: su rama sirve tanto desde la entrada como desde la cola. */
-const UNION: Record<Exclude<LaneId, "descartadas">, [Status, Status]> = {
-  cola: ["draft", "proposed"],
-  roadmap: ["proposed", "roadmap"],
-  verificacion: ["roadmap", "verificacion"],
-  revision_aprobada: ["verificacion", "revision_aprobada"],
-  // Archivar es el desenlace automático de aprobar: no hay fila de protocolo,
-  // así que el cable se dibuja sin compuerta.
-  historial: ["revision_aprobada", "historial"],
-};
-
-/** El protocolo del cable, ya resuelto para pintar su compuerta. En la rama
- *  de Descartadas se juntan las dos salidas (entrada y cola): la compuerta se
- *  abre si alguna lo está y muestra cualquier exigencia de las dos. */
+/** El protocolo de un cable, ya resuelto para pintar su compuerta. Si cruza
+ *  varias uniones (el descarte sale de la entrada y de la cola), la compuerta
+ *  se abre cuando alguna lo está y reúne las exigencias de todas. */
 function pasoDeCable(
-  lane: DestinoCable,
-  paso: (origen: Status, destino: Status) => Paso | null,
-  union: [Status, Status] | null,
+  uniones: readonly Union[],
+  paso: (origen: Union[0], destino: Union[1]) => Paso | null,
 ): Paso | null {
-  // Git no es una unión de protocolo: es un nodo de estado del repo.
-  if (lane === "git") return null;
-  // Las ramas de revisión rechazada traen su pareja explícita: comparten
-  // carril de destino con el flujo normal y no pueden deducirla del color.
-  if (union) return paso(...union);
-  if (lane !== "descartadas") {
-    const [origen, destino] = UNION[lane];
-    return paso(origen, destino);
+  const pasos: Paso[] = [];
+  for (const [origen, destino] of uniones) {
+    const suyo = paso(origen, destino);
+    // Sin protocolos cargados no hay compuerta: mejor no inventarla.
+    if (!suyo) return null;
+    pasos.push(suyo);
   }
-  const desdeEntrada = paso("draft", "rejected");
-  const desdeCola = paso("proposed", "rejected");
-  if (!desdeEntrada || !desdeCola) return null;
+  if (pasos.length === 0) return null;
   return {
-    abierta: desdeEntrada.abierta || desdeCola.abierta,
-    exige: Array.from(new Set([...desdeEntrada.exige, ...desdeCola.exige])),
+    abierta: pasos.some((p) => p.abierta),
+    exige: Array.from(new Set(pasos.flatMap((p) => [...p.exige]))),
   };
 }
 
@@ -46,17 +30,15 @@ const TEXTO: Record<Exigencia, string> = {
   "fases-completas": "pide todas las fases completadas",
 };
 
-function titulo(paso: Paso, lane: DestinoCable, union: [Status, Status] | null): string {
+function titulo(paso: Paso, lane: DestinoCable, uniones: readonly Union[]): string {
   // La vuelta de una revisión rechazada sale de `verificacion` hacia cola,
   // roadmap o descartadas. La etapa normal verificacion→revision_aprobada
   // también sale de `verificacion`, pero no es un rechazo: no se etiqueta
   // como tal (antes decía «Revisión rechazada → Descartadas»).
-  const rechazo =
-    union?.[0] === "verificacion" &&
-    (union[1] === "proposed" || union[1] === "roadmap" || union[1] === "rejected");
+  const vuelta = uniones.find(([origen, destino]) => origen === "verificacion" && destino !== "revision_aprobada");
   const destinoRechazo =
-    union?.[1] === "proposed" ? "Cola" : union?.[1] === "roadmap" ? "Roadmap" : "Descartadas";
-  const prefijo = rechazo
+    vuelta?.[1] === "proposed" ? "Cola" : vuelta?.[1] === "roadmap" ? "Roadmap" : "Descartadas";
+  const prefijo = vuelta
     ? `Revisión rechazada → ${destinoRechazo}: `
     : lane === "descartadas"
       ? "Descartar (entrada o cola): "
@@ -66,6 +48,20 @@ function titulo(paso: Paso, lane: DestinoCable, union: [Status, Status] | null):
   return prefijo + paso.exige.map((exigencia) => TEXTO[exigencia]).join("; ");
 }
 
+/** La caja de la compuerta, con las medidas del nudo que la contiene. */
+function Caja() {
+  return (
+    <rect
+      className="compuerta-caja"
+      x={-CELDA.ancho / 2}
+      y={-CELDA.alto / 2}
+      width={CELDA.ancho}
+      height={CELDA.alto}
+      rx={2.5}
+    />
+  );
+}
+
 function Icono({ tipo }: { tipo: "libre" | "exige" | "cerrada" }) {
   return (
     <svg
@@ -73,7 +69,7 @@ function Icono({ tipo }: { tipo: "libre" | "exige" | "cerrada" }) {
       viewBox="-6 -10 12 20"
       aria-hidden="true"
     >
-      <rect className="compuerta-caja" x={-5} y={-9} width={10} height={18} rx={2.5} />
+      <Caja />
       {tipo === "exige" && (
         <>
           <path className="compuerta-barra" d="M -1.6 -5 L -1.6 5" />
@@ -109,28 +105,46 @@ export function LeyendaCompuertas() {
   );
 }
 
-/** Una compuerta en el punto medio del cable: una caja vacía es paso libre,
- *  cada barra de dentro es una exigencia del protocolo y el aspa cierra una
- *  unión prohibida. El `title` dice qué pide, sin crecer el mapa. */
+/** Una compuerta sobre su cable: una caja vacía es paso libre, cada barra de
+ *  dentro es una exigencia del protocolo y el aspa cierra una unión prohibida.
+ *  El `title` dice qué pide, sin crecer el mapa.
+ *
+ *  Su sitio también lo decide una regla (ver `cables.ts`): dentro del rombo del
+ *  nudo del que sale el cable o, sin nudo, en el punto medio del trazado. */
 export function Compuerta({
   protocolo,
   x,
   y,
   angulo,
   lane,
-  union = null,
+  uniones,
+  abierta = false,
 }: {
-  protocolo: (origen: Status, destino: Status) => Paso | null;
+  protocolo: (origen: Union[0], destino: Union[1]) => Paso | null;
   x: number;
   y: number;
   angulo: number;
   lane: DestinoCable;
-  union?: [Status, Status] | null;
+  /** Las uniones de protocolo del cable (`protocolos.ts`). */
+  uniones: readonly Union[];
+  /** Archivar: la compuerta se abre por disponibilidad del destino y no por
+   *  una fila del protocolo. */
+  abierta?: boolean;
 }) {
-  // Archivar no es una unión de protocolo: la hace el core al aprobar, así
-  // que el cable del historial no lleva compuerta (ni un aspa de prohibida).
-  if (lane === "historial" || lane === "git") return null;
-  const paso = pasoDeCable(lane, protocolo, union);
+  /* Archivar no es una unión de protocolo: la hace el core al aprobar. La caja
+   * se abre si el destino está disponible (la rama a Git solo con work tree) y
+   * sin él no se dibuja: queda únicamente la del Historial. */
+  if (lane === "historial" || lane === "git") {
+    if (!abierta) return null;
+    const destino = lane === "git" ? "Git" : "Historial";
+    return (
+      <g className={`compuerta ${lane}`} transform={`translate(${x} ${y}) rotate(${angulo})`}>
+        <title>{`Aprobar → ${destino}: paso libre`}</title>
+        <Caja />
+      </g>
+    );
+  }
+  const paso = pasoDeCable(uniones, protocolo);
   if (!paso) return null;
   const barras = paso.exige.length;
   return (
@@ -138,8 +152,8 @@ export function Compuerta({
       className={`compuerta ${lane}${paso.abierta ? "" : " cerrada"}`}
       transform={`translate(${x} ${y}) rotate(${angulo})`}
     >
-      <title>{titulo(paso, lane, union)}</title>
-      <rect className="compuerta-caja" x={-5} y={-9} width={10} height={18} rx={2.5} />
+      <title>{titulo(paso, lane, uniones)}</title>
+      <Caja />
       {paso.abierta ? (
         Array.from({ length: barras }, (_, i) => (
           <path

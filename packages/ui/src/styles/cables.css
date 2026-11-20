@@ -79,7 +79,10 @@
   --wire: #c0704a;
 }
 
-.wire.git {
+/* La compuerta de la rama a Git comparte el verde del cable: sin su propia
+ * regla heredaba un `--wire` inexistente y la caja quedaba invisible. */
+.wire.git,
+.compuerta.git {
   --wire: #3fb950;
 }
 

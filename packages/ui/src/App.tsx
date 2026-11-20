@@ -261,7 +261,9 @@ export default function App({
     mapRef,
     insetDerecha,
   });
-  const { cables, nudo, rama, recortado } = useCables({
+  // ¿Hay work tree? La compuerta de la rama a Git solo se abre entonces.
+  const gitActivo = proyeccion?.git === true;
+  const { cables, nudos, rama, recortado } = useCables({
     tree,
     cerrados,
     vista,
@@ -271,6 +273,7 @@ export default function App({
     cajonRef,
     carrilRefs,
     gitRef,
+    conGit: gitActivo,
     insetDerecha,
   });
   const { vuelos, volando, aterrizado } = useVuelos({ repo, mapa, ideas, cerrados, vista, mapRef });
@@ -343,7 +346,6 @@ export default function App({
     [olvidar],
   );
 
-  const gitActivo = proyeccion?.git === true;
   const irGit = useCallback(() => {
     if (gitActivo) setMapa("git");
   }, [gitActivo]);
@@ -631,26 +633,7 @@ export default function App({
                   {rama && (
                     <g className="rama-rechazo">
                       <path className="rama-tronco" d={rama.tronco} />
-                      {rama.bus && <path className="rama-bus" d={rama.bus.d} />}
-                      <rect
-                        className="nudo rechazo"
-                        x={rama.nudo.x - rama.nudo.lado / 2}
-                        y={rama.nudo.y - rama.nudo.lado / 2}
-                        width={rama.nudo.lado}
-                        height={rama.nudo.lado}
-                        transform={`rotate(45 ${rama.nudo.x} ${rama.nudo.y})`}
-                      />
-                      {rama.bus?.nudos.map((busNudo) => (
-                        <rect
-                          key={`nudo-${busNudo.x}-${busNudo.y}`}
-                          className="nudo rechazo"
-                          x={busNudo.x - busNudo.lado / 2}
-                          y={busNudo.y - busNudo.lado / 2}
-                          width={busNudo.lado}
-                          height={busNudo.lado}
-                          transform={`rotate(45 ${busNudo.x} ${busNudo.y})`}
-                        />
-                      ))}
+                      {rama.bus && <path className="rama-bus" d={rama.bus} />}
                       <rect
                         className="rama-caja"
                         x={rama.caja.x}
@@ -683,23 +666,25 @@ export default function App({
                       </text>
                     </g>
                   )}
-                  {/* Los nudos van debajo de las compuertas: la caja del
-                   *  protocolo se lee dentro del rombo, no encima. */}
-                  {nudo && (
+                  {/* Los nudos van debajo de las compuertas: cada rombo
+                   *  envuelve la celda de protocolo de su cable. */}
+                  {nudos.map((nudo) => (
                     <rect
-                      className="nudo"
+                      key={nudo.id}
+                      className={`nudo${nudo.rechazo ? " rechazo" : ""}`}
                       x={nudo.x - nudo.lado / 2}
                       y={nudo.y - nudo.lado / 2}
                       width={nudo.lado}
                       height={nudo.lado}
                       transform={`rotate(45 ${nudo.x} ${nudo.y})`}
                     />
-                  )}
+                  ))}
                   {cables.map((cable) => (
                     <Compuerta
                       key={`compuerta-${cable.id}`}
                       lane={cable.lane}
-                      union={cable.union}
+                      uniones={cable.uniones}
+                      abierta={cable.abierta}
                       protocolo={paso}
                       {...cable.compuerta}
                     />

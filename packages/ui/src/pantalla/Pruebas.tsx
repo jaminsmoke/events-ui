@@ -54,6 +54,9 @@ export function Pruebas({
   crear,
   mover,
   editar,
+  abrirMapa,
+  commit,
+  cambios,
   abierta,
   onActividad,
   reiniciar,
@@ -63,6 +66,9 @@ export function Pruebas({
   crear: Acciones["crear"];
   mover: Acciones["mover"];
   editar: Acciones["editar"];
+  abrirMapa: Acciones["abrirMapa"];
+  commit: Acciones["commit"];
+  cambios: number;
   abierta: boolean;
   onActividad: (enCurso: boolean) => void;
   reiniciar: () => Promise<unknown>;
@@ -92,7 +98,7 @@ export function Pruebas({
   }, []);
 
   const prueba = PRUEBAS.find((p) => p.id === seleccionada) ?? PRUEBAS[0];
-  const pasos = prueba?.construir({ crear, mover, editar }) ?? [];
+  const pasos = prueba?.construir({ crear, mover, editar, abrirMapa, commit, cambios }) ?? [];
   const totales = `${hechos.filter(Boolean).length}/${pasos.length}`;
 
   const limpiar = async () => {

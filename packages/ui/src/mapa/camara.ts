@@ -14,6 +14,16 @@ export const ZOOM_MIN = 0.5;
 export const ZOOM_MAX = 1.5;
 export const ZOOM_PASO = 1.08;
 
+/** Suelo de «encuadrar», más bajo que el del zoom a mano.
+ *
+ *  Por debajo del 50 % el texto del esquema ya no se lee, pero con el pane
+ *  abierto o en una ventana estrecha el mapa no cabe de otra forma: recortarlo
+ *  y avisar de que está fuera de la vista es peor que verlo entero y pequeño.
+ *  Encuadrar llega hasta aquí; el zoom a mano conserva su suelo (`ZOOM_MIN`),
+ *  salvo que la cámara ya esté por debajo —entonces no se le impone un
+ *  salto—. */
+export const ZOOM_ENCUADRE_MIN = 0.2;
+
 export type Vista = { x: number; y: number; k: number };
 
 const acotar = (valor: number, min: number, max: number) => Math.min(max, Math.max(min, valor));
@@ -28,12 +38,17 @@ export function useCamara({
   listo,
   boardRef,
   mapRef,
+  insetDerecha = 0,
 }: {
   repo: string | null;
   mapa: string;
   listo: boolean;
   boardRef: RefObject<HTMLElement | null>;
   mapRef: RefObject<HTMLDivElement | null>;
+  /** Píxeles del canto derecho que tapa el panel de Resumen. El panel va
+   *  encima del lienzo, así que no encoge la caja: sin este dato se encuadra
+   *  debajo del panel y media mitad del mapa queda oculta. */
+  insetDerecha?: number;
 }) {
   const [vista, setVista] = useState<Vista>({ x: 0, y: 0, k: 1 });
   const [arrastrando, setArrastrando] = useState(false);
@@ -51,7 +66,7 @@ export function useCamara({
   const zoom = useCallback((factor: number) => {
     movida.current = true;
     setVista((v) => {
-      const k = acotar(v.k * factor, ZOOM_MIN, ZOOM_MAX);
+      const k = acotar(v.k * factor, Math.min(ZOOM_MIN, v.k), ZOOM_MAX);
       if (k === v.k) return v;
       const caja = mapRef.current?.getBoundingClientRect();
       if (!caja) return { ...v, k };
@@ -81,17 +96,20 @@ export function useCamara({
     const alto = map.offsetHeight;
     if (!ancho || !alto) return;
 
+    // Se encuadra en lo que se ve, no en la caja: el panel derecho no encoge
+    // el lienzo, solo lo tapa.
+    const visible = Math.max(120, board.clientWidth - insetDerecha);
     const k = acotar(
-      Math.min((board.clientWidth - 64) / ancho, (board.clientHeight - 120) / alto),
-      ZOOM_MIN,
+      Math.min((visible - 64) / ancho, (board.clientHeight - 120) / alto),
+      ZOOM_ENCUADRE_MIN,
       1,
     );
     setVista({
-      x: (board.clientWidth - ancho * k) / 2 - map.offsetLeft,
+      x: (visible - ancho * k) / 2 - map.offsetLeft,
       y: 0,
       k,
     });
-  }, [boardRef, mapRef]);
+  }, [boardRef, mapRef, insetDerecha]);
 
   /** Repo nuevo: encuadre nuevo y cámara sin tocar. */
   const olvidar = useCallback(() => {
@@ -127,7 +145,11 @@ export function useCamara({
 
       movida.current = true;
       setVista((v) => {
-        const k = acotar(v.k * (e.deltaY < 0 ? ZOOM_PASO : 1 / ZOOM_PASO), ZOOM_MIN, ZOOM_MAX);
+        const k = acotar(
+          v.k * (e.deltaY < 0 ? ZOOM_PASO : 1 / ZOOM_PASO),
+          Math.min(ZOOM_MIN, v.k),
+          ZOOM_MAX,
+        );
         if (k === v.k) return v;
         // El punto local bajo el cursor se queda bajo el cursor.
         const lx = (e.clientX - caja.left) / v.k;
@@ -149,6 +171,51 @@ export function useCamara({
     window.addEventListener("resize", alRedimensionar);
     return () => window.removeEventListener("resize", alRedimensionar);
   }, [encuadrar]);
+
+  /* El lienzo también cambia de ancho sin que lo haga la ventana: al abrir o
+   * cerrar un panel del marco. Con la cámara sin tocar se reencuadra (cabe otra
+   * vez entero); con la cámara movida no se le quita la vista al usuario, solo
+   * se conserva el centro de lo que estaba mirando. */
+  useEffect(() => {
+    const board = boardRef.current;
+    if (!board) return;
+    let ancho: number | null = null;
+
+    const alCambiarElLienzo = (entradas: ResizeObserverEntry[]) => {
+      const nuevo = entradas[0]?.contentRect.width ?? board.clientWidth;
+      const previo = ancho;
+      ancho = nuevo;
+      // La primera medida solo sirve de referencia: no es un cambio.
+      if (previo === null || previo === nuevo) return;
+      if (!movida.current) {
+        encuadrar();
+        return;
+      }
+      const desplazamiento = Math.round((nuevo - previo) / 2);
+      setVista((v) => ({ ...v, x: v.x + desplazamiento }));
+    };
+
+    const ro = new ResizeObserver(alCambiarElLienzo);
+    ro.observe(board);
+    return () => ro.disconnect();
+  }, [repo, listo, encuadrar, boardRef]);
+
+  /* Abrir o cerrar el panel derecho no cambia el ancho del lienzo, solo el
+   * hueco visible. Con la cámara sin tocar se reencuadra en el hueco nuevo;
+   * con la cámara movida se desplaza medio hueco, para que lo que estabas
+   * mirando siga en el centro de lo que se ve. */
+  const insetPrevio = useRef(insetDerecha);
+  useEffect(() => {
+    const previo = insetPrevio.current;
+    insetPrevio.current = insetDerecha;
+    if (previo === insetDerecha) return;
+    if (!movida.current) {
+      encuadrar();
+      return;
+    }
+    const delta = Math.round((insetDerecha - previo) / 2);
+    setVista((v) => ({ ...v, x: v.x - delta }));
+  }, [insetDerecha, encuadrar]);
 
   /* Teclado: + y − acercan y alejan, 0 vuelve al 100% y F reencuadra. Nada de
    * atajos sobre un campo de formulario (input, select o textarea): a "f" en

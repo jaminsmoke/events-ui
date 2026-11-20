@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from contextlib import closing
 from typing import Any
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,21 +24,36 @@ from fastapi.responses import JSONResponse
 from . import ideas, registro
 from .contrato import Health
 from .db import data_version, db_path, journal_mode, open_read_only
+from .routers import arbol as rutas_arbol
 from .routers import eventos as rutas_eventos
 from .routers import git as rutas_git
 from .routers import ideas as rutas_ideas
 from .routers import log as rutas_log
 
-# Orígenes con derecho a llamar a la API: la UI en dev (Vite, dos puertos) y el
-# webview de Tauri. CORS decide quién puede LEER la respuesta; las mutaciones
-# comprueban además el origen, porque un POST simple de otra web se ejecuta
-# igual aunque CORS esconda la respuesta.
+# Orígenes con derecho a llamar a la API: el webview de Tauri. CORS decide
+# quién puede LEER la respuesta; las mutaciones comprueban además el origen,
+# porque un POST simple de otra web se ejecuta igual aunque CORS esconda la
+# respuesta. La UI en dev entra por `_origen_permitido`, que no fija puerto.
 ORIGENES_PERMITIDOS = (
-    "http://localhost:15175",  # desktop (Vite)
-    "http://localhost:15174",  # web (Vite)
     "tauri://localhost",
     "http://tauri.localhost",
 )
+
+
+def _origen_permitido(origen: str) -> bool:
+    """El webview, o cualquier bucle local que use la UI en dev.
+
+    Vite salta al siguiente puerto si el 15175 está ocupado (la app abierta, el
+    runner e2e), y el navegador manda `Origin` con el puerto real: fijarlo
+    dejaba sin protestar solo a la UI del puerto por defecto, y un commit desde
+    otro se rechazaba con «origen no permitido». Se compara el host y no el
+    puerto; una web ajena no puede fingir ser localhost.
+    """
+    if origen in ORIGENES_PERMITIDOS:
+        return True
+    partes = urlsplit(origen)
+    return partes.scheme == "http" and partes.hostname in {"localhost", "127.0.0.1", "::1"}
+
 
 app = FastAPI(title="Events UI Core", version="0.2.2")
 
@@ -66,7 +82,7 @@ async def _origen_conocido(request: Request, call_next):
     if (
         request.method in METODOS_QUE_ESCRIBEN
         and origen is not None
-        and origen not in ORIGENES_PERMITIDOS
+        and not _origen_permitido(origen)
     ):
         return JSONResponse(status_code=403, content={"detail": "origen no permitido"})
     return await call_next(request)
@@ -128,3 +144,4 @@ app.include_router(rutas_ideas.router)
 app.include_router(rutas_eventos.router)
 app.include_router(rutas_log.router)
 app.include_router(rutas_git.router)
+app.include_router(rutas_arbol.router)

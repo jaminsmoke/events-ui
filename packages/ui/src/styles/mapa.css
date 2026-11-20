@@ -20,10 +20,9 @@
   justify-content: center;
   gap: 8px;
   padding: 8px 0 64px;
-  /* Sangra hasta los bordes de la ventana: recortar en la columna de 1180 dejaba
-   * el esquema cortado a los lados con cientos de píxeles vacíos al lado. */
-  width: 100vw;
-  margin-left: calc(50% - 50vw);
+  /* Ocupa lo que le deja el marco (barra de actividad y pane): la cámara y los
+   * cables se miden contra este ancho, no contra la ventana. */
+  min-width: 0;
   overflow: hidden;
   cursor: grab;
   touch-action: none;
@@ -115,7 +114,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 12px;
-  max-width: calc(100vw - 210px);
+  max-width: calc(100% - 210px);
   padding: 4px 9px;
   border: 1px solid var(--line);
   border-radius: 7px;
@@ -190,16 +189,21 @@
    * cabe en 264: el cuerpo del nodo lo recortaba justo por encima de las
    * acciones. Con 300 entra el caso normal sin desplazarse. */
   --altura-cola: 300px;
+  /* Se nombran porque Descartadas se desplaza media columna y medio hueco
+   * para centrarse bajo el cable del nudo Entrada↔En cola. */
+  --col: clamp(232px, 18vw, 340px);
+  --gap: clamp(72px, 6.5vw, 104px);
   display: grid;
-  grid-template-columns: repeat(7, clamp(232px, 18vw, 340px));
+  grid-template-columns: repeat(7, var(--col));
   /* El hueco de la rejilla *es* el cable. Con 56 px el chevrón, el nudo y la
    * compuerta quedaban apiñados; un mínimo de 72 px y algo de aire según la
    * ventana los dejan respirar sin comerse los nodos. */
-  column-gap: clamp(72px, 6.5vw, 104px);
+  column-gap: var(--gap);
   align-items: start;
-  /* Debajo de la línea vive el nodo de Revisión rechazada. El aire se reserva
-   * siempre para que sus cables no queden recortados por el mapa. */
-  padding-bottom: 124px;
+  /* El nodo de Revisión rechazada ya vive dentro de la banda de la línea (a la
+   * altura de Descartadas); solo se deja un poco de aire abajo. Los cables no
+   * se recortan aunque una ficha abierta lo empuje: el SVG desborda. */
+  padding-bottom: 32px;
 }
 
 .linea:not(.linea-git) > .node {
@@ -221,26 +225,20 @@
 .linea > .lane-descartadas {
   grid-column: 2;
   margin-top: calc(var(--altura-cola) + 36px);
+  /* Centrada bajo el cable que baja del nudo Entrada↔En cola: media columna y
+   * medio hueco hacia la izquierda. El cable entra por el centro de su canto
+   * superior y queda aire a la derecha para el nudo de la vuelta desde
+   * revisión rechazada y su compuerta de protocolo. */
+  transform: translateX(calc((var(--col) + var(--gap)) / -2));
 }
 
-.linea:not(.linea-git) > .nodo-git {
+/* El puente a Git y el Historial comparten la última columna: el historial
+ * cuelga debajo porque en producción solo crece y no debe estirar la línea. */
+.estacion-git {
   grid-column: 7;
-}
-
-/* Dos mapas enlazados: el de Ideas y el de Git. Las pestañas viven fuera del
- * lienzo, así que la cámara no las mueve. */
-.mapas-nav {
-  position: absolute;
-  top: 8px;
-  left: 18px;
-  z-index: 3;
   display: flex;
-  gap: 6px;
-}
-
-.mapas-pestana.activa {
-  border-color: #2b5c3f;
-  color: #7ee2a8;
+  flex-direction: column;
+  gap: 44px;
 }
 
 /* El Mapa de Git: estado a la izquierda y cambios a la derecha. */
@@ -278,6 +276,7 @@
 }
 
 .linea > .node,
+.estacion-git > .node,
 .linea-git > .node,
 .linea-git > .git-cabecera {
   animation: nodo-entra 0.45s cubic-bezier(0.2, 0.9, 0.25, 1.1) both;
@@ -316,6 +315,7 @@
 @media (prefers-reduced-motion: reduce) {
   .map,
   .linea > .node,
+  .estacion-git > .node,
   .linea-git > .node,
   .linea-git > .git-cabecera {
     animation: none;

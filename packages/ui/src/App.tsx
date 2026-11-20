@@ -7,6 +7,7 @@ import type { ElegirCarpeta } from "./core/repo";
 import { useRepo } from "./core/useRepo";
 import { useAnimaciones } from "./mapa/animaciones";
 import { buildTree } from "./mapa/arbol";
+import type { TreeNode } from "./mapa/arbol";
 import { duracionChispa, useCables } from "./mapa/cables";
 import { Compuerta, LeyendaCompuertas } from "./mapa/compuertas";
 import { useCamara } from "./mapa/camara";
@@ -24,6 +25,14 @@ import { useVueloCommit } from "./mapa/vuelos-git";
 import { useVuelos } from "./mapa/vuelos";
 import { useEventos, resumenEvento } from "./core/useEventos";
 import { useProtocolos } from "./core/useProtocolos";
+import {
+  BarraActividad,
+  BarraResumen,
+  PaneExplorador,
+  PaneGit,
+  PaneMapas,
+} from "./pantalla/Actividad";
+import type { VistaPane } from "./pantalla/Actividad";
 import { Ajustes as DialogoAjustes } from "./pantalla/Ajustes";
 import { AvisoError } from "./pantalla/AvisoError";
 import { BarraRepo } from "./pantalla/BarraRepo";
@@ -34,8 +43,19 @@ import { SelectorRepo } from "./pantalla/SelectorRepo";
 import { AvisoRecorte, Controles } from "./pantalla/Controles";
 import { EditorIdea } from "./pantalla/EditorIdea";
 import { PanelLog } from "./pantalla/PanelLog";
+import { PanelResumen } from "./pantalla/PanelResumen";
 import { Pruebas } from "./pantalla/Pruebas";
 import { pruebaPendiente, soltar } from "./pantalla/pruebaEnCurso";
+
+/** Ancho del panel derecho abierto: el mismo que `.resumen` en marco.css.
+ *  El panel va encima del lienzo —no lo encoge—, así que la cámara tiene que
+ *  saber cuánto tapa para encuadrar en lo que se ve. */
+const ANCHO_RESUMEN = 272;
+
+/** Por debajo de este ancho, el lienzo con los dos paneles abiertos se queda
+ *  sin sitio: el mapa cae por debajo del suelo de encuadre y se recorta en
+ *  vez de encoger. Ahí los paneles se turnan, y manda el Explorador. */
+const ANCHO_MINIMO_PANELES = 1400;
 
 /* *  El mapa: se pliega, se encuadra y se mueve; el almacén se toca solo por
  *  la API del core (crear, mover, editar y borrar ideas).
@@ -84,12 +104,57 @@ export default function App({
   // lugar (Eventos por defecto); las pestañas de dentro alternan.
   const [panel, setPanel] = useState<null | "actividad" | "registro">(null);
   const [ultimaPestana, setUltimaPestana] = useState<"actividad" | "registro">("actividad");
+  // Marco tipo IDE: el pane izquierdo (Explorador) empuja el lienzo y el panel
+  // derecho (Resumen) sale por encima. El rail de actividad manda en los dos.
+  // Pane izquierdo: una vista por vez, como los iconos de VS Code. `null` es
+  // cerrado; pulsar el icono que ya está activo lo cierra.
+  const [pane, setPane] = useState<VistaPane | null>(null);
+  const [resumenAbierto, setResumenAbierto] = useState(false);
+  // Ancho de la ventana, no del lienzo: el marco que la rodea es fijo (dos
+  // rail de 44, el pane de 232 y el Resumen de 272).
+  const [ventanaEstrecha, setVentanaEstrecha] = useState(
+    () => window.innerWidth < ANCHO_MINIMO_PANELES,
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${ANCHO_MINIMO_PANELES - 1}px)`);
+    const alCambiar = () => setVentanaEstrecha(mq.matches);
+    mq.addEventListener("change", alCambiar);
+    return () => mq.removeEventListener("change", alCambiar);
+  }, []);
+
+  /* El Resumen se aparta mientras haya un pane abierto y la ventana sea
+   * estrecha. Se deriva en el render en vez de cerrarlo desde un efecto: si
+   * luego la ventana crece, el Resumen vuelve sin haber perdido su estado. */
+  const resumenVisible = resumenAbierto && !(ventanaEstrecha && pane !== null);
+
+  const abrirVista = useCallback(
+    (v: VistaPane) => {
+      setPane((actual) => (actual === v ? null : v));
+      if (ventanaEstrecha) setResumenAbierto(false);
+    },
+    [ventanaEstrecha],
+  );
+
+  // Si el Resumen está oculto por turno, este clic lo trae de vuelta cerrando
+  // el pane: el icono nunca se queda «pulsado pero invisible».
+  const alternarResumen = useCallback(() => {
+    if (resumenVisible) {
+      setResumenAbierto(false);
+      return;
+    }
+    setResumenAbierto(true);
+    if (ventanaEstrecha) setPane(null);
+  }, [resumenVisible, ventanaEstrecha]);
 
   // Escape cierra el panel (no es modal: no captura, no atrapa el foco).
   useEffect(() => {
     if (!panel) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setPanel(null);
+      if (e.key === "Escape") {
+        setPanel(null);
+        setResumenAbierto(false);
+      }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -108,6 +173,7 @@ export default function App({
     reiniciar,
     crearRepoGit,
     eliminarRepoGit,
+    commit,
   } = useRepo(repo);
   const tree = useMemo(() => (ideas ? buildTree(ideas) : null), [ideas]);
   // F1: el log del repo en vivo (cada `EUI_DATABASE` lleva el suyo).
@@ -183,12 +249,17 @@ export default function App({
   const cambiosRef = useRef<HTMLElement | null>(null);
   const commitsRef = useRef<HTMLElement | null>(null);
 
+  // Lo que tapa el panel derecho. Con los dos paneles abiertos el lienzo se
+  // queda en lo que sobra: la cámara encuadra ahí, no debajo del panel.
+  const insetDerecha = resumenVisible ? ANCHO_RESUMEN : 0;
+
   const { vista, arrastrando, encuadrar, zoom, reset, olvidar, mano } = useCamara({
     repo,
     mapa,
     listo: tree !== null,
     boardRef,
     mapRef,
+    insetDerecha,
   });
   const { cables, nudo, rama, recortado } = useCables({
     tree,
@@ -200,6 +271,7 @@ export default function App({
     cajonRef,
     carrilRefs,
     gitRef,
+    insetDerecha,
   });
   const { vuelos, volando, aterrizado } = useVuelos({ repo, mapa, ideas, cerrados, vista, mapRef });
   const { filas: vuelosGit, aterrizado: aterrizadoGit } = useVueloCommit({
@@ -301,13 +373,41 @@ export default function App({
   // `null` = todavía sin respuesta; `[]` = el repo está sembrado pero vacío.
   const busy = repo !== null && ideas === null && error === null;
 
+  /* Cada carril es un nodo de la línea. El del Historial se pinta aparte,
+   *  dentro de la estación de Git, pero se sigue guardando en su índice de
+   *  `LANES` para que los cables lo midan como un carril más. */
+  const nodoDeCarril = (lane: TreeNode, i: number) => (
+    <NodeBox
+      key={lane.key}
+      node={lane}
+      cerrados={cerrados}
+      onToggle={toggle}
+      boxRef={(el) => {
+        carrilRefs.current[i] = el;
+      }}
+      volando={volando}
+      pulso={pulsos.find((p) => p.lane === lane.tone)?.tono}
+      destello={destelloDe(lane.tone)}
+      onMover={alMover}
+      onPideEditar={(uid, titulo, descripcion) => setEditando({ uid, titulo, descripcion })}
+      onEditar={editar}
+      onBorrar={borrar}
+      onCargarIdea={cargarIdea}
+      puedeIr={puedeIr}
+      exigeFases={exigeFases}
+      exigeFasesListas={exigeFasesListas}
+      exigeFasesCompletas={exigeFasesCompletas}
+      catalogo={ideas ?? []}
+    />
+  );
+
   /* El cable engorda con lo que espera en su origen: la presión se acumula
    *  antes de la compuerta, no después. */
   const maximo = Math.max(1, ...cables.map((cable) => cable.presion));
 
-  /* Frame: topbar, viewport (el graph) y statusbar *abajo*. Antes, el
-   *  `main.shell` era un cajón único con la proyección y la actividad
-   *  empujando el mapa; ahora el viewport queda solo para el Graph. */
+  /* Frame: topbar, viewport (el graph) y statusbar *abajo*. Dentro del
+   *  viewport, la barra de actividad y el pane van antes del lienzo; el panel
+   *  de Resumen se superpone al graph. */
   return (
     <div className="shell">
       <header className="topbar">
@@ -401,6 +501,9 @@ export default function App({
           crear={crear}
           mover={mover}
           editar={editar}
+          abrirMapa={setMapa}
+          commit={commit}
+          cambios={proyeccion?.git_cambios.length ?? 0}
           reiniciar={async () => {
             await reiniciar();
             setVersionLog((v) => v + 1);
@@ -414,6 +517,30 @@ export default function App({
       {error && !ideas && <AvisoError mensaje={error} />}
 
       <main className="viewport">
+        {/* Marco tipo IDE: la barra de actividad manda sobre los dos paneles. */}
+        {repo && (
+          <BarraActividad vista={pane} onVista={abrirVista} />
+        )}
+        {repo && pane === "mapas" && (
+          <PaneMapas
+            mapa={mapa}
+            gitActivo={gitActivo}
+            onMapa={(m) => (m === "git" ? irGit() : irIdeas())}
+            onCerrar={() => setPane(null)}
+          />
+        )}
+        {repo && pane === "archivos" && (
+          <PaneExplorador proyeccion={proyeccion} onCerrar={() => setPane(null)} />
+        )}
+        {repo && pane === "git" && (
+          <PaneGit
+            proyeccion={proyeccion}
+            commits={commits}
+            onIniciar={() => setDialogoGit("crear")}
+            onCommit={commit}
+            onCerrar={() => setPane(null)}
+          />
+        )}
         {repo && (!error || ideas) && (
           <section
             className={`board${arrastrando ? " arrastrando" : ""}`}
@@ -433,28 +560,6 @@ export default function App({
             {busy && <p className="hint">Cargando…</p>}
             {!busy && ideas?.length === 0 && (
               <p className="hint">Todavía no hay ideas en este repo.</p>
-            )}
-            {!busy && tree && (
-              <nav className="mapas-nav" aria-label="Mapas">
-                <button
-                  type="button"
-                  className={`btn mapas-pestana${mapa === "ideas" ? " activa" : ""}`}
-                  aria-pressed={mapa === "ideas"}
-                  onClick={irIdeas}
-                >
-                  Mapa de ideas
-                </button>
-                <button
-                  type="button"
-                  className={`btn mapas-pestana${mapa === "git" ? " activa" : ""}`}
-                  aria-pressed={mapa === "git"}
-                  onClick={irGit}
-                  disabled={!gitActivo}
-                  title={gitActivo ? "Ver cambios sin commit" : "Sin repositorio local"}
-                >
-                  Mapa de Git
-                </button>
-              </nav>
             )}
             {!busy && tree && (
               <div
@@ -508,7 +613,8 @@ export default function App({
                   {/* Dirección sin depender del movimiento: un chevrón en el
                    *  punto medio. La rama de Descartadas no lo lleva. */}
                   {cables.map((cable) => {
-                    if (cable.lane === "descartadas" || cable.rama || cable.lane === "git") return null;
+                    // Git no es un tránsito de ideas: su cable no lleva flecha.
+                    if (cable.lane === "git") return null;
                     // El chevrón cae sobre un tramo recto de la ruta ortogonal.
                     const { x: mx, y: my, angulo } = cable.chevron;
                     return (
@@ -520,26 +626,31 @@ export default function App({
                       />
                     );
                   })}
-                  {cables.map((cable) => (
-                    <Compuerta
-                      key={`compuerta-${cable.id}`}
-                      lane={cable.lane}
-                      union={cable.union}
-                      protocolo={paso}
-                      {...cable.compuerta}
-                    />
-                  ))}
+                  {/* La bifurcación va antes que las compuertas: el rombo se
+                   *  pinta debajo y la compuerta del protocolo queda dentro. */}
                   {rama && (
                     <g className="rama-rechazo">
                       <path className="rama-tronco" d={rama.tronco} />
+                      {rama.bus && <path className="rama-bus" d={rama.bus.d} />}
                       <rect
                         className="nudo rechazo"
-                        x={rama.nudo.x - 3.6}
-                        y={rama.nudo.y - 3.6}
-                        width={7.2}
-                        height={7.2}
+                        x={rama.nudo.x - rama.nudo.lado / 2}
+                        y={rama.nudo.y - rama.nudo.lado / 2}
+                        width={rama.nudo.lado}
+                        height={rama.nudo.lado}
                         transform={`rotate(45 ${rama.nudo.x} ${rama.nudo.y})`}
                       />
+                      {rama.bus?.nudos.map((busNudo) => (
+                        <rect
+                          key={`nudo-${busNudo.x}-${busNudo.y}`}
+                          className="nudo rechazo"
+                          x={busNudo.x - busNudo.lado / 2}
+                          y={busNudo.y - busNudo.lado / 2}
+                          width={busNudo.lado}
+                          height={busNudo.lado}
+                          transform={`rotate(45 ${busNudo.x} ${busNudo.y})`}
+                        />
+                      ))}
                       <rect
                         className="rama-caja"
                         x={rama.caja.x}
@@ -572,18 +683,29 @@ export default function App({
                       </text>
                     </g>
                   )}
-                  {cables[0] && (
-                    <circle className="junction" cx={cables[0].x1} cy={cables[0].y1} r={4} />
-                  )}
+                  {/* Los nudos van debajo de las compuertas: la caja del
+                   *  protocolo se lee dentro del rombo, no encima. */}
                   {nudo && (
                     <rect
                       className="nudo"
-                      x={nudo.x - 3.6}
-                      y={nudo.y - 3.6}
-                      width={7.2}
-                      height={7.2}
+                      x={nudo.x - nudo.lado / 2}
+                      y={nudo.y - nudo.lado / 2}
+                      width={nudo.lado}
+                      height={nudo.lado}
                       transform={`rotate(45 ${nudo.x} ${nudo.y})`}
                     />
+                  )}
+                  {cables.map((cable) => (
+                    <Compuerta
+                      key={`compuerta-${cable.id}`}
+                      lane={cable.lane}
+                      union={cable.union}
+                      protocolo={paso}
+                      {...cable.compuerta}
+                    />
+                  ))}
+                  {cables[0] && (
+                    <circle className="junction" cx={cables[0].x1} cy={cables[0].y1} r={4} />
                   )}
                   {chispas.map((chispa) => {
                     const cable = cableDeChispa(chispa);
@@ -621,42 +743,24 @@ export default function App({
                     exigeFasesCompletas={exigeFasesCompletas}
                     catalogo={ideas ?? []}
                   />
-                  {tree.carriles.map((lane, i) => (
-                    <NodeBox
-                      key={lane.key}
-                      node={lane}
-                      cerrados={cerrados}
-                      onToggle={toggle}
-                      boxRef={(el) => {
-                        carrilRefs.current[i] = el;
-                      }}
-                      volando={volando}
-                      pulso={pulsos.find((p) => p.lane === lane.tone)?.tono}
-                      destello={destelloDe(lane.tone)}
-                      onMover={alMover}
-                      onPideEditar={(uid, titulo, descripcion) =>
-                        setEditando({ uid, titulo, descripcion })
-                      }
-                      onEditar={editar}
-                      onBorrar={borrar}
-                      onCargarIdea={cargarIdea}
-                      puedeIr={puedeIr}
-                      exigeFases={exigeFases}
-                      exigeFasesListas={exigeFasesListas}
-                      exigeFasesCompletas={exigeFasesCompletas}
-                      catalogo={ideas ?? []}
+                  {tree.carriles.map((lane, i) =>
+                    lane.tone === "historial" ? null : nodoDeCarril(lane, i),
+                  )}
+                  <div className="estacion-git">
+                    <NodoPuenteGit
+                      activo={gitActivo}
+                      branch={proyeccion?.branch}
+                      commit={proyeccion?.commit}
+                      gitRoot={proyeccion?.git_root}
+                      boxRef={gitRef}
+                      onAbrir={irGit}
+                      onCrear={() => setDialogoGit("crear")}
+                      onEliminar={() => setDialogoGit("eliminar")}
                     />
-                  ))}
-                  <NodoPuenteGit
-                    activo={gitActivo}
-                    branch={proyeccion?.branch}
-                    commit={proyeccion?.commit}
-                    gitRoot={proyeccion?.git_root}
-                    boxRef={gitRef}
-                    onAbrir={irGit}
-                    onCrear={() => setDialogoGit("crear")}
-                    onEliminar={() => setDialogoGit("eliminar")}
-                  />
+                    {tree.carriles.map((lane, i) =>
+                      lane.tone === "historial" ? nodoDeCarril(lane, i) : null,
+                    )}
+                  </div>
                 </div>
                 ) : (
                 <div className="linea linea-git">
@@ -687,7 +791,16 @@ export default function App({
             <Controles vista={vista} onZoom={zoom} onReset={reset} />
             {cables.length > 0 && <LeyendaCompuertas />}
           </section>
-        )}      </main>
+        )}
+        {repo && <BarraResumen abierto={resumenVisible} onAlternar={alternarResumen} />}
+        {repo && resumenVisible && (
+          <PanelResumen
+            proyeccion={proyeccion}
+            conectado={conectado}
+            onClose={() => setResumenAbierto(false)}
+          />
+        )}
+      </main>
 
       <footer className="statusbar">
         {/* Flyout: no empuja el viewport. Sale por encima, anclado a su

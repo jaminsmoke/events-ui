@@ -70,7 +70,11 @@
   --wire: #5f8a72;
 }
 
+/* El chevrón también: sin él heredaba el `--wire` raíz (inexistente) y la
+ * flecha se quedaba sin `stroke`, invisible.
+ */
 .wire.descartadas,
+.chevron.descartadas,
 .compuerta.descartadas {
   --wire: #c0704a;
 }
@@ -84,10 +88,11 @@
 }
 
 /* Revisión rechazada: una bifurcación, no un carril. El tronco baja desde el
- * nudo del cable Verificación→Revisión aprobada y los tres cables de vuelta
- * salen de su canto izquierdo en ángulo recto. La caja imita la cabecera de
- * Descartadas para que se lea como un nodo más del mapa. */
-.rama-tronco {
+ * nudo del cable Verificación→Revisión aprobada, y del canto izquierdo de la
+ * caja sale un único bus del que se despega cada vuelta en su nudo. La caja
+ * imita la cabecera de Descartadas para que se lea como un nodo más del mapa. */
+.rama-tronco,
+.rama-bus {
   fill: none;
   stroke: #b86952;
   stroke-width: 1.5;

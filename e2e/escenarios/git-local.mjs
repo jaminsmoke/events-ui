@@ -31,6 +31,8 @@ export default {
       if (await selector.isVisible()) await selector.click();
       await pruebas.waitFor();
       await esperar(() => page.locator(".wire").count().then((n) => n === 10), "los diez cables");
+      // El pane de Mapas arranca cerrado y las pestañas viven dentro de él.
+      await page.getByRole("button", { name: "Mapas", exact: true }).click();
 
       // En el Mapa de Ideas solo vive el puente: apagado si el lab está ignorado.
       const puente = page.locator(".nodo-git");
@@ -64,7 +66,9 @@ export default {
       const texto = await puente.innerText();
       expect(texto.includes("main"), "el puente activo debe mostrar la rama main");
       expect(texto.includes("sin commits"), "un repo vacío no debe inventar un commit");
-      // El puente abre el Mapa de Git: el primer nodo muestra los cambios.
+      // El puente abre el Mapa de Git: el primer nodo muestra los cambios. El
+      // almacén `.EUI` no cuenta como cambio, así que hace falta un archivo.
+      writeFileSync(path.join(lab, "nota.txt"), "hola\n", "utf8");
       const cambios = page.locator(".nodo-cambios");
       await page.getByRole("button", { name: /Abrir mapa de Git/ }).click();
       await esperar(

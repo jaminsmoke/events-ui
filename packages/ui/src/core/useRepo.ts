@@ -183,6 +183,21 @@ export function useRepo(repo: string | null) {
     return p;
   }, [repo]);
 
+  // Commit local: solo el mensaje, porque no hay remoto todavía. La respuesta
+  // ya es la proyección actualizada (los cambios desaparecen solos) y el
+  // historial se refresca porque cambia el hash de HEAD (`firmaHistorial`).
+  const commit = useCallback(
+    async (mensaje: string): Promise<ProyeccionRepo | null> => {
+      if (!repo) return null;
+      const p: ProyeccionRepo = await unwrap(
+        api.POST("/git/commit", { params: { query: { repo } }, body: { mensaje } }),
+      );
+      setProyeccionEstado({ repo, datos: p });
+      return p;
+    },
+    [repo],
+  );
+
   const proyeccion =
     repo && proyeccionEstado?.repo === repo ? proyeccionEstado.datos : null;
 
@@ -228,5 +243,6 @@ export function useRepo(repo: string | null) {
     reiniciar,
     crearRepoGit,
     eliminarRepoGit,
+    commit,
   };
 }

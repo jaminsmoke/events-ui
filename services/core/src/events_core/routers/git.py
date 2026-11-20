@@ -7,7 +7,13 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Query
 
 from .. import ideas, proyeccion, registro
-from ..contrato import RESPUESTAS_ERROR, CommitGit, ProyeccionRepo, RepoParam
+from ..contrato import (
+    RESPUESTAS_ERROR,
+    CommitGit,
+    CommitPeticion,
+    ProyeccionRepo,
+    RepoParam,
+)
 
 router = APIRouter()
 
@@ -53,3 +59,13 @@ def get_git_commits(
 ) -> list[dict[str, str]]:
     """Los últimos commits de la rama actual, para el nodo Commits del mapa."""
     return proyeccion.historial(ideas.resolve_repo(repo), limite)
+
+
+@router.post("/git/commit", response_model=ProyeccionRepo, tags=["git"], responses=RESPUESTAS_ERROR)
+def post_git_commit(repo: RepoParam, peticion: CommitPeticion) -> dict[str, Any]:
+    """Un commit local con todo lo pendiente; devuelve la proyección al día."""
+    carpeta = ideas.resolve_repo(repo)
+    proyeccion.commit(carpeta, peticion.mensaje)
+    asunto = peticion.mensaje.strip().splitlines()[0][:60]
+    registro.escribir("info", f"Commit local en {carpeta}: {asunto}", origen="git")
+    return proyeccion.repo_estado_actual(repo)

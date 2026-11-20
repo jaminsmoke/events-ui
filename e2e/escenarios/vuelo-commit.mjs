@@ -31,6 +31,8 @@ export default {
       await selector.or(pruebas).first().waitFor();
       if (await selector.isVisible()) await selector.click();
 
+      // Las pestañas de mapa viven en el pane de Mapas, que arranca cerrado.
+      await page.getByRole("button", { name: "Mapas", exact: true }).click();
       const pestanaGit = page.getByRole("button", { name: "Mapa de Git", exact: true });
       await esperar(() => pestanaGit.isEnabled(), "la pestaña de Git habilitada", 20_000);
       await pestanaGit.click();

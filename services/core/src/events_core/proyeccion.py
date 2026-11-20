@@ -28,6 +28,7 @@ from typing import Any
 
 from .db import open_read_only
 from .ideas import InvalidInput, _existe, ensure_repo, repos_root, resolve_repo
+from .ideas.base.rutas import EUI_DIR
 
 
 def _git(carpeta: Path, *args: str) -> str | None:
@@ -96,6 +97,12 @@ def _git_cambios(carpeta: Path) -> list[dict[str, str]]:
             if i < len(campos) and campos[i]:
                 cambio["origen"] = campos[i]
             i += 1
+        # El almacén de la app no es trabajo del repo: se escribe solo con cada
+        # idea, así que enseñarlo dejaría la lista de cambios siempre con algo
+        # y «nada sin commit» no llegaría nunca. Mismo criterio que
+        # `archivos._nombres`.
+        if ruta == EUI_DIR or ruta.startswith(f"{EUI_DIR}/"):
+            continue
         cambios.append(cambio)
     return cambios
 
@@ -217,6 +224,49 @@ def eliminar_repo(carpeta: Path) -> None:
     if not punto_git.is_dir():
         raise InvalidInput("El .git no es una carpeta; no se elimina")
     shutil.rmtree(punto_git)
+
+
+def commit(carpeta: Path, mensaje: str) -> None:
+    """`git add -A` + `git commit`: un commit local, sin remoto.
+
+    Solo en el repo propio de la carpeta: una subcarpeta de otro repo se
+    commitea desde su raíz, igual que se inicializa. Se exige algo que
+    commitear: un commit vacío ensucia el historial y el mapa no lo puede
+    distinguir de un cambio real. El autor lo pone Git (`user.name` y
+    `user.email`); si faltan, su error se devuelve tal cual, que dice
+    exactamente qué configurar.
+    """
+    es_git, git_root = _git_repo(carpeta)
+    if not es_git or git_root is None:
+        raise InvalidInput("No hay repositorio Git en esta carpeta")
+    if git_root.resolve() != carpeta.resolve():
+        raise InvalidInput(f"El repo pertenece a {git_root}; se commitea desde su raíz")
+    texto = mensaje.strip()
+    if not texto:
+        raise InvalidInput("El mensaje del commit está vacío")
+    if not _git_cambios(carpeta):
+        raise InvalidInput("No hay cambios que commitear")
+    for argumentos in (
+        # Todo, y luego el almacén propio fuera del índice: se actualiza solo y
+        # no es trabajo. No vale excluirlo con un pathspec `:(exclude).EUI`:
+        # nombrar una ruta ignorada hace que `git add` se niegue con «paths are
+        # ignored» y salga con 1, que es justo el estado del laboratorio (`.EUI`
+        # en `.git/info/exclude`). El reset sobra si no llegó a entrar.
+        ("add", "-A", "--", "."),
+        ("reset", "-q", "--", EUI_DIR),
+        ("commit", "-m", texto),
+    ):
+        try:
+            salida = subprocess.run(
+                ["git", "-C", str(carpeta), *argumentos],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise InvalidInput("No se pudo ejecutar git") from exc
+        if salida.returncode != 0:
+            raise InvalidInput(salida.stderr.strip() or "git falló")
 
 
 def repo_estado_actual(repo: str) -> dict[str, Any]:

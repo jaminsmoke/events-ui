@@ -9,8 +9,10 @@ const tablasOperativas = [
 async function geometria(page) {
   return page.evaluate(() => ({
     // Solo el Mapa de Ideas: el Mapa de Git es otra vista y no se mide aquí.
+    // El Historial cuelga de `.estacion-git`, así que se busca en cualquier
+    // nivel de la línea y no solo entre los hijos directos.
     cabeceras: Array.from(
-      document.querySelectorAll(".linea > .node > .node-head"),
+      document.querySelectorAll(".linea .node > .node-head"),
       (n) => {
         const { x, y } = n.getBoundingClientRect();
         return [x, y];

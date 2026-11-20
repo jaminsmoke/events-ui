@@ -10,6 +10,12 @@ export type Acciones = {
   crear: (body: IdeaCreate) => Promise<{ uid: string } | null>;
   mover: (uid: string, status: IdeaCreate["status"]) => Promise<void>;
   editar: (uid: string, cambios: IdeaUpdate) => Promise<void>;
+  /** Commit local escrito desde el panel, como lo haría una persona. */
+  commit: (mensaje: string) => Promise<unknown>;
+  /** Archivos sin commit ahora mismo, para avisar antes de commitear. */
+  cambios: number;
+  /** Cambiar de mapa: la prueba se ve donde ocurre, no donde se lanzó. */
+  abrirMapa: (mapa: "ideas" | "git") => void;
 };
 
 export type Paso = { texto: string; ejecutar: () => Promise<void> };
@@ -976,5 +982,43 @@ export const PRUEBAS: Prueba[] = [
         },
       ];
     },
+  },
+  {
+    id: "commit-panel",
+    nombre: "Commit desde el panel",
+    descripcion:
+      "El tramo nuevo del mapa: los cambios sin commit, el commit escrito desde el panel y la rama " +
+      "con un commit más en el historial. Necesita un cambio sin commitear en el laboratorio.",
+    construir: ({ abrirMapa, commit, cambios }) => [
+      {
+        texto: "Abrir el mapa de Git, que es donde se ve todo esto",
+        ejecutar: async () => {
+          abrirMapa("git");
+          await mirar(1500);
+        },
+      },
+      {
+        texto:
+          cambios === 0
+            ? "Mirar el nodo de cambios (ahora mismo está vacío)"
+            : `Mirar los ${cambios} archivo(s) sin commit`,
+        ejecutar: () => mirar(2500),
+      },
+      {
+        texto: "Escribir el mensaje en el panel y commitear",
+        ejecutar: async () => {
+          if (cambios === 0) {
+            throw new Error(
+              "El laboratorio no tiene cambios que commitear: toca o añade un archivo del repo y vuelve a lanzar.",
+            );
+          }
+          await commit("Prueba: commit desde el panel");
+        },
+      },
+      {
+        texto: "Mirar el historial: el commit nuevo ya está arriba y los cambios vacíos",
+        ejecutar: () => mirar(4000),
+      },
+    ],
   },
 ];

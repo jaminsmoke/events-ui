@@ -272,6 +272,17 @@ class CommitGit(BaseModel):
     fecha: str
 
 
+class CommitPeticion(BaseModel):
+    """Lo que hace falta para commitear desde el panel: solo el mensaje.
+
+    No hay `add` selectivo ni remoto: se commitea todo lo que `git status`
+    ve, y push queda fuera hasta que exista la integración con remoto. El
+    límite es el de un asunto de commit; un cuerpo largo no lo pide el mapa.
+    """
+
+    mensaje: str = Field(min_length=1, max_length=200)
+
+
 class ProyeccionRepo(BaseModel):
     """F2: el estado del repo en una lectura, con su identidad.
 
@@ -293,6 +304,30 @@ class ProyeccionRepo(BaseModel):
     events: int
     por_estado: dict[str, int]
     ultima_actividad: str | None = None
+
+
+class NodoArbol(BaseModel):
+    """Una entrada del árbol de archivos: carpeta o archivo, con su ruta.
+
+    `ruta` es relativa a la raíz del repo y con barras normales, que es lo que
+    el pane usa para pedir el nivel siguiente.
+    """
+
+    nombre: str
+    ruta: str
+    tipo: Literal["carpeta", "archivo"]
+
+
+class NivelArbol(BaseModel):
+    """Una carpeta del árbol ya listada; la raíz del repo es `ruta` vacía.
+
+    `recortado` avisa de que la carpeta tiene más entradas de las que caben en
+    la respuesta: se enseña el principio en vez de callar el resto.
+    """
+
+    ruta: str
+    hijos: list[NodoArbol] = Field(default_factory=list)
+    recortado: bool = False
 
 
 class EventosCompactados(BaseModel):

@@ -39,6 +39,10 @@ export type CommitGit = Schemas["CommitGit"];
 /** Un archivo con cambios sin commit, tal como lo da `git status`. */
 export type CambioGit = Schemas["CambioGit"];
 
+/** El árbol de archivos (`GET /arbol`): una entrada y una carpeta listada. */
+export type NodoArbol = Schemas["NodoArbol"];
+export type NivelArbol = Schemas["NivelArbol"];
+
 /** La respuesta de POST /reiniciar (LAB): cuántas filas se vaciaron. */
 export type Reinicio = Schemas["Reinicio"];
 

@@ -49,12 +49,17 @@ export type Cable = {
 
 /** El nodo de «Revisión rechazada»: una bifurcación, no un carril. No guarda
  *  ideas; solo dice por dónde puede volver una revisión que no se aprueba.
- *  `nudo` es el punto del cable Verificación→Revisión aprobada del que cuelga. */
+ *  `nudo` es el punto del cable Verificación→Revisión aprobada del que cuelga y
+ *  el rombo que lo marca, ancho para que la compuerta del protocolo quede
+ *  dentro de él en vez de colgar por fuera. */
 export type RamaRechazo = {
   caja: { x: number; y: number; w: number; h: number };
   /** El tramo vertical desde el nudo del cable hasta el canto superior. */
   tronco: string;
-  nudo: { x: number; y: number };
+  nudo: { x: number; y: number; lado: number };
+  /** El tronco único de las vueltas y los nudos de los que se despega cada
+   *  una: una sola salida del nodo y tres ramas ya coloreadas. */
+  bus: { d: string; nudos: { x: number; y: number; lado: number }[] } | null;
 };
 
 /** Velocidad de la chispa en px/s, con tope para no sobrevivir a la ventana
@@ -85,13 +90,19 @@ function trazoDe(puntos: readonly Punto[]): string {
  *  Es lo único que depende de dónde esté la cámara: arrastrar cambia los
  *  cantos y hay que ofrecer reencuadrar. La medida de los nodos, en cambio, va
  *  en coordenadas del mapa y solo la mueve el zoom (o un cambio de tamaño). */
-function recortadoDe(map: HTMLElement, board: HTMLElement | null): boolean {
+function recortadoDe(
+  map: HTMLElement,
+  board: HTMLElement | null,
+  insetDerecha = 0,
+): boolean {
   if (!board) return false;
   const vista = map.getBoundingClientRect();
   const hueco = board.getBoundingClientRect();
+  // El panel derecho tapa el canto sin encoger la caja: lo tapado también
+  // cuenta como fuera de la vista, o el aviso mentiría.
   return (
     vista.left < hueco.left - 1 ||
-    vista.right > hueco.right + 1 ||
+    vista.right > hueco.right - insetDerecha + 1 ||
     vista.top < hueco.top - 1 ||
     vista.bottom > hueco.bottom + 1
   );
@@ -143,6 +154,7 @@ export function useCables({
   cajonRef,
   carrilRefs,
   gitRef,
+  insetDerecha = 0,
 }: {
   tree: Tree | null;
   cerrados: ReadonlySet<string>;
@@ -152,13 +164,15 @@ export function useCables({
   mapRef: RefObject<HTMLDivElement | null>;
   cajonRef: RefObject<HTMLElement | null>;
   carrilRefs: RefObject<(HTMLElement | null)[]>;
+  /** Ancho tapado por el panel derecho, en el mismo sentido que en `useCamara`. */
+  insetDerecha?: number;
   gitRef: RefObject<HTMLElement | null>;
 }) {
   const [cables, setCables] = useState<Cable[]>([]);
   const [rama, setRama] = useState<RamaRechazo | null>(null);
   const [recortado, setRecortado] = useState(false);
   // Punto medio del cable Entrada↔En cola, donde nace la rama de Descartadas.
-  const [nudo, setNudo] = useState<{ x: number; y: number } | null>(null);
+  const [nudo, setNudo] = useState<{ x: number; y: number; lado: number } | null>(null);
   // Solo el zoom entra en la medida (`rectLocal` divide por él); `vista.x/y`
   // cambian al arrastrar y no tocan ni un trazado.
   const k = vista.k;
@@ -188,9 +202,7 @@ export function useCables({
       const cajas = new Map<LaneId | "root", ReturnType<typeof rectLocal>>();
       const cajasNodo = new Map<LaneId, ReturnType<typeof rectLocal>>();
       const cabecera = (nodo: HTMLElement) => rectLocal(nodo.querySelector<HTMLElement>(".node-head")!);
-      const cajaEntrada = rectLocal(cajon);
       const nodoGit = gitRef.current;
-      const cabeceraGit = nodoGit ? cabecera(nodoGit) : null;
       const cajaGit = nodoGit ? rectLocal(nodoGit) : null;
       cajas.set("root", cabecera(cajon));
       carrilRefs.current.forEach((el, i) => {
@@ -273,10 +285,9 @@ export function useCables({
           id: "etapa-cola",
           origen: "root",
           destino: "cola",
+          // La compuerta cae en el nudo de Descartadas, su punto medio: el
+          // rombo del nudo la envuelve en vez de quedarle al lado.
           union: ["draft", "proposed"],
-          // El nudo de Descartadas ocupa el centro del cable: la compuerta se
-          // corre al 72 % para no taparlo.
-          compuertaT: 0.72,
         },
         { id: "etapa-roadmap", origen: "cola", destino: "roadmap", union: ["proposed", "roadmap"] },
         {
@@ -306,20 +317,35 @@ export function useCables({
         }
       }
 
-      // El último nodo de la línea: Historial→Git. No lleva compuerta ni
-      // chispa; en la UI se apaga si el repo no tiene work tree.
-      const historial = cajas.get("historial");
-      if (historial && cabeceraGit) {
-        trazos.push(
-          trazar({
-            id: "etapa-git",
-            lane: "git",
-            origen: "historial",
-            union: null,
-            desde: historial,
-            hasta: cabeceraGit,
-          }),
-        );
+      /* El último tramo: el Historial cuelga justo debajo del puente a Git, en
+       * la misma columna, así que su cable es una vertical entre las dos cajas
+       * y no un tramo horizontal con codo. No lleva compuerta ni chispa; se
+       * apaga si el repo no tiene work tree. */
+      const cajaHistorial = cajasNodo.get("historial");
+      if (cajaHistorial && cajaGit) {
+        const x = cajaGit.x + cajaGit.w / 2;
+        const y1 = cajaGit.y + cajaGit.h;
+        const puntos = [
+          { x, y: y1 },
+          { x, y: cajaHistorial.y },
+        ];
+        trazos.push({
+          id: "etapa-git",
+          lane: "git",
+          origenLane: "historial",
+          destinoLane: "git",
+          union: null,
+          presion: total("historial"),
+          puntos,
+          x1: x,
+          y1,
+          x2: x,
+          y2: cajaHistorial.y,
+          d: trazoDe(puntos),
+          compuerta: puntoEnTrazo(puntos, 0.5),
+          chevron: puntoEnTrazo(puntos, 0.5),
+          longitud: largo(puntos),
+        });
       }
 
       const cola = cajas.get("cola");
@@ -336,11 +362,13 @@ export function useCables({
             }
           : null;
       if (medio && descartadas) {
-        const y2 = descartadas.y + descartadas.h / 2;
-        const x2 = descartadas.x - 1;
+        /* Descartadas se asienta centrada bajo este cable (ver `.linea` en
+         * mapa.css), así que baja recto y entra por el centro de su canto
+         * superior: sin codo y con la compuerta sobre la vertical. */
+        const y2 = descartadas.y - 1;
+        const x2 = medio.x;
         const puntos = [
           { x: medio.x, y: medio.y },
-          { x: medio.x, y: y2 },
           { x: x2, y: y2 },
         ];
         trazos.push({
@@ -362,78 +390,163 @@ export function useCables({
           longitud: largo(puntos),
         });
       }
-      setNudo(medio);
+      /* El nudo de Descartadas es un rombo, como el de Revisión rechazada:
+       * la compuerta del protocolo cae dentro de él. El chevrón se aparta
+       * del rombo y queda entre su vértice y En cola. */
+      setNudo(medio ? { ...medio, lado: 22 } : null);
+      if (medio && cola) {
+        const cableCola = trazos.find((cable) => cable.id === "etapa-cola");
+        const borde = cola.x - 6;
+        const mediaDiagonal = 22 / Math.SQRT2;
+        if (cableCola) {
+          cableCola.chevron = {
+            x: Math.min(
+              borde,
+              medio.x + mediaDiagonal + (borde - medio.x - mediaDiagonal) / 2,
+            ),
+            y: medio.y,
+            angulo: 0,
+          };
+        }
+      }
 
       /* Revisión rechazada: no es un carril, es una bifurcación que cuelga
        * del nudo del protocolo en mitad del cable Verificación→Revisión
        * aprobada. De ella vuelven tres cables reales, cada uno con su unión:
-       * a cola, a roadmap y a descartadas. Se mide con las cajas enteras para
-       * que el nodo quede por debajo de la ficha más alta. */
+       * a cola, a roadmap y a descartadas. Se coloca a la altura de Descartadas
+       * —las dos salidas laterales del flujo en la misma banda— y baja si una
+       * de las fichas que puede tapar por ancho (roadmap, verificación o
+       * revisión) se despliega. */
       const revision = trazos.find((cable) => cable.id === "etapa-revision");
       if (!revision) {
         setRama(null);
       } else {
-        const fondos = [...cajasNodo.values(), cajaEntrada, ...(cajaGit ? [cajaGit] : [])].map(
-          (caja) => caja.y + caja.h,
-        );
-        const maxBottom = Math.max(...fondos);
         const ancho = 236;
         const alto = 44;
         const nudoRevision = puntoEnTrazo(revision.puntos, 0.5);
+        const suelo =
+          Math.max(
+            0,
+            ...(["roadmap", "verificacion", "revision_aprobada"] as const).map((lane) => {
+              const vecina = cajasNodo.get(lane);
+              return vecina ? vecina.y + vecina.h : 0;
+            }),
+          ) + 36;
+        const cabeceraDescartadas = cajas.get("descartadas");
         const caja = {
           x: nudoRevision.x - ancho / 2,
-          y: maxBottom + 36,
+          /* Centrada con la cabecera de Descartadas, no con su canto: así el
+           * tronco y su vuelta salen a la misma altura y el cable entra en el
+           * rombo por el vértice, no por el filo. Nunca encima de una ficha
+           * abierta. */
+          y: Math.max(
+            cabeceraDescartadas
+              ? cabeceraDescartadas.y + cabeceraDescartadas.h / 2 - alto / 2
+              : suelo,
+            suelo,
+          ),
           w: ancho,
           h: alto,
         };
+        /* Las tres vueltas salen de un mismo tronco: el nodo tiene una sola
+         * salida y no tres cables paralelos por debajo de las fichas. De cada
+         * nudo del tronco se despega su rama, ya con el color de su carril. */
+        const puertos: {
+          lane: LaneId;
+          status: Status;
+          busX: number;
+          tx: number;
+          ty: number;
+        }[] = [];
+        for (const salida of [
+          { lane: "roadmap", status: "roadmap", bus: 18 },
+          { lane: "cola", status: "proposed", bus: 18 },
+          { lane: "descartadas", status: "rejected", bus: 34 },
+        ] as const) {
+          const destino = cajas.get(salida.lane);
+          if (!destino) continue;
+          puertos.push({
+            lane: salida.lane,
+            status: salida.status,
+            // Roadmap y cola entran por el canto derecho de su cabecera, un
+            // poco por debajo del cable de ida, para no montarse encima de
+            // él. A Descartadas no llega nada más por ese canto, así que entra
+            // por el centro.
+            busX: destino.x + destino.w + salida.bus,
+            tx: destino.x + destino.w - 2,
+            ty: destino.y + destino.h / 2 + (salida.lane === "descartadas" ? 0 : 9),
+          });
+        }
+        const troncoY = caja.y + caja.h / 2;
+        const ladoNudo = 24;
+        /* En cola y Descartadas caen en la misma calle —sus cantos derechos
+         * quedan casi a la misma altura—, así que comparten nudo: dos rombos
+         * pegados se leerían como una mancha. Cada rama sale igual, ya con el
+         * color de su carril. */
+        const nudoDe = new Map<number, number>();
+        for (const puerto of puertos) {
+          let x = puerto.busX;
+          for (const [calle, nudo] of nudoDe) {
+            if (Math.abs(calle - puerto.busX) < ladoNudo * 1.6) x = nudo;
+          }
+          nudoDe.set(puerto.busX, x);
+        }
+        const calleDe = (puerto: { busX: number }) => nudoDe.get(puerto.busX) ?? puerto.busX;
         setRama({
           caja,
           tronco: `M ${nudoRevision.x} ${nudoRevision.y} L ${nudoRevision.x} ${caja.y}`,
-          // Un poco por debajo de la compuerta, para que el nudo se vea.
-          nudo: { x: nudoRevision.x, y: nudoRevision.y + 17 },
+          /* El rombo se centra en el punto de la compuerta: su diagonal (lado
+           * × √2) deja sitio a la caja del protocolo dentro, y el tronco sale
+           * ya fuera del rombo porque este se pinta encima. */
+          nudo: { x: nudoRevision.x, y: nudoRevision.y, lado: 26 },
+          bus: puertos.length
+            ? {
+                d: `M ${caja.x} ${troncoY} L ${Math.min(
+                  ...puertos.map(calleDe),
+                )} ${troncoY}`,
+                nudos: Array.from(new Set(puertos.map(calleDe))).map((x) => ({
+                  x,
+                  y: troncoY,
+                  lado: ladoNudo,
+                })),
+              }
+            : null,
         });
-
-        /* Los puertos salen del canto izquierdo del nodo y bajan en paralelo
-         * hasta el hueco derecho de su carril. El de roadmap va arriba, el de
-         * cola en medio y el de descartadas abajo: así los tramos horizontales
-         * no se pisan y cada cable sube por su propia calle. */
-        const salidas: { lane: LaneId; status: Status; t: number; bus: number }[] = [
-          { lane: "roadmap", status: "roadmap", t: 0.22, bus: 14 },
-          { lane: "cola", status: "proposed", t: 0.5, bus: 14 },
-          { lane: "descartadas", status: "rejected", t: 0.78, bus: 34 },
-        ];
-        for (const salida of salidas) {
-          const destino = cajas.get(salida.lane);
-          if (!destino) continue;
-          const sx = caja.x;
-          const sy = caja.y + caja.h * salida.t;
-          // Entra por el canto derecho de la cabecera, un poco por debajo del
-          // cable de ida, para no montarse encima de él.
-          const tx = destino.x + destino.w - 2;
-          const ty = destino.y + destino.h / 2 + 9;
-          const busX = destino.x + destino.w + salida.bus;
+        for (const puerto of puertos) {
+          const nudoX = calleDe(puerto);
           const puntos = [
-            { x: sx, y: sy },
-            { x: busX, y: sy },
-            { x: busX, y: ty },
-            { x: tx, y: ty },
+            { x: nudoX, y: troncoY },
+            { x: nudoX, y: puerto.ty },
+            { x: puerto.tx, y: puerto.ty },
           ];
+          // La vuelta a Descartadas va por el tramo horizontal (con la ficha
+          // abierta comparte calle con En cola, y dos compuertas en la misma
+          // vertical se leerían como una sola). Las otras dos, en su vertical,
+          // lejos del nudo.
+          const sube = puerto.lane !== "descartadas" && Math.abs(puerto.ty - troncoY) > 60;
           trazos.push({
-            id: `rechazo-${salida.lane}`,
-            lane: salida.lane,
+            id: `rechazo-${puerto.lane}`,
+            lane: puerto.lane,
             origenLane: "verificacion",
-            destinoLane: salida.lane,
-            union: ["verificacion", salida.status],
+            destinoLane: puerto.lane,
+            union: ["verificacion", puerto.status],
             rama: true,
             presion: total("verificacion"),
             puntos,
-            x1: sx,
-            y1: sy,
-            x2: tx,
-            y2: ty,
+            x1: nudoX,
+            y1: troncoY,
+            x2: puerto.tx,
+            y2: puerto.ty,
             d: trazoDe(puntos),
-            compuerta: { x: busX, y: (sy + ty) / 2, angulo: 90 },
-            chevron: puntoEnTrazo(puntos, 0.3),
+            /* La vuelta a Descartadas es corta: su nudo y su compuerta
+             * conviven, así que la celda va dentro del rombo. Las otras dos no
+             * tienen nudo cerca y la llevan en mitad de su vertical. */
+            compuerta: sube
+              ? { x: nudoX, y: (troncoY + puerto.ty) / 2, angulo: 90 }
+              : { x: nudoX, y: troncoY, angulo: 0 },
+            chevron: sube
+              ? { x: nudoX, y: puerto.ty + 34, angulo: -90 }
+              : { x: puerto.tx + (nudoX - puerto.tx) * 0.3, y: puerto.ty, angulo: 180 },
             longitud: largo(puntos),
           });
         }
@@ -442,7 +555,7 @@ export function useCables({
 
       // Medir también refresca el recorte: un nodo que crece puede sacar el
       // esquema de la ventana sin que se mueva la cámara.
-      setRecortado(recortadoDe(map, boardRef.current));
+      setRecortado(recortadoDe(map, boardRef.current, insetDerecha));
     };
 
     medir();
@@ -457,7 +570,7 @@ export function useCables({
       ro.disconnect();
       map.removeEventListener("scroll", medir, true);
     };
-  }, [tree, cerrados, k, mapa, boardRef, mapRef, cajonRef, carrilRefs, gitRef]);
+  }, [tree, cerrados, k, mapa, boardRef, mapRef, cajonRef, carrilRefs, gitRef, insetDerecha]);
 
   /* Arrastrar mueve la cámara pero no la medida: los cables viven en
    *  coordenadas del mapa y solo el zoom entra en la cuenta. Aquí se revisa lo
@@ -467,8 +580,8 @@ export function useCables({
     if (mapa !== "ideas") return;
     const map = mapRef.current;
     if (!map) return;
-    setRecortado(recortadoDe(map, boardRef.current));
-  }, [vista, mapa, mapRef, boardRef]);
+    setRecortado(recortadoDe(map, boardRef.current, insetDerecha));
+  }, [vista, mapa, mapRef, boardRef, insetDerecha]);
 
   const enIdeas = mapa === "ideas";
   return {

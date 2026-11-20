@@ -352,6 +352,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/git/commit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Git Commit
+         * @description Un commit local con todo lo pendiente; devuelve la proyección al día.
+         */
+        post: operations["post_git_commit_git_commit_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/arbol": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Arbol
+         * @description Los hijos de cada carpeta pedida; la raíz (`""`) siempre lista.
+         *
+         *     Se piden solo los niveles desplegados, así que un repo grande no cuesta más
+         *     que uno pequeño: nunca se recorre el árbol entero. Sin `rutas` se devuelve
+         *     solo la raíz, que es lo que el pane enseña plegado.
+         */
+        get: operations["get_arbol_arbol_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -410,6 +454,18 @@ export interface components {
             autor: string;
             /** Fecha */
             fecha: string;
+        };
+        /**
+         * CommitPeticion
+         * @description Lo que hace falta para commitear desde el panel: solo el mensaje.
+         *
+         *     No hay `add` selectivo ni remoto: se commitea todo lo que `git status`
+         *     ve, y push queda fuera hasta que exista la integración con remoto. El
+         *     límite es el de un asunto de commit; un cuerpo largo no lo pide el mapa.
+         */
+        CommitPeticion: {
+            /** Mensaje */
+            mensaje: string;
         };
         /**
          * EntradaLog
@@ -766,6 +822,42 @@ export interface components {
         MapSnapshot: {
             /** Ideas */
             ideas: components["schemas"]["MapIdea"][];
+        };
+        /**
+         * NivelArbol
+         * @description Una carpeta del árbol ya listada; la raíz del repo es `ruta` vacía.
+         *
+         *     `recortado` avisa de que la carpeta tiene más entradas de las que caben en
+         *     la respuesta: se enseña el principio en vez de callar el resto.
+         */
+        NivelArbol: {
+            /** Ruta */
+            ruta: string;
+            /** Hijos */
+            hijos?: components["schemas"]["NodoArbol"][];
+            /**
+             * Recortado
+             * @default false
+             */
+            recortado: boolean;
+        };
+        /**
+         * NodoArbol
+         * @description Una entrada del árbol de archivos: carpeta o archivo, con su ruta.
+         *
+         *     `ruta` es relativa a la raíz del repo y con barras normales, que es lo que
+         *     el pane usa para pedir el nivel siguiente.
+         */
+        NodoArbol: {
+            /** Nombre */
+            nombre: string;
+            /** Ruta */
+            ruta: string;
+            /**
+             * Tipo
+             * @enum {string}
+             */
+            tipo: "carpeta" | "archivo";
         };
         /**
          * Protocolo
@@ -1835,6 +1927,112 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CommitGit"][];
+                };
+            };
+            /** @description Petición inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description No existe el repo o la idea */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_git_commit_git_commit_post: {
+        parameters: {
+            query: {
+                /** @description Carpeta del repo: ruta absoluta o nombre en el lab */
+                repo: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CommitPeticion"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProyeccionRepo"];
+                };
+            };
+            /** @description Petición inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description No existe el repo o la idea */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_arbol_arbol_get: {
+        parameters: {
+            query: {
+                /** @description Carpeta del repo: ruta absoluta o nombre en el lab */
+                repo: string;
+                /** @description Carpetas a listar, relativas a la raíz del repo */
+                rutas?: string[] | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NivelArbol"][];
                 };
             };
             /** @description Petición inválida */

@@ -47,12 +47,20 @@ const TEXTO: Record<Exigencia, string> = {
 };
 
 function titulo(paso: Paso, lane: DestinoCable, union: [Status, Status] | null): string {
-  const prefijo =
-    union?.[0] === "verificacion"
-      ? `Revisión rechazada → ${union[1] === "proposed" ? "Cola" : union[1] === "roadmap" ? "Roadmap" : "Descartadas"}: `
-      : lane === "descartadas"
-        ? "Descartar (entrada o cola): "
-        : "Protocolo: ";
+  // La vuelta de una revisión rechazada sale de `verificacion` hacia cola,
+  // roadmap o descartadas. La etapa normal verificacion→revision_aprobada
+  // también sale de `verificacion`, pero no es un rechazo: no se etiqueta
+  // como tal (antes decía «Revisión rechazada → Descartadas»).
+  const rechazo =
+    union?.[0] === "verificacion" &&
+    (union[1] === "proposed" || union[1] === "roadmap" || union[1] === "rejected");
+  const destinoRechazo =
+    union?.[1] === "proposed" ? "Cola" : union?.[1] === "roadmap" ? "Roadmap" : "Descartadas";
+  const prefijo = rechazo
+    ? `Revisión rechazada → ${destinoRechazo}: `
+    : lane === "descartadas"
+      ? "Descartar (entrada o cola): "
+      : "Protocolo: ";
   if (!paso.abierta) return `${prefijo}esta unión no está permitida`;
   if (paso.exige.length === 0) return `${prefijo}paso libre`;
   return prefijo + paso.exige.map((exigencia) => TEXTO[exigencia]).join("; ");

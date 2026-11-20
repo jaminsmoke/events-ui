@@ -285,6 +285,105 @@ def test_historial_vacio_sin_commits_y_sin_git(client, tmp_path):  # noqa: ANN00
     assert client.get("/git/commits", params={"repo": str(suelta)}).json() == []
 
 
+def test_commit_local_deja_historial_y_limpia_los_cambios(client, tmp_path):  # noqa: ANN001, ANN202
+    carpeta = tmp_path / "commit"
+    _inicializar(carpeta)
+    (carpeta / "nota.txt").write_text("hola", encoding="utf-8")
+    (carpeta / "nueva.txt").write_text("nueva", encoding="utf-8")
+    # La proyección siembra el `.EUI` del repo: el almacén de la app ya está en
+    # disco cuando se commitea, y no puede salir en la lista ni entrar al commit.
+    antes = _proyeccion(client, carpeta)
+    assert not any(c["ruta"].startswith(".EUI/") for c in antes["git_cambios"])
+
+    r = client.post("/git/commit", params={"repo": str(carpeta)}, json={"mensaje": "primer commit"})
+
+    assert r.status_code == 200, r.json()
+    datos = r.json()
+    # Sin remoto: el commit es local y la proyección vuelve ya limpia.
+    assert datos["git_cambios"] == []
+    assert datos["commit"] is not None
+    historial = client.get("/git/commits", params={"repo": str(carpeta)}).json()
+    assert [c["asunto"] for c in historial] == ["primer commit"]
+    seguidos = subprocess.run(
+        [GIT or "git", "-C", str(carpeta), "ls-files"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert sorted(seguidos.stdout.split()) == ["nota.txt", "nueva.txt"]
+
+
+def test_commit_con_el_almacen_en_el_exclude_commitea_igual(client, tmp_path):  # noqa: ANN001, ANN202
+    carpeta = tmp_path / "ignorado"
+    _inicializar(carpeta)
+    (carpeta / "nota.txt").write_text("hola", encoding="utf-8")
+    # Así está el laboratorio: el almacén queda fuera del árbol desde
+    # `.git/info/exclude`. Nombrar esa ruta en el `git add` hacía que Git se
+    # negara («paths are ignored») y el commit muriera en un 400 sin que
+    # faltara nada por commitear.
+    exclude = carpeta / ".git" / "info" / "exclude"
+    exclude.write_text(exclude.read_text(encoding="utf-8") + ".EUI/\n", encoding="utf-8")
+    _proyeccion(client, carpeta)  # siembra el almacén, ya ignorado
+
+    r = client.post("/git/commit", params={"repo": str(carpeta)}, json={"mensaje": "primer commit"})
+
+    assert r.status_code == 200, r.json()
+    assert r.json()["git_cambios"] == []
+    seguidos = subprocess.run(
+        [GIT or "git", "-C", str(carpeta), "ls-files"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert sorted(seguidos.stdout.split()) == ["nota.txt"]
+
+
+def test_commit_sin_cambios_es_400(client, tmp_path):  # noqa: ANN001, ANN202
+    carpeta = tmp_path / "limpio"
+    _inicializar(carpeta)
+    (carpeta / "nota.txt").write_text("hola", encoding="utf-8")
+    _git(carpeta, "add", ".")
+    _git(carpeta, "commit", "-m", "inicial")
+
+    r = client.post("/git/commit", params={"repo": str(carpeta)}, json={"mensaje": "nada"})
+
+    assert r.status_code == 400, r.json()
+    assert "cambios" in r.json()["detail"]
+
+
+def test_commit_rechaza_un_mensaje_en_blanco(client, tmp_path):  # noqa: ANN001, ANN202
+    carpeta = tmp_path / "blanco"
+    _inicializar(carpeta)
+    (carpeta / "nota.txt").write_text("hola", encoding="utf-8")
+
+    vacio = client.post("/git/commit", params={"repo": str(carpeta)}, json={"mensaje": ""})
+    espacios = client.post("/git/commit", params={"repo": str(carpeta)}, json={"mensaje": "   "})
+
+    # El contrato ya no admite la cadena vacía; los espacios los corta el core.
+    assert vacio.status_code == 422
+    assert espacios.status_code == 400
+    assert _proyeccion(client, carpeta)["commit"] is None
+
+
+def test_commit_fuera_del_repo_propio_es_400(client, tmp_path):  # noqa: ANN001, ANN202
+    raiz = tmp_path / "contenedor"
+    _inicializar(raiz)
+    (raiz / "nota.txt").write_text("hola", encoding="utf-8")
+    _git(raiz, "add", ".")
+    _git(raiz, "commit", "-m", "inicial")
+    sub = raiz / "sub"
+    sub.mkdir()
+    (sub / "otra.txt").write_text("otra", encoding="utf-8")
+    antes = _proyeccion(client, raiz)["commit"]
+
+    r = client.post("/git/commit", params={"repo": str(sub)}, json={"mensaje": "desde la sub"})
+
+    assert r.status_code == 400, r.json()
+    despues = _proyeccion(client, raiz)
+    assert despues["commit"] == antes
+    assert any(c["ruta"] == "sub/otra.txt" for c in despues["git_cambios"])
+
+
 def test_historial_respeta_el_limite(client, tmp_path):  # noqa: ANN001, ANN202
     carpeta = tmp_path / "tres"
     _inicializar(carpeta)

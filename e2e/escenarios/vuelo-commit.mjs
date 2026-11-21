@@ -84,6 +84,44 @@ export default {
         5_000,
       );
       await page.screenshot({ path: resultado("vuelo-commit-despues.png") });
+
+      // La ficha del historial filtra por asunto, hash o autor. El nodo solo
+      // selecciona; el Inspector se abre desde su icono del rail derecho.
+      await commits.locator(".node-head").click();
+      await page.getByRole("button", { name: "Inspector", exact: true }).click();
+      const panel = page.locator('.resumen[aria-label="Panel derecho"]');
+      const filtro = panel.getByLabel("Filtrar commits");
+      await filtro.waitFor();
+      const filas = panel.locator(".inspector-lista .inspector-idea");
+      expect((await filas.count()) === 2, "la ficha del historial debe listar los dos commits");
+      expect((await panel.innerText()).includes("2 commits"), "la ficha debe contar el historial");
+
+      await filtro.fill("inicial");
+      await esperar(
+        () => filas.count().then((n) => n === 1),
+        "un solo commit al filtrar por asunto",
+      );
+      expect(
+        (await filas.first().innerText()).includes("commit inicial"),
+        "el filtro debe quedarse con el commit que coincide",
+      );
+      expect(
+        (await panel.innerText()).includes("1 de 2"),
+        "la cuenta debe enseñar que se filtró",
+      );
+
+      await filtro.fill("zzz-no-existe");
+      await esperar(
+        () => panel.innerText().then((t) => t.includes("Ningún commit coincide")),
+        "el aviso sin coincidencias",
+      );
+      expect((await filas.count()) === 0, "sin coincidencias no debe quedar ninguna fila");
+
+      await filtro.fill("");
+      await esperar(
+        () => filas.count().then((n) => n === 2),
+        "el filtro vacío devuelve el historial",
+      );
     } finally {
       rmSync(path.join(lab, ".git"), { recursive: true, force: true });
       rmSync(nota, { force: true });

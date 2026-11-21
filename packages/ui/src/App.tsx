@@ -11,6 +11,7 @@ import type { TreeNode } from "./mapa/arbol";
 import { duracionChispa, useCables } from "./mapa/cables";
 import { Compuerta, LeyendaCompuertas } from "./mapa/compuertas";
 import { useCamara } from "./mapa/camara";
+import { LANES } from "./mapa/carriles";
 import type { LaneId, Status } from "./mapa/carriles";
 import {
   NodeBox,
@@ -21,6 +22,7 @@ import {
   VueloCambio,
   VueloFila,
 } from "./mapa/nodos";
+import { mismoElemento } from "./mapa/seleccion";
 import type { Seleccion } from "./mapa/seleccion";
 import { useVueloCommit } from "./mapa/vuelos-git";
 import { useVuelos } from "./mapa/vuelos";
@@ -172,9 +174,11 @@ export default function App({
   );
 
   // Escape suelta lo seleccionado y, si no había nada, cierra el panel (no es
-  // modal: no captura ni atrapa el foco).
+  // modal: no captura ni atrapa el foco). El listener vive mientras haya algo
+  // que soltar o cerrar: con el panel derecho abierto, un segundo Escape lo
+  // cierra en vez de quedarse sin oyente tras la primera pulsación.
   useEffect(() => {
-    if (!panel && seleccion === null) return;
+    if (!panel && !vistaDerecha && seleccion === null) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       if (seleccion !== null) {
@@ -186,7 +190,7 @@ export default function App({
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [panel, seleccion]);
+  }, [panel, vistaDerecha, seleccion]);
 
   const {
     ideas,
@@ -379,6 +383,80 @@ export default function App({
     if (gitActivo) setMapa("git");
   }, [gitActivo]);
   const irIdeas = useCallback(() => setMapa("ideas"), []);
+
+  // Paradas del teclado, en el orden en que se lee el lienzo: la Entrada, los
+  // carriles, las ideas, los nudos, los cables y el puente. En el Mapa de Git,
+  // el nodo de Git, el historial, sus commits y los cambios sin commit.
+  const paradas = useMemo<Seleccion[]>(() => {
+    if (mapa === "git") {
+      const cambios = proyeccion?.git_cambios ?? [];
+      return [
+        { tipo: "git" },
+        { tipo: "commits" },
+        ...commits.map((commit) => ({ tipo: "commit" as const, hash: commit.hash })),
+        ...(cambios.length > 0 ? [{ tipo: "cambios" as const }] : []),
+        ...cambios.map((cambio) => ({ tipo: "cambio" as const, ruta: cambio.ruta })),
+      ];
+    }
+    return [
+      { tipo: "cajon" },
+      ...LANES.map((lane) => ({ tipo: "carril" as const, clave: `lane-${lane.id}` })),
+      ...(ideas ?? []).map((idea) => ({ tipo: "idea" as const, uid: idea.uid })),
+      ...nudos.map((nudo) => ({ tipo: "nudo" as const, id: nudo.id })),
+      ...cables.map((cable) => ({ tipo: "cable" as const, id: cable.id })),
+      { tipo: "puente" },
+    ];
+  }, [mapa, proyeccion, commits, ideas, nudos, cables]);
+
+  // Teclado del lienzo: flechas recorren las paradas (circular) y Enter abre
+  // en el Inspector lo marcado. No se mete en campos de formulario ni roba el
+  // Enter de un botón o un enlace; Escape sigue soltando lo seleccionado.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.altKey || e.ctrlKey || e.metaKey || paradas.length === 0) return;
+      if (document.querySelector("dialog[open]")) return;
+      const destino = e.target instanceof HTMLElement ? e.target : null;
+      const escribiendo =
+        !!destino &&
+        (destino.isContentEditable ||
+          destino.tagName === "INPUT" ||
+          destino.tagName === "TEXTAREA" ||
+          destino.tagName === "SELECT");
+      if (escribiendo) return;
+
+      const salto =
+        e.key === "ArrowRight" || e.key === "ArrowDown"
+          ? 1
+          : e.key === "ArrowLeft" || e.key === "ArrowUp"
+            ? -1
+            : 0;
+      if (salto !== 0) {
+        if (e.shiftKey) return;
+        e.preventDefault();
+        const actual = seleccion
+          ? paradas.findIndex((parada) => mismoElemento(parada, seleccion))
+          : -1;
+        const siguiente =
+          actual === -1
+            ? salto > 0
+              ? 0
+              : paradas.length - 1
+            : (actual + salto + paradas.length) % paradas.length;
+        const parada = paradas[siguiente];
+        if (parada) setSeleccion(parada);
+        return;
+      }
+
+      if (e.key === "Enter" && seleccion) {
+        if (destino?.closest("button, a[href]")) return;
+        e.preventDefault();
+        setVistaDerecha("inspector");
+        if (ventanaEstrecha) setPane(null);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [paradas, seleccion, ventanaEstrecha]);
 
   // Mover entre carriles es cambiar el `status` (PATCH tipado). El sondeo
   // de `/revision` relee el mapa y el vuelo existente anima la fila.

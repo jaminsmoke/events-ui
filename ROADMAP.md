@@ -341,6 +341,13 @@ con el motivo, para no reabrirlo cada semana.
 - **Inspector completo**: carril, idea, commit, cambio, historial, cable,
   puente, nodo de Git y nudos —con sus compuertas— tienen ficha en el panel
   derecho; las celdas de protocolo se pulsan y llevan a la ficha de su nudo.
+- **Teclado en el lienzo**: las flechas recorren las paradas en orden
+  —Entrada, carriles, ideas, nudos, cables y puente; en Git, el nodo, el
+  historial, sus commits y los cambios— y Enter abre en el Inspector lo
+  marcado. Escape sigue soltando la selección y los campos no se tragan las
+  flechas.
+- **Historial filtrable**: la ficha del nodo de commits filtra por asunto,
+  hash o autor, sin tocar la selección ni el mapa, y cuenta lo que queda.
 - **El inspector se prueba solo**: `e2e/escenarios/inspector.mjs` abre el
   panel por su icono, selecciona una idea y un carril desde el lienzo y desde
   la lista del propio panel, y comprueba que Escape y el clic en el fondo

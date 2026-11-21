@@ -13,6 +13,14 @@ function fechaLarga(iso: string): string {
   return Number.isNaN(fecha.getTime()) ? iso : FECHA_LARGA.format(fecha);
 }
 
+/** Búsqueda sin tildes ni mayúsculas: el historial se filtra como se lee. */
+function normalizar(texto: string): string {
+  return texto
+    .toLocaleLowerCase("es")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
 /** La palabra del código de `git status`: el mapa trae el código crudo (`M`,
  *  `??`, `R`…) y la ficha lo acompaña de su nombre. Un estado desconocido se
  *  queda tal cual, sin inventarle etiqueta. */
@@ -240,7 +248,8 @@ export function CuerpoNodoGit({
 }
 
 /** La ficha del nodo de historial: todos los commits, con cada uno a un clic
- *  de su propia ficha. */
+ *  de su propia ficha. El filtro busca en asunto, hash y autor; filtrar no
+ *  cambia la selección ni el mapa, solo la lista. */
 export function CuerpoCommits({
   commits,
   rama,
@@ -250,32 +259,62 @@ export function CuerpoCommits({
   rama?: string | null;
   onSeleccionar: (seleccion: Seleccion) => void;
 }) {
+  const [filtro, setFiltro] = useState("");
+  const consulta = normalizar(filtro.trim());
+  const visibles =
+    consulta === ""
+      ? commits
+      : commits.filter((commit) =>
+          normalizar(`${commit.asunto} ${commit.hash} ${commit.autor}`).includes(consulta),
+        );
+  const cuenta =
+    consulta === ""
+      ? `${commits.length} ${commits.length === 1 ? "commit" : "commits"}`
+      : `${visibles.length} de ${commits.length}`;
+
   return (
     <div className="panel-cuerpo inspector-cuerpo">
       <p className="inspector-asunto">Commits</p>
       <p className="inspector-meta">
-        {commits.length === 1 ? "1 commit" : `${commits.length} commits`}
+        {cuenta}
         {rama ? ` en ${rama}` : ""}
       </p>
 
+      {commits.length > 0 && (
+        <input
+          type="search"
+          className="inspector-filtro"
+          value={filtro}
+          onChange={(e) => setFiltro(e.target.value)}
+          placeholder="Filtrar por asunto, hash o autor…"
+          aria-label="Filtrar commits"
+          spellCheck={false}
+        />
+      )}
+
       {commits.length === 0 ? (
         <p className="hint">Sin commits todavía.</p>
+      ) : visibles.length === 0 ? (
+        <p className="hint">Ningún commit coincide con «{filtro.trim()}».</p>
       ) : (
         <ul className="inspector-lista">
-          {commits.map((commit, indice) => (
-            <li key={commit.hash}>
-              <button
-                type="button"
-                className="inspector-idea"
-                onClick={() => onSeleccionar({ tipo: "commit", hash: commit.hash })}
-              >
-                <span className="inspector-idea-titulo">{commit.asunto}</span>
-                <span className="inspector-mono inspector-idea-estado">
-                  {indice === 0 ? "HEAD" : commit.hash}
-                </span>
-              </button>
-            </li>
-          ))}
+          {visibles.map((commit) => {
+            const indice = commits.indexOf(commit);
+            return (
+              <li key={commit.hash}>
+                <button
+                  type="button"
+                  className="inspector-idea"
+                  onClick={() => onSeleccionar({ tipo: "commit", hash: commit.hash })}
+                >
+                  <span className="inspector-idea-titulo">{commit.asunto}</span>
+                  <span className="inspector-mono inspector-idea-estado">
+                    {indice === 0 ? "HEAD" : commit.hash}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

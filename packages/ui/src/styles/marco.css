@@ -607,6 +607,28 @@ button.arbol-fila:hover {
   font-size: 10.5px;
 }
 
+/* Filtro del historial: un campo más del panel, con el borde del marco. */
+.inspector-filtro {
+  width: 100%;
+  margin: -4px 0 0;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--bg);
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+}
+
+.inspector-filtro::placeholder {
+  color: var(--muted);
+}
+
+.inspector-filtro:focus {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
 /* La ficha de un carril: la lista de ideas y las salidas del protocolo. */
 .inspector-lista,
 .inspector-uniones {

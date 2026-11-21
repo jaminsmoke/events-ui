@@ -161,6 +161,45 @@ export default {
       "sin work tree el puente debe explicar por qué está apagado",
     );
 
+    // Teclado: las flechas recorren las paradas del mapa y Enter abre en el
+    // Inspector lo marcado. Se suelta el puente y se cierra el panel para
+    // empezar sin foco en un control (si no, Enter activaría el icono).
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("Escape");
+    await esperar(
+      () => page.locator('.resumen[aria-label="Panel derecho"]').count().then((n) => n === 0),
+      "el panel cerrado antes de la prueba de teclado",
+    );
+    await page.evaluate(() => {
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    });
+    await page.keyboard.press("ArrowRight");
+    await page.keyboard.press("ArrowRight");
+    await esperar(
+      () =>
+        page.locator(".node.lane-cola").evaluate((el) => el.classList.contains("seleccionado")),
+      "dos flechas llevan al carril En cola",
+    );
+    await page.keyboard.press("Enter");
+    await esperar(() => panel.isVisible(), "Enter abre el Inspector de lo marcado");
+    await esperar(
+      () =>
+        panel
+          .locator(".inspector-asunto")
+          .innerText()
+          .then((t) => t === "En cola"),
+      "la ficha del carril abierta por teclado",
+    );
+    await page.keyboard.press("ArrowLeft");
+    await esperar(
+      () =>
+        panel
+          .locator(".inspector-asunto")
+          .innerText()
+          .then((t) => t === "Entrada"),
+      "la flecha izquierda vuelve a la parada anterior",
+    );
+
     // El fondo del lienzo suelta la selección.
     await page.locator(".board").click({ position: { x: 12, y: 12 } });
     await esperar(

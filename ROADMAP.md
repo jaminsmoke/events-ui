@@ -338,6 +338,10 @@ con el motivo, para no reabrirlo cada semana.
   Vite `EVENTSUI_UI_PORT` y `EVENTSUI_CORE_URL`; la batería termina sin parar
   la sesión de escritorio.
 
+- **El inspector se prueba solo**: `e2e/escenarios/inspector.mjs` abre el
+  panel por su icono, selecciona una idea y un carril desde el lienzo y desde
+  la lista del propio panel, y comprueba que Escape y el clic en el fondo
+  sueltan la selección. El resto de la batería sigue en verde.
 - **Línea temporal de commits y primer Inspector**: el nodo **Commits** del
   Mapa de Git es una línea temporal (riel, un punto por commit, HEAD
   encendido) con una fila de 20 px por commit —asunto, hash y fecha—; el

@@ -12,6 +12,8 @@ import { FasesIdea } from "./fases";
 import { comoFases, type Fase } from "./fase";
 import { FichaFases } from "./ficha-fases";
 import { fechaCorta } from "./formato";
+import { mismoElemento } from "./seleccion";
+import type { Seleccion } from "./seleccion";
 
 /** Flecha de plegado. Vacía si el nodo no tiene items. */
 export function Arrow({ open }: { open: boolean }) {
@@ -96,6 +98,8 @@ export function NodeRow({
   exigeFasesListas,
   exigeFasesCompletas,
   catalogo = [],
+  seleccion,
+  onSeleccionar,
 }: {
   node: TreeNode;
   nodo: string;
@@ -123,6 +127,9 @@ export function NodeRow({
   /** Todas las ideas del repo: resuelve títulos de las dependencias y
    *  ofrece las que aún no lo son. */
   catalogo?: readonly Idea[];
+  /** Lo seleccionado en el lienzo y cómo cambiarlo: la fila marca su idea. */
+  seleccion?: Seleccion | null;
+  onSeleccionar?: (seleccion: Seleccion) => void;
 }) {
   const tiene = node.kids.length > 0;
   const uid = node.idea?.uid;
@@ -206,7 +213,7 @@ export function NodeRow({
     <div
       className={`row${node.tone ? ` lane-${node.tone}` : ""}${
         uid && volando(uid, nodo) ? " volando" : ""
-      }`}
+      }${uid && mismoElemento(seleccion, { tipo: "idea", uid }) ? " seleccionada" : ""}`}
       data-uid={uid}
       data-nodo={nodo}
     >
@@ -216,6 +223,7 @@ export function NodeRow({
         onClick={() => {
           setEditando(false);
           setExpandido((v) => !v);
+          if (uid) onSeleccionar?.({ tipo: "idea", uid });
         }}
         aria-expanded={expandido}
         aria-label={expandido && node.idea ? node.title : undefined}
@@ -485,6 +493,8 @@ export function NodeRow({
               exigeFasesListas={exigeFasesListas}
               exigeFasesCompletas={exigeFasesCompletas}
               catalogo={catalogo}
+              seleccion={seleccion}
+              onSeleccionar={onSeleccionar}
             />
           ))}
         </div>

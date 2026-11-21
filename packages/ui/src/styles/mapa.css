@@ -439,46 +439,195 @@
   border-top: 1px solid var(--line);
 }
 
+/* La línea temporal: un riel a la izquierda y un punto por commit, como el
+ *  grafo de VS Code. Las filas se separan con `padding` y no con `gap` para
+ *  que el riel no se corte entre una y otra. */
 .commits-lista {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  max-height: 190px;
+  --riel: 8px;
+  position: relative;
+  max-height: 268px;
   margin: 0;
-  padding: 0;
+  padding: 2px 0 2px 20px;
   overflow-y: auto;
   list-style: none;
 }
 
+/* Una fila, un renglón: el asunto manda y el hash y la fecha acompañan a la
+ *  derecha. El autor y la fecha larga viven en el inspector derecho, así la
+ *  lista queda densa sin perder nada. */
 .fila-commit {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  min-width: 0;
+  position: relative;
   font-size: 11px;
 }
 
-.commit-hash {
-  flex: none;
-  color: var(--muted);
-  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 10px;
+.commit-fila {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.commit-fila:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+/* El riel: un tramo por fila, del punto de un commit al del siguiente. */
+.fila-commit::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--riel) - 20px);
+  width: 1px;
+  background: #2b3440;
+}
+
+/* Arriba del commit más nuevo y debajo del más viejo no hay nada que unir: el
+ *  riel nace y muere en sus puntos. */
+.fila-commit:first-child::before {
+  top: 10px;
+}
+
+.fila-commit:last-child::before {
+  bottom: calc(100% - 10px);
+}
+
+/* Un solo commit: es a la vez el primero y el último, y no hay recta que
+ *  dibujar entre dos puntos. */
+.fila-commit:only-child::before {
+  display: none;
+}
+
+.commit-punto {
+  position: absolute;
+  top: 6px;
+  left: calc(var(--riel) - 24px);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #39424e;
+  /* El halo es del color del nodo: el riel parece pasar por detrás. */
+  box-shadow: 0 0 0 3px #10151c;
+}
+
+/* HEAD es el punto que enseña el estado del repo: encendido, con halo. */
+.fila-commit.head .commit-punto {
+  background: #3fb950;
+  box-shadow: 0 0 0 3px #10151c, 0 0 8px #3fb95066;
 }
 
 .commit-asunto {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   color: #b7c0cc;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.commit-autor {
+.fila-commit.head .commit-asunto {
+  color: #e6edf3;
+  font-weight: 600;
+}
+
+.fila-commit:hover .commit-asunto {
+  color: #e6edf3;
+}
+
+/* El seleccionado manda: asunto en azul y punto con el halo del marco. HEAD
+ *  conserva su verde aunque esté seleccionado; lo que cambia es el halo. */
+.fila-commit.seleccionado .commit-asunto {
+  color: var(--accent);
+}
+
+.fila-commit.seleccionado .commit-punto {
+  background: #58a6ff;
+  box-shadow: 0 0 0 3px #10151c, 0 0 0 4px #58a6ff66;
+}
+
+.fila-commit.head.seleccionado .commit-punto {
+  background: #3fb950;
+  box-shadow: 0 0 0 3px #10151c, 0 0 0 4px #58a6ff66;
+}
+
+/* Los metadatos acompañan al asunto, no compiten con él: hash monoespaciado y
+ *  el autor y la fecha apagados, en una sola línea al final de la fila. */
+.commit-meta {
+  display: flex;
   flex: none;
-  max-width: 30%;
-  margin-left: auto;
-  overflow: hidden;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.commit-hash {
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 10px;
+}
+
+.commit-head {
+  padding: 0 5px;
+  border: 1px solid #2b5c3f;
+  border-radius: 999px;
+  color: #7ee2a8;
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1.4;
+}
+
+.commit-fecha {
   color: var(--muted);
   font-size: 10px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+/* La rama de la que es la línea temporal, en la cabecera del nodo. */
+.commit-rama {
+  padding: 0 6px;
+  border: 1px solid #2b5c3f;
+  border-radius: 999px;
+  color: #7ee2a8;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 9.5px;
+}
+
+/* ---------- selección del lienzo ---------- */
+
+/* El nodo elegido se enmarca con el azul del marco. El borde no se mueve, así
+ *  que seleccionar no cambia la forma del mapa. */
+.map .node.seleccionado {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 0 0 4px #58a6ff1f;
+}
+
+.map .node.seleccionado > .node-head {
+  background: #16233a;
+}
+
+/* Una idea seleccionada: la banda de su cabecera y la marca en el canto. */
+.row.seleccionada > .row-head {
+  background: #1f6feb2b;
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+/* Un archivo sin commit seleccionado. */
+.fila-cambio {
+  cursor: pointer;
+}
+
+.fila-cambio.seleccionada {
+  border-radius: 3px;
+  background: #1f6feb2b;
+  box-shadow: inset 2px 0 0 var(--accent);
 }

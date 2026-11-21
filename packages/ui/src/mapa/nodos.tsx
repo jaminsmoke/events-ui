@@ -9,6 +9,8 @@ import type { TonoPulso } from "./animaciones";
 import type { TreeNode } from "./arbol";
 import type { Status } from "./carriles";
 import { Arrow, NodeRow } from "./fila";
+import { mismoElemento } from "./seleccion";
+import type { Seleccion } from "./seleccion";
 import type { Vuelo } from "./vuelos";
 
 export { NodoCambios, NodoCommits, NodoGit, NodoPuenteGit, VueloCambio } from "./nodos-git";
@@ -32,6 +34,8 @@ export function NodeBox({
   exigeFasesListas,
   exigeFasesCompletas,
   catalogo = [],
+  seleccion,
+  onSeleccionar,
 }: {
   node: TreeNode;
   cerrados: ReadonlySet<string>;
@@ -53,21 +57,35 @@ export function NodeBox({
   exigeFasesListas?: PuedeIr;
   exigeFasesCompletas?: PuedeIr;
   catalogo?: readonly Idea[];
+  /** Lo seleccionado en el lienzo y cómo cambiarlo: la cabecera marca el
+   *  nodo (Entrada o carril) y las filas marcan su idea. */
+  seleccion?: Seleccion | null;
+  onSeleccionar?: (seleccion: Seleccion) => void;
 }) {
   const tiene = node.kids.length > 0;
   const abierto = tiene && !cerrados.has(node.key);
+  // La entrada y los carriles se seleccionan por su clave de árbol: el cajón
+  // es uno solo, así que no necesita identidad propia.
+  const yo: Seleccion =
+    node.tone === "root" ? { tipo: "cajon" } : { tipo: "carril", clave: node.key };
 
   return (
     <section
       ref={boxRef}
-      className={`node${node.tone ? ` lane-${node.tone}` : ""}${pulso ? ` pulso-${pulso}` : ""}`}
+      className={`node${node.tone ? ` lane-${node.tone}` : ""}${pulso ? ` pulso-${pulso}` : ""}${
+        mismoElemento(seleccion, yo) ? " seleccionado" : ""
+      }`}
     >
       {destello && <span key={destello.clave} className="destello" aria-hidden="true" />}
       <button
         type="button"
         className="node-head"
-        onClick={() => onToggle(node.key)}
+        onClick={() => {
+          onToggle(node.key);
+          onSeleccionar?.(yo);
+        }}
         aria-expanded={tiene ? abierto : undefined}
+        aria-pressed={mismoElemento(seleccion, yo) || undefined}
       >
         <span className="node-title">{node.title}</span>
         <span className={`count${pulso ? " pulso" : ""}`}>{node.total}</span>
@@ -92,6 +110,8 @@ export function NodeBox({
               exigeFasesListas={exigeFasesListas}
               exigeFasesCompletas={exigeFasesCompletas}
               catalogo={catalogo}
+              seleccion={seleccion}
+              onSeleccionar={onSeleccionar}
             />
           ))}
         </div>

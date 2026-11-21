@@ -338,6 +338,14 @@ con el motivo, para no reabrirlo cada semana.
   Vite `EVENTSUI_UI_PORT` y `EVENTSUI_CORE_URL`; la batería termina sin parar
   la sesión de escritorio.
 
+- **Línea temporal de commits y primer Inspector**: el nodo **Commits** del
+  Mapa de Git es una línea temporal (riel, un punto por commit, HEAD
+  encendido) con una fila de 20 px por commit —asunto, hash y fecha—; el
+  autor y la fecha larga pasaron al panel derecho, que estrena vista
+  **Inspector** en la barra de actividad derecha y se abre al pulsar un
+  commit. Las clases `.fila-commit`/`.nodo-commits` no cambian, así que los
+  escenarios e2e que cuentan filas y leen el asunto siguen valiendo; la
+  selección se verificó solo con `tsc`/`eslint`, falta la revisión a ojo.
 - **Los instaladores se publican desde el tag**: al empujar `v0.2.3` el job
   construía el sidecar y los bundles pero saltaba «Publicar en GitHub Releases»
   y subía los MSI como artefacto del run. `inputs.publicar` solo existe en
@@ -348,8 +356,25 @@ con el motivo, para no reabrirlo cada semana.
 
 ## Pendientes
 
-Sin pendientes abiertos: la revisión del 19 de noviembre de 2026 (tercera
-pasada) está toda en «Hecho».
+- **Inspector por elemento del mapa.** El panel derecho ya tiene dos vistas
+  (`Resumen` e `Inspector`) y el lienzo ya se selecciona: un único
+  `Seleccion` en `mapa/seleccion.ts` cubre cajón, carriles, ideas, puente,
+  nodos de Git, historial, archivos y commits, con su marca en el mapa,
+  Escape y clic en el fondo para soltar (`App.tsx`). Seleccionar no despliega
+  nada dentro del nodo. Falta la ficha de cada elemento, poco a poco:
+  1. **Ficha de carril**: qué ideas tiene, reparto por estado y qué uniones
+     permite u obliga a cruzar su protocolo.
+  2. **Ficha de idea**: título, estado y carril, fases, dependencias,
+     archivos por fase y las acciones que ya existen (editar, mover, cargar,
+     borrar).
+  3. **Ficha de commit y de cambio sin commit**: completar la del commit y
+     abrir la de cada archivo del nodo de Cambios (estado, ruta, origen del
+     renombrado).
+  4. **Ficha de cable y compuerta**: la unión que permite, lo que exige cada
+     protocolo y el motivo del rechazo cuando está cerrada.
+
+  Cada paso trae su ficha, su marca de selección y sus pruebas; el mapa no
+  crece porque los detalles viven en el panel.
 
 ## No se hace (por ahora)
 

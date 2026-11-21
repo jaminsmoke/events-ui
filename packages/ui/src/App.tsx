@@ -21,18 +21,19 @@ import {
   VueloCambio,
   VueloFila,
 } from "./mapa/nodos";
+import type { Seleccion } from "./mapa/seleccion";
 import { useVueloCommit } from "./mapa/vuelos-git";
 import { useVuelos } from "./mapa/vuelos";
 import { useEventos, resumenEvento } from "./core/useEventos";
 import { useProtocolos } from "./core/useProtocolos";
 import {
   BarraActividad,
-  BarraResumen,
+  BarraDerecha,
   PaneExplorador,
   PaneGit,
   PaneMapas,
 } from "./pantalla/Actividad";
-import type { VistaPane } from "./pantalla/Actividad";
+import type { VistaDerecha, VistaPane } from "./pantalla/Actividad";
 import { Ajustes as DialogoAjustes } from "./pantalla/Ajustes";
 import { AvisoError } from "./pantalla/AvisoError";
 import { BarraRepo } from "./pantalla/BarraRepo";
@@ -43,7 +44,7 @@ import { SelectorRepo } from "./pantalla/SelectorRepo";
 import { AvisoRecorte, Controles } from "./pantalla/Controles";
 import { EditorIdea } from "./pantalla/EditorIdea";
 import { PanelLog } from "./pantalla/PanelLog";
-import { PanelResumen } from "./pantalla/PanelResumen";
+import { PanelDerecho } from "./pantalla/PanelDerecho";
 import { Pruebas } from "./pantalla/Pruebas";
 import { pruebaPendiente, soltar } from "./pantalla/pruebaEnCurso";
 
@@ -109,7 +110,12 @@ export default function App({
   // Pane izquierdo: una vista por vez, como los iconos de VS Code. `null` es
   // cerrado; pulsar el icono que ya está activo lo cierra.
   const [pane, setPane] = useState<VistaPane | null>(null);
-  const [resumenAbierto, setResumenAbierto] = useState(false);
+  // Panel derecho: la vista que enseña (`null` es cerrado). Se abre desde su
+  // icono y, el Inspector, también al pulsar un commit en el mapa.
+  const [vistaDerecha, setVistaDerecha] = useState<VistaDerecha | null>(null);
+  // Lo seleccionado en el lienzo: una sola clave para nodos, ideas, archivos
+  // y commits. Seleccionar no despliega nada en el nodo.
+  const [seleccion, setSeleccion] = useState<Seleccion | null>(null);
   // Ancho de la ventana, no del lienzo: el marco que la rodea es fijo (dos
   // rail de 44, el pane de 232 y el Resumen de 272).
   const [ventanaEstrecha, setVentanaEstrecha] = useState(
@@ -123,42 +129,64 @@ export default function App({
     return () => mq.removeEventListener("change", alCambiar);
   }, []);
 
-  /* El Resumen se aparta mientras haya un pane abierto y la ventana sea
+  /* El panel derecho se aparta mientras haya un pane abierto y la ventana sea
    * estrecha. Se deriva en el render en vez de cerrarlo desde un efecto: si
-   * luego la ventana crece, el Resumen vuelve sin haber perdido su estado. */
-  const resumenVisible = resumenAbierto && !(ventanaEstrecha && pane !== null);
+   * luego la ventana crece, el panel vuelve sin haber perdido su estado. */
+  const derechaVisible =
+    vistaDerecha !== null && !(ventanaEstrecha && pane !== null);
 
   const abrirVista = useCallback(
     (v: VistaPane) => {
       setPane((actual) => (actual === v ? null : v));
-      if (ventanaEstrecha) setResumenAbierto(false);
+      if (ventanaEstrecha) setVistaDerecha(null);
     },
     [ventanaEstrecha],
   );
 
-  // Si el Resumen está oculto por turno, este clic lo trae de vuelta cerrando
-  // el pane: el icono nunca se queda «pulsado pero invisible».
-  const alternarResumen = useCallback(() => {
-    if (resumenVisible) {
-      setResumenAbierto(false);
-      return;
-    }
-    setResumenAbierto(true);
-    if (ventanaEstrecha) setPane(null);
-  }, [resumenVisible, ventanaEstrecha]);
-
-  // Escape cierra el panel (no es modal: no captura, no atrapa el foco).
-  useEffect(() => {
-    if (!panel) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setPanel(null);
-        setResumenAbierto(false);
+  // Si el panel está oculto por turno, este clic lo trae de vuelta cerrando el
+  // pane, y repetir el icono activo lo cierra: nunca se queda «pulsado pero
+  // invisible».
+  const alternarDerecha = useCallback(
+    (v: VistaDerecha) => {
+      if (derechaVisible && vistaDerecha === v) {
+        setVistaDerecha(null);
+        return;
       }
+      setVistaDerecha(v);
+      if (ventanaEstrecha) setPane(null);
+    },
+    [derechaVisible, vistaDerecha, ventanaEstrecha],
+  );
+
+  // Seleccionar no despliega nada dentro del nodo: los detalles viven en el
+  // Inspector. Un commit trae el panel al frente; el resto se marca y espera
+  // su ficha. En ventana estrecha, el panel le deja el turno al pane.
+  const seleccionar = useCallback(
+    (s: Seleccion) => {
+      setSeleccion(s);
+      if (s.tipo !== "commit") return;
+      setVistaDerecha("inspector");
+      if (ventanaEstrecha) setPane(null);
+    },
+    [ventanaEstrecha],
+  );
+
+  // Escape suelta lo seleccionado y, si no había nada, cierra el panel (no es
+  // modal: no captura ni atrapa el foco).
+  useEffect(() => {
+    if (!panel && seleccion === null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (seleccion !== null) {
+        setSeleccion(null);
+        return;
+      }
+      setPanel(null);
+      setVistaDerecha(null);
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [panel]);
+  }, [panel, seleccion]);
 
   const {
     ideas,
@@ -251,7 +279,7 @@ export default function App({
 
   // Lo que tapa el panel derecho. Con los dos paneles abiertos el lienzo se
   // queda en lo que sobra: la cámara encuadra ahí, no debajo del panel.
-  const insetDerecha = resumenVisible ? ANCHO_RESUMEN : 0;
+  const insetDerecha = derechaVisible ? ANCHO_RESUMEN : 0;
 
   const { vista, arrastrando, encuadrar, zoom, reset, olvidar, mano } = useCamara({
     repo,
@@ -341,6 +369,7 @@ export default function App({
       olvidar();
       setRepo(path);
       setMapa("ideas");
+      setSeleccion(null);
       setSelectorAbierto(false);
     },
     [olvidar],
@@ -400,6 +429,8 @@ export default function App({
       exigeFasesListas={exigeFasesListas}
       exigeFasesCompletas={exigeFasesCompletas}
       catalogo={ideas ?? []}
+      seleccion={seleccion}
+      onSeleccionar={seleccionar}
     />
   );
 
@@ -548,6 +579,11 @@ export default function App({
             className={`board${arrastrando ? " arrastrando" : ""}`}
             ref={boardRef}
             {...mano}
+            onPointerDown={(e) => {
+              mano.onPointerDown(e);
+              // El fondo suelta la selección; los nodos y los mandos ya eligen.
+              if (!(e.target as Element).closest(".node, .vista")) setSeleccion(null);
+            }}
           >
             {error && (
               <p className="aviso-refresco" role="status" title={error}>
@@ -727,6 +763,8 @@ export default function App({
                     exigeFasesListas={exigeFasesListas}
                     exigeFasesCompletas={exigeFasesCompletas}
                     catalogo={ideas ?? []}
+                    seleccion={seleccion}
+                    onSeleccionar={seleccionar}
                   />
                   {tree.carriles.map((lane, i) =>
                     lane.tone === "historial" ? null : nodoDeCarril(lane, i),
@@ -737,6 +775,8 @@ export default function App({
                       branch={proyeccion?.branch}
                       commit={proyeccion?.commit}
                       gitRoot={proyeccion?.git_root}
+                      seleccion={seleccion}
+                      onSeleccionar={seleccionar}
                       boxRef={gitRef}
                       onAbrir={irGit}
                       onCrear={() => setDialogoGit("crear")}
@@ -760,14 +800,25 @@ export default function App({
                     branch={proyeccion?.branch}
                     commit={proyeccion?.commit}
                     gitRoot={proyeccion?.git_root}
+                    seleccion={seleccion}
+                    onSeleccionar={seleccionar}
                     boxRef={gitRef}
                   />
                   <NodoCambios
                     activo={gitActivo}
                     cambios={proyeccion?.git_cambios ?? []}
+                    seleccion={seleccion}
+                    onSeleccionar={seleccionar}
                     boxRef={cambiosRef}
                   />
-                  <NodoCommits activo={gitActivo} commits={commits} boxRef={commitsRef} />
+                  <NodoCommits
+                    activo={gitActivo}
+                    commits={commits}
+                    branch={proyeccion?.branch}
+                    seleccion={seleccion}
+                    onSeleccionar={seleccionar}
+                    boxRef={commitsRef}
+                  />
                 </div>
                 )}
               </div>
@@ -777,12 +828,16 @@ export default function App({
             {cables.length > 0 && <LeyendaCompuertas />}
           </section>
         )}
-        {repo && <BarraResumen abierto={resumenVisible} onAlternar={alternarResumen} />}
-        {repo && resumenVisible && (
-          <PanelResumen
+        {repo && <BarraDerecha vista={vistaDerecha} onVista={alternarDerecha} />}
+        {repo && derechaVisible && vistaDerecha && (
+          <PanelDerecho
+            vista={vistaDerecha}
+            onVista={setVistaDerecha}
             proyeccion={proyeccion}
+            commits={commits}
+            seleccion={seleccion}
             conectado={conectado}
-            onClose={() => setResumenAbierto(false)}
+            onClose={() => setVistaDerecha(null)}
           />
         )}
       </main>

@@ -8,6 +8,10 @@ import { ExploradorArbol } from "./ExploradorArbol";
 /** Vista del rail izquierdo. `null` es el pane cerrado. */
 export type VistaPane = "mapas" | "archivos" | "git";
 
+/** Vista del rail derecho: las estadísticas del repo y el inspector de lo que
+ *  se selecciona en el lienzo. `null` es el panel cerrado. */
+export type VistaDerecha = "resumen" | "inspector";
+
 /** Barra de actividad izquierda: una tira de iconos, cada uno con su vista.
  *  No navega ella misma: solo decide qué panel se ve. Repetir el icono activo
  *  lo cierra (el pane pasa a `null`), como en un IDE. */
@@ -93,26 +97,34 @@ export function BarraActividad({
   );
 }
 
-/** Barra de actividad derecha: el Resumen, que se abre sobre el lienzo.
- *  Va a la derecha del viewport, no dentro del panel: el panel se cierra y la
- *  tira se queda. */
-export function BarraResumen({
-  abierto,
-  onAlternar,
+/** Barra de actividad derecha: el Resumen y el Inspector, que se abren sobre
+ *  el lienzo. Va a la derecha del viewport, no dentro del panel: el panel se
+ *  cierra y la tira se queda. Repetir el icono activo lo cierra. */
+export function BarraDerecha({
+  vista,
+  onVista,
 }: {
-  abierto: boolean;
-  onAlternar: () => void;
+  vista: VistaDerecha | null;
+  onVista: (vista: VistaDerecha) => void;
 }) {
+  const item = (clave: VistaDerecha, etiqueta: string, icono: ReactNode) => (
+    <button
+      type="button"
+      className={`actividad-item${vista === clave ? " activo" : ""}`}
+      aria-pressed={vista === clave}
+      aria-label={etiqueta}
+      title={vista === clave ? `Ocultar ${etiqueta.toLowerCase()}` : `Mostrar ${etiqueta.toLowerCase()}`}
+      onClick={() => onVista(clave)}
+    >
+      {icono}
+    </button>
+  );
+
   return (
     <nav className="actividad actividad-derecha" aria-label="Panel derecho">
-      <button
-        type="button"
-        className={`actividad-item${abierto ? " activo" : ""}`}
-        aria-pressed={abierto}
-        aria-label="Resumen"
-        title={abierto ? "Ocultar resumen" : "Mostrar resumen"}
-        onClick={onAlternar}
-      >
+      {item(
+        "resumen",
+        "Resumen",
         <svg
           width="20"
           height="20"
@@ -124,8 +136,25 @@ export function BarraResumen({
           aria-hidden="true"
         >
           <path d="M5 19v-6M12 19V5M19 19v-9" />
-        </svg>
-      </button>
+        </svg>,
+      )}
+      {item(
+        "inspector",
+        "Inspector",
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          aria-hidden="true"
+        >
+          <circle cx="10.5" cy="10.5" r="5.2" />
+          <path d="M14.4 14.4 19 19" />
+        </svg>,
+      )}
     </nav>
   );
 }

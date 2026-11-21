@@ -10,6 +10,7 @@
  *  `cables.ts` — dentro del rombo del nudo del que sale el cable y, si el
  *  cable no nace de un nudo, en el punto medio de su trazado.
  */
+import type { Exigencia } from "../core/useProtocolos";
 import type { Status } from "./carriles";
 
 /** Una unión permitida entre carriles: origen → destino. */
@@ -23,6 +24,14 @@ export type Union = readonly [Status, Status];
  *
  *  `[]` es archivar: no es una unión de protocolo, la compuerta se abre por
  *  disponibilidad del destino (tener work tree), no por una fila de la tabla. */
+/** Lo que pide cada exigencia, en palabras: lo usan el título de la compuerta
+ *  y la ficha de carril del inspector. */
+export const TEXTO_EXIGENCIA: Record<Exigencia, string> = {
+  fases: "pide al menos una fase",
+  "fases-listas": "pide cerrar las fases abiertas",
+  "fases-completas": "pide todas las fases completadas",
+};
+
 export const UNIONES: Record<string, readonly Union[]> = {
   "etapa-cola": [["draft", "proposed"]],
   "etapa-roadmap": [["proposed", "roadmap"]],

@@ -23,6 +23,22 @@ export const LANES = [
 
 export type LaneId = (typeof LANES)[number]["id"];
 
+/** Palabra del estado para la UI, en español: el contrato habla `draft`/
+ *  `proposed` pero el mapa se lee en español. Los nombres son los mismos
+ *  carriles: `draft` es la entrada, `proposed` vive en la cola y el resto en
+ *  su carril. Vive aquí, junto a `Status`, para compartirla sin exportar
+ *  constantes desde un módulo de componentes (Fast Refresh). */
+export const ETIQUETA_ESTADO: Record<string, string> = {
+  draft: "En la entrada",
+  proposed: "En cola",
+  roadmap: "En roadmap",
+  verificacion: "En verificación",
+  revision_aprobada: "Revisión aprobada",
+  historial: "En historial",
+  rejected: "Descartada",
+  superseded: "Reemplazada",
+};
+
 export function laneOf(status: Status): LaneId | null {
   if (status === "rejected" || status === "superseded") return "descartadas";
   if (status === "proposed") return "cola";

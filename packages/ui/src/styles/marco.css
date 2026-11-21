@@ -601,6 +601,72 @@ button.arbol-fila:hover {
   font-size: 10.5px;
 }
 
+.inspector-meta {
+  margin: -6px 0 0;
+  color: var(--muted);
+  font-size: 10.5px;
+}
+
+/* La ficha de un carril: la lista de ideas y las salidas del protocolo. */
+.inspector-lista,
+.inspector-uniones {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.inspector-idea {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.inspector-idea:hover {
+  background: #16233a;
+}
+
+.inspector-idea-titulo {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inspector-idea-estado {
+  flex: none;
+  color: var(--muted);
+  font-size: 9.5px;
+}
+
+.inspector-uniones li {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.inspector-union {
+  color: #7ee2a8;
+  font-size: 10.5px;
+}
+
+.inspector-exige {
+  color: var(--muted);
+  font-size: 10px;
+}
+
 .resumen-repo {
   margin: 0;
   overflow: hidden;

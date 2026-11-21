@@ -1,5 +1,11 @@
-import type { CommitGit, ProyeccionRepo } from "../core/api";
+import { Fragment } from "react";
+
+import type { CommitGit, Idea, ProyeccionRepo } from "../core/api";
 import { folderName } from "../core/repo";
+import type { Paso } from "../core/useProtocolos";
+import { ETIQUETA_ESTADO, LANES } from "../mapa/carriles";
+import type { LaneId, Status } from "../mapa/carriles";
+import { TEXTO_EXIGENCIA } from "../mapa/protocolos";
 import { fechaCorta } from "../mapa/formato";
 import { ETIQUETA_SELECCION } from "../mapa/seleccion";
 import type { Seleccion } from "../mapa/seleccion";
@@ -28,6 +34,9 @@ export function PanelDerecho({
   proyeccion,
   commits,
   seleccion,
+  ideas,
+  paso,
+  onSeleccionar,
   conectado,
   onClose,
 }: {
@@ -37,6 +46,12 @@ export function PanelDerecho({
   commits: readonly CommitGit[];
   /** Lo seleccionado en el lienzo; `null`, nada. */
   seleccion: Seleccion | null;
+  /** Las ideas del mapa: la ficha de un carril las lista por estado. */
+  ideas: readonly Idea[];
+  /** El protocolo del repo: qué salidas hay y qué exige cada unión. */
+  paso: (origen: Status, destino: Status) => Paso | null;
+  /** Pulsar una idea en la ficha la selecciona en el lienzo. */
+  onSeleccionar: (seleccion: Seleccion) => void;
   conectado: boolean;
   onClose: () => void;
 }) {
@@ -76,6 +91,9 @@ export function PanelDerecho({
           proyeccion={proyeccion}
           commits={commits}
           seleccion={seleccion}
+          ideas={ideas}
+          paso={paso}
+          onSeleccionar={onSeleccionar}
         />
       )}
     </aside>
@@ -178,20 +196,163 @@ function CuerpoResumen({
   );
 }
 
+/** Estados que viven en cada carril: los mismos grupos con los que el core
+ *  cruza el protocolo. `descartadas` junta rechazadas y reemplazadas, y la
+ *  Entrada es el caso particular de `draft`, sin carril propio. */
+const ESTADOS_POR_CARRIL: Record<LaneId, readonly Status[]> = {
+  cola: ["proposed"],
+  roadmap: ["roadmap"],
+  verificacion: ["verificacion"],
+  revision_aprobada: ["revision_aprobada"],
+  historial: ["historial"],
+  descartadas: ["rejected", "superseded"],
+};
+const ESTADOS_ENTRADA: readonly Status[] = ["draft"];
+
+/** Todos los estados en el orden del flujo, para buscar salidas. */
+const ESTADOS: readonly Status[] = [
+  "draft",
+  "proposed",
+  "roadmap",
+  "verificacion",
+  "revision_aprobada",
+  "historial",
+  "rejected",
+  "superseded",
+];
+
+/** La ficha de un carril: qué ideas lo pueblan, cómo se reparten y por dónde
+ *  puede seguir cada estado según el protocolo del repo. Las salidas no se
+ *  inventan: son las uniones que `paso` da por abiertas, con lo que piden. */
+function CuerpoCarril({
+  titulo,
+  estados,
+  ideas,
+  paso,
+  onSeleccionar,
+}: {
+  titulo: string;
+  estados: readonly Status[];
+  ideas: readonly Idea[];
+  paso: (origen: Status, destino: Status) => Paso | null;
+  onSeleccionar: (seleccion: Seleccion) => void;
+}) {
+  const delCarril = ideas.filter((idea) => estados.includes(idea.status));
+  const salidas = estados.flatMap((origen) =>
+    ESTADOS.filter((destino) => !estados.includes(destino))
+      .map((destino) => ({ origen, destino, paso: paso(origen, destino) }))
+      .filter((union) => union.paso?.abierta),
+  );
+
+  return (
+    <div className="panel-cuerpo inspector-cuerpo">
+      <p className="inspector-asunto">{titulo}</p>
+      <p className="inspector-meta">
+        {delCarril.length === 1 ? "1 idea" : `${delCarril.length} ideas`}
+      </p>
+
+      {estados.length > 1 && (
+        <dl className="inspector-dl">
+          {estados.map((estado) => (
+            <Fragment key={estado}>
+              <dt>{ETIQUETA_ESTADO[estado] ?? estado}</dt>
+              <dd>{delCarril.filter((idea) => idea.status === estado).length}</dd>
+            </Fragment>
+          ))}
+        </dl>
+      )}
+
+      <p className="pane-rotulo">Ideas</p>
+      {delCarril.length === 0 ? (
+        <p className="hint">Este carril está vacío.</p>
+      ) : (
+        <ul className="inspector-lista">
+          {delCarril.map((idea) => (
+            <li key={idea.uid}>
+              <button
+                type="button"
+                className="inspector-idea"
+                onClick={() => onSeleccionar({ tipo: "idea", uid: idea.uid })}
+              >
+                <span className="inspector-idea-titulo">{idea.title}</span>
+                <span className="inspector-idea-estado">
+                  {ETIQUETA_ESTADO[idea.status] ?? idea.status}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <p className="pane-rotulo">Salidas del protocolo</p>
+      {salidas.length === 0 ? (
+        <p className="hint">Ningún protocolo deja salir de este carril.</p>
+      ) : (
+        <ul className="inspector-uniones">
+          {salidas.map(({ origen, destino, paso: union }) => (
+            <li key={`${origen}→${destino}`}>
+              <span className="inspector-union">
+                {estados.length > 1 ? `${ETIQUETA_ESTADO[origen] ?? origen} → ` : "→ "}
+                {ETIQUETA_ESTADO[destino] ?? destino}
+              </span>
+              <span className="inspector-exige">
+                {union?.exige.length
+                  ? union.exige
+                      .map((exigencia) => TEXTO_EXIGENCIA[exigencia])
+                      .join("; ")
+                  : "paso libre"}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {estados.includes("revision_aprobada") && (
+        <p className="hint">
+          Archivar a Historial no cruza protocolo: lo habilita tener work tree.
+        </p>
+      )}
+    </div>
+  );
+}
+
 /** La ficha del commit seleccionado. El contrato del historial solo trae
  *  `hash` abreviado, asunto, autor y fecha; lo que no llega, no se inventa.
  *
- *  En esta fase solo el commit tiene ficha. El resto de elementos ya se
- *  seleccionan en el lienzo y estrenan sus campos en los pasos siguientes. */
+ *  El resto de elementos ya se seleccionan en el lienzo y estrenan sus campos
+ *  en los pasos siguientes: la idea, el cambio y los cables. */
 function CuerpoInspector({
   proyeccion,
   commits,
   seleccion,
+  ideas,
+  paso,
+  onSeleccionar,
 }: {
   proyeccion: ProyeccionRepo | null | undefined;
   commits: readonly CommitGit[];
   seleccion: Seleccion | null;
+  ideas: readonly Idea[];
+  paso: (origen: Status, destino: Status) => Paso | null;
+  onSeleccionar: (seleccion: Seleccion) => void;
 }) {
+  if (seleccion && (seleccion.tipo === "carril" || seleccion.tipo === "cajon")) {
+    const laneId =
+      seleccion.tipo === "carril"
+        ? (seleccion.clave.replace(/^lane-/, "") as LaneId)
+        : null;
+    const meta = laneId ? LANES.find((lane) => lane.id === laneId) : undefined;
+    return (
+      <CuerpoCarril
+        titulo={meta?.title ?? "Entrada"}
+        estados={meta ? ESTADOS_POR_CARRIL[meta.id] : ESTADOS_ENTRADA}
+        ideas={ideas}
+        paso={paso}
+        onSeleccionar={onSeleccionar}
+      />
+    );
+  }
+
   if (seleccion && seleccion.tipo !== "commit") {
     return (
       <div className="panel-cuerpo inspector-cuerpo">

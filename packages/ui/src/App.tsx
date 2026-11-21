@@ -836,6 +836,9 @@ export default function App({
             proyeccion={proyeccion}
             commits={commits}
             seleccion={seleccion}
+            ideas={ideas ?? []}
+            paso={paso}
+            onSeleccionar={seleccionar}
             conectado={conectado}
             onClose={() => setVistaDerecha(null)}
           />

@@ -361,16 +361,16 @@ con el motivo, para no reabrirlo cada semana.
   `Seleccion` en `mapa/seleccion.ts` cubre cajón, carriles, ideas, puente,
   nodos de Git, historial, archivos y commits, con su marca en el mapa,
   Escape y clic en el fondo para soltar (`App.tsx`). Seleccionar no despliega
-  nada dentro del nodo. Falta la ficha de cada elemento, poco a poco:
-  1. **Ficha de carril**: qué ideas tiene, reparto por estado y qué uniones
-     permite u obliga a cruzar su protocolo.
-  2. **Ficha de idea**: título, estado y carril, fases, dependencias,
+  nada dentro del nodo. La **ficha de carril** ya enseña sus ideas, el
+  reparto por estado y las salidas del protocolo con lo que exige cada
+  unión (la Entrada incluida). Falta el resto, poco a poco:
+  1. **Ficha de idea**: título, estado y carril, fases, dependencias,
      archivos por fase y las acciones que ya existen (editar, mover, cargar,
      borrar).
-  3. **Ficha de commit y de cambio sin commit**: completar la del commit y
+  2. **Ficha de commit y de cambio sin commit**: completar la del commit y
      abrir la de cada archivo del nodo de Cambios (estado, ruta, origen del
      renombrado).
-  4. **Ficha de cable y compuerta**: la unión que permite, lo que exige cada
+  3. **Ficha de cable y compuerta**: la unión que permite, lo que exige cada
      protocolo y el motivo del rechazo cuando está cerrada.
 
   Cada paso trae su ficha, su marca de selección y sus pruebas; el mapa no

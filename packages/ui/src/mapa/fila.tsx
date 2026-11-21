@@ -7,6 +7,7 @@ import type { Idea, IdeaUpdate } from "../core/api";
 import type { PuedeIr } from "../core/useProtocolos";
 import { DescartaIdea } from "../pantalla/DescartaIdea";
 import type { TreeNode } from "./arbol";
+import { ETIQUETA_ESTADO } from "./carriles";
 import type { Status } from "./carriles";
 import { FasesIdea } from "./fases";
 import { comoFases, type Fase } from "./fase";
@@ -19,21 +20,6 @@ import type { Seleccion } from "./seleccion";
 export function Arrow({ open }: { open: boolean }) {
   return <span className="arrow">{open ? "▾" : "▸"}</span>;
 }
-
-/** Palabra del estado para la fila, en español: el contrato habla `draft`/
- *  `proposed` pero la fila se lee en español. Los nombres son los mismos
- *  carriles: `draft` es la entrada (no tiene fila en ninguna ficha),
- *  `proposed` vive en la cola, y los demás, en su detalle del nodo. */
-const ETIQUETA_ESTADO: Record<string, string> = {
-  draft: "En la entrada",
-  proposed: "En cola",
-  roadmap: "En roadmap",
-  verificacion: "En verificación",
-  revision_aprobada: "Revisión aprobada",
-  historial: "En historial",
-  rejected: "Descartada",
-  superseded: "Reemplazada",
-};
 
 /** Acciones de traslado que ofrece cada estado. `descartar` abre el diálogo
  *  del motivo en vez de mover directamente. */

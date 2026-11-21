@@ -1,6 +1,7 @@
-import type { Exigencia, Paso } from "../core/useProtocolos";
+import type { Paso } from "../core/useProtocolos";
 import { CELDA } from "./cables";
 import type { DestinoCable } from "./cables";
+import { TEXTO_EXIGENCIA } from "./protocolos";
 import type { Union } from "./protocolos";
 
 /** El protocolo de un cable, ya resuelto para pintar su compuerta. Si cruza
@@ -24,12 +25,6 @@ function pasoDeCable(
   };
 }
 
-const TEXTO: Record<Exigencia, string> = {
-  fases: "pide al menos una fase",
-  "fases-listas": "pide cerrar las fases abiertas",
-  "fases-completas": "pide todas las fases completadas",
-};
-
 function titulo(paso: Paso, lane: DestinoCable, uniones: readonly Union[]): string {
   // La vuelta de una revisión rechazada sale de `verificacion` hacia cola,
   // roadmap o descartadas. La etapa normal verificacion→revision_aprobada
@@ -45,7 +40,7 @@ function titulo(paso: Paso, lane: DestinoCable, uniones: readonly Union[]): stri
       : "Protocolo: ";
   if (!paso.abierta) return `${prefijo}esta unión no está permitida`;
   if (paso.exige.length === 0) return `${prefijo}paso libre`;
-  return prefijo + paso.exige.map((exigencia) => TEXTO[exigencia]).join("; ");
+  return prefijo + paso.exige.map((exigencia) => TEXTO_EXIGENCIA[exigencia]).join("; ");
 }
 
 /** La caja de la compuerta, con las medidas del nudo que la contiene. */

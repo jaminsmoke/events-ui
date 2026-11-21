@@ -338,6 +338,14 @@ con el motivo, para no reabrirlo cada semana.
   Vite `EVENTSUI_UI_PORT` y `EVENTSUI_CORE_URL`; la batería termina sin parar
   la sesión de escritorio.
 
+- **Los instaladores se publican desde el tag**: al empujar `v0.2.3` el job
+  construía el sidecar y los bundles pero saltaba «Publicar en GitHub Releases»
+  y subía los MSI como artefacto del run. `inputs.publicar` solo existe en
+  `workflow_dispatch`, así que en un push de tag quedaba vacío y GitHub lo
+  comparaba como `false`; las condiciones miran ahora `github.event_name`, y
+  `publicar: false` sigue sirviendo para reconstruir sin tocar la release.
+  La v0.2.3 salió con su MSI y su NSIS.
+
 ## Pendientes
 
 Sin pendientes abiertos: la revisión del 19 de noviembre de 2026 (tercera

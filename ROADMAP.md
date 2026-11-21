@@ -338,6 +338,9 @@ con el motivo, para no reabrirlo cada semana.
   Vite `EVENTSUI_UI_PORT` y `EVENTSUI_CORE_URL`; la batería termina sin parar
   la sesión de escritorio.
 
+- **Inspector completo**: carril, idea, commit, cambio y cable/compuerta
+  tienen ficha en el panel derecho; el puente y el nodo de Git solo se
+  marcan, porque no tienen datos propios que enseñar.
 - **El inspector se prueba solo**: `e2e/escenarios/inspector.mjs` abre el
   panel por su icono, selecciona una idea y un carril desde el lienzo y desde
   la lista del propio panel, y comprueba que Escape y el clic en el fondo
@@ -360,21 +363,8 @@ con el motivo, para no reabrirlo cada semana.
 
 ## Pendientes
 
-- **Inspector por elemento del mapa.** El panel derecho ya tiene dos vistas
-  (`Resumen` e `Inspector`) y el lienzo ya se selecciona: un único
-  `Seleccion` en `mapa/seleccion.ts` cubre cajón, carriles, ideas, puente,
-  nodos de Git, historial, archivos y commits, con su marca en el mapa,
-  Escape y clic en el fondo para soltar (`App.tsx`). Seleccionar no despliega
-  nada dentro del nodo. Ya tienen ficha el **carril** (ideas, reparto y
-  salidas del protocolo), la **idea** (descripción, fases con sus archivos,
-  dependencias y las mismas acciones de la fila, con su bloqueo), el
-  **commit** (con copia del hash) y cada **cambio sin commit** (estado, ruta
-  y origen del renombrado). Falta solo:
-  1. **Ficha de cable y compuerta**: la unión que permite, lo que exige cada
-     protocolo y el motivo del rechazo cuando está cerrada.
-
-  Cada paso trae su ficha, su marca de selección y sus pruebas; el mapa no
-  crece porque los detalles viven en el panel.
+Sin pendientes abiertos: el inspector cubre carril, idea, commit, cambio y
+cable/compuerta, con su selección en el lienzo y su escenario e2e.
 
 ## No se hace (por ahora)
 

@@ -3,6 +3,7 @@ import { Fragment } from "react";
 import type { CommitGit, Idea, ProyeccionRepo } from "../core/api";
 import { folderName } from "../core/repo";
 import type { Paso } from "../core/useProtocolos";
+import type { Cable } from "../mapa/cables";
 import { ETIQUETA_ESTADO, LANES } from "../mapa/carriles";
 import type { LaneId, Status } from "../mapa/carriles";
 import { TEXTO_EXIGENCIA } from "../mapa/protocolos";
@@ -10,6 +11,7 @@ import { fechaCorta } from "../mapa/formato";
 import { ETIQUETA_SELECCION } from "../mapa/seleccion";
 import type { Seleccion } from "../mapa/seleccion";
 import type { VistaDerecha } from "./Actividad";
+import { CuerpoCable } from "./InspectorCable";
 import { CuerpoCambio, CuerpoCambios, CuerpoCommit } from "./InspectorGit";
 import { CuerpoIdea } from "./InspectorIdea";
 import type { AccionesIdea } from "./InspectorIdea";
@@ -27,6 +29,7 @@ export function PanelDerecho({
   commits,
   seleccion,
   ideas,
+  cables,
   paso,
   acciones,
   onSeleccionar,
@@ -41,6 +44,8 @@ export function PanelDerecho({
   seleccion: Seleccion | null;
   /** Las ideas del mapa: la ficha de un carril las lista por estado. */
   ideas: readonly Idea[];
+  /** Los cables medidos: la ficha de un cable explica su compuerta. */
+  cables: readonly Cable[];
   /** El protocolo del repo: qué salidas hay y qué exige cada unión. */
   paso: (origen: Status, destino: Status) => Paso | null;
   /** Lo que la ficha de idea puede hacer con la idea seleccionada. */
@@ -87,6 +92,7 @@ export function PanelDerecho({
           commits={commits}
           seleccion={seleccion}
           ideas={ideas}
+          cables={cables}
           paso={paso}
           acciones={acciones}
           onSeleccionar={onSeleccionar}
@@ -322,6 +328,7 @@ function CuerpoInspector({
   commits,
   seleccion,
   ideas,
+  cables,
   paso,
   acciones,
   onSeleccionar,
@@ -330,6 +337,7 @@ function CuerpoInspector({
   commits: readonly CommitGit[];
   seleccion: Seleccion | null;
   ideas: readonly Idea[];
+  cables: readonly Cable[];
   paso: (origen: Status, destino: Status) => Paso | null;
   acciones: AccionesIdea;
   onSeleccionar: (seleccion: Seleccion) => void;
@@ -348,6 +356,17 @@ function CuerpoInspector({
         paso={paso}
         onSeleccionar={onSeleccionar}
       />
+    );
+  }
+
+  if (seleccion && seleccion.tipo === "cable") {
+    const cable = cables.find((candidato) => candidato.id === seleccion.id);
+    return cable ? (
+      <CuerpoCable cable={cable} paso={paso} />
+    ) : (
+      <div className="panel-cuerpo inspector-cuerpo">
+        <p className="hint">Ese cable ya no está en el mapa.</p>
+      </div>
     );
   }
 

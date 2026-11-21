@@ -79,6 +79,24 @@
   --wire: #c0704a;
 }
 
+/* Zona de golpe del cable: el trazo real es fino, así que la selección usa un
+ *  trazo ancho e invisible encima. El `.cables` del SVG no recibe eventos; el
+ *  hijo sí, por `pointer-events: stroke`. */
+.wire-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 12;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+/* El cable elegido se enciende con el azul del marco. El grosor y la opacidad
+ *  vienen en línea desde el mapa, así que la marca va en el color y el halo. */
+.wire.seleccionado {
+  stroke: var(--accent);
+  filter: drop-shadow(0 0 3px #58a6ffaa);
+}
+
 /* La compuerta de la rama a Git comparte el verde del cable: sin su propia
  * regla heredaba un `--wire` inexistente y la caja quedaba invisible. */
 .wire.git,

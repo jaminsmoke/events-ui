@@ -630,13 +630,25 @@ export default function App({
                       (chispa) => chispa.lane === cable.lane && cableDeChispa(chispa)?.id === cable.id,
                     );
                     const apagadoGit = cable.lane === "git" && proyeccion?.git !== true;
+                    const elegido =
+                      seleccion?.tipo === "cable" && seleccion.id === cable.id;
                     return (
-                      <path
-                        key={cable.id}
+                      <g key={cable.id}>
+                        {/* Zona de golpe ancha: el trazo real es fino y sin
+                         *  ella el cable no se podría pulsar. El puntero no
+                         *  arranca el arrastre de la cámara. */}
+                        <path
+                          data-cable={cable.id}
+                          d={cable.d}
+                          className="wire-hit"
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={() => seleccionar({ tipo: "cable", id: cable.id })}
+                        />
+                        <path
                         d={cable.d}
                         className={`wire ${cable.lane}${cable.rama ? " rama" : ""}${
                           apagadoGit ? " apagado" : ""
-                        }${enMarcha ? " marcha" : ""}`}
+                        }${enMarcha ? " marcha" : ""}${elegido ? " seleccionado" : ""}`}
                         style={{
                           // El grosor cuenta lo que espera en el origen; la luz
                           // no: un cable no se enciende porque el carril del
@@ -645,7 +657,8 @@ export default function App({
                           opacity: enMarcha ? 1 : apagadoGit ? 0.25 : entrada ? 0.46 : 0.56,
                           strokeDasharray: apagadoGit ? "4 5" : undefined,
                         }}
-                      />
+                        />
+                      </g>
                     );
                   })}
                   {/* Dirección sin depender del movimiento: un chevrón en el
@@ -837,6 +850,7 @@ export default function App({
             commits={commits}
             seleccion={seleccion}
             ideas={ideas ?? []}
+            cables={cables}
             paso={paso}
             acciones={{
               puedeIr,

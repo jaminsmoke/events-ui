@@ -101,6 +101,29 @@ export default {
     );
     await page.screenshot({ path: resultado("inspector.png") });
 
+    // Un cable: la zona de golpe ancha lo hace pulsable y su ficha explica
+    // la unión, sin tocar la compuerta del nudo.
+    await page.waitForTimeout(300);
+    const golpe = page.locator('.wire-hit[data-cable="etapa-cola"]');
+    const caja = await golpe.boundingBox();
+    expect(caja !== null, "el cable Entrada→En cola debe tener zona de golpe");
+    if (!caja) throw new Error("sin caja para el cable");
+    await page.mouse.click(caja.x + caja.width * 0.2, caja.y + caja.height / 2);
+    await esperar(
+      () => page.locator(".wire.seleccionado").count().then((n) => n === 1),
+      "el cable seleccionado",
+    );
+    await esperar(
+      () => panel.innerText().then((t) => t.toLowerCase().includes("compuerta")),
+      "la ficha del cable",
+    );
+    const fichaCable = (await panel.innerText()).toLowerCase();
+    expect(fichaCable.includes("en cola"), "la ficha del cable debe nombrar su destino");
+    expect(
+      fichaCable.includes("paso libre") || fichaCable.includes("no está en"),
+      "la ficha del cable debe explicar la compuerta",
+    );
+
     // El fondo del lienzo suelta la selección.
     await page.locator(".board").click({ position: { x: 12, y: 12 } });
     await esperar(

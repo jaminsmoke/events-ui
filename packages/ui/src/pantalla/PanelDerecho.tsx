@@ -3,17 +3,23 @@ import { Fragment } from "react";
 import type { CommitGit, Idea, ProyeccionRepo } from "../core/api";
 import { folderName } from "../core/repo";
 import type { Paso } from "../core/useProtocolos";
-import type { Cable } from "../mapa/cables";
+import type { Cable, Nudo } from "../mapa/cables";
 import { ETIQUETA_ESTADO, LANES } from "../mapa/carriles";
 import type { LaneId, Status } from "../mapa/carriles";
 import { TEXTO_EXIGENCIA } from "../mapa/protocolos";
 import { fechaCorta } from "../mapa/formato";
-import { ETIQUETA_SELECCION } from "../mapa/seleccion";
 import type { Seleccion } from "../mapa/seleccion";
 import type { VistaDerecha } from "./Actividad";
 import { CuerpoCable } from "./InspectorCable";
-import { CuerpoCambio, CuerpoCambios, CuerpoCommit } from "./InspectorGit";
+import {
+  CuerpoCambio,
+  CuerpoCambios,
+  CuerpoCommit,
+  CuerpoCommits,
+  CuerpoNodoGit,
+} from "./InspectorGit";
 import { CuerpoIdea } from "./InspectorIdea";
+import { CuerpoNudo } from "./InspectorNudo";
 import type { AccionesIdea } from "./InspectorIdea";
 /** Panel derecho del marco, con dos vistas que comparten ancho y cabecera.
  *
@@ -30,6 +36,7 @@ export function PanelDerecho({
   seleccion,
   ideas,
   cables,
+  nudos,
   paso,
   acciones,
   onSeleccionar,
@@ -46,6 +53,8 @@ export function PanelDerecho({
   ideas: readonly Idea[];
   /** Los cables medidos: la ficha de un cable explica su compuerta. */
   cables: readonly Cable[];
+  /** Los nudos del mapa: agrupan las compuertas de sus cables. */
+  nudos: readonly Nudo[];
   /** El protocolo del repo: qué salidas hay y qué exige cada unión. */
   paso: (origen: Status, destino: Status) => Paso | null;
   /** Lo que la ficha de idea puede hacer con la idea seleccionada. */
@@ -93,6 +102,7 @@ export function PanelDerecho({
           seleccion={seleccion}
           ideas={ideas}
           cables={cables}
+          nudos={nudos}
           paso={paso}
           acciones={acciones}
           onSeleccionar={onSeleccionar}
@@ -318,17 +328,17 @@ function CuerpoCarril({
   );
 }
 
-/** La ficha del commit seleccionado. El contrato del historial solo trae
- *  `hash` abreviado, asunto, autor y fecha; lo que no llega, no se inventa.
- *
- *  El resto de elementos ya se seleccionan en el lienzo y estrenan sus campos
- *  en los pasos siguientes: la idea, el cambio y los cables. */
+/** La ficha de lo seleccionado en el lienzo. Todo lo que se puede pulsar en
+ *  el mapa tiene su cuerpo aquí: carril, idea, commit, cambio, cable, puente,
+ *  nodo de Git, historial y nudo. El contrato del historial solo trae `hash`
+ *  abreviado, asunto, autor y fecha; lo que no llega, no se inventa. */
 function CuerpoInspector({
   proyeccion,
   commits,
   seleccion,
   ideas,
   cables,
+  nudos,
   paso,
   acciones,
   onSeleccionar,
@@ -338,6 +348,7 @@ function CuerpoInspector({
   seleccion: Seleccion | null;
   ideas: readonly Idea[];
   cables: readonly Cable[];
+  nudos: readonly Nudo[];
   paso: (origen: Status, destino: Status) => Paso | null;
   acciones: AccionesIdea;
   onSeleccionar: (seleccion: Seleccion) => void;
@@ -354,6 +365,31 @@ function CuerpoInspector({
         estados={meta ? ESTADOS_POR_CARRIL[meta.id] : ESTADOS_ENTRADA}
         ideas={ideas}
         paso={paso}
+        onSeleccionar={onSeleccionar}
+      />
+    );
+  }
+
+  if (seleccion && (seleccion.tipo === "git" || seleccion.tipo === "puente")) {
+    return <CuerpoNodoGit tipo={seleccion.tipo} proyeccion={proyeccion} />;
+  }
+
+  if (seleccion && seleccion.tipo === "nudo") {
+    const nudo = nudos.find((candidato) => candidato.id === seleccion.id);
+    return nudo ? (
+      <CuerpoNudo nudo={nudo} cables={cables} paso={paso} />
+    ) : (
+      <div className="panel-cuerpo inspector-cuerpo">
+        <p className="hint">Ese nudo ya no está en el mapa.</p>
+      </div>
+    );
+  }
+
+  if (seleccion && seleccion.tipo === "commits") {
+    return (
+      <CuerpoCommits
+        commits={commits}
+        rama={proyeccion?.branch ?? null}
         onSeleccionar={onSeleccionar}
       />
     );
@@ -417,16 +453,6 @@ function CuerpoInspector({
     ) : (
       <div className="panel-cuerpo inspector-cuerpo">
         <p className="hint">Ese commit ya no está en el historial.</p>
-      </div>
-    );
-  }
-
-  if (seleccion) {
-    // Puente y nodo de Git: se marcan en el lienzo y aún no tienen ficha.
-    return (
-      <div className="panel-cuerpo inspector-cuerpo">
-        <p className="inspector-asunto">{ETIQUETA_SELECCION[seleccion.tipo]}</p>
-        <p className="hint">Seleccionado en el mapa. Aún no tiene ficha propia.</p>
       </div>
     );
   }

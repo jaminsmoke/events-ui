@@ -114,6 +114,7 @@ export function Compuerta({
   lane,
   uniones,
   abierta = false,
+  onSeleccionar,
 }: {
   protocolo: (origen: Union[0], destino: Union[1]) => Paso | null;
   x: number;
@@ -125,6 +126,8 @@ export function Compuerta({
   /** Archivar: la compuerta se abre por disponibilidad del destino y no por
    *  una fila del protocolo. */
   abierta?: boolean;
+  /** Pulsar la celda lleva a su nudo (o a su cable si no vive en uno). */
+  onSeleccionar?: () => void;
 }) {
   /* Archivar no es una unión de protocolo: la hace el core al aprobar. La caja
    * se abre si el destino está disponible (la rama a Git solo con work tree) y
@@ -133,7 +136,12 @@ export function Compuerta({
     if (!abierta) return null;
     const destino = lane === "git" ? "Git" : "Historial";
     return (
-      <g className={`compuerta ${lane}`} transform={`translate(${x} ${y}) rotate(${angulo})`}>
+      <g
+        className={`compuerta ${lane}`}
+        transform={`translate(${x} ${y}) rotate(${angulo})`}
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={onSeleccionar}
+      >
         <title>{`Aprobar → ${destino}: paso libre`}</title>
         <Caja />
       </g>
@@ -146,6 +154,8 @@ export function Compuerta({
     <g
       className={`compuerta ${lane}${paso.abierta ? "" : " cerrada"}`}
       transform={`translate(${x} ${y}) rotate(${angulo})`}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={onSeleccionar}
     >
       <title>{titulo(paso, lane, uniones)}</title>
       <Caja />

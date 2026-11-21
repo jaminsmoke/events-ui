@@ -338,9 +338,9 @@ con el motivo, para no reabrirlo cada semana.
   Vite `EVENTSUI_UI_PORT` y `EVENTSUI_CORE_URL`; la batería termina sin parar
   la sesión de escritorio.
 
-- **Inspector completo**: carril, idea, commit, cambio y cable/compuerta
-  tienen ficha en el panel derecho; el puente y el nodo de Git solo se
-  marcan, porque no tienen datos propios que enseñar.
+- **Inspector completo**: carril, idea, commit, cambio, historial, cable,
+  puente, nodo de Git y nudos —con sus compuertas— tienen ficha en el panel
+  derecho; las celdas de protocolo se pulsan y llevan a la ficha de su nudo.
 - **El inspector se prueba solo**: `e2e/escenarios/inspector.mjs` abre el
   panel por su icono, selecciona una idea y un carril desde el lienzo y desde
   la lista del propio panel, y comprueba que Escape y el clic en el fondo
@@ -363,8 +363,9 @@ con el motivo, para no reabrirlo cada semana.
 
 ## Pendientes
 
-Sin pendientes abiertos: el inspector cubre carril, idea, commit, cambio y
-cable/compuerta, con su selección en el lienzo y su escenario e2e.
+Sin pendientes abiertos: el inspector cubre carril, idea, commit, cambio,
+cable/compuerta, puente, nodo de Git y nudos, con su selección en el lienzo
+y su escenario e2e.
 
 ## No se hace (por ahora)
 

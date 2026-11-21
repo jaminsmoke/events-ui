@@ -39,6 +39,13 @@ export const ETIQUETA_ESTADO: Record<string, string> = {
   superseded: "Reemplazada",
 };
 
+/** El título legible de un carril o de un extremo de cable: `root` es la
+ *  Entrada y `git` no es un carril de ideas. */
+export function tituloCarril(lane: string): string {
+  if (lane === "root") return "Entrada";
+  return LANES.find((carril) => carril.id === lane)?.title ?? (lane === "git" ? "Git" : lane);
+}
+
 export function laneOf(status: Status): LaneId | null {
   if (status === "rejected" || status === "superseded") return "descartadas";
   if (status === "proposed") return "cola";

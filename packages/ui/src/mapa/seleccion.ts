@@ -14,7 +14,8 @@ export type Seleccion =
   | { tipo: "cambios" }
   | { tipo: "cambio"; ruta: string }
   | { tipo: "commit"; hash: string }
-  | { tipo: "cable"; id: string };
+  | { tipo: "cable"; id: string }
+  | { tipo: "nudo"; id: string };
 
 /** Etiqueta de cada clase de elemento, para el Inspector. */
 export const ETIQUETA_SELECCION: Record<Seleccion["tipo"], string> = {
@@ -28,6 +29,7 @@ export const ETIQUETA_SELECCION: Record<Seleccion["tipo"], string> = {
   cambio: "Archivo sin commit",
   commit: "Commit",
   cable: "Cable y compuerta",
+  nudo: "Nudo y compuertas",
 };
 
 /** Clave estable del elemento: tipo más identidad, sin repetir el mapa. */
@@ -49,6 +51,8 @@ export function claveSeleccion(seleccion: Seleccion): string {
       return `commit:${seleccion.hash}`;
     case "cable":
       return `cable:${seleccion.id}`;
+    case "nudo":
+      return `nudo:${seleccion.id}`;
   }
 }
 

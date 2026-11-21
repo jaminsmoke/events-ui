@@ -1,24 +1,8 @@
 import type { Paso } from "../core/useProtocolos";
 import type { Cable } from "../mapa/cables";
-import { ETIQUETA_ESTADO, LANES } from "../mapa/carriles";
+import { ETIQUETA_ESTADO, tituloCarril } from "../mapa/carriles";
 import type { Status } from "../mapa/carriles";
-import { TEXTO_EXIGENCIA } from "../mapa/protocolos";
-
-/** El nombre del carril de un extremo del cable; `root` es la Entrada y `git`
- *  no es un carril de ideas. */
-function tituloDeCarril(lane: string): string {
-  if (lane === "root") return "Entrada";
-  return LANES.find((carril) => carril.id === lane)?.title ?? (lane === "git" ? "Git" : lane);
-}
-
-/** El estado de la compuerta de una unión, en palabras. `null` es que los
- *  protocolos aún no han cargado: no se inventa la compuerta. */
-function estadoUnion(paso: Paso | null): string {
-  if (!paso) return "sin protocolos cargados";
-  if (!paso.abierta) return "cerrada: esta unión no está en `protocolo_flujo`";
-  if (paso.exige.length === 0) return "paso libre";
-  return paso.exige.map((exigencia) => TEXTO_EXIGENCIA[exigencia]).join("; ");
-}
+import { estadoUnion } from "../mapa/protocolos";
 
 /** La ficha de un cable y de su compuerta: las uniones que cruza, cómo está
  *  cada una y por qué. Los tramos de archivo no son uniones de protocolo y la
@@ -30,8 +14,8 @@ export function CuerpoCable({
   cable: Cable;
   paso: (origen: Status, destino: Status) => Paso | null;
 }) {
-  const origen = tituloDeCarril(cable.origenLane);
-  const destino = tituloDeCarril(cable.destinoLane);
+  const origen = tituloCarril(cable.origenLane);
+  const destino = tituloCarril(cable.destinoLane);
 
   return (
     <div className="panel-cuerpo inspector-cuerpo">

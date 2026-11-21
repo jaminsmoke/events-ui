@@ -717,17 +717,36 @@ export default function App({
                   )}
                   {/* Los nudos van debajo de las compuertas: cada rombo
                    *  envuelve la celda de protocolo de su cable. */}
-                  {nudos.map((nudo) => (
-                    <rect
-                      key={nudo.id}
-                      className={`nudo${nudo.rechazo ? " rechazo" : ""}`}
-                      x={nudo.x - nudo.lado / 2}
-                      y={nudo.y - nudo.lado / 2}
-                      width={nudo.lado}
-                      height={nudo.lado}
-                      transform={`rotate(45 ${nudo.x} ${nudo.y})`}
-                    />
-                  ))}
+                  {nudos.map((nudo) => {
+                    const elegido =
+                      seleccion?.tipo === "nudo" && seleccion.id === nudo.id;
+                    return (
+                      <g key={nudo.id}>
+                        <rect
+                          className={`nudo${nudo.rechazo ? " rechazo" : ""}${
+                            elegido ? " seleccionado" : ""
+                          }`}
+                          x={nudo.x - nudo.lado / 2}
+                          y={nudo.y - nudo.lado / 2}
+                          width={nudo.lado}
+                          height={nudo.lado}
+                          transform={`rotate(45 ${nudo.x} ${nudo.y})`}
+                        />
+                        {/* Zona de golpe redonda: el rombo es pequeño y gira,
+                         *  así que el clic no depende de su filo. Va antes que
+                         *  las celdas para que estas ganen donde se solapan. */}
+                        <circle
+                          data-nudo={nudo.id}
+                          className="nudo-hit"
+                          cx={nudo.x}
+                          cy={nudo.y}
+                          r={nudo.lado / 2 + 8}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={() => seleccionar({ tipo: "nudo", id: nudo.id })}
+                        />
+                      </g>
+                    );
+                  })}
                   {cables.map((cable) => (
                     <Compuerta
                       key={`compuerta-${cable.id}`}
@@ -736,6 +755,11 @@ export default function App({
                       abierta={cable.abierta}
                       protocolo={paso}
                       {...cable.compuerta}
+                      onSeleccionar={() =>
+                        cable.nudo
+                          ? seleccionar({ tipo: "nudo", id: cable.nudo })
+                          : seleccionar({ tipo: "cable", id: cable.id })
+                      }
                     />
                   ))}
                   {cables[0] && (
@@ -851,6 +875,7 @@ export default function App({
             seleccion={seleccion}
             ideas={ideas ?? []}
             cables={cables}
+            nudos={nudos}
             paso={paso}
             acciones={{
               puedeIr,

@@ -124,6 +124,43 @@ export default {
       "la ficha del cable debe explicar la compuerta",
     );
 
+    // Un nudo: su rombo y sus celdas llevan a la ficha con todas las compuertas.
+    const nudo = page.locator('.nudo-hit[data-nudo="entrada-cola"]');
+    const cajaNudo = await nudo.boundingBox();
+    expect(cajaNudo !== null, "el nudo de Entrada↔En cola debe tener zona de golpe");
+    if (!cajaNudo) throw new Error("sin caja para el nudo");
+    await page.mouse.click(cajaNudo.x + cajaNudo.width / 2, cajaNudo.y + cajaNudo.height / 2);
+    await esperar(
+      () => page.locator(".nudo.seleccionado").count().then((n) => n === 1),
+      "el nudo seleccionado",
+    );
+    await esperar(
+      () => panel.innerText().then((t) => t.toLowerCase().includes("compuerta")),
+      "la ficha del nudo",
+    );
+    const fichaNudo = (await panel.innerText()).toLowerCase();
+    expect(
+      fichaNudo.includes("paso libre") || fichaNudo.includes("no está en"),
+      "el nudo debe explicar el estado de sus compuertas",
+    );
+
+    // El puente está a la derecha, bajo el panel: se elige con el panel cerrado
+    // y se vuelve a abrir el Inspector para leer su ficha.
+    await iconoInspector.click();
+    // Sin panel el lienzo se ensancha y el mapa se vuelve a medir.
+    await page.waitForTimeout(300);
+    await page.locator(".nodo-puente .node-head").click();
+    await iconoInspector.click();
+    await esperar(
+      () => panel.innerText().then((t) => t.toLowerCase().includes("entregar a git")),
+      "la ficha del puente",
+    );
+    const fichaPuente = (await panel.innerText()).toLowerCase();
+    expect(
+      fichaPuente.includes("sin repositorio local") || fichaPuente.includes("apagado"),
+      "sin work tree el puente debe explicar por qué está apagado",
+    );
+
     // El fondo del lienzo suelta la selección.
     await page.locator(".board").click({ position: { x: 12, y: 12 } });
     await esperar(

@@ -191,7 +191,7 @@
   stroke-width: 1.5;
   stroke-linecap: round;
   pointer-events: visiblePainted;
-  cursor: help;
+  cursor: pointer;
 }
 
 .compuerta.cerrada {
@@ -227,6 +227,20 @@
 
 .nudo.rechazo {
   stroke: #b86952;
+}
+
+/* Zona de golpe del nudo: un círculo holgado sobre el rombo. Con `all` cuenta
+ *  el interior aunque no tenga relleno. */
+.nudo-hit {
+  fill: none;
+  pointer-events: all;
+  cursor: pointer;
+}
+
+.nudo.seleccionado {
+  stroke: var(--accent);
+  stroke-width: 2.4;
+  filter: drop-shadow(0 0 5px #58a6ff88);
 }
 
 .spark {

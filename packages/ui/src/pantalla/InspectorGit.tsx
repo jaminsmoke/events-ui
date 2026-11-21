@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import type { CambioGit, CommitGit } from "../core/api";
+import type { CambioGit, CommitGit, ProyeccionRepo } from "../core/api";
 import type { Seleccion } from "../mapa/seleccion";
 
 const FECHA_LARGA = new Intl.DateTimeFormat("es-ES", {
@@ -197,6 +197,87 @@ export function CuerpoCambio({
         El parche no viaja en el mapa: se ve en el Explorador y en las fichas
         de fase.
       </p>
+    </div>
+  );
+}
+
+/** La ficha del puente y del nodo de Git: los dos leen la misma proyección.
+ *  Sin work tree lo dicen en vez de pintar una rama inventada. */
+export function CuerpoNodoGit({
+  tipo,
+  proyeccion,
+}: {
+  tipo: "git" | "puente";
+  proyeccion: ProyeccionRepo | null | undefined;
+}) {
+  const activo = proyeccion?.git === true;
+  return (
+    <div className="panel-cuerpo inspector-cuerpo">
+      <p className="inspector-asunto">
+        {tipo === "puente" ? "Entregar a Git" : "Nodo de Git"}
+      </p>
+      <p className="inspector-meta">{activo ? "asociado al work tree" : "apagado"}</p>
+
+      <dl className="inspector-dl">
+        <dt>Rama</dt>
+        <dd className="inspector-mono">{proyeccion?.branch ?? "—"}</dd>
+        <dt>Commit</dt>
+        <dd className="inspector-mono">{proyeccion?.commit ?? "sin commits"}</dd>
+        <dt>Raíz</dt>
+        <dd className="inspector-mono">{proyeccion?.git_root ?? "—"}</dd>
+      </dl>
+
+      <p className="hint">
+        {tipo === "puente"
+          ? "El puente cierra la línea de ideas y abre el Mapa de Git cuando hay work tree."
+          : "Cierra el flujo y enseña el estado del work tree; no guarda ideas."}
+      </p>
+      {!activo && (
+        <p className="hint">Sin repositorio local: se crea desde el puente.</p>
+      )}
+    </div>
+  );
+}
+
+/** La ficha del nodo de historial: todos los commits, con cada uno a un clic
+ *  de su propia ficha. */
+export function CuerpoCommits({
+  commits,
+  rama,
+  onSeleccionar,
+}: {
+  commits: readonly CommitGit[];
+  rama?: string | null;
+  onSeleccionar: (seleccion: Seleccion) => void;
+}) {
+  return (
+    <div className="panel-cuerpo inspector-cuerpo">
+      <p className="inspector-asunto">Commits</p>
+      <p className="inspector-meta">
+        {commits.length === 1 ? "1 commit" : `${commits.length} commits`}
+        {rama ? ` en ${rama}` : ""}
+      </p>
+
+      {commits.length === 0 ? (
+        <p className="hint">Sin commits todavía.</p>
+      ) : (
+        <ul className="inspector-lista">
+          {commits.map((commit, indice) => (
+            <li key={commit.hash}>
+              <button
+                type="button"
+                className="inspector-idea"
+                onClick={() => onSeleccionar({ tipo: "commit", hash: commit.hash })}
+              >
+                <span className="inspector-idea-titulo">{commit.asunto}</span>
+                <span className="inspector-mono inspector-idea-estado">
+                  {indice === 0 ? "HEAD" : commit.hash}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

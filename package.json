@@ -1,7 +1,7 @@
 {
   "name": "events-ui",
   "private": true,
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "UI reactiva sobre un log de eventos en SQLite para monitorizar repositorios.",
   "scripts": {
     "dev": "node scripts/dev.mjs",

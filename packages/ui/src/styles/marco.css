@@ -667,6 +667,78 @@ button.arbol-fila:hover {
   font-size: 10px;
 }
 
+/* La ficha de idea: descripción, fases con sus archivos y acciones. */
+.inspector-descripcion {
+  margin: 0;
+  color: #b7c0cc;
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.inspector-fase {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 0;
+}
+
+.inspector-fase-cabecera {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.inspector-fase-titulo {
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inspector-fase-estado {
+  flex: none;
+  color: var(--muted);
+  font-size: 9.5px;
+}
+
+.inspector-archivos {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 0 0 0 8px;
+  list-style: none;
+}
+
+.inspector-archivos li {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+  font-size: 10px;
+}
+
+.inspector-archivos code {
+  overflow: hidden;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inspector-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.inspector-acciones .btn {
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
 .resumen-repo {
   margin: 0;
   overflow: hidden;

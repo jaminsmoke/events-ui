@@ -10,6 +10,8 @@ import { fechaCorta } from "../mapa/formato";
 import { ETIQUETA_SELECCION } from "../mapa/seleccion";
 import type { Seleccion } from "../mapa/seleccion";
 import type { VistaDerecha } from "./Actividad";
+import { CuerpoIdea } from "./InspectorIdea";
+import type { AccionesIdea } from "./InspectorIdea";
 
 const FECHA_LARGA = new Intl.DateTimeFormat("es-ES", {
   dateStyle: "medium",
@@ -36,6 +38,7 @@ export function PanelDerecho({
   seleccion,
   ideas,
   paso,
+  acciones,
   onSeleccionar,
   conectado,
   onClose,
@@ -50,6 +53,8 @@ export function PanelDerecho({
   ideas: readonly Idea[];
   /** El protocolo del repo: qué salidas hay y qué exige cada unión. */
   paso: (origen: Status, destino: Status) => Paso | null;
+  /** Lo que la ficha de idea puede hacer con la idea seleccionada. */
+  acciones: AccionesIdea;
   /** Pulsar una idea en la ficha la selecciona en el lienzo. */
   onSeleccionar: (seleccion: Seleccion) => void;
   conectado: boolean;
@@ -93,6 +98,7 @@ export function PanelDerecho({
           seleccion={seleccion}
           ideas={ideas}
           paso={paso}
+          acciones={acciones}
           onSeleccionar={onSeleccionar}
         />
       )}
@@ -327,6 +333,7 @@ function CuerpoInspector({
   seleccion,
   ideas,
   paso,
+  acciones,
   onSeleccionar,
 }: {
   proyeccion: ProyeccionRepo | null | undefined;
@@ -334,6 +341,7 @@ function CuerpoInspector({
   seleccion: Seleccion | null;
   ideas: readonly Idea[];
   paso: (origen: Status, destino: Status) => Paso | null;
+  acciones: AccionesIdea;
   onSeleccionar: (seleccion: Seleccion) => void;
 }) {
   if (seleccion && (seleccion.tipo === "carril" || seleccion.tipo === "cajon")) {
@@ -350,6 +358,22 @@ function CuerpoInspector({
         paso={paso}
         onSeleccionar={onSeleccionar}
       />
+    );
+  }
+
+  if (seleccion && seleccion.tipo === "idea") {
+    const idea = ideas.find((candidata) => candidata.uid === seleccion.uid);
+    return idea ? (
+      <CuerpoIdea
+        idea={idea}
+        catalogo={ideas}
+        acciones={acciones}
+        onSeleccionar={onSeleccionar}
+      />
+    ) : (
+      <div className="panel-cuerpo inspector-cuerpo">
+        <p className="hint">Esa idea ya no está en el mapa.</p>
+      </div>
     );
   }
 

@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import type { Idea, IdeaUpdate } from "../core/api";
 import type { PuedeIr } from "../core/useProtocolos";
 import { DescartaIdea } from "../pantalla/DescartaIdea";
+import { ACCIONES_ESTADO, motivoBloqueo } from "./acciones";
 import type { TreeNode } from "./arbol";
 import { ETIQUETA_ESTADO } from "./carriles";
 import type { Status } from "./carriles";
@@ -20,33 +21,6 @@ import type { Seleccion } from "./seleccion";
 export function Arrow({ open }: { open: boolean }) {
   return <span className="arrow">{open ? "▾" : "▸"}</span>;
 }
-
-/** Acciones de traslado que ofrece cada estado. `descartar` abre el diálogo
- *  del motivo en vez de mover directamente. */
-const ACCIONES_ESTADO: Record<
-  Status,
-  { estado: Status; etiqueta: string; descartar?: boolean }[]
-> = {
-  draft: [
-    { estado: "proposed", etiqueta: "A cola" },
-    { estado: "rejected", etiqueta: "Descartar", descartar: true },
-  ],
-  proposed: [
-    { estado: "roadmap", etiqueta: "A roadmap" },
-    { estado: "rejected", etiqueta: "Descartar", descartar: true },
-  ],
-  roadmap: [{ estado: "verificacion", etiqueta: "A verificación" }],
-  verificacion: [
-    { estado: "roadmap", etiqueta: "A roadmap" },
-    { estado: "proposed", etiqueta: "A cola" },
-    { estado: "revision_aprobada", etiqueta: "Aprobar revisión" },
-    { estado: "rejected", etiqueta: "Descartar", descartar: true },
-  ],
-  revision_aprobada: [],
-  historial: [],
-  rejected: [],
-  superseded: [],
-};
 
 /** ¿La ficha se abre sola en este estado? `undefined` deja decidir a la rama:
  *  un nodo con hijos sigue abierto para que se vea el nivel siguiente. */
@@ -153,28 +127,6 @@ export function NodeRow({
     (fase) => fase.estado === "pendiente" || fase.estado === "fallida",
   ).length;
 
-  // Motivo por el que un traslado no se ofrece, o `null` si se puede probar.
-  const motivoBloqueo = (destino: Status): string | null => {
-    if (!estado) return null;
-    if (fases.length === 0 && exigeFases?.(estado, destino)) {
-      return "El protocolo exige al menos una fase";
-    }
-    if (
-      destino === "verificacion" &&
-      abiertas > 0 &&
-      exigeFasesListas?.(estado, "verificacion")
-    ) {
-      return `Cierra las fases pendientes o fallidas (${abiertas})`;
-    }
-    if (
-      destino === "revision_aprobada" &&
-      !fases.every((fase) => fase.estado === "completada") &&
-      exigeFasesCompletas?.(estado, "revision_aprobada")
-    ) {
-      return "Completa todas las fases para aprobar la revisión";
-    }
-    return null;
-  };
   const [descartando, setDescartando] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
   const [fallo, setFallo] = useState<string | null>(null);
@@ -355,7 +307,11 @@ export function NodeRow({
             ACCIONES_ESTADO[estado]
               .filter((accion) => !puedeIr || puedeIr(estado, accion.estado))
               .map((accion) => {
-                const bloqueo = motivoBloqueo(accion.estado);
+                const bloqueo = motivoBloqueo(estado, fases, accion.estado, {
+                  exigeFases,
+                  exigeFasesListas,
+                  exigeFasesCompletas,
+                });
                 return (
                   <button
                     key={accion.estado}

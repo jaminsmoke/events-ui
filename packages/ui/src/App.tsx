@@ -838,6 +838,17 @@ export default function App({
             seleccion={seleccion}
             ideas={ideas ?? []}
             paso={paso}
+            acciones={{
+              puedeIr,
+              exigeFases,
+              exigeFasesListas,
+              exigeFasesCompletas,
+              onMover: alMover,
+              onEditar: editar,
+              onBorrar: borrar,
+              onPideEditar: (uid, titulo, descripcion) =>
+                setEditando({ uid, titulo, descripcion }),
+            }}
             onSeleccionar={seleccionar}
             conectado={conectado}
             onClose={() => setVistaDerecha(null)}

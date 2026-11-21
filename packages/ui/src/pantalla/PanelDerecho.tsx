@@ -10,19 +10,9 @@ import { fechaCorta } from "../mapa/formato";
 import { ETIQUETA_SELECCION } from "../mapa/seleccion";
 import type { Seleccion } from "../mapa/seleccion";
 import type { VistaDerecha } from "./Actividad";
+import { CuerpoCambio, CuerpoCambios, CuerpoCommit } from "./InspectorGit";
 import { CuerpoIdea } from "./InspectorIdea";
 import type { AccionesIdea } from "./InspectorIdea";
-
-const FECHA_LARGA = new Intl.DateTimeFormat("es-ES", {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
-
-function fechaLarga(iso: string): string {
-  const fecha = new Date(iso);
-  return Number.isNaN(fecha.getTime()) ? iso : FECHA_LARGA.format(fecha);
-}
-
 /** Panel derecho del marco, con dos vistas que comparten ancho y cabecera.
  *
  *  Resumen es el estado del repo de un vistazo: sale por encima del lienzo —no
@@ -377,50 +367,57 @@ function CuerpoInspector({
     );
   }
 
-  if (seleccion && seleccion.tipo !== "commit") {
-    return (
+  if (seleccion && seleccion.tipo === "cambio") {
+    const cambios = proyeccion?.git_cambios ?? [];
+    const cambio = cambios.find((candidato) => candidato.ruta === seleccion.ruta);
+    return cambio ? (
+      <CuerpoCambio cambio={cambio} total={cambios.length} onSeleccionar={onSeleccionar} />
+    ) : (
       <div className="panel-cuerpo inspector-cuerpo">
-        <p className="inspector-asunto">{ETIQUETA_SELECCION[seleccion.tipo]}</p>
-        <p className="hint">
-          Seleccionado en el mapa. Los campos de esta ficha llegan en el
-          siguiente paso del inspector.
-        </p>
+        <p className="hint">Ese archivo ya no tiene cambios sin commit.</p>
       </div>
     );
   }
 
-  const indice =
-    seleccion?.tipo === "commit"
-      ? commits.findIndex((commit) => commit.hash === seleccion.hash)
-      : -1;
-  const commit = indice === -1 ? null : commits[indice];
+  if (seleccion && seleccion.tipo === "cambios") {
+    return (
+      <CuerpoCambios cambios={proyeccion?.git_cambios ?? []} onSeleccionar={onSeleccionar} />
+    );
+  }
+
+  if (seleccion && seleccion.tipo === "commit") {
+    const indice = commits.findIndex((commit) => commit.hash === seleccion.hash);
+    const commit = indice === -1 ? null : commits[indice];
+    return commit ? (
+      <CuerpoCommit
+        commit={commit}
+        indice={indice}
+        total={commits.length}
+        rama={proyeccion?.branch ?? null}
+      />
+    ) : (
+      <div className="panel-cuerpo inspector-cuerpo">
+        <p className="hint">Ese commit ya no está en el historial.</p>
+      </div>
+    );
+  }
+
+  if (seleccion) {
+    // Puente y nodo de Git: se marcan en el lienzo y aún no tienen ficha.
+    return (
+      <div className="panel-cuerpo inspector-cuerpo">
+        <p className="inspector-asunto">{ETIQUETA_SELECCION[seleccion.tipo]}</p>
+        <p className="hint">Seleccionado en el mapa. Aún no tiene ficha propia.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="panel-cuerpo inspector-cuerpo">
-      {!commit ? (
-        <p className="hint">
-          Nada seleccionado. Pulsa un nodo del mapa y sus detalles aparecerán
-          aquí.
-        </p>
-      ) : (
-        <>
-          <p className="inspector-asunto">{commit.asunto}</p>
-          <dl className="inspector-dl">
-            <dt>Commit</dt>
-            <dd className="inspector-mono">{commit.hash}</dd>
-            <dt>Autor</dt>
-            <dd>{commit.autor}</dd>
-            <dt>Fecha</dt>
-            <dd>{fechaLarga(commit.fecha)}</dd>
-            <dt>Rama</dt>
-            <dd className="inspector-mono">{proyeccion?.branch ?? "—"}</dd>
-            <dt>Posición</dt>
-            <dd>
-              {indice === 0 ? "HEAD · el más reciente" : `${indice + 1} de ${commits.length} desde HEAD`}
-            </dd>
-          </dl>
-        </>
-      )}
+      <p className="hint">
+        Nada seleccionado. Pulsa un nodo del mapa y sus detalles aparecerán
+        aquí.
+      </p>
     </div>
   );
 }

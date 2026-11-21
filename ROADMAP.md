@@ -362,13 +362,11 @@ con el motivo, para no reabrirlo cada semana.
   nodos de Git, historial, archivos y commits, con su marca en el mapa,
   Escape y clic en el fondo para soltar (`App.tsx`). Seleccionar no despliega
   nada dentro del nodo. Ya tienen ficha el **carril** (ideas, reparto y
-  salidas del protocolo) y la **idea** (descripción, fases con sus archivos,
-  dependencias y las mismas acciones de la fila, con su bloqueo). Falta el
-  resto, poco a poco:
-  1. **Ficha de commit y de cambio sin commit**: completar la del commit y
-     abrir la de cada archivo del nodo de Cambios (estado, ruta, origen del
-     renombrado).
-  2. **Ficha de cable y compuerta**: la unión que permite, lo que exige cada
+  salidas del protocolo), la **idea** (descripción, fases con sus archivos,
+  dependencias y las mismas acciones de la fila, con su bloqueo), el
+  **commit** (con copia del hash) y cada **cambio sin commit** (estado, ruta
+  y origen del renombrado). Falta solo:
+  1. **Ficha de cable y compuerta**: la unión que permite, lo que exige cada
      protocolo y el motivo del rechazo cuando está cerrada.
 
   Cada paso trae su ficha, su marca de selección y sus pruebas; el mapa no

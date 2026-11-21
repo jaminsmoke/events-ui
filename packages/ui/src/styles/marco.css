@@ -739,6 +739,25 @@ button.arbol-fila:hover {
   font-size: 11px;
 }
 
+/* Hash del commit con su botón de copiar, y el atajo de vuelta a la lista. */
+.inspector-hash {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.inspector-copiar {
+  padding: 0 6px;
+  font-size: 10px;
+}
+
+.inspector-volver {
+  align-self: flex-start;
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
 .resumen-repo {
   margin: 0;
   overflow: hidden;

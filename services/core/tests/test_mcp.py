@@ -154,7 +154,7 @@ def test_recurso_del_esquema_del_plan() -> None:
 
     respuesta = mcp_servidor.manejar(_peticion("resources/read", {"uri": mcp_servidor.URI_ESQUEMA}))
     esquema = json.loads(respuesta["result"]["contents"][0]["text"])
-    assert esquema["properties"]["version"]["const"] == 1
+    assert esquema["properties"]["version"]["enum"] == [1, 2]
     assert esquema["$id"]
 
 

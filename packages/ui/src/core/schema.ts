@@ -507,7 +507,7 @@ export interface paths {
          * Post Aplicar
          * @description Aplica el plan entero o nada.
          *
-         *     El contrato comprueba la forma (todo a `proposed`, fases pendientes, un
+         *     El contrato comprueba la forma (destinos de la v2, fases pendientes, un
          *     origen con hash por idea); `revisar` vuelve a mirar el disco (origen dentro
          *     del repo, `sha256` al día, ciclos y duplicados) y el core escribe el lote
          *     en una transacción. La huella canónica del plan hace idempotente el envío.
@@ -1158,9 +1158,13 @@ export interface components {
             /**
              * Status
              * @default proposed
-             * @constant
+             * @enum {string}
              */
-            status: "proposed";
+            status: "proposed" | "draft" | "historial" | "rejected";
+            /** Fecha */
+            fecha?: string | null;
+            /** Motivo */
+            motivo?: string | null;
             /** Tags */
             tags?: string[];
             /** Depende De */
@@ -1172,13 +1176,16 @@ export interface components {
         /**
          * PlanMigracion
          * @description El plan completo que se aplica como un lote.
+         *
+         *     La versión 2 añade destinos, fechas y motivo; la 1 se conserva para los
+         *     planes que solo crean ideas en `proposed`.
          */
         PlanMigracion: {
             /**
              * Version
-             * @constant
+             * @enum {integer}
              */
-            version: 1;
+            version: 1 | 2;
             /** Ideas */
             ideas: components["schemas"]["PlanIdea"][];
         };

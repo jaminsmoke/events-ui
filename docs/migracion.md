@@ -16,11 +16,12 @@ aplica**. Nadie escribe el almacén a mano ni llama a la API cruda.
    dependencias, los ciclos y el `sha256` de cada origen, y enseña lo que se
    crearía sin escribir nada. Sale con 0 si se aplicaría, 1 si hay problemas y
    2 si el plan no se puede leer.
-5. `eui migrate apply plan.json` aplica el lote de una vez. Todas las ideas
-   entran en `proposed`; ninguna en otro carril. El core escribe el lote
-   entero en una transacción: si una idea falla, no queda ninguna. La huella
-   del plan identifica el lote, así que repetir el mismo `apply` devuelve el
-   mismo lote y no duplica nada.
+5. `eui migrate apply plan.json` aplica el lote de una vez. Cada idea entra en
+   el carril que declara el plan: `proposed` por defecto, `draft` para notas
+   sin triar, `historial` para lo hecho y `rejected` con `motivo` para lo que
+   no se hace. El core escribe el lote entero en una transacción: si una idea
+   falla, no queda ninguna. La huella del plan identifica el lote, así que
+   repetir el mismo `apply` devuelve el mismo lote y no duplica nada.
 6. `eui migrate undo <lote>` deshace solo lo que creó ese lote. Si una idea
    cambió de carril, se editó después de crearse o una ficha ajena la usa como
    sustituta, no borra nada y enumera los conflictos (409). Las que el usuario
@@ -43,13 +44,16 @@ nada, en `.EUI/migracion/plan.json` (no se versiona).
 - `kind`: siempre `idea`. `adr` y `note` son históricos y no se crean.
 - `tags`: las etiquetas que ya estén escritas (frontmatter, `labels`,
   `[tags]`), en minúsculas, sin repetir y sin inventar.
-- `status`: **siempre `proposed`**. Un Markdown que diga «hecho», «en curso» o
-  «aprobado» no cambia el carril: el estado se decide en la app, no se adivina.
+- `status`: decide el carril, sin adivinar. Pendiente explícito → `proposed`;
+  nota cruda o sin triar → `draft`; «hecho», «completado» o una sección de
+  historial → `historial`; «no se hace» o «descartado» → `rejected` con
+  `motivo`. Si el documento no lo dice, no lo inventes: `proposed` o `draft`.
 - `depende_de`: solo si el elemento lo dice de forma explícita («depende de»,
   «después de», «bloqueada por»). Resuelve el título contra otra idea del mismo
   plan con `ref`; si no hay referencia clara, se deja vacío.
-- `fases`: solo si el elemento lista pasos propios de ejecución. Todas entran
-  en `pendiente`, sin fechas, y cada una con al menos un requisito.
+- `fases`: solo con `status: proposed`, si el elemento lista pasos propios de
+  ejecución. Todas entran en `pendiente`, sin fechas, y cada una con al menos
+  un requisito. `historial` y `rejected` no llevan fases.
 - `requisitos`: las viñetas hijas que sean criterios de hecho, con
   `hecho: false`. Marcarlas como hechas es una decisión del usuario.
 
@@ -73,14 +77,17 @@ plan y el apply, y el lote dejaría de ser repetible.
 ## El plan
 
 `eui schema migrate --pretty` publica el JSON Schema (draft 2020-12) del plan;
-sin `--pretty` sale en una línea. La forma es `{"version": 1, "ideas": [...]}`,
-con una idea por elemento migrado:
+sin `--pretty` sale en una línea. La forma es `{"version": 2, "ideas": [...]}`,
+con una idea por elemento migrado. La v1 solo admitía `proposed`; la v2 añade
+destinos, fechas y motivo, y sigue aceptando planes v1 que solo crean ideas:
 
 - `ref` identifica la idea dentro del plan (`idea-1`, `backlog-login`…) y es lo
   que usa `depende_de`; no es un uid y no puede repetirse.
-- El esquema solo acepta `status: "proposed"` y `kind: "idea"`, fases en
-  `pendiente` y requisitos sin marcar. Lo demás se rechaza antes de mirar el
-  repo.
+- `kind` siempre `idea`; `status` puede ser `proposed`, `draft`, `historial`
+  o `rejected`; fases solo para `proposed`, en `pendiente` y con requisitos sin
+  marcar. `rejected` exige `motivo`.
+- `fecha` (ISO 8601) solo con `historial` o `rejected`; sin ella se usa la de
+  importación. Lo demás se rechaza antes de mirar el repo.
 - Cada idea exige `origen` con `ruta`, `desde_linea`, `hasta_linea` y `sha256`.
   Las líneas son 1-based e incluyen el título y el cuerpo del elemento.
 - `check` añade lo que el esquema no puede comprobar: `ref` repetidos,
@@ -95,14 +102,17 @@ guarda de cada una su `ref`, el fichero de origen, el rango de líneas y el
 `sha256`, más la fecha de creación. La huella es única: el mismo plan enviado
 dos veces devuelve el mismo lote con `repetido: true` y no escribe nada.
 
-Las ideas nacen en `proposed`, al final de la cola, con sus fases pendientes y
-sus requisitos sin marcar; `depende_de` se resuelve de refs a uids dentro del
-lote. Un fallo a mitad deshace la transacción entera, igual al deshacer.
+Las ideas nacen en su carril (las de la cola, al final), con sus fases
+pendientes y requisitos sin marcar si es `proposed`; `depende_de` se resuelve
+de refs a uids dentro del lote. La procedencia guarda también ese carril, así
+que `undo` sabe cuál esperar. Un fallo a mitad deshace la transacción entera,
+igual al deshacer.
 
 `undo` usa la procedencia: borra en una transacción solo las ideas del lote y
-se niega entero (409, con la lista de conflictos) si alguna cambió de carril,
-se editó después de crearse —`updated_at` ya no coincide con `creada_at`— o una
-ficha de fuera del lote la usa como sustituta. No se lleva por delante las
+se niega entero (409, con la lista de conflictos) si alguna está en un carril
+distinto del que guardó el lote, se editó después de crearse —`updated_at` ya
+no coincide con `creada_at`— o una ficha de fuera del lote la usa como
+sustituta. No se lleva por delante las
 listas `depende_de` de las supervivientes: les retira los uids del lote. El
 lote y su procedencia desaparecen con las ideas.
 
@@ -114,8 +124,10 @@ lote y su procedencia desaparecen con las ideas.
 - No importar bloques de código, tablas de ejemplo ni citas como ideas: son
   contenido, no trabajo.
 - No meter secretos. Si un bloque parece credenciales, se descarta y se avisa.
-- No tocar `.EUI/`, no commitear y no mover nada a roadmap, verificación o
-  historial. El commit lo decide el usuario después de revisar el lote.
+- No mover a roadmap ni verificación. A `historial` o `rejected` solo si el
+  documento lo dice, con fecha y motivo cuando toque.
+- No tocar `.EUI/` ni commitear. El commit lo decide el usuario después de
+  revisar el lote.
 
 ## Antes de aplicar
 
@@ -123,5 +135,6 @@ lote y su procedencia desaparecen con las ideas.
 - [ ] Cada idea tiene `origen` con `sha256` y su rango de líneas.
 - [ ] No hay dos ideas con la misma referencia ni con el mismo título y origen.
 - [ ] Los totales del plan cuadran con el resumen del scan.
-- [ ] Todo está en `proposed`; ni una idea en otro carril.
+- [ ] Cada idea está en el carril que dice el documento; ninguna inventada.
+- [ ] `historial` y `rejected` no llevan fases; los descartes tienen motivo.
 - [ ] Cada fase tiene al menos un requisito y ningún requisito viene marcado.

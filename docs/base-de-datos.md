@@ -3,7 +3,7 @@
 La raíz elegida de cada repo guarda sus ideas, relaciones y protocolos en
 `.EUI/EUI_DATABASE.sqlite`. Es un almacén por raíz, no por subcarpeta: desplegar
 carpetas en Files no siembra nada. El core activa WAL y las claves foráneas en sus
-conexiones de escritura. La versión del esquema de ideas es 30. El registro
+conexiones de escritura. La versión del esquema de ideas es 31. El registro
 operativo de la aplicación vive en otro fichero y abarca varios repositorios.
 
 ## Tablas y relaciones
@@ -21,7 +21,7 @@ operativo de la aplicación vive en otro fichero y abarca varios repositorios.
 | `revision_node` | Una fila por UID, conservada al archivar | Autor y nota de la aprobación. La fecha es `entered_at` del nodo. Al aprobar, la idea pasa a `historial` y esta firma se conserva. La migración 0013 copia aquí las antiguas completadas. |
 | `rejected_node` | Una fila por UID mientras dura y una referencia opcional a otro UID | Motivo y autor del descarte. `superseded_by_uid` identifica la idea sustituta. |
 | `migracion_lote` | `id` único y `plan_sha256` único | Lote aplicado por `POST /migracion/aplicar`: huella canónica del plan, fecha y número de ideas. Repetir la misma huella devuelve el mismo lote sin crear nada. |
-| `migracion_idea` | Una fila por idea del lote | Procedencia: `ref`, fichero, rango de líneas, `sha256` del origen y `creada_at`. Cuelga de `idea_data.uid` con cascada. |
+| `migracion_idea` | Una fila por idea del lote | Procedencia: `ref`, fichero, rango de líneas, `sha256` del origen, `creada_at` y `estado` (el carril con el que nació). Cuelga de `idea_data.uid` con cascada. |
 | `protocolo_flujo` | Clave compuesta `(origen, destino)` | Transiciones permitidas entre grupos y, con `exige_fases` (0021 y 0024), las que exigen al menos una fase, ninguna abierta (0022) o todas completadas (0023). Desde la 0027, verificación también puede volver a roadmap o descartarse. Es configuración del repo y se conserva al reiniciar el laboratorio. |
 | `event` | `id` entero para el cursor y `dedupe_key` opcional única | Historial por repo con fecha, tipo, origen y payload. Se siembra con el almacén y la migración 0015 lo añade a los que nacieron sin él. |
 | `registro` | `id` entero en un SQLite independiente | Fecha, nivel, origen y mensaje de operaciones del core. El destino por defecto es `data/registro.sqlite` en la raíz del repo y `EVENTSUI_REGISTRO_DB` permite elegir el fichero. |
@@ -59,11 +59,14 @@ quedará y, al aprobar, archiva la idea en `historial` en la misma transacción,
 conservando la firma de `revision_node`.
 
 Los lotes de la migración de Markdown (`migracion_lote` y `migracion_idea`,
-0030) también cuelgan de las ideas: `plan_sha256` es único, así que aplicar dos
-veces el mismo plan devuelve el mismo lote, y la procedencia de cada idea se va
-con ella por la cascada. `creada_at` es la firma que `undo` compara con
-`idea_data.updated_at`; solo borra si el estado sigue en `proposed`, nadie
-editó la idea y ninguna ficha ajena la usa como sustituta.
+0030 y 0031) también cuelgan de las ideas: `plan_sha256` es único, así que
+aplicar dos veces el mismo plan devuelve el mismo lote, y la procedencia de
+cada idea se va con ella por la cascada. `creada_at` es la firma que `undo`
+compara con `idea_data.updated_at` y `estado` recuerda el carril con el que
+nació; solo borra si el nodo sigue en ese carril, nadie editó la idea y ninguna
+ficha ajena la usa como sustituta. Un historial importado conserva en
+`revision_node` la firma `sistema` y la nota «Importado de …»; un descarte
+importado guarda su motivo en `rejected_node`.
 
 La posición única indexa la cola y el log tiene índice por `(origen, id)`. Las
 migraciones 0019 y 0020 retiraron `connections` y `idea_cola` junto con sus

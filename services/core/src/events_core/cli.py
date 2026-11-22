@@ -638,13 +638,13 @@ def _migrar_check(args: argparse.Namespace) -> int:
     for idea in informe["crear"]:
         origen = idea["origen"]
         print(
-            f"+ {idea['title']}  [{idea['ref']}]  "
+            f"+ {idea['title']}  [{idea['ref']}]  {idea.get('status', 'proposed')}  "
             f"{origen['ruta']}:{origen['desde_linea']}-{origen['hasta_linea']}"
         )
     resumen = informe["resumen"]
     print(f"{resumen['ideas']} ideas · {resumen['archivos']} archivos · {resumen['refs']} refs")
     if informe["ok"]:
-        print("plan válido: se aplicaría como un lote y todo entraría en proposed")
+        print("plan válido: se aplicaría como un lote")
         return 0
     for error in informe["errores"]:
         print(f"error  {error}", file=sys.stderr)
@@ -689,7 +689,7 @@ def _migrar_apply(args: argparse.Namespace) -> int:
     if datos["repetido"]:
         print(f"el plan ya se aplicó como lote {datos['lote']}: no se crea nada")
         return 0
-    print(f"lote {datos['lote']}: {datos['ideas']} ideas creadas en proposed")
+    print(f"lote {datos['lote']}: {datos['ideas']} ideas creadas")
     for creada in datos["creadas"]:
         print(f"  {creada['ref']}  {creada['uid']}")
     return 0

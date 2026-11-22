@@ -129,7 +129,9 @@ tareas. Las pautas para el agente que propone el plan están en
 sale de `eui schema migrate` y `migrate check` lo valida contra él sin escribir
 nada (refs, ciclos, origen y hash incluidos). `migrate apply` lo envía al core,
 que lo escribe entero en una transacción (`POST /migracion/aplicar`); repetir
-el mismo plan devuelve el mismo lote sin duplicar nada. `migrate undo <lote>`
+el mismo plan devuelve el mismo lote sin duplicar nada. El plan v2
+(`version: 2`) admite `proposed`, `draft`, `historial` y `rejected`, con
+`fecha` opcional para archivar y `motivo` obligatorio al descartar. `migrate undo <lote>`
 lo deshace (`DELETE /migracion/lotes/{lote}`) solo si nadie movió, editó o
 reemplazó sus ideas después.
 
@@ -233,7 +235,7 @@ corepack pnpm core:dev           # Swagger en http://127.0.0.1:18765/docs
 | GET / PATCH / DELETE | `/ideas/{uid}?repo=<ruta>` |
 | GET | `/mapa?repo=<ruta>` — las ideas del mapa en una sola lectura |
 | GET | `/revision?repo=<ruta>` — firma barata (`PRAGMA data_version` + conteos) para el refresco en vivo |
-| POST | `/migracion/aplicar?repo=<ruta>` — aplica un plan de migración como lote (todo a `proposed`, idempotente) |
+| POST | `/migracion/aplicar?repo=<ruta>` — aplica un plan de migración como lote (cada idea a su carril, idempotente) |
 | DELETE | `/migracion/lotes/{lote}?repo=<ruta>` — deshace el lote si sus ideas no cambiaron (409 con conflictos) |
 | GET | `/protocolos?repo=<ruta>` — uniones permitidas entre carriles (allowlist) |
 | GET | `/eventos?repo=<ruta>` — tail del log (`desde`, `limite`, `origen`) |

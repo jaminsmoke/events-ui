@@ -187,6 +187,9 @@ CREATE TABLE IF NOT EXISTS migracion_idea (
     hasta_linea INTEGER NOT NULL CHECK (hasta_linea >= desde_linea),
     sha256      TEXT    NOT NULL,
     creada_at   TEXT    NOT NULL,
+    -- El carril con el que nació: `undo` lo compara con el nodo actual.
+    estado      TEXT    NOT NULL DEFAULT 'proposed'
+                CHECK (estado IN ('draft', 'proposed', 'historial', 'rejected')),
     PRIMARY KEY (lote_id, ref),
     UNIQUE (lote_id, idea_uid)
 );

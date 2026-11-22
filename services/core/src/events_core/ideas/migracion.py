@@ -8,7 +8,7 @@ import uuid
 from contextlib import closing
 from typing import Any
 
-from .base.comun import _emitir, _tags_json, now_iso
+from .base.comun import _emitir, _tags_json, fecha_iso, now_iso
 from .base.esquema import connect, ensure_repo
 from .modelo.dependencias import _validar_dependencias
 from .modelo.estados import _escribir_estado
@@ -84,7 +84,15 @@ def aplicar_migracion(repo: str, plan: dict[str, Any], *, plan_sha256: str) -> d
 
 
 def _insertar_idea(conn: sqlite3.Connection, idea: dict[str, Any], uid: str, ts: str) -> None:
-    """La idea nace en la cola, con sus fases pendientes y sin dependencias aún."""
+    """La idea nace en su carril, con sus fases pendientes y sin dependencias.
+
+    `historial` y `rejected` no llevan fases; `rejected` guarda el motivo y la
+    autoría del sistema. La fecha del plan se convierte en la entrada del nodo:
+    así `revision_approved_at`/`rejected_at` conservan la fecha histórica y no
+    la de importación. La firma del historial también es del sistema, para no
+    confundir un archivo con una aprobación humana.
+    """
+    estado = str(idea.get("status") or "proposed")
     conn.execute(
         "INSERT INTO idea_data"
         " (uid, title, description, content, kind, tags, depende_de, created_at, updated_at)"
@@ -100,12 +108,26 @@ def _insertar_idea(conn: sqlite3.Connection, idea: dict[str, Any], uid: str, ts:
         ),
     )
     # Igual que `create_idea`: el nodo nace en la entrada y `_escribir_estado`
-    # lo lleva a la cola en la misma transacción, con su posición al final.
+    # lo lleva al carril pedido en la misma transacción.
     conn.execute(
         "INSERT INTO idea_node (uid, estado, posicion, entered_at) VALUES (?, 'draft', NULL, ?)",
         (uid, ts),
     )
-    _escribir_estado(conn, uid, "proposed", {})
+    detalle: dict[str, Any] = {}
+    if estado == "rejected":
+        detalle = {
+            "rejected_description": idea.get("motivo") or "",
+            "rejected_by": "sistema",
+        }
+    _escribir_estado(conn, uid, estado, detalle)
+    if estado in ("historial", "rejected"):
+        fecha = fecha_iso(idea.get("fecha"), ts)
+        conn.execute("UPDATE idea_node SET entered_at = ? WHERE uid = ?", (fecha, uid))
+        if estado == "historial":
+            conn.execute(
+                "INSERT INTO revision_node (uid, approved_by, nota) VALUES (?, 'sistema', ?)",
+                (uid, f"Importado de {idea['origen']['ruta']}"),
+            )
     fases = idea.get("fases") or []
     if fases:
         _escribir_fases(conn, uid, _normalizar_fases(fases, []))
@@ -118,8 +140,8 @@ def _anotar_origen(
     origen = idea["origen"]
     conn.execute(
         "INSERT INTO migracion_idea"
-        " (lote_id, idea_uid, ref, ruta, desde_linea, hasta_linea, sha256, creada_at)"
-        " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        " (lote_id, idea_uid, ref, ruta, desde_linea, hasta_linea, sha256, creada_at, estado)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             lote,
             uid,
@@ -129,6 +151,7 @@ def _anotar_origen(
             origen["hasta_linea"],
             origen["sha256"],
             ts,
+            idea.get("status") or "proposed",
         ),
     )
 
@@ -159,7 +182,8 @@ def deshacer_migracion(repo: str, lote: str) -> dict[str, Any]:
         plan_sha256 = str(fila["plan_sha256"])
         total = int(fila["ideas"])
         filas = conn.execute(
-            "SELECT ref, idea_uid, creada_at FROM migracion_idea WHERE lote_id = ? ORDER BY rowid",
+            "SELECT ref, idea_uid, creada_at, estado FROM migracion_idea"
+            " WHERE lote_id = ? ORDER BY rowid",
             (lote,),
         ).fetchall()
         uids = [str(fila["idea_uid"]) for fila in filas]
@@ -180,9 +204,10 @@ def deshacer_migracion(repo: str, lote: str) -> dict[str, Any]:
                     continue
                 titulos[uid] = str(idea["title"])
                 estado = str(idea["estado"])
-                if estado != "proposed":
+                esperado = str(fila["estado"] or "proposed")
+                if estado != esperado:
                     conflictos.append(
-                        f"{fila['ref']} ({idea['title']}): está en {estado}, no en proposed"
+                        f"{fila['ref']} ({idea['title']}): está en {estado}, no en {esperado}"
                     )
                 elif str(idea["updated_at"]) != str(fila["creada_at"]):
                     conflictos.append(

@@ -16,6 +16,24 @@ def now_iso() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
 
 
+def fecha_iso(valor: str | None, respaldo: str | None = None) -> str:
+    """Normaliza una fecha del plan a ISO UTC; sin fecha, usa el respaldo.
+
+    El plan puede traer solo el día (`2025-03-04`) o un instante con zona. Se
+    guarda siempre con segundos y zona UTC, que es el formato que ya usan
+    `created_at`, `entered_at` y el resto del esquema.
+    """
+    if not valor:
+        return respaldo or now_iso()
+    try:
+        fecha = datetime.fromisoformat(valor.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise InvalidInput(f"fecha inválida: {valor!r}") from exc
+    if fecha.tzinfo is None:
+        fecha = fecha.replace(tzinfo=UTC)
+    return fecha.astimezone(UTC).isoformat(timespec="seconds")
+
+
 def _tags_json(texto: str | None) -> list[str]:
     """Lee `tags` sin fiarse del fichero: una fila vieja puede no ser una lista.
 

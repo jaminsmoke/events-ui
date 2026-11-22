@@ -16,7 +16,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from .ideas.base.comun import InvalidInput
+from .ideas.base.comun import InvalidInput, fecha_iso
 
 EXTENSIONES = {".md", ".markdown"}
 # Lo que nunca es documentación del proyecto: metadatos, dependencias y salidas
@@ -57,8 +57,8 @@ ESQUEMA_PLAN: dict[str, Any] = {
     "required": ["version", "ideas"],
     "properties": {
         "version": {
-            "const": 1,
-            "description": "Versión del formato del plan; si cambia, cambia el número.",
+            "enum": [1, 2],
+            "description": "1: solo proposed; 2: destinos, fechas y motivo.",
         },
         "ideas": {
             "type": "array",
@@ -86,8 +86,25 @@ ESQUEMA_PLAN: dict[str, Any] = {
                 "content": {"type": "string", "default": ""},
                 "kind": {"const": "idea"},
                 "status": {
-                    "const": "proposed",
-                    "description": "La migración no adivina carriles: todo entra en proposed.",
+                    "enum": ["proposed", "draft", "historial", "rejected"],
+                    "default": "proposed",
+                    "description": (
+                        "Carril de destino. `historial` y `rejected` no llevan fases; "
+                        "`rejected` exige `motivo`."
+                    ),
+                },
+                "fecha": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": (
+                        "Fecha de archivo o descarte (ISO 8601); solo con historial "
+                        "o rejected. Sin ella se usa la de importación."
+                    ),
+                },
+                "motivo": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Por qué se descarta; obligatorio con rejected.",
                 },
                 "tags": {
                     "type": "array",
@@ -106,6 +123,7 @@ ESQUEMA_PLAN: dict[str, Any] = {
                     "type": "array",
                     "items": {"$ref": "#/$defs/fase"},
                     "default": [],
+                    "description": "Solo con status proposed.",
                 },
                 "origen": {"$ref": "#/$defs/origen"},
             },
@@ -281,7 +299,7 @@ def revisar(raiz: Path, plan: dict[str, Any], *, plan_ruta: str = "plan.json") -
             "resumen": resumen,
         }
 
-    errores = []
+    errores = _errores_de_destino(plan)
     vistos: dict[str, int] = {}
     for indice, idea in enumerate(ideas):
         ref = idea["ref"]
@@ -321,7 +339,13 @@ def revisar(raiz: Path, plan: dict[str, Any], *, plan_ruta: str = "plan.json") -
             titulos[clave] = indice
 
     crear = [
-        {"ref": idea["ref"], "title": idea["title"], "origen": idea["origen"]} for idea in ideas
+        {
+            "ref": idea["ref"],
+            "title": idea["title"],
+            "status": idea.get("status") or "proposed",
+            "origen": idea["origen"],
+        }
+        for idea in ideas
     ]
     return {
         "ok": not errores,
@@ -331,6 +355,34 @@ def revisar(raiz: Path, plan: dict[str, Any], *, plan_ruta: str = "plan.json") -
         "errores": errores,
         "resumen": resumen,
     }
+
+
+def _errores_de_destino(plan: dict[str, Any]) -> list[str]:
+    """Lo que el esquema no puede decir de los carriles y sus datos."""
+    errores: list[str] = []
+    version = plan.get("version")
+    for indice, idea in enumerate(plan.get("ideas") or []):
+        if not isinstance(idea, dict):
+            continue
+        estado = idea.get("status") or "proposed"
+        if version == 1 and estado != "proposed":
+            errores.append(
+                f"ideas[{indice}].status: la versión 1 solo admite proposed; usa version 2"
+            )
+        if estado != "proposed" and idea.get("fases"):
+            errores.append(f"ideas[{indice}].fases: solo valen con status proposed")
+        if estado == "rejected" and not str(idea.get("motivo") or "").strip():
+            errores.append(f"ideas[{indice}].motivo: rejected exige un motivo")
+        fecha = idea.get("fecha")
+        if fecha is not None:
+            if estado not in ("historial", "rejected"):
+                errores.append(f"ideas[{indice}].fecha: solo vale para historial o rejected")
+                continue
+            try:
+                fecha_iso(str(fecha))
+            except InvalidInput as exc:
+                errores.append(f"ideas[{indice}].fecha: {exc}")
+    return errores
 
 
 def _resumen(ideas: list[Any]) -> dict[str, int]:

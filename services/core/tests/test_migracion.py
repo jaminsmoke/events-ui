@@ -132,7 +132,12 @@ def test_esquema_del_plan_cierra_lo_que_no_se_negocia() -> None:
     assert esquema["$id"] == "urn:events-ui:plan-migracion:1"
     assert set(esquema["required"]) == {"version", "ideas"}
     assert idea["required"] == ["ref", "title", "origen"]
-    assert idea["properties"]["status"]["const"] == "proposed"
+    assert set(idea["properties"]["status"]["enum"]) == {
+        "proposed",
+        "draft",
+        "historial",
+        "rejected",
+    }
     assert idea["properties"]["kind"]["const"] == "idea"
     assert origen["required"] == ["ruta", "desde_linea", "hasta_linea", "sha256"]
     assert origen["properties"]["sha256"]["pattern"] == "^[0-9a-f]{64}$"
@@ -150,7 +155,86 @@ def test_cli_schema_migrate_en_una_linea(capsys) -> None:
     assert cli.main(["schema", "migrate"]) == 0
     salida = capsys.readouterr().out.strip()
     assert "\n" not in salida
-    assert json.loads(salida)["$defs"]["idea"]["properties"]["status"]["const"] == "proposed"
+    assert set(json.loads(salida)["$defs"]["idea"]["properties"]["status"]["enum"]) == {
+        "proposed",
+        "draft",
+        "historial",
+        "rejected",
+    }
+
+
+def test_plan_v2_acepta_los_cuatro_destinos(tmp_path) -> None:
+    plan = _plan_valido(tmp_path)
+    plan["version"] = 2
+    base = plan["ideas"][0]
+    plan["ideas"] = [
+        {**base, "ref": "prop", "title": "Prop", "status": "proposed"},
+        {**base, "ref": "draft", "title": "Draft", "status": "draft"},
+        {
+            **base,
+            "ref": "hist",
+            "title": "Hist",
+            "status": "historial",
+            "fecha": "2025-03-04",
+        },
+        {
+            **base,
+            "ref": "rech",
+            "title": "Rech",
+            "status": "rejected",
+            "motivo": "duplicada",
+            "fecha": "2025-03-05T10:00:00+02:00",
+        },
+    ]
+
+    informe = migracion.revisar(tmp_path, plan)
+
+    assert informe["ok"] is True
+    assert {crear["status"] for crear in informe["crear"]} == {
+        "proposed",
+        "draft",
+        "historial",
+        "rejected",
+    }
+
+
+def test_plan_v1_solo_admite_proposed(tmp_path) -> None:
+    plan = _plan_valido(tmp_path)
+    plan["ideas"][0]["status"] = "draft"
+
+    errores = migracion.revisar(tmp_path, plan)["errores"]
+
+    assert any("versión 1" in error and "version 2" in error for error in errores)
+
+
+def test_rejected_exige_motivo_y_fecha_valida(tmp_path) -> None:
+    plan = _plan_valido(tmp_path)
+    plan["version"] = 2
+    plan["ideas"][0]["status"] = "rejected"
+
+    assert any("motivo" in error for error in migracion.revisar(tmp_path, plan)["errores"])
+
+    plan["ideas"][0]["motivo"] = "duplicada"
+    plan["ideas"][0]["fecha"] = "ayer"
+    assert any("fecha inválida" in error for error in migracion.revisar(tmp_path, plan)["errores"])
+
+    plan["ideas"][0]["fecha"] = "2025-03-04"
+    assert migracion.revisar(tmp_path, plan)["ok"] is True
+
+
+def test_historial_no_lleva_fases_y_fecha_solo_en_archivo(tmp_path) -> None:
+    plan = _plan_valido(tmp_path)
+    plan["version"] = 2
+    plan["ideas"][0]["status"] = "historial"
+    plan["ideas"][0]["fases"] = [{"titulo": "A", "requisitos": [{"titulo": "B"}]}]
+
+    errores = migracion.revisar(tmp_path, plan)["errores"]
+    assert any("fases" in error for error in errores)
+
+    plan["ideas"][0].pop("fases")
+    plan["ideas"][0]["status"] = "proposed"
+    plan["ideas"][0]["fecha"] = "2025-01-01"
+    assert any("fecha" in error for error in migracion.revisar(tmp_path, plan)["errores"])
 
 
 def _plan_valido(tmp_path, **cambios):

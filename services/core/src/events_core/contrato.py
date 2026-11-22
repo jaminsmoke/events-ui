@@ -422,7 +422,11 @@ class PlanIdea(BaseModel):
     description: str = ""
     content: str = ""
     kind: Literal["idea"] = "idea"
-    status: Literal["proposed"] = "proposed"
+    status: Literal["proposed", "draft", "historial", "rejected"] = "proposed"
+    # Solo para historial/rejected; sin ella se usa la fecha de importación.
+    fecha: str | None = None
+    # Solo para rejected: el porqué del descarte.
+    motivo: str | None = None
     tags: list[str] = Field(default_factory=list)
     depende_de: list[str] = Field(default_factory=list)
     fases: list[PlanFase] = Field(default_factory=list)
@@ -430,9 +434,13 @@ class PlanIdea(BaseModel):
 
 
 class PlanMigracion(BaseModel):
-    """El plan completo que se aplica como un lote."""
+    """El plan completo que se aplica como un lote.
 
-    version: Literal[1]
+    La versión 2 añade destinos, fechas y motivo; la 1 se conserva para los
+    planes que solo crean ideas en `proposed`.
+    """
+
+    version: Literal[1, 2]
     ideas: list[PlanIdea] = Field(min_length=1)
 
 

@@ -88,6 +88,78 @@ def test_aplicar_crea_el_lote_completo(client, tmp_path) -> None:
         assert {"idea.created", "migracion.aplicada"} <= tipos
 
 
+def test_aplicar_destinos_fechas_y_firma(client, tmp_path) -> None:
+    archivo = tmp_path / "docs" / "backlog.md"
+    archivo.parent.mkdir(parents=True, exist_ok=True)
+    archivo.write_text("# Backlog\n\n## Uno\n\n- [ ] a\n", encoding="utf-8")
+    sha = hashlib.sha256(archivo.read_bytes()).hexdigest()
+
+    def idea(ref, title, status, **extra):
+        return {
+            "ref": ref,
+            "title": title,
+            "description": "",
+            "content": "",
+            "kind": "idea",
+            "status": status,
+            "origen": {
+                "ruta": "docs/backlog.md",
+                "desde_linea": 3,
+                "hasta_linea": 5,
+                "sha256": sha,
+            },
+            **extra,
+        }
+
+    plan = {
+        "version": 2,
+        "ideas": [
+            idea("prop", "Prop", "proposed"),
+            idea("draft", "Draft", "draft"),
+            idea("hist", "Hist", "historial", fecha="2025-03-04T10:00:00+02:00"),
+            idea("rech", "Rech", "rejected", motivo="duplicada", fecha="2025-03-05"),
+        ],
+    }
+
+    respuesta = client.post("/migracion/aplicar", params={"repo": str(tmp_path)}, json=plan)
+    assert respuesta.status_code == 200, respuesta.text
+    datos = respuesta.json()
+    uids = {creada["ref"]: creada["uid"] for creada in datos["creadas"]}
+
+    historial = client.get(f"/ideas/{uids['hist']}", params={"repo": str(tmp_path)}).json()
+    assert historial["status"] == "historial"
+    assert historial["revision_approved_by"] == "sistema"
+    assert historial["revision_nota"] == "Importado de docs/backlog.md"
+    assert historial["revision_approved_at"] == "2025-03-04T08:00:00+00:00"
+    assert historial["fases"] == []
+
+    rechazada = client.get(f"/ideas/{uids['rech']}", params={"repo": str(tmp_path)}).json()
+    assert rechazada["status"] == "rejected"
+    assert rechazada["rejected_by"] == "sistema"
+    assert rechazada["rejected_description"] == "duplicada"
+    assert rechazada["rejected_at"] == "2025-03-05T00:00:00+00:00"
+
+    borrador = client.get(f"/ideas/{uids['draft']}", params={"repo": str(tmp_path)}).json()
+    assert borrador["status"] == "draft"
+
+    with closing(ideas.connect(ideas.ensure_repo(str(tmp_path)))) as conn:
+        estados = {
+            fila["ref"]: fila["estado"]
+            for fila in conn.execute("SELECT ref, estado FROM migracion_idea")
+        }
+    assert estados == {
+        "prop": "proposed",
+        "draft": "draft",
+        "hist": "historial",
+        "rech": "rejected",
+    }
+
+    deshecho = client.delete(f"/migracion/lotes/{datos['lote']}", params={"repo": str(tmp_path)})
+    assert deshecho.status_code == 200, deshecho.text
+    assert deshecho.json()["borradas"] == 4
+    assert client.get("/ideas", params={"repo": str(tmp_path)}).json() == []
+
+
 def test_repetir_el_plan_no_duplica(client, tmp_path) -> None:
     plan = _plan(tmp_path)
     primero = client.post("/migracion/aplicar", params={"repo": str(tmp_path)}, json=plan).json()

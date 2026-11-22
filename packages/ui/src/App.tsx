@@ -992,6 +992,7 @@ export default function App({
                 setEditando({ uid, titulo, descripcion }),
             }}
             onSeleccionar={seleccionar}
+            onAbrirArchivo={setArchivoAbierto}
             onIgnorarAlmacen={ignorarAlmacen}
             conectado={conectado}
             onClose={() => setVistaDerecha(null)}

@@ -113,6 +113,26 @@ export default {
       );
       await page.getByRole("button", { name: "Cerrar panel derecho" }).click();
 
+      // La ficha de un cambio abre su archivo en el visor.
+      await page.locator(".nodo-cambios .node-head").click();
+      await page.getByRole("button", { name: "Inspector", exact: true }).click();
+      const fichaCambios = page.locator('.resumen[aria-label="Panel derecho"]');
+      await fichaCambios.locator(".inspector-idea", { hasText: "nota.txt" }).click();
+      await fichaCambios.getByRole("button", { name: "Abrir en el visor", exact: true }).click();
+      const visor = page.locator(".visor");
+      await visor.waitFor();
+      await esperar(
+        () => visor.innerText().then((t) => t.includes("hola")),
+        "el visor lee el archivo del cambio",
+        15_000,
+      );
+      await page.keyboard.press("Escape");
+      await esperar(
+        () => page.locator(".visor").count().then((n) => n === 0),
+        "Escape cierra el visor",
+      );
+      await fichaCambios.getByRole("button", { name: "Cerrar panel derecho" }).click();
+
       // Eliminar desde el puente: pide confirmación y vuelve a apagarse.
       await page.getByRole("button", { name: "Mapa de ideas", exact: true }).click();
       await page.getByRole("button", { name: "Eliminar repo…", exact: true }).click();

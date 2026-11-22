@@ -395,8 +395,9 @@ con el motivo, para no reabrirlo cada semana.
   resto se pinta con Shiki 4 —`shiki/core`, motor de regex JS y gramáticas bajo
   demanda—, con números de línea y texto plano si no hay gramática o el archivo
   pasa de 200 000 caracteres. El HTML crudo del Markdown se queda como texto,
-  los enlaces abren fuera y las imágenes se anuncian. Cubierto en
-  `e2e/escenarios/visor.mjs`.
+  los enlaces abren fuera y las imágenes se anuncian. También se abre desde la
+  ficha de un cambio del inspector (un archivo borrado no ofrece el botón).
+  Cubierto en `e2e/escenarios/visor.mjs` y `e2e/escenarios/git-local.mjs`.
 - **Migración de roadmaps y backlogs en Markdown**: aparcada a propósito hasta
   decidir el formato destino; si llega antes, será un importador explícito a
   `proposed` con lote reversible y sin adivinar estados.

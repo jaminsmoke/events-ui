@@ -166,12 +166,17 @@ export function CuerpoCambio({
   cambio,
   total,
   onSeleccionar,
+  onAbrirArchivo,
 }: {
   cambio: CambioGit;
   /** Archivos sin commit en total, para situar el elegido. */
   total: number;
   onSeleccionar: (seleccion: Seleccion) => void;
+  /** Abre la ruta en el visor del marco; un archivo borrado no se abre. */
+  onAbrirArchivo: (ruta: string) => void;
 }) {
+  const borrado = cambio.estado.trim().startsWith("D");
+
   return (
     <div className="panel-cuerpo inspector-cuerpo">
       <p className="inspector-asunto inspector-mono">{cambio.ruta}</p>
@@ -192,6 +197,18 @@ export function CuerpoCambio({
         <dt>Sin commit</dt>
         <dd>{total === 1 ? "es el único archivo" : `${total} archivos en total`}</dd>
       </dl>
+
+      {borrado ? (
+        <p className="hint">El archivo ya no está en el disco: no hay nada que abrir.</p>
+      ) : (
+        <button
+          type="button"
+          className="btn"
+          onClick={() => onAbrirArchivo(cambio.ruta)}
+        >
+          Abrir en el visor
+        </button>
+      )}
 
       <button
         type="button"

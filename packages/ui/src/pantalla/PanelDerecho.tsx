@@ -41,6 +41,7 @@ export function PanelDerecho({
   paso,
   acciones,
   onSeleccionar,
+  onAbrirArchivo,
   conectado,
   onClose,
 }: {
@@ -64,6 +65,8 @@ export function PanelDerecho({
   acciones: AccionesIdea;
   /** Pulsar una idea en la ficha la selecciona en el lienzo. */
   onSeleccionar: (seleccion: Seleccion) => void;
+  /** Abrir un archivo de una ficha (cambio) en el visor del marco. */
+  onAbrirArchivo: (ruta: string) => void;
   conectado: boolean;
   onClose: () => void;
 }) {
@@ -113,6 +116,7 @@ export function PanelDerecho({
           paso={paso}
           acciones={acciones}
           onSeleccionar={onSeleccionar}
+          onAbrirArchivo={onAbrirArchivo}
         />
       )}
     </aside>
@@ -428,6 +432,7 @@ function CuerpoInspector({
   paso,
   acciones,
   onSeleccionar,
+  onAbrirArchivo,
 }: {
   proyeccion: ProyeccionRepo | null | undefined;
   commits: readonly CommitGit[];
@@ -438,6 +443,7 @@ function CuerpoInspector({
   paso: (origen: Status, destino: Status) => Paso | null;
   acciones: AccionesIdea;
   onSeleccionar: (seleccion: Seleccion) => void;
+  onAbrirArchivo: (ruta: string) => void;
 }) {
   if (seleccion && (seleccion.tipo === "carril" || seleccion.tipo === "cajon")) {
     const laneId =
@@ -512,7 +518,12 @@ function CuerpoInspector({
     const cambios = proyeccion?.git_cambios ?? [];
     const cambio = cambios.find((candidato) => candidato.ruta === seleccion.ruta);
     return cambio ? (
-      <CuerpoCambio cambio={cambio} total={cambios.length} onSeleccionar={onSeleccionar} />
+      <CuerpoCambio
+        cambio={cambio}
+        total={cambios.length}
+        onSeleccionar={onSeleccionar}
+        onAbrirArchivo={onAbrirArchivo}
+      />
     ) : (
       <div className="panel-cuerpo inspector-cuerpo">
         <p className="hint">Ese archivo ya no tiene cambios sin commit.</p>

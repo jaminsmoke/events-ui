@@ -10,6 +10,8 @@ from .. import ideas
 from .. import migracion as escaneo
 from ..contrato import (
     RESPUESTAS_ERROR,
+    DocumentoAbsorbido,
+    DocumentoMarkdown,
     MigracionAplicada,
     MigracionDeshecha,
     PlanMigracion,
@@ -18,6 +20,37 @@ from ..contrato import (
 from ..ideas.base.rutas import resolve_repo
 
 router = APIRouter()
+
+
+@router.get(
+    "/documentos",
+    response_model=list[DocumentoAbsorbido],
+    tags=["documentos"],
+    responses=RESPUESTAS_ERROR,
+)
+def get_documentos(repo: RepoParam) -> list[dict[str, Any]]:
+    """Lista los documentos absorbidos que todavía no se han deshecho."""
+    return escaneo.listar_documentos_absorbidos(resolve_repo(repo))
+
+
+@router.get(
+    "/documentos/markdown",
+    response_model=DocumentoMarkdown,
+    tags=["documentos"],
+    responses={
+        **RESPUESTAS_ERROR,
+        404: {"description": "El documento no tiene ítems absorbidos"},
+    },
+)
+def get_documento(ruta: str, repo: RepoParam) -> dict[str, Any]:
+    """Genera la vista Markdown actual sin leer el fichero original."""
+    try:
+        texto = escaneo.exportar_documento(resolve_repo(repo), ruta)
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=404, detail=f"no hay un documento absorbido en {ruta}"
+        ) from exc
+    return {"ruta": ruta, "texto": texto}
 
 
 @router.post(

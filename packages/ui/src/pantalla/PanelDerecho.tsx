@@ -22,7 +22,8 @@ import { CuerpoIdea } from "./InspectorIdea";
 import { CuerpoNudo } from "./InspectorNudo";
 import type { AccionesIdea } from "./InspectorIdea";
 import { VisorArchivo } from "./VisorArchivo";
-/** Panel derecho del marco, con tres vistas que comparten cabecera.
+import { VisorDocumento } from "./VisorDocumento";
+/** Panel derecho del marco, con varias vistas que comparten cabecera.
  *
  *  Resumen es el estado del repo de un vistazo: sale por encima del lienzo —no
  *  le roba ancho— y se lee de la misma `ProyeccionRepo` que la statusbar, sin
@@ -35,6 +36,7 @@ export function PanelDerecho({
   onVista,
   repo,
   archivoAbierto,
+  documentoAbierto,
   proyeccion,
   onIgnorarAlmacen,
   commits,
@@ -55,6 +57,8 @@ export function PanelDerecho({
   repo: string;
   /** Ruta abierta en la vista Archivo; `null` deja el aviso de vacío. */
   archivoAbierto: string | null;
+  /** Documento absorbido abierto en su visor; `null` deja el aviso de vacío. */
+  documentoAbierto: string | null;
   proyeccion: ProyeccionRepo | null | undefined;
   /** Escribe `.EUI/` en el `.gitignore` de esta raíz; lo ofrece el Resumen. */
   onIgnorarAlmacen: () => Promise<unknown>;
@@ -92,7 +96,7 @@ export function PanelDerecho({
 
   return (
     <aside
-      className={`resumen${vista === "archivo" ? " resumen--visor" : ""}`}
+      className={`resumen${vista === "archivo" || vista === "documento" ? " resumen--visor" : ""}`}
       aria-label="Panel derecho"
     >
       <div className="panel-cabecera">
@@ -100,6 +104,7 @@ export function PanelDerecho({
           {pestana("resumen", "Resumen")}
           {pestana("inspector", "Inspector")}
           {archivoAbierto && pestana("archivo", "Archivo")}
+          {documentoAbierto && pestana("documento", "Documento")}
         </div>
         <button
           type="button"
@@ -119,6 +124,16 @@ export function PanelDerecho({
             <p className="hint">
               Ningún archivo abierto. Pulsa uno en el Explorador o en la ficha de
               un cambio.
+            </p>
+          </div>
+        )
+      ) : vista === "documento" ? (
+        documentoAbierto ? (
+          <VisorDocumento key={documentoAbierto} repo={repo} ruta={documentoAbierto} />
+        ) : (
+          <div className="panel-cuerpo">
+            <p className="hint">
+              Ningún documento abierto. Pulsa uno en el pane Documentos.
             </p>
           </div>
         )

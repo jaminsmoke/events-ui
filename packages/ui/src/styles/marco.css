@@ -308,6 +308,25 @@ header > div {
   color: #fff;
 }
 
+/* Un documento absorbido: ruta arriba y el recuento debajo, sin competir con
+ *  el título de la idea. */
+.documento-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.documento-ruta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.documento-meta {
+  color: var(--muted);
+  font-size: 10px;
+}
+
 /* Árbol de archivos del pane: solo se pinta lo desplegado. */
 .arbol {
   min-width: 0;

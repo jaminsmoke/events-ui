@@ -1077,6 +1077,54 @@ def confirmar_absorcion(raiz: Path, lote: str) -> dict[str, Any]:
     }
 
 
+def listar_documentos_absorbidos(raiz: Path) -> list[dict[str, Any]]:
+    """Los documentos que ya solo viven en Events UI, ordenados por ruta.
+
+    Se leen los manifiestos de `.EUI/migracion/<lote>/absorcion.json`, no el
+    filesystem del repo: el origen puede haberse retirado. Si una ruta aparece
+    en varios lotes, se queda el manifiesto más reciente.
+    """
+    from .ideas.migracion import leer_absorcion
+
+    raiz = raiz.resolve()
+    base = raiz / EUI_DIR / "migracion"
+    if not base.is_dir():
+        return []
+
+    documentos: dict[str, dict[str, Any]] = {}
+    with closing(open_read_only(db_file_for(str(raiz)))) as conn:
+        for carpeta in sorted(base.iterdir()):
+            if not carpeta.is_dir():
+                continue
+            try:
+                manifiesto = leer_absorcion(str(raiz), carpeta.name)
+            except InvalidInput:
+                continue
+            if not manifiesto or manifiesto.get("estado") != "absorbido":
+                continue
+            absorbido_at = str(manifiesto.get("absorbido_at") or "")
+            for archivo in manifiesto.get("archivos", []):
+                if not isinstance(archivo, dict) or not isinstance(archivo.get("ruta"), str):
+                    continue
+                ruta = archivo["ruta"]
+                fila = conn.execute(
+                    "SELECT COUNT(DISTINCT idea_uid) FROM migracion_idea WHERE ruta = ?",
+                    (ruta,),
+                ).fetchone()
+                documento = {
+                    "ruta": ruta,
+                    "lote": str(manifiesto.get("lote") or carpeta.name),
+                    "absorbido_at": absorbido_at,
+                    "items": int(fila[0]) if fila else 0,
+                    "copia": archivo.get("copia"),
+                }
+                anterior = documentos.get(ruta)
+                if anterior is None or documento["absorbido_at"] > anterior["absorbido_at"]:
+                    documentos[ruta] = documento
+
+    return sorted(documentos.values(), key=lambda documento: documento["ruta"].casefold())
+
+
 def exportar_documento(raiz: Path, ruta: str) -> str:
     """Genera el Markdown actual de un documento a partir de sus ítems.
 

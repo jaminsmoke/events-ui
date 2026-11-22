@@ -236,3 +236,42 @@ def test_cli_absorb_lote_inexistente(tmp_path, capsys) -> None:
 
     assert cli.main(["migrate", "absorb", "no-existe", "--json"]) == 1
     assert "no existe el lote" in capsys.readouterr().err
+
+
+def test_api_documentos_lista_y_exporta_sin_el_original(client, tmp_path) -> None:
+    archivo = _documento(tmp_path, "# ROADMAP\n\n- **Uno.** Hecho.\n")
+    lote = _aplicar(client, archivo, [("uno", "Uno", 3)])
+    migracion.confirmar_absorcion(tmp_path, lote["lote"])
+    assert not archivo.exists()
+
+    listado = client.get("/documentos", params={"repo": str(tmp_path)})
+    assert listado.status_code == 200, listado.text
+    (documento,) = listado.json()
+    assert documento["ruta"] == "ROADMAP.md"
+    assert documento["lote"] == lote["lote"]
+    assert documento["items"] == 1
+    assert documento["copia"] == f".EUI/migracion/{lote['lote']}/ROADMAP.md"
+
+    vista = client.get(
+        "/documentos/markdown",
+        params={"repo": str(tmp_path), "ruta": "ROADMAP.md"},
+    )
+    assert vista.status_code == 200, vista.text
+    assert vista.json()["ruta"] == "ROADMAP.md"
+    assert "## Backlog" in vista.json()["texto"]
+    assert "**Uno**" in vista.json()["texto"]
+
+
+def test_api_documentos_inexistente(client, tmp_path) -> None:
+    # La BD tiene que existir: el 404 que se prueba es el del documento, no el
+    # de un repo que aún no se ha abierto nunca.
+    archivo = _documento(tmp_path, "# ROADMAP\n\n- **Uno.** Hecho.\n")
+    _aplicar(client, archivo, [("uno", "Uno", 3)])
+
+    respuesta = client.get(
+        "/documentos/markdown",
+        params={"repo": str(tmp_path), "ruta": "NO-EXISTE.md"},
+    )
+
+    assert respuesta.status_code == 404
+    assert "no hay un documento absorbido" in respuesta.json()["detail"]

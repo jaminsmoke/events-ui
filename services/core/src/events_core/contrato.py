@@ -480,6 +480,27 @@ class MigracionDeshecha(BaseModel):
     ausentes: int
 
 
+class DocumentoAbsorbido(BaseModel):
+    """Un documento cuyo Markdown ya solo vive en Events UI.
+
+    `copia` es la copia de seguridad dentro de `.EUI/migracion/<lote>/`; el
+    visor no la lee, pero sirve para saber dónde está el original restaurable.
+    """
+
+    ruta: str
+    lote: str
+    absorbido_at: str
+    items: int
+    copia: str | None = None
+
+
+class DocumentoMarkdown(BaseModel):
+    """La vista Markdown generada desde los ítems de un documento absorbido."""
+
+    ruta: str
+    texto: str
+
+
 class ErrorDetail(BaseModel):
     """Lo que devuelven los exception handlers de abajo: `{"detail": ...}`.
 

@@ -46,6 +46,12 @@ export type NivelArbol = Schemas["NivelArbol"];
 /** El texto de un archivo del repo (`GET /archivo`), acotado para el visor. */
 export type Archivo = Schemas["Archivo"];
 
+/** Un documento absorbido (`GET /documentos`). */
+export type DocumentoAbsorbido = Schemas["DocumentoAbsorbido"];
+
+/** Su Markdown generado (`GET /documentos/markdown`). */
+export type DocumentoMarkdown = Schemas["DocumentoMarkdown"];
+
 /** La respuesta de POST /reiniciar (LAB): cuántas filas se vaciaron. */
 export type Reinicio = Schemas["Reinicio"];
 

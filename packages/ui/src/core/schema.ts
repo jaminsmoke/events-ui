@@ -494,6 +494,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/documentos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Documentos
+         * @description Lista los documentos absorbidos que todavía no se han deshecho.
+         */
+        get: operations["get_documentos_documentos_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/documentos/markdown": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Documento
+         * @description Genera la vista Markdown actual sin leer el fichero original.
+         */
+        get: operations["get_documento_documentos_markdown_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/migracion/aplicar": {
         parameters: {
             query?: never;
@@ -662,6 +702,35 @@ export interface components {
             repo?: string | null;
             /** Port */
             port?: number | null;
+        };
+        /**
+         * DocumentoAbsorbido
+         * @description Un documento cuyo Markdown ya solo vive en Events UI.
+         *
+         *     `copia` es la copia de seguridad dentro de `.EUI/migracion/<lote>/`; el
+         *     visor no la lee, pero sirve para saber dónde está el original restaurable.
+         */
+        DocumentoAbsorbido: {
+            /** Ruta */
+            ruta: string;
+            /** Lote */
+            lote: string;
+            /** Absorbido At */
+            absorbido_at: string;
+            /** Items */
+            items: number;
+            /** Copia */
+            copia?: string | null;
+        };
+        /**
+         * DocumentoMarkdown
+         * @description La vista Markdown generada desde los ítems de un documento absorbido.
+         */
+        DocumentoMarkdown: {
+            /** Ruta */
+            ruta: string;
+            /** Texto */
+            texto: string;
         };
         /**
          * EntradaLog
@@ -2664,6 +2733,105 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_documentos_documentos_get: {
+        parameters: {
+            query: {
+                /** @description Carpeta del repo: ruta absoluta o nombre en el lab */
+                repo: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentoAbsorbido"][];
+                };
+            };
+            /** @description Petición inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description No existe el repo o la idea */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_documento_documentos_markdown_get: {
+        parameters: {
+            query: {
+                ruta: string;
+                /** @description Carpeta del repo: ruta absoluta o nombre en el lab */
+                repo: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentoMarkdown"];
+                };
+            };
+            /** @description Petición inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description El documento no tiene ítems absorbidos */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

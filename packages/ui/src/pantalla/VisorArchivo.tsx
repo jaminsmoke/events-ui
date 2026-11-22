@@ -208,7 +208,7 @@ function Codigo({ codigo, lenguaje }: { codigo: string; lenguaje: string | null 
 /** Render de Markdown con el mismo resaltador que el visor de código. Los
  *  enlaces abren fuera y las imágenes relativas se resuelven contra el repo;
  *  las de red o `data:` las carga el navegador. */
-function Markdown({ texto, repo, ruta }: { texto: string; repo: string; ruta: string }) {
+export function Markdown({ texto, repo, ruta }: { texto: string; repo: string; ruta: string }) {
   const componentes = useMemo(() => componentesDe(repo, ruta), [repo, ruta]);
   return (
     <div className="visor-md">

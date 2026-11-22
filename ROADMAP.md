@@ -449,6 +449,19 @@ con el motivo, para no reabrirlo cada semana.
   ideas con el mismo título en el mismo fichero. Enseña lo que se crearía (todo
   a `proposed`) y sale con 0 si se aplicaría, 1 si hay problemas y 2 si el plan
   no se puede leer. Cubierto en `services/core/tests/test_migracion.py`.
+- **Migración: `eui migrate apply`**: aplica `plan.json` como un lote con
+  `POST /migracion/aplicar`. El core recibe el plan ya normalizado, vuelve a
+  pasarlo por `revisar` (origen, refs y ciclos) y lo escribe entero en una
+  transacción: `migracion_lote` guarda la huella canónica del plan, la fecha y
+  el número de ideas, y `migracion_idea` la procedencia de cada una (`ref`,
+  fichero, líneas, `sha256` y `creada_at`). Todas nacen en `proposed`, al final
+  de la cola, con sus fases pendientes y requisitos sin marcar, y `depende_de`
+  resuelto de refs a uids dentro del lote. Se emite `idea.created` por idea y
+  un `migracion.aplicada`; repetir el mismo plan devuelve el mismo lote con
+  `repetido: true` sin duplicar, y un fallo a mitad deshace todo. El CLI valida
+  antes de enviar y sale 0 aplicado o ya aplicado, 1 plan con problemas y 2
+  fallo. Cubierto en `services/core/tests/test_migracion_apply.py` y
+  `services/core/tests/test_migracion.py`.
 
 ## Pendientes
 
@@ -457,15 +470,12 @@ con el motivo, para no reabrirlo cada semana.
   siguientes se abordan en este orden, uno cada vez y cerrando cada uno con sus
   tests antes de abrir el siguiente. Los agentes no tocan la API cruda: usan
   `eui` o el MCP, que son las dos caras del mismo cliente.
-  - **Paso 1 — migración con plan y lote.** `scan`, las pautas, el esquema y
-    `check` ya están en Hecho; quedan `apply` y `undo`: aplicar el plan como un
-    lote (todo a `proposed`, con el sha256 del origen y en una transacción) y
-    deshacerlo solo si nadie tocó después las ideas que creó.
-    `eui migrate apply` lo aplica como lote: todo entra en `proposed`, sin
-    adivinar estados, guardando el lote, el sha256 del fichero de origen y el
-    rango de líneas, así que repetirlo no duplica. `eui migrate undo <lote>`
-    borra solo lo que creó el lote y se niega, listando los conflictos, si algo
-    se movió o editó después.
+  - **Paso 1 — migración con plan y lote.** `scan`, las pautas, el esquema,
+    `check` y `apply` ya están en Hecho; queda `undo`: borrar solo lo que creó
+    el lote y negarse, listando los conflictos, si algo se movió o editó
+    después. La procedencia ya guarda `creada_at` y el estado tiene que seguir
+    en `proposed`; `undo` comparará esa firma con `idea_data.updated_at` y
+    borrará las ideas y el lote en una transacción.
   - **Paso 2 — MCP fino.** Servidor MCP por stdio que no reimplementa nada:
     cada herramienta llama al cliente compartido del CLI (`repo`, `idea.list`,
     `idea.get`, `migrate.scan`, `migrate.check`, `migrate.apply`) y publica el

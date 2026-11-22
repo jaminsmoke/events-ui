@@ -31,6 +31,7 @@ from .routers import eventos as rutas_eventos
 from .routers import git as rutas_git
 from .routers import ideas as rutas_ideas
 from .routers import log as rutas_log
+from .routers import migracion as rutas_migracion
 
 # Orígenes con derecho a llamar a la API: el webview de Tauri. CORS decide
 # quién puede LEER la respuesta; las mutaciones comprueban además el origen,
@@ -153,3 +154,4 @@ app.include_router(rutas_log.router)
 app.include_router(rutas_git.router)
 app.include_router(rutas_arbol.router)
 app.include_router(rutas_config.router)
+app.include_router(rutas_migracion.router)

@@ -494,6 +494,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/migracion/aplicar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Aplicar
+         * @description Aplica el plan entero o nada.
+         *
+         *     El contrato comprueba la forma (todo a `proposed`, fases pendientes, un
+         *     origen con hash por idea); `revisar` vuelve a mirar el disco (origen dentro
+         *     del repo, `sha256` al día, ciclos y duplicados) y el core escribe el lote
+         *     en una transacción. La huella canónica del plan hace idempotente el envío.
+         */
+        post: operations["post_aplicar_migracion_aplicar_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -975,6 +1000,37 @@ export interface components {
             ideas: components["schemas"]["MapIdea"][];
         };
         /**
+         * MigracionAplicada
+         * @description Respuesta de `POST /migracion/aplicar`.
+         *
+         *     `repetido` avisa de que la misma huella ya tenía lote: no se creó nada y
+         *     `creadas` repite lo del primer apply.
+         */
+        MigracionAplicada: {
+            /** Repo */
+            repo: string;
+            /** Lote */
+            lote: string;
+            /** Plan Sha256 */
+            plan_sha256: string;
+            /** Repetido */
+            repetido: boolean;
+            /** Ideas */
+            ideas: number;
+            /** Creadas */
+            creadas?: components["schemas"]["MigracionCreada"][];
+        };
+        /**
+         * MigracionCreada
+         * @description Una idea creada por el lote: su `ref` del plan y el `uid` que recibió.
+         */
+        MigracionCreada: {
+            /** Ref */
+            ref: string;
+            /** Uid */
+            uid: string;
+        };
+        /**
          * NivelArbol
          * @description Una carpeta del árbol ya listada; la raíz del repo es `ruta` vacía.
          *
@@ -1009,6 +1065,107 @@ export interface components {
              * @enum {string}
              */
             tipo: "carpeta" | "archivo";
+        };
+        /**
+         * PlanFase
+         * @description Una fase del plan: entra pendiente y con al menos un requisito.
+         */
+        PlanFase: {
+            /** Titulo */
+            titulo: string;
+            /**
+             * Nota
+             * @default
+             */
+            nota: string;
+            /**
+             * Estado
+             * @default pendiente
+             * @constant
+             */
+            estado: "pendiente";
+            /** Requisitos */
+            requisitos: components["schemas"]["PlanRequisito"][];
+        };
+        /**
+         * PlanIdea
+         * @description Una idea propuesta: `ref` es local al plan, no un uid del almacén.
+         */
+        PlanIdea: {
+            /** Ref */
+            ref: string;
+            /** Title */
+            title: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /**
+             * Content
+             * @default
+             */
+            content: string;
+            /**
+             * Kind
+             * @default idea
+             * @constant
+             */
+            kind: "idea";
+            /**
+             * Status
+             * @default proposed
+             * @constant
+             */
+            status: "proposed";
+            /** Tags */
+            tags?: string[];
+            /** Depende De */
+            depende_de?: string[];
+            /** Fases */
+            fases?: components["schemas"]["PlanFase"][];
+            origen: components["schemas"]["PlanOrigen"];
+        };
+        /**
+         * PlanMigracion
+         * @description El plan completo que se aplica como un lote.
+         */
+        PlanMigracion: {
+            /**
+             * Version
+             * @constant
+             */
+            version: 1;
+            /** Ideas */
+            ideas: components["schemas"]["PlanIdea"][];
+        };
+        /**
+         * PlanOrigen
+         * @description De dónde sale una idea del plan: el Markdown del scan.
+         */
+        PlanOrigen: {
+            /** Ruta */
+            ruta: string;
+            /** Desde Linea */
+            desde_linea: number;
+            /** Hasta Linea */
+            hasta_linea: number;
+            /** Sha256 */
+            sha256: string;
+        };
+        /**
+         * PlanRequisito
+         * @description Un requisito de una fase migrada: nace sin marcar.
+         */
+        PlanRequisito: {
+            /** Titulo */
+            titulo: string;
+            /**
+             * Hecho
+             * @default false
+             * @constant
+             */
+            hecho: false;
         };
         /**
          * Protocolo
@@ -2438,6 +2595,60 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Config"];
+                };
+            };
+            /** @description Petición inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description No existe el repo o la idea */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_aplicar_migracion_aplicar_post: {
+        parameters: {
+            query: {
+                /** @description Carpeta del repo: ruta absoluta o nombre en el lab */
+                repo: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanMigracion"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MigracionAplicada"];
                 };
             };
             /** @description Petición inválida */

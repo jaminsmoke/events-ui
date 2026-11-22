@@ -167,6 +167,32 @@ CREATE TABLE IF NOT EXISTS idea_requisito (
 -- próximo cierre de fase. Una fila por idea —es el estado, no un historial— y
 -- el texto es `ruta<TAB>tamaño<TAB>mtime_ns` por línea. Sin watcher: solo se
 -- fotografía al entrar en roadmap y al cerrar una fase.
+-- Los lotes de la migración de Markdown (0030). Un plan se aplica entero en
+-- una transacción y deja su huella; repetirlo no duplica. `migracion_idea`
+-- guarda la procedencia de cada idea (fichero, líneas y hash) y la firma
+-- `creada_at` que luego compara `undo` con `idea_data.updated_at`.
+CREATE TABLE IF NOT EXISTS migracion_lote (
+    id          TEXT    PRIMARY KEY,
+    plan_sha256 TEXT    NOT NULL UNIQUE,
+    creado_at   TEXT    NOT NULL,
+    ideas       INTEGER NOT NULL CHECK (ideas > 0)
+);
+
+CREATE TABLE IF NOT EXISTS migracion_idea (
+    lote_id     TEXT    NOT NULL REFERENCES migracion_lote (id) ON DELETE CASCADE,
+    idea_uid    TEXT    NOT NULL REFERENCES idea_data (uid) ON DELETE CASCADE,
+    ref         TEXT    NOT NULL,
+    ruta        TEXT    NOT NULL,
+    desde_linea INTEGER NOT NULL CHECK (desde_linea > 0),
+    hasta_linea INTEGER NOT NULL CHECK (hasta_linea >= desde_linea),
+    sha256      TEXT    NOT NULL,
+    creada_at   TEXT    NOT NULL,
+    PRIMARY KEY (lote_id, ref),
+    UNIQUE (lote_id, idea_uid)
+);
+
+CREATE INDEX IF NOT EXISTS migracion_idea_uid ON migracion_idea (idea_uid);
+
 CREATE TABLE IF NOT EXISTS idea_foto (
     idea_uid TEXT PRIMARY KEY REFERENCES idea_data (uid) ON DELETE CASCADE,
     ts       TEXT NOT NULL,

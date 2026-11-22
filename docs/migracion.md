@@ -17,7 +17,10 @@ aplica**. Nadie escribe el almacén a mano ni llama a la API cruda.
    crearía sin escribir nada. Sale con 0 si se aplicaría, 1 si hay problemas y
    2 si el plan no se puede leer.
 5. `eui migrate apply plan.json` aplica el lote de una vez. Todas las ideas
-   entran en `proposed`; ninguna en otro carril.
+   entran en `proposed`; ninguna en otro carril. El core escribe el lote
+   entero en una transacción: si una idea falla, no queda ninguna. La huella
+   del plan identifica el lote, así que repetir el mismo `apply` devuelve el
+   mismo lote y no duplica nada.
 6. `eui migrate undo <lote>` deshace solo lo que creó ese lote, y se niega si
    alguien movió o editó una idea después.
 
@@ -44,7 +47,7 @@ nada, en `.EUI/migracion/plan.json` (no se versiona).
   «después de», «bloqueada por»). Resuelve el título contra otra idea del mismo
   plan con `ref`; si no hay referencia clara, se deja vacío.
 - `fases`: solo si el elemento lista pasos propios de ejecución. Todas entran
-  en `pendiente`, sin fechas.
+  en `pendiente`, sin fechas, y cada una con al menos un requisito.
 - `requisitos`: las viñetas hijas que sean criterios de hecho, con
   `hecho: false`. Marcarlas como hechas es una decisión del usuario.
 
@@ -82,6 +85,20 @@ con una idea por elemento migrado:
   dependencias que no existan o formen ciclo, `origen.ruta` fuera del repo y un
   `sha256` que ya no cuadre con el fichero actual.
 
+## El lote
+
+`apply` no crea ideas sueltas: crea un lote. `migracion_lote` guarda la huella
+canónica del plan (`sha256`), la fecha y el número de ideas; `migracion_idea`
+guarda de cada una su `ref`, el fichero de origen, el rango de líneas y el
+`sha256`, más la fecha de creación. La huella es única: el mismo plan enviado
+dos veces devuelve el mismo lote con `repetido: true` y no escribe nada.
+
+Las ideas nacen en `proposed`, al final de la cola, con sus fases pendientes y
+sus requisitos sin marcar; `depende_de` se resuelve de refs a uids dentro del
+lote. Un fallo a mitad deshace la transacción entera. `undo` usará la
+procedencia: solo borrará las ideas del lote y se negará si alguna cambió de
+estado o se editó después de crearse.
+
 ## Lo que no se hace
 
 - No editar, mover ni borrar el Markdown de origen. La migración es un alta,
@@ -100,3 +117,4 @@ con una idea por elemento migrado:
 - [ ] No hay dos ideas con la misma referencia ni con el mismo título y origen.
 - [ ] Los totales del plan cuadran con el resumen del scan.
 - [ ] Todo está en `proposed`; ni una idea en otro carril.
+- [ ] Cada fase tiene al menos un requisito y ningún requisito viene marcado.

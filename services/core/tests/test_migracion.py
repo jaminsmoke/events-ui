@@ -307,3 +307,89 @@ def test_cli_migrate_check_sin_plan(tmp_path, capsys) -> None:
 
     assert cli.main(["migrate", "check", str(tmp_path / "no.json")]) == 1
     assert "no existe" in capsys.readouterr().err
+
+
+def test_esquema_exige_requisito_en_cada_fase(tmp_path) -> None:
+    plan = _plan_valido(tmp_path)
+    plan["ideas"][0]["fases"] = [{"titulo": "Sin criterio", "requisitos": []}]
+
+    errores = migracion.validar_esquema(plan)
+
+    assert any("fases[0].requisitos" in error for error in errores)
+
+
+def test_huella_del_plan_ignora_el_orden_de_las_claves() -> None:
+    assert migracion.huella_plan({"version": 1, "ideas": [{"ref": "a"}]}) == migracion.huella_plan(
+        {"ideas": [{"ref": "a"}], "version": 1}
+    )
+
+
+def test_cli_migrate_apply_envia_el_plan(tmp_path, capsys, monkeypatch) -> None:
+    destino = tmp_path / "plan.json"
+    destino.write_text(json.dumps(_plan_valido(tmp_path)), encoding="utf-8")
+    config.guardar(repo=str(tmp_path))
+    visto = {}
+
+    def falso(url, datos):
+        visto["url"] = url
+        visto["datos"] = datos
+        return (
+            {
+                "repo": str(tmp_path),
+                "lote": "lote-1",
+                "plan_sha256": "x",
+                "repetido": False,
+                "ideas": 1,
+                "creadas": [{"ref": "idea-1", "uid": "u1"}],
+            },
+            None,
+            200,
+        )
+
+    monkeypatch.setattr(cli, "_post", falso)
+
+    assert cli.main(["migrate", "apply", str(destino)]) == 0
+    salida = capsys.readouterr().out
+    assert "lote-1" in salida
+    assert "u1" in salida
+    assert "/migracion/aplicar" in visto["url"]
+    assert visto["datos"]["ideas"][0]["ref"] == "idea-1"
+
+
+def test_cli_migrate_apply_no_envia_un_plan_malo(tmp_path, capsys, monkeypatch) -> None:
+    destino = tmp_path / "plan.json"
+    destino.write_text(json.dumps(_plan_valido(tmp_path, status="roadmap")), encoding="utf-8")
+    config.guardar(repo=str(tmp_path))
+
+    def no_llamar(*_args):
+        raise AssertionError("no debe enviarse un plan inválido")
+
+    monkeypatch.setattr(cli, "_post", no_llamar)
+
+    assert cli.main(["migrate", "apply", str(destino)]) == 1
+    assert "no se aplica nada" in capsys.readouterr().err
+
+
+def test_cli_migrate_apply_repetido_lo_dice(tmp_path, capsys, monkeypatch) -> None:
+    destino = tmp_path / "plan.json"
+    destino.write_text(json.dumps(_plan_valido(tmp_path)), encoding="utf-8")
+    config.guardar(repo=str(tmp_path))
+
+    def repetido(_url, _datos):
+        return (
+            {
+                "repo": str(tmp_path),
+                "lote": "lote-1",
+                "plan_sha256": "x",
+                "repetido": True,
+                "ideas": 1,
+                "creadas": [],
+            },
+            None,
+            200,
+        )
+
+    monkeypatch.setattr(cli, "_post", repetido)
+
+    assert cli.main(["migrate", "apply", str(destino)]) == 0
+    assert "ya se aplicó" in capsys.readouterr().out

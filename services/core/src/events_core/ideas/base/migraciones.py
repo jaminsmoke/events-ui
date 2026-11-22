@@ -53,7 +53,9 @@ MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migraciones"
 # desde verificación, sin un carril nuevo; la 0028 anota en cada fase los
 # archivos que cambiaron entre dos fotos del árbol, sin watcher: se fotografía
 # al entrar en roadmap y al cerrar una fase; la 0029 añade los archivos de cada
-# requisito de la fase.
+# requisito de la fase; la 0030 añade los lotes de la migración de Markdown
+# (`migracion_lote`, `migracion_idea`), para aplicar un plan entero en una
+# transacción, no repetirlo y saber de dónde salió cada idea.
 
 # Marca en la cabecera de una migración que reconstruye una tabla con claves
 # foráneas apuntándole (ver `_aplicar_paso`).

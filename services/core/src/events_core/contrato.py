@@ -389,6 +389,75 @@ class RegistroPurgado(BaseModel):
     por_conteo: int
 
 
+class PlanOrigen(BaseModel):
+    """De dónde sale una idea del plan: el Markdown del scan."""
+
+    ruta: str = Field(min_length=1, pattern=r"^[^\\]+$")
+    desde_linea: int = Field(ge=1)
+    hasta_linea: int = Field(ge=1)
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class PlanRequisito(BaseModel):
+    """Un requisito de una fase migrada: nace sin marcar."""
+
+    titulo: str = Field(min_length=1)
+    hecho: Literal[False] = False
+
+
+class PlanFase(BaseModel):
+    """Una fase del plan: entra pendiente y con al menos un requisito."""
+
+    titulo: str = Field(min_length=1)
+    nota: str = ""
+    estado: Literal["pendiente"] = "pendiente"
+    requisitos: list[PlanRequisito] = Field(min_length=1)
+
+
+class PlanIdea(BaseModel):
+    """Una idea propuesta: `ref` es local al plan, no un uid del almacén."""
+
+    ref: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+    title: str = Field(min_length=1)
+    description: str = ""
+    content: str = ""
+    kind: Literal["idea"] = "idea"
+    status: Literal["proposed"] = "proposed"
+    tags: list[str] = Field(default_factory=list)
+    depende_de: list[str] = Field(default_factory=list)
+    fases: list[PlanFase] = Field(default_factory=list)
+    origen: PlanOrigen
+
+
+class PlanMigracion(BaseModel):
+    """El plan completo que se aplica como un lote."""
+
+    version: Literal[1]
+    ideas: list[PlanIdea] = Field(min_length=1)
+
+
+class MigracionCreada(BaseModel):
+    """Una idea creada por el lote: su `ref` del plan y el `uid` que recibió."""
+
+    ref: str
+    uid: str
+
+
+class MigracionAplicada(BaseModel):
+    """Respuesta de `POST /migracion/aplicar`.
+
+    `repetido` avisa de que la misma huella ya tenía lote: no se creó nada y
+    `creadas` repite lo del primer apply.
+    """
+
+    repo: str
+    lote: str
+    plan_sha256: str
+    repetido: bool
+    ideas: int
+    creadas: list[MigracionCreada] = Field(default_factory=list)
+
+
 class ErrorDetail(BaseModel):
     """Lo que devuelven los exception handlers de abajo: `{"detail": ...}`.
 

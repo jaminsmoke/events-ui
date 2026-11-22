@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 from . import __version__, migracion
 from . import config as configuracion
@@ -28,6 +28,8 @@ from .ideas.base.comun import InvalidInput
 from .ideas.base.rutas import resolve_repo
 
 TIMEOUT_S = 2.0
+# Aplicar un lote escribe en el almacén: no cabe en el tiempo de un sondeo.
+TIMEOUT_LARGO_S = 30.0
 
 
 def _url(argumento: str | None, puerto: int) -> str:
@@ -51,6 +53,23 @@ def _get(url: str) -> tuple[Any | None, str | None, int]:
     """GET en JSON: `(datos, detalle, estado)`; estado 0 si no hubo respuesta."""
     try:
         with urlopen(url, timeout=TIMEOUT_S) as respuesta:
+            return json.loads(respuesta.read().decode("utf-8")), None, respuesta.status
+    except HTTPError as exc:
+        return None, _detalle(exc) or f"HTTP {exc.code}", exc.code
+    except (URLError, OSError, ValueError) as exc:
+        return None, str(getattr(exc, "reason", exc)), 0
+
+
+def _post(url: str, datos: Any) -> tuple[Any | None, str | None, int]:
+    """POST en JSON: `(datos, detalle, estado)`; estado 0 si no hubo respuesta."""
+    peticion = Request(
+        url,
+        data=json.dumps(datos).encode("utf-8"),
+        headers={"content-type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urlopen(peticion, timeout=TIMEOUT_LARGO_S) as respuesta:
             return json.loads(respuesta.read().decode("utf-8")), None, respuesta.status
     except HTTPError as exc:
         return None, _detalle(exc) or f"HTTP {exc.code}", exc.code
@@ -430,6 +449,49 @@ def _migrar_check(args: argparse.Namespace) -> int:
     return 1
 
 
+def _migrar_apply(args: argparse.Namespace) -> int:
+    ajustes = configuracion.leer_segura()
+    try:
+        raiz = _raiz(args, ajustes)
+    except InvalidInput as exc:
+        return _error(str(exc))
+    if raiz is None:
+        return _error(
+            "no hay raíz: elige una carpeta en la app, usa --repo o `eui config set repo`"
+        )
+
+    try:
+        plan = migracion.cargar_plan(Path(args.plan))
+    except FileNotFoundError as exc:
+        return _error(str(exc), 1)
+    except migracion.PlanInvalido as exc:
+        return _error(str(exc), 2)
+
+    # Validar aquí falla rápido y no manda al core un plan que no va a entrar.
+    informe = migracion.revisar(Path(raiz), plan, plan_ruta=str(args.plan))
+    if not informe["ok"]:
+        for error in informe["errores"]:
+            print(f"error  {error}", file=sys.stderr)
+        return _error(f"{len(informe['errores'])} problemas: no se aplica nada", 1)
+
+    _, url = _contexto(args)
+    destino = f"{url}/migracion/aplicar?repo={quote(raiz, safe='')}"
+    datos, detalle, estado = _post(destino, plan)
+    if detalle:
+        return _error(detalle, 1 if estado in (400, 404) else 2)
+
+    if args.json:
+        print(json.dumps(datos))
+        return 0
+    if datos["repetido"]:
+        print(f"el plan ya se aplicó como lote {datos['lote']}: no se crea nada")
+        return 0
+    print(f"lote {datos['lote']}: {datos['ideas']} ideas creadas en proposed")
+    for creada in datos["creadas"]:
+        print(f"  {creada['ref']}  {creada['uid']}")
+    return 0
+
+
 def _schema(args: argparse.Namespace) -> int:
     if args.tema == "migrate":
         # El esquema del plan es local: no hace falta core ni raíz.
@@ -524,6 +586,12 @@ def _parser() -> argparse.ArgumentParser:
     comprobar.add_argument("--json", action="store_true")
     conexion(comprobar)
     comprobar.set_defaults(func=_migrar_check)
+
+    aplicar = acciones_migrar.add_parser("apply", help="Aplica el plan como un lote; todo o nada")
+    aplicar.add_argument("plan", help="Ruta del plan.json")
+    aplicar.add_argument("--json", action="store_true")
+    conexion(aplicar)
+    aplicar.set_defaults(func=_migrar_apply)
 
     return parser
 

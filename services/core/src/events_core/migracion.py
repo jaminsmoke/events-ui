@@ -124,8 +124,9 @@ ESQUEMA_PLAN: dict[str, Any] = {
                 },
                 "requisitos": {
                     "type": "array",
+                    "minItems": 1,
                     "items": {"$ref": "#/$defs/requisito"},
-                    "default": [],
+                    "description": "Una fase sin criterio de hecho no se puede cerrar.",
                 },
             },
         },
@@ -231,6 +232,17 @@ def cargar_plan(ruta: Path) -> dict[str, Any]:
     if not isinstance(plan, dict):
         raise PlanInvalido(f"{ruta} no es un objeto JSON")
     return plan
+
+
+def huella_plan(plan: dict[str, Any]) -> str:
+    """La huella canónica del plan: dos envíos iguales dan el mismo lote.
+
+    Se ordenan las claves para que el orden en que las escribió el agente no
+    cambie el resultado; el core normaliza antes con Pydantic, así que las
+    claves ausentes con valor por defecto tampoco alteran la huella.
+    """
+    canonico = json.dumps(plan, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(canonico.encode("utf-8")).hexdigest()
 
 
 def validar_esquema(datos: Any, esquema: dict[str, Any] | None = None) -> list[str]:

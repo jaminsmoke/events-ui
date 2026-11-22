@@ -734,7 +734,10 @@ def _migrar_absorb(args: argparse.Namespace) -> int:
         )
 
     try:
-        informe = migracion.revisar_absorcion(Path(raiz), args.lote)
+        if args.confirmar:
+            informe = migracion.confirmar_absorcion(Path(raiz), args.lote)
+        else:
+            informe = migracion.revisar_absorcion(Path(raiz), args.lote)
     except KeyError:
         return _error(f"no existe el lote {args.lote}", 1)
     except InvalidInput as exc:
@@ -768,6 +771,10 @@ def _migrar_absorb(args: argparse.Namespace) -> int:
         f"{resumen['archivos']} archivos · {resumen['ideas_lote']} ideas del lote · "
         f"{resumen['cubiertos']}/{resumen['bloques']} bloques cubiertos"
     )
+    if informe["ok"] and args.confirmar:
+        print(f"absorbido: {informe['manifest']}")
+        print("documentos retirados; `eui migrate export <ruta>` genera su Markdown actual")
+        return 0
     if informe["ok"]:
         print("absorción posible: se copiaría y se retiraría el origen; no se ha escrito nada")
         return 0
@@ -776,6 +783,37 @@ def _migrar_absorb(args: argparse.Namespace) -> int:
     if resumen["sin_migrar"]:
         print(f"{resumen['sin_migrar']} bloques sin migrar: no se absorbe", file=sys.stderr)
     return 1
+
+
+def _migrar_export(args: argparse.Namespace) -> int:
+    ajustes = configuracion.leer_segura()
+    try:
+        raiz = _raiz(args, ajustes)
+    except InvalidInput as exc:
+        return _error(str(exc))
+    if raiz is None:
+        return _error(
+            "no hay raíz: elige una carpeta en la app, usa --repo o `eui config set repo`"
+        )
+    try:
+        texto = migracion.exportar_documento(Path(raiz), args.ruta)
+    except KeyError:
+        return _error(f"no hay ítems migrados de {args.ruta}", 1)
+    except InvalidInput as exc:
+        return _error(str(exc))
+    except FileNotFoundError as exc:
+        return _error(str(exc), 1)
+
+    if args.salida:
+        destino = Path(args.salida).expanduser()
+        if not destino.is_absolute():
+            destino = Path(raiz) / destino
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        destino.write_text(texto, encoding="utf-8")
+        print(destino)
+    else:
+        sys.stdout.write(texto)
+    return 0
 
 
 def _mcp(args: argparse.Namespace) -> int:
@@ -956,17 +994,31 @@ def _parser() -> argparse.ArgumentParser:
     deshacer.set_defaults(func=_migrar_undo)
 
     absorber = acciones_migrar.add_parser(
-        "absorb", help="Informe seco de absorción de un lote; no escribe"
+        "absorb", help="Copia, escribe el stub y retira un lote ya migrado"
     )
     absorber.add_argument("lote", help="Identificador del lote que devolvió apply")
-    absorber.add_argument(
+    modo = absorber.add_mutually_exclusive_group()
+    modo.add_argument(
         "--dry-run",
         action="store_true",
-        help="Informe sin escribir (por ahora es el único modo)",
+        help="Informe sin escribir (por defecto)",
+    )
+    modo.add_argument(
+        "--confirmar",
+        action="store_true",
+        help="Copia el origen, escribe el stub y lo retira",
     )
     absorber.add_argument("--json", action="store_true")
     conexion(absorber)
     absorber.set_defaults(func=_migrar_absorb)
+
+    exportar = acciones_migrar.add_parser(
+        "export", help="Genera el Markdown actual de un documento desde SQLite"
+    )
+    exportar.add_argument("ruta", help="Ruta del documento tal como la guardó la migración")
+    exportar.add_argument("--salida", help="Fichero de salida; por defecto, stdout")
+    conexion(exportar)
+    exportar.set_defaults(func=_migrar_export)
 
     mcp = comandos.add_parser("mcp", help="Servidor MCP por stdio para agentes")
     mcp.add_argument(

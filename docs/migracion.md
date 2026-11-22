@@ -28,8 +28,11 @@ aplica**. Nadie escribe el almacén a mano ni llama a la API cruda.
    ya borró a mano se cuentan como ausentes y el resto se deshace igual.
 7. `eui migrate absorb <lote> --dry-run` prepara la retirada del origen, pero
    **no escribe**: comprueba la cobertura por fichero, los hashes, la copia y el
-   stub que se generarían. `--confirmar` llegará después y será el único paso
-   que copie, escriba el stub y retire el Markdown.
+   stub que se generarían. `--confirmar` copia el origen, escribe el stub y
+   retira el Markdown; `undo` restaura la copia si el hash sigue.
+8. `eui migrate export <ruta>` reconstruye el Markdown actual desde SQLite,
+   agrupado por carril y ordenado por la procedencia. El stub apunta a esta
+   vista para que el documento siga disponible sin duplicar el contenido.
 
 El plan y el apply llegan con el importador; mientras tanto, `scan` y estas
 pautas son la preparación. Guarda el plan donde diga el usuario; si no dice
@@ -136,14 +139,18 @@ varias tandas y todas cuentan. Para cada fichero:
   stub con contadores que ocupará su lugar.
 
 El informe sale con `ok: false` y `retirar: []` si hay huecos, hashes viejos,
-ficheros ausentes o un documento sin bloques. `--dry-run` es el único modo
-implementado: no crea `.EUI/migracion/`, no escribe el stub y no borra nada.
+ficheros ausentes o un documento sin bloques. `--dry-run` no crea
+`.EUI/migracion/`, no escribe el stub y no borra nada. `--confirmar` solo actúa
+si el informe está en verde: copia el origen en `.EUI/migracion/<lote>/`, deja
+un manifiesto `absorcion.json` con los hashes y escribe el stub. `undo` restaura
+la copia antes de borrar las ideas del lote, y `migrate export` genera la vista
+Markdown desde `migracion_idea` + `idea_data`.
 
 ## Lo que no se hace
 
 - No editar, mover ni borrar el Markdown de origen durante `scan`, `check` o
-  `apply`. `absorb --dry-run` solo informa; la retirada con copia y stub será
-  un `--confirmar` explícito. La migración es un alta, no una reescritura del
+  `apply`. `absorb --dry-run` solo informa; la retirada con copia y stub exige
+  `--confirmar` explícito. La migración es un alta, no una reescritura del
   repo.
 - No inventar ideas, estados, fechas, responsables ni uids.
 - No importar bloques de código, tablas de ejemplo ni citas como ideas: son

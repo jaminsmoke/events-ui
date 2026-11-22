@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
+import tempfile
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 
@@ -14,6 +17,26 @@ class InvalidInput(ValueError):
 
 def now_iso() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
+
+
+def escribir_atomico(destino: Path, datos: bytes) -> None:
+    """Escribe el fichero entero o deja el anterior intacto.
+
+    Los stubs, las copias y los manifiestos de absorción no deben quedar a
+    medias si el proceso muere o el disco falla: se escribe al lado y se
+    sustituye con `os.replace`, que es atómico en el mismo sistema de ficheros.
+    """
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporal = tempfile.mkstemp(dir=destino.parent, prefix=f".{destino.name}.")
+    try:
+        with os.fdopen(descriptor, "wb") as fichero:
+            fichero.write(datos)
+            fichero.flush()
+            os.fsync(fichero.fileno())
+        os.replace(temporal, destino)
+    except Exception:
+        Path(temporal).unlink(missing_ok=True)
+        raise
 
 
 def fecha_iso(valor: str | None, respaldo: str | None = None) -> str:

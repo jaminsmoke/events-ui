@@ -14,12 +14,12 @@ import json
 import os
 import re
 import sqlite3
-from contextlib import closing
+from contextlib import closing, suppress
 from pathlib import Path
 from typing import Any
 
 from .db import open_read_only
-from .ideas.base.comun import InvalidInput, fecha_iso
+from .ideas.base.comun import InvalidInput, escribir_atomico, fecha_iso, now_iso
 from .ideas.base.rutas import EUI_DIR, db_file_for
 
 EXTENSIONES = {".md", ".markdown"}
@@ -986,8 +986,240 @@ def _stub_roadmap(ruta: str, ideas: int, lotes: int, copia: str) -> str:
     return (
         f"# {Path(ruta).stem}\n\n"
         "Este documento se absorbió en Events UI; el mapa es la fuente de verdad.\n\n"
-        f"- Ideas: {ideas}\n"
+        f"- Ítems: {ideas}\n"
         f"- Lotes: {lotes}\n"
-        f"- Copia: `{copia}`\n\n"
-        "Abre el mapa en Events UI o con `eui idea list`.\n"
+        f"- Copia: `{copia}`\n"
+        f"- Vista: `eui migrate export {ruta}`\n\n"
+        "Abre el mapa en Events UI o exporta el documento para leerlo en Markdown.\n"
     )
+
+
+SECCIONES_EXPORT = (
+    ("draft", "Entrada"),
+    ("proposed", "Backlog"),
+    ("roadmap", "Roadmap"),
+    ("verificacion", "Verificación"),
+    ("revision_aprobada", "Revisión"),
+    ("historial", "Hecho"),
+    ("rejected", "Descartado"),
+)
+
+
+def _ruta_en_repo(raiz: Path, ruta: str) -> Path:
+    destino = (raiz / ruta).resolve()
+    if not destino.is_relative_to(raiz):
+        raise InvalidInput(f"ruta fuera del repo: {ruta!r}")
+    return destino
+
+
+def confirmar_absorcion(raiz: Path, lote: str) -> dict[str, Any]:
+    """Copia los documentos, escribe sus stubs y los retira del repo.
+
+    La validación es la misma que la del dry-run. Primero copia y verifica
+    todos los ficheros, después escribe el manifiesto y solo entonces sustituye
+    o retira los originales. Si algo falla, deja los documentos como estaban.
+    """
+    from .ideas.migracion import escribir_absorcion, leer_absorcion
+
+    raiz = raiz.resolve()
+    informe = revisar_absorcion(raiz, lote)
+    if not informe["ok"]:
+        raise InvalidInput("; ".join(informe["errores"]) or "la absorción no está completa")
+    if not informe["retirar"]:
+        raise InvalidInput("no hay documentos que absorber")
+    if leer_absorcion(str(raiz), lote) is not None:
+        raise InvalidInput(f"el lote {lote} ya está absorbido")
+
+    originales: dict[str, bytes] = {}
+    copias: list[Path] = []
+    archivos: list[dict[str, Any]] = []
+    manifiesto_ruta = raiz / ".EUI" / "migracion" / lote / "absorcion.json"
+    try:
+        for archivo in informe["archivos"]:
+            ruta = str(archivo["ruta"])
+            origen = _ruta_en_repo(raiz, ruta)
+            crudo = origen.read_bytes()
+            sha = hashlib.sha256(crudo).hexdigest()
+            if sha != archivo["hash_actual"]:
+                raise InvalidInput(f"{ruta}: cambió entre la revisión y la copia")
+
+            copia_rel = str(archivo["copia"]["destino"])
+            copia = _ruta_en_repo(raiz, copia_rel)
+            escribir_atomico(copia, crudo)
+            if hashlib.sha256(copia.read_bytes()).hexdigest() != sha:
+                raise InvalidInput(f"{ruta}: la copia no coincide con el original")
+
+            stub = archivo.get("stub")
+            stub_bytes = stub["contenido"].encode("utf-8") if stub else None
+            originales[ruta] = crudo
+            copias.append(copia)
+            archivos.append(
+                {
+                    "ruta": ruta,
+                    "copia": copia_rel,
+                    "sha256_origen": sha,
+                    "sha256_copia": sha,
+                    "sha256_stub": (
+                        hashlib.sha256(stub_bytes).hexdigest() if stub_bytes is not None else None
+                    ),
+                    "stub": stub is not None,
+                }
+            )
+
+        manifiesto = {
+            "version": 1,
+            "lote": lote,
+            "absorbido_at": now_iso(),
+            "estado": "copiado",
+            "archivos": archivos,
+        }
+        escribir_absorcion(str(raiz), lote, manifiesto)
+        manifiesto_ruta = raiz / ".EUI" / "migracion" / lote / "absorcion.json"
+
+        for archivo in informe["archivos"]:
+            ruta = str(archivo["ruta"])
+            origen = _ruta_en_repo(raiz, ruta)
+            if archivo.get("stub"):
+                escribir_atomico(origen, archivo["stub"]["contenido"].encode("utf-8"))
+            else:
+                origen.unlink()
+
+        manifiesto["estado"] = "absorbido"
+        escribir_absorcion(str(raiz), lote, manifiesto)
+    except Exception:
+        for ruta, crudo in originales.items():
+            with suppress(OSError):
+                escribir_atomico(_ruta_en_repo(raiz, ruta), crudo)
+        for copia in copias:
+            copia.unlink(missing_ok=True)
+        manifiesto_ruta.unlink(missing_ok=True)
+        raise
+
+    return {
+        **informe,
+        "dry_run": False,
+        "absorbido": True,
+        "ok": True,
+        "manifest": f".EUI/migracion/{lote}/absorcion.json",
+        "archivos": [
+            {
+                **archivo,
+                "absorbido": True,
+            }
+            for archivo in informe["archivos"]
+        ],
+    }
+
+
+def exportar_documento(raiz: Path, ruta: str) -> str:
+    """Genera el Markdown actual de un documento a partir de sus ítems.
+
+    No lee el fichero de origen: usa la procedencia (`migracion_idea`) para
+    saber qué ítems salieron de él y su orden, y el estado actual de cada uno.
+    Así el stub puede apuntar a una vista siempre al día aunque el Markdown ya
+    no exista.
+    """
+    raiz = raiz.resolve()
+    _ruta_en_repo(raiz, ruta)
+    with closing(open_read_only(db_file_for(str(raiz)))) as conn:
+        filas = conn.execute(
+            "SELECT mi.idea_uid, mi.desde_linea, mi.estado AS estado_origen,"
+            " idea_data.title, idea_data.description, idea_data.content,"
+            " idea_node.estado AS estado_actual"
+            " FROM migracion_idea mi"
+            " JOIN idea_data ON idea_data.uid = mi.idea_uid"
+            " LEFT JOIN idea_node ON idea_node.uid = mi.idea_uid"
+            " WHERE mi.ruta = ?"
+            " ORDER BY mi.desde_linea, mi.idea_uid",
+            (ruta,),
+        ).fetchall()
+        if not filas:
+            raise KeyError(ruta)
+
+        items: list[dict[str, Any]] = []
+        vistos: set[str] = set()
+        for fila in filas:
+            uid = str(fila["idea_uid"])
+            if uid in vistos:
+                continue
+            vistos.add(uid)
+            items.append(
+                {
+                    "uid": uid,
+                    "desde": int(fila["desde_linea"]),
+                    "title": str(fila["title"]),
+                    "description": str(fila["description"] or ""),
+                    "content": str(fila["content"] or ""),
+                    "estado": str(fila["estado_actual"] or fila["estado_origen"] or "proposed"),
+                }
+            )
+
+        uids = list(vistos)
+        marcas = ",".join("?" for _ in uids)
+        fases = conn.execute(
+            f"SELECT idea_uid, orden, titulo, estado FROM idea_fase"
+            f" WHERE idea_uid IN ({marcas}) ORDER BY idea_uid, orden",
+            tuple(uids),
+        ).fetchall()
+        requisitos = conn.execute(
+            f"SELECT idea_uid, fase_orden, orden, titulo, hecho FROM idea_requisito"
+            f" WHERE idea_uid IN ({marcas}) ORDER BY idea_uid, fase_orden, orden",
+            tuple(uids),
+        ).fetchall()
+
+    fases_por_uid: dict[str, list[dict[str, Any]]] = {}
+    for fila in fases:
+        fases_por_uid.setdefault(str(fila["idea_uid"]), []).append(dict(fila))
+    requisitos_por_fase: dict[tuple[str, int], list[dict[str, Any]]] = {}
+    for fila in requisitos:
+        requisitos_por_fase.setdefault((str(fila["idea_uid"]), int(fila["fase_orden"])), []).append(
+            dict(fila)
+        )
+
+    lineas = [
+        f"# {Path(ruta).stem}",
+        "",
+        f"> Exportado desde Events UI · {len(items)} ítems · documento `{ruta}`",
+        "",
+    ]
+    for estado, titulo in SECCIONES_EXPORT:
+        grupo = [
+            item
+            for item in items
+            if item["estado"] == estado or (estado == "rejected" and item["estado"] == "superseded")
+        ]
+        if not grupo:
+            continue
+        lineas.extend([f"## {titulo}", ""])
+        for item in grupo:
+            lineas.append(
+                _bloque_export(item, fases_por_uid.get(item["uid"], []), requisitos_por_fase)
+            )
+            lineas.append("")
+    return "\n".join(lineas).rstrip() + "\n"
+
+
+def _bloque_export(
+    item: dict[str, Any],
+    fases: list[dict[str, Any]],
+    requisitos_por_fase: dict[tuple[str, int], list[dict[str, Any]]],
+) -> str:
+    """El Markdown de un ítem: su contenido original y, si los hay, sus fases."""
+    lineas: list[str] = []
+    content = str(item["content"] or "").strip()
+    if content:
+        lineas.append(content)
+    else:
+        bullet = f"- **{item['title']}**"
+        if item["description"]:
+            bullet += f". {item['description']}"
+        lineas.append(bullet)
+
+    if fases:
+        lineas.append("  - Fases:")
+        for fase in fases:
+            lineas.append(f"    - {fase['orden']}. {fase['titulo']} ({fase['estado']})")
+            for requisito in requisitos_por_fase.get((item["uid"], int(fase["orden"])), []):
+                marca = "x" if requisito["hecho"] else " "
+                lineas.append(f"      - [{marca}] {requisito['titulo']}")
+    return "\n".join(lineas)

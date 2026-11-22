@@ -2,14 +2,25 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import shutil
 import sqlite3
 import uuid
 from contextlib import closing
+from pathlib import Path
 from typing import Any
 
-from .base.comun import _emitir, _tags_json, fecha_iso, now_iso
+from .base.comun import (
+    InvalidInput,
+    _emitir,
+    _tags_json,
+    escribir_atomico,
+    fecha_iso,
+    now_iso,
+)
 from .base.esquema import connect, ensure_repo
+from .base.rutas import db_file_for
 from .modelo.dependencias import _validar_dependencias
 from .modelo.estados import _escribir_estado
 from .trabajo.fases import _escribir_fases, _normalizar_fases
@@ -165,6 +176,112 @@ class MigracionEnConflicto(Exception):
         super().__init__(f"no se puede deshacer el lote {lote}: " + "; ".join(conflictos))
 
 
+MANIFIESTO_ABSORCION = "absorcion.json"
+
+
+def _directorio_absorcion(repo: str, lote: str) -> Path:
+    return db_file_for(repo).parent / "migracion" / lote
+
+
+def leer_absorcion(repo: str, lote: str) -> dict[str, Any] | None:
+    """El manifiesto de un lote absorbido, o `None` si no se absorbió.
+
+    El manifiesto vive junto a la copia, dentro de `.EUI/migracion/<lote>/`,
+    y no en SQLite: la copia tiene que poder restaurarse aunque el almacén se
+    haya perdido. Es el contrato entre `absorb --confirmar` y `undo`.
+    """
+    ruta = _directorio_absorcion(repo, lote) / MANIFIESTO_ABSORCION
+    try:
+        datos = json.loads(ruta.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError) as exc:
+        raise InvalidInput(f"no se pudo leer el manifiesto de absorción {ruta}: {exc}") from exc
+    if not isinstance(datos, dict) or not isinstance(datos.get("archivos"), list):
+        raise InvalidInput(f"manifiesto de absorción inválido: {ruta}")
+    return datos
+
+
+def escribir_absorcion(repo: str, lote: str, datos: dict[str, Any]) -> Path:
+    """Guarda el manifiesto de forma atómica junto a la copia."""
+    ruta = _directorio_absorcion(repo, lote) / MANIFIESTO_ABSORCION
+    escribir_atomico(
+        ruta,
+        (json.dumps(datos, ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
+    )
+    return ruta
+
+
+def _ruta_en_repo(raiz: Path, ruta: str) -> Path:
+    destino = (raiz / ruta).resolve()
+    if not destino.is_relative_to(raiz):
+        raise InvalidInput(f"ruta fuera del repo: {ruta!r}")
+    return destino
+
+
+def _sha256(archivo: Path) -> str:
+    return hashlib.sha256(archivo.read_bytes()).hexdigest()
+
+
+def restaurar_absorcion(repo: str, lote: str) -> dict[str, Any] | None:
+    """Devuelve los documentos a su sitio desde la copia del lote.
+
+    Se valida todo antes de escribir: si un original cambió, falta una copia o
+    el stub ya no es el que dejó la absorción, no se restaura ninguno y `undo`
+    devuelve el conflicto. Repetir la restauración es seguro: un documento que
+    ya coincide con su copia se salta.
+    """
+    manifiesto = leer_absorcion(repo, lote)
+    if manifiesto is None:
+        return None
+    raiz = Path(repo).resolve()
+    pendientes: list[tuple[Path, bytes]] = []
+    conflictos: list[str] = []
+    for archivo in manifiesto["archivos"]:
+        ruta = str(archivo.get("ruta") or "")
+        copia_rel = str(archivo.get("copia") or "")
+        try:
+            fuente = _ruta_en_repo(raiz, ruta)
+            copia = _ruta_en_repo(raiz, copia_rel)
+        except InvalidInput as exc:
+            conflictos.append(str(exc))
+            continue
+        if not copia.is_file():
+            conflictos.append(f"{ruta}: falta la copia {copia_rel}")
+            continue
+        sha_copia = str(archivo.get("sha256_copia") or "")
+        if _sha256(copia) != sha_copia:
+            conflictos.append(f"{ruta}: la copia cambió (sha256 no cuadra)")
+            continue
+        crudo = copia.read_bytes()
+        if fuente.is_file():
+            actual = _sha256(fuente)
+            if actual == sha_copia:
+                continue
+            sha_stub = archivo.get("sha256_stub")
+            if not sha_stub or actual != str(sha_stub):
+                conflictos.append(f"{ruta}: el documento cambió después de absorberlo")
+                continue
+        elif archivo.get("stub"):
+            conflictos.append(f"{ruta}: falta el stub que dejó la absorción")
+            continue
+        pendientes.append((fuente, crudo))
+
+    if conflictos:
+        raise MigracionEnConflicto(lote, conflictos)
+
+    for fuente, crudo in pendientes:
+        escribir_atomico(fuente, crudo)
+    manifiesto["estado"] = "restaurado"
+    escribir_absorcion(repo, lote, manifiesto)
+    return {"documentos": [str(archivo["ruta"]) for archivo in manifiesto["archivos"]]}
+
+
+def _limpiar_absorcion(repo: str, lote: str) -> None:
+    """Retira copia y manifiesto una vez que la base ya no tiene el lote."""
+    shutil.rmtree(_directorio_absorcion(repo, lote), ignore_errors=True)
+
+
 def deshacer_migracion(repo: str, lote: str) -> dict[str, Any]:
     """Borra solo las ideas que creó el lote, si nadie las tocó después.
 
@@ -230,6 +347,12 @@ def deshacer_migracion(repo: str, lote: str) -> dict[str, Any]:
             if conflictos:
                 raise MigracionEnConflicto(lote, conflictos)
 
+            # El documento vuelve antes de borrar las ideas: si el borrado
+            # falla, el usuario conserva el Markdown y puede reintentar. El
+            # manifiesto queda en `restaurado` para que el reintento no vuelva
+            # a chocar con el hash del stub.
+            restaurar_absorcion(repo, lote)
+
             if uids:
                 marcas = ",".join("?" for _ in uids)
                 # Las sustitutas dentro del lote se van juntas: soltar el
@@ -265,6 +388,7 @@ def deshacer_migracion(repo: str, lote: str) -> dict[str, Any]:
             conn.rollback()
             raise
 
+        _limpiar_absorcion(repo, lote)
         return {
             "repo": repo,
             "lote": lote,

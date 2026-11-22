@@ -388,6 +388,11 @@ def _migrate(args: argparse.Namespace) -> int:
 
 
 def _schema(args: argparse.Namespace) -> int:
+    if args.tema == "migrate":
+        # El esquema del plan es local: no hace falta core ni raíz.
+        print(json.dumps(migracion.ESQUEMA_PLAN, indent=2 if args.pretty else None))
+        return 0
+
     _, url = _contexto(args)
     datos, detalle, estado = _get(f"{url}/openapi.json")
     if detalle:
@@ -446,7 +451,15 @@ def _parser() -> argparse.ArgumentParser:
     conexion(ver)
     ver.set_defaults(func=_idea)
 
-    esquema = comandos.add_parser("schema", help="El contrato OpenAPI del core")
+    esquema = comandos.add_parser(
+        "schema", help="El OpenAPI del core o el esquema del plan de migración"
+    )
+    esquema.add_argument(
+        "tema",
+        nargs="?",
+        choices=["migrate"],
+        help="`migrate`: el esquema del plan que propone el agente",
+    )
     esquema.add_argument("--pretty", action="store_true", help="Indentado para leerlo")
     conexion(esquema, con_repo=False)
     esquema.set_defaults(func=_schema)

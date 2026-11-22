@@ -31,6 +31,142 @@ _TITULO = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
 _TAREA = re.compile(r"^\s*[-*+]\s+\[([ xX])\]\s+")
 _CERCA = re.compile(r"^\s*(```|~~~)")
 
+# El contrato del plan que propone el agente. Se publica con
+# `eui schema migrate` y es lo primero que mira `check`: cierra lo que no se
+# negocia (todo a `proposed`, fases pendientes, origen obligatorio) para que el
+# agente no pueda colar un estado o una idea sin procedencia.
+ESQUEMA_PLAN: dict[str, Any] = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "urn:events-ui:plan-migracion:1",
+    "title": "Plan de migración de Markdown",
+    "description": (
+        "Lo que propone el agente antes de tocar el almacén. Cada idea cita el "
+        "Markdown del que sale (ruta, líneas y sha256) y todas entran en "
+        "`proposed`; `check` añade lo que el esquema no puede comprobar (refs "
+        "repetidos, dependencias, hash del fichero) y `apply` lo aplica como un "
+        "lote reversible."
+    ),
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["version", "ideas"],
+    "properties": {
+        "version": {
+            "const": 1,
+            "description": "Versión del formato del plan; si cambia, cambia el número.",
+        },
+        "ideas": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"$ref": "#/$defs/idea"},
+        },
+    },
+    "$defs": {
+        "ref": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+            "description": "Identificador local del plan; no es un uid del almacén.",
+        },
+        "idea": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["ref", "title", "origen"],
+            "properties": {
+                "ref": {
+                    "$ref": "#/$defs/ref",
+                    "description": "Único en el plan; `depende_de` apunta aquí.",
+                },
+                "title": {"type": "string", "minLength": 1},
+                "description": {"type": "string", "default": ""},
+                "content": {"type": "string", "default": ""},
+                "kind": {"const": "idea"},
+                "status": {
+                    "const": "proposed",
+                    "description": "La migración no adivina carriles: todo entra en proposed.",
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {"type": "string", "minLength": 1},
+                    "uniqueItems": True,
+                    "default": [],
+                },
+                "depende_de": {
+                    "type": "array",
+                    "items": {"$ref": "#/$defs/ref"},
+                    "uniqueItems": True,
+                    "default": [],
+                    "description": "Refs de otras ideas de este plan, nunca uids.",
+                },
+                "fases": {
+                    "type": "array",
+                    "items": {"$ref": "#/$defs/fase"},
+                    "default": [],
+                },
+                "origen": {"$ref": "#/$defs/origen"},
+            },
+        },
+        "fase": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["titulo"],
+            "properties": {
+                "titulo": {"type": "string", "minLength": 1},
+                "nota": {"type": "string", "default": ""},
+                "estado": {
+                    "enum": ["pendiente"],
+                    "default": "pendiente",
+                    "description": "Una migración no trae fases hechas ni fallidas.",
+                },
+                "requisitos": {
+                    "type": "array",
+                    "items": {"$ref": "#/$defs/requisito"},
+                    "default": [],
+                },
+            },
+        },
+        "requisito": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["titulo"],
+            "properties": {
+                "titulo": {"type": "string", "minLength": 1},
+                "hecho": {
+                    "const": False,
+                    "default": False,
+                    "description": "Marcar un requisito es una decisión del usuario.",
+                },
+            },
+        },
+        "origen": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["ruta", "desde_linea", "hasta_linea", "sha256"],
+            "properties": {
+                "ruta": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[^\\\\]+$",
+                    "description": "Ruta relativa al repo, con `/` y sin `..`.",
+                },
+                "desde_linea": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Primera línea del elemento (1-based).",
+                },
+                "hasta_linea": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Última línea del elemento (1-based, incluida).",
+                },
+                "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$",
+                    "description": "El sha256 que dio `migrate scan` para ese fichero.",
+                },
+            },
+        },
+    },
+}
+
 
 def resolver(raiz: Path, ruta: str | None) -> Path:
     """La ruta a escanear, siempre dentro de la raíz del repo.

@@ -122,3 +122,32 @@ def test_cli_migrate_ruta_invalida(tmp_path, capsys) -> None:
 
     assert cli.main(["migrate", "scan", ".."]) == 2
     assert "dentro del repo" in capsys.readouterr().err
+
+
+def test_esquema_del_plan_cierra_lo_que_no_se_negocia() -> None:
+    esquema = migracion.ESQUEMA_PLAN
+    idea = esquema["$defs"]["idea"]
+    origen = esquema["$defs"]["origen"]
+
+    assert esquema["$id"] == "urn:events-ui:plan-migracion:1"
+    assert set(esquema["required"]) == {"version", "ideas"}
+    assert idea["required"] == ["ref", "title", "origen"]
+    assert idea["properties"]["status"]["const"] == "proposed"
+    assert idea["properties"]["kind"]["const"] == "idea"
+    assert origen["required"] == ["ruta", "desde_linea", "hasta_linea", "sha256"]
+    assert origen["properties"]["sha256"]["pattern"] == "^[0-9a-f]{64}$"
+    assert esquema["$defs"]["fase"]["properties"]["estado"]["enum"] == ["pendiente"]
+    assert esquema["$defs"]["requisito"]["properties"]["hecho"]["const"] is False
+
+
+def test_cli_schema_migrate_pretty(capsys) -> None:
+    assert cli.main(["schema", "migrate", "--pretty"]) == 0
+    esquema = json.loads(capsys.readouterr().out)
+    assert esquema["title"] == "Plan de migración de Markdown"
+
+
+def test_cli_schema_migrate_en_una_linea(capsys) -> None:
+    assert cli.main(["schema", "migrate"]) == 0
+    salida = capsys.readouterr().out.strip()
+    assert "\n" not in salida
+    assert json.loads(salida)["$defs"]["idea"]["properties"]["status"]["const"] == "proposed"

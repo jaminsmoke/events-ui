@@ -105,6 +105,7 @@ uv run --directory services/core python -m events_core.cli config --json
 uv run --directory services/core python -m events_core.cli repo
 uv run --directory services/core python -m events_core.cli idea list --status proposed
 uv run --directory services/core python -m events_core.cli schema --pretty
+uv run --directory services/core python -m events_core.cli schema migrate --pretty
 uv run --directory services/core python -m events_core.cli migrate scan docs --json
 ```
 
@@ -116,7 +117,8 @@ core. Todos aceptan `--repo`/`--url`/`--port` para pisar la configuración y
 La migración de Markdown empieza por `migrate scan`, que solo lee: recorre una
 carpeta del repo y devuelve cada `.md` con su `sha256`, frontmatter, títulos y
 tareas. Las pautas para el agente que propone el plan están en
-[`docs/migracion.md`](docs/migracion.md).
+[`docs/migracion.md`](docs/migracion.md), y el esquema que debe cumplir ese plan
+sale de `eui schema migrate`.
 
 El registro operativo de la app (arranques, errores y operaciones) vive en su
 propio SQLite, `data/registro.sqlite` en la raíz del repo (`EVENTSUI_REGISTRO_DB` para cambiarlo);

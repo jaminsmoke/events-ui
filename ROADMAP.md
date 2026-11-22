@@ -431,6 +431,14 @@ con el motivo, para no reabrirlo cada semana.
   avisando. Las pautas del agente —una idea por elemento accionable, todo a
   `proposed`, origen con líneas y hash— viven en `docs/migracion.md`. Cubierto
   en `services/core/tests/test_migracion.py`.
+- **Esquema del plan de migración**: `eui schema migrate` publica el JSON
+  Schema (2020-12) del plan que propondrá el agente y `--pretty` lo da para
+  leerlo; `eui schema` sigue volcando el OpenAPI del core. El esquema cierra lo
+  que no se negocia: `version: 1`, ideas no vacías, `ref` locales con patrón
+  (`depende_de` apunta a refs, nunca a uids), `kind: idea`, `status: proposed`,
+  fases solo en `pendiente`, requisitos sin marcar y un `origen` obligatorio por
+  idea con ruta relativa, líneas 1-based y sha256 de 64 hex. Cubierto en
+  `services/core/tests/test_migracion.py`.
 
 ## Pendientes
 
@@ -439,11 +447,11 @@ con el motivo, para no reabrirlo cada semana.
   siguientes se abordan en este orden, uno cada vez y cerrando cada uno con sus
   tests antes de abrir el siguiente. Los agentes no tocan la API cruda: usan
   `eui` o el MCP, que son las dos caras del mismo cliente.
-  - **Paso 1 — migración con plan y lote.** `scan` y las pautas del agente ya
-    están en Hecho; queda el plan: el agente propone un `plan.json` con esquema
-    publicado
-    (`eui schema migrate`), y `eui migrate check` lo valida —esquema, uids que
-    existan, sin ciclos ni duplicados— y enseña el diff sin tocar nada.
+  - **Paso 1 — migración con plan y lote.** `scan`, las pautas y el esquema del
+    plan ya están en Hecho; queda el importador: `eui migrate check` valida el
+    plan contra el esquema y lo que el esquema no puede (refs repetidos,
+    dependencias inexistentes o con ciclo, `origen` fuera del repo o con un
+    sha256 que ya no cuadra) y enseña el diff sin tocar nada.
     `eui migrate apply` lo aplica como lote: todo entra en `proposed`, sin
     adivinar estados, guardando el lote, el sha256 del fichero de origen y el
     rango de líneas, así que repetirlo no duplica. `eui migrate undo <lote>`

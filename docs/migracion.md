@@ -63,6 +63,23 @@ Las líneas son 1-based e incluyen título y cuerpo del elemento; el `sha256` es
 el del scan. Sin origen no hay forma de saber si el Markdown cambió entre el
 plan y el apply, y el lote dejaría de ser repetible.
 
+## El plan
+
+`eui schema migrate --pretty` publica el JSON Schema (draft 2020-12) del plan;
+sin `--pretty` sale en una línea. La forma es `{"version": 1, "ideas": [...]}`,
+con una idea por elemento migrado:
+
+- `ref` identifica la idea dentro del plan (`idea-1`, `backlog-login`…) y es lo
+  que usa `depende_de`; no es un uid y no puede repetirse.
+- El esquema solo acepta `status: "proposed"` y `kind: "idea"`, fases en
+  `pendiente` y requisitos sin marcar. Lo demás se rechaza antes de mirar el
+  repo.
+- Cada idea exige `origen` con `ruta`, `desde_linea`, `hasta_linea` y `sha256`.
+  Las líneas son 1-based e incluyen el título y el cuerpo del elemento.
+- `check` añade lo que el esquema no puede comprobar: `ref` repetidos,
+  dependencias que no existan o formen ciclo, `origen.ruta` fuera del repo y un
+  `sha256` que ya no cuadre con el fichero actual.
+
 ## Lo que no se hace
 
 - No editar, mover ni borrar el Markdown de origen. La migración es un alta,

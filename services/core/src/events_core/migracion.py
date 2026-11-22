@@ -938,8 +938,13 @@ def _solapamientos(filas: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _bloques_markdown(texto: str) -> list[dict[str, Any]]:
-    """Viñetas de nivel superior fuera de frontmatter y bloques de código."""
-    bloques: list[dict[str, Any]] = []
+    """Viñetas accionables fuera de frontmatter y bloques de código.
+
+    Una viñeta con subitems directos es una cabecera de grupo, no un bloque:
+    sus hijos sí cuentan. Así `ROADMAP` no confunde «Migración v2…» con una
+    idea y siguen contando las cinco tareas que cuelgan de ella.
+    """
+    viñetas: list[dict[str, Any]] = []
     _, desde = _frontmatter(texto)
     en_codigo = False
     for indice, linea in enumerate(texto.splitlines()):
@@ -953,13 +958,23 @@ def _bloques_markdown(texto: str) -> list[dict[str, Any]]:
         coincidencia = re.match(r"^([ \t]*)[-*+]\s+(\S.*)$", linea)
         if coincidencia is None:
             continue
-        sangria = len(coincidencia.group(1).replace("\t", "    "))
-        if sangria:
-            continue
         resto = coincidencia.group(2).strip()
         if resto in {"---", "***"}:
             continue
-        bloques.append({"linea": indice + 1, "texto": resto[:160]})
+        viñetas.append(
+            {
+                "linea": indice + 1,
+                "sangria": len(coincidencia.group(1).replace("\t", "    ")),
+                "texto": resto[:160],
+            }
+        )
+
+    bloques: list[dict[str, Any]] = []
+    for posicion, viñeta in enumerate(viñetas):
+        siguiente = viñetas[posicion + 1] if posicion + 1 < len(viñetas) else None
+        if siguiente is not None and siguiente["sangria"] > viñeta["sangria"]:
+            continue
+        bloques.append({"linea": viñeta["linea"], "texto": viñeta["texto"]})
     return bloques
 
 

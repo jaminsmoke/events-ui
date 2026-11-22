@@ -127,8 +127,8 @@ fichero**, no solo con las ideas de ese lote: un ROADMAP puede haber entrado en
 varias tandas y todas cuentan. Para cada fichero:
 
 - agrupa los rangos de `migracion_idea` por `ruta` y los fusiona;
-- considera bloques las viñetas de nivel superior fuera de frontmatter y de
-  bloques de código (las anidadas van con su padre);
+- considera bloques las viñetas accionables (hojas) fuera de frontmatter y de
+  bloques de código: una cabecera con subitems no cuenta, pero sus hijos sí;
 - marca como hueco cada bloque cuya línea no cae en ningún rango;
 - compara el `sha256` actual con el de todas las filas de procedencia: si el
   fichero cambió, no propone absorber;

@@ -105,6 +105,20 @@ def test_absorb_no_fia_de_un_fichero_cambiado(client, tmp_path) -> None:
     assert any("cambió" in error for error in informe["errores"])
 
 
+def test_absorb_no_cuenta_la_cabecera_con_subitems(client, tmp_path) -> None:
+    archivo = _documento(
+        tmp_path,
+        "# ROADMAP\n\n- **Grupo.**\n  - **Uno.** Hecho.\n  - **Dos.** Pendiente.\n",
+    )
+    lote = _aplicar(client, archivo, [("uno", "Uno", 4)])
+
+    informe = migracion.revisar_absorcion(tmp_path, lote["lote"])
+
+    (ficha,) = informe["archivos"]
+    assert ficha["bloques"] == 2
+    assert [hueco["linea"] for hueco in ficha["sin_migrar"]] == [5]
+
+
 def test_absorb_exige_bloques_accionables(client, tmp_path) -> None:
     archivo = _documento(tmp_path, "# ROADMAP\n\nSolo contexto.\n")
     lote = _aplicar(client, archivo, [("uno", "Contexto", 1)])

@@ -374,9 +374,23 @@ con el motivo, para no reabrirlo cada semana.
 
 ## Pendientes
 
-Sin pendientes abiertos: el inspector cubre carril, idea, commit, cambio,
-cable/compuerta, puente, nodo de Git y nudos, con su selección en el lienzo
-y su escenario e2e.
+- **Visor de archivos en Files**: pulsar un archivo del Explorador abre un
+  visor de solo lectura con el contenido real del repo. Markdown con dos
+  pestañas, **Raw** y **Renderizado**; el resto de archivos, con resaltado por
+  lenguaje y números de línea. El core expone `GET /archivo?repo=&ruta=` con la
+  misma guarda de rutas que `/arbol` (nada fuera de la raíz), tope de tamaño
+  (512 KiB, como los parches), detección de binarios y lectura UTF-8 tolerante;
+  sin fichero, 404 y sin texto legible, 415. Se abre desde el árbol y desde la
+  ficha de un cambio del inspector.
+  Decisiones antes de empezar: renderizador de Markdown y saneado (nada de HTML
+  crudo ni scripts), librería de resaltado (Shiki trae gramáticas de VS Code
+  pero pesa; Prism/highlight.js es más ligero), qué hacer con imágenes y
+  enlaces del Markdown (¿rutas relativas del repo?, ¿abrir fuera?) y si el
+  visor vive en el panel derecho o en un modal ancho. Sin dependencias nuevas
+  hasta cerrar el renderizador y el resaltado.
+- **Migración de roadmaps y backlogs en Markdown**: aparcada a propósito hasta
+  decidir el formato destino; si llega antes, será un importador explícito a
+  `proposed` con lote reversible y sin adivinar estados.
 
 ## No se hace (por ahora)
 

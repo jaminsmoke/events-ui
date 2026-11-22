@@ -82,3 +82,30 @@ def test_put_config_limpia_la_raiz(client, tmp_path) -> None:
 def test_put_config_valida(client) -> None:
     assert client.put("/config", json={"port": 0}).status_code == 422
     assert client.put("/config", json={"repo": "../fuera"}).status_code == 400
+
+
+def test_dos_guardados_no_comparten_el_temporal(tmp_path, monkeypatch) -> None:
+    """Dos PUT concurrentes no pueden usar el mismo `.tmp` (WinError 32)."""
+    from concurrent.futures import ThreadPoolExecutor
+    from pathlib import Path
+
+    raiz = tmp_path / "repo"
+    raiz.mkdir()
+    nombres: list[str] = []
+    reemplazar_original = config.os.replace
+
+    def reemplazar(origen, destino) -> None:
+        nombres.append(Path(origen).name)
+        reemplazar_original(origen, destino)
+
+    monkeypatch.setattr(config.os, "replace", reemplazar)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futuros = [
+            pool.submit(config.guardar, repo=str(raiz), port=puerto) for puerto in (19000, 19001)
+        ]
+        for futuro in futuros:
+            futuro.result()
+
+    assert len(nombres) == 2
+    assert nombres[0] != nombres[1]
+    assert config.leer().port in (19000, 19001)

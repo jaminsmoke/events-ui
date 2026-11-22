@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -52,6 +54,11 @@ class _SinCambios:
 
 
 SIN_CAMBIOS = _SinCambios()
+
+# El endpoint es síncrono y FastAPI lo ejecuta en el threadpool: dos PUT
+# simultáneos pueden leer el mismo estado y pisarse. Se serializa la lectura y
+# la escritura; el temporal único evita además que compartan el mismo fichero.
+_GUARDAR_LOCK = threading.Lock()
 
 
 def ruta() -> Path:
@@ -121,11 +128,20 @@ def guardar(
 ) -> Config:
     """Cambia lo indicado y deja el resto como estaba.
 
-    Escribe en un temporal y lo reemplaza: la UI y el CLI pueden guardar a la
-    vez y ninguno deja un fichero a medias. `repo=None` lo limpia; un nombre de
-    una sola carpeta del laboratorio se resuelve a ruta absoluta, como en la
-    API, para que el valor guardado signifique lo mismo para todos.
+    Dos escrituras simultáneas se serializan y cada una usa un temporal único.
+    `repo=None` lo limpia; un nombre de una sola carpeta del laboratorio se
+    resuelve a ruta absoluta, como en la API, para que el valor guardado
+    signifique lo mismo para todos.
     """
+    with _GUARDAR_LOCK:
+        return _guardar(repo=repo, port=port)
+
+
+def _guardar(
+    *,
+    repo: str | None | _SinCambios = SIN_CAMBIOS,
+    port: int | _SinCambios = SIN_CAMBIOS,
+) -> Config:
     actual = leer_segura()
 
     nuevo_repo = actual.repo
@@ -140,8 +156,23 @@ def guardar(
 
     destino = ruta()
     destino.parent.mkdir(parents=True, exist_ok=True)
-    temporal = destino.with_name(destino.name + ".tmp")
     datos = {"repo": str(nuevo_repo) if nuevo_repo else None, "port": nuevo_puerto}
-    temporal.write_text(json.dumps(datos, indent=2) + "\n", encoding="utf-8")
-    os.replace(temporal, destino)
+    temporal: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w",
+            encoding="utf-8",
+            dir=destino.parent,
+            prefix=f"{destino.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as fichero:
+            fichero.write(json.dumps(datos, indent=2) + "\n")
+            fichero.flush()
+            os.fsync(fichero.fileno())
+            temporal = Path(fichero.name)
+        os.replace(temporal, destino)
+    finally:
+        if temporal is not None:
+            temporal.unlink(missing_ok=True)
     return Config(repo=nuevo_repo, port=nuevo_puerto)

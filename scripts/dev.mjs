@@ -46,12 +46,25 @@ async function esperarCore() {
   return false;
 }
 
-// Mismo comando que `pnpm core:dev` en la raíz.
+// Mismo comando que `pnpm core:dev` en la raíz. `uv` es un ejecutable real en
+// Windows y Unix; sin `shell` no hay que concatenar argumentos ni avisar por
+// DEP0190.
 function arrancarCore() {
   return spawn(
-    "uv run --directory services/core python -m events_core.serve",
-    { cwd: ROOT, shell: true, stdio: "inherit" },
+    "uv",
+    ["run", "--directory", "services/core", "python", "-m", "events_core.serve"],
+    { cwd: ROOT, stdio: "inherit" },
   );
+}
+
+/** `corepack` es un shim `.cmd` en Windows y no se puede lanzar sin shell;
+ *  se usa `cmd /c`/`sh -c` con argumentos fijos, sin `shell:true` (DEP0190). */
+function arrancarComando(comando) {
+  const opciones = { cwd: ROOT, stdio: "inherit" };
+  if (process.platform === "win32") {
+    return spawn(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", comando], opciones);
+  }
+  return spawn("sh", ["-c", comando], opciones);
 }
 
 function matar(child) {
@@ -122,7 +135,7 @@ async function main() {
       ? "corepack pnpm --filter web dev"
       : "corepack pnpm --filter desktop tauri dev";
   if (modo === "tauri") asegurarBinariosTauri();
-  const ui = spawn(comando, { cwd: ROOT, shell: true, stdio: "inherit" });
+  const ui = arrancarComando(comando);
 
   const apagar = () => {
     matar(ui);

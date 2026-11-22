@@ -11,6 +11,7 @@ from contextlib import closing
 from pathlib import Path
 
 from ... import registro
+from .eui_fs import purgar_eui
 from .rutas import (
     DB_FILENAME,
     EUI_DIR,
@@ -77,6 +78,7 @@ def init_repo(repo: str) -> Path:
 
     registro.escribir("info", f"Almacén sembrado en {directory}", origen="seed")
     _ignorar_auxiliares(db_file)
+    _purgar_ajenos(db_file.parent)
     return db_file
 
 
@@ -109,4 +111,18 @@ def ensure_repo(repo: str) -> Path:
         return init_repo(repo)
     migraciones._migrar_esquema(db_file)
     _ignorar_auxiliares(db_file)
+    _purgar_ajenos(db_file.parent)
     return db_file
+
+
+def _purgar_ajenos(eui_dir: Path) -> None:
+    """Quita de `.EUI` lo que no es almacén, gitignore ni lote de migración."""
+    eliminados = purgar_eui(eui_dir)
+    if eliminados:
+        muestra = ", ".join(eliminados[:5])
+        resto = f" (+{len(eliminados) - 5} más)" if len(eliminados) > 5 else ""
+        registro.escribir(
+            "aviso",
+            f"Purgados {len(eliminados)} elementos ajenos en {EUI_DIR}: {muestra}{resto}",
+            origen="eui",
+        )

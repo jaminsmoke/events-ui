@@ -36,7 +36,9 @@ aplica**. Nadie escribe el almacén a mano ni llama a la API cruda.
 
 El plan y el apply llegan con el importador; mientras tanto, `scan` y estas
 pautas son la preparación. Guarda el plan donde diga el usuario; si no dice
-nada, en `.EUI/migracion/plan.json` (no se versiona).
+nada, junto al Markdown de origen (p. ej. `ROADMAP.plan.json`). **No** lo
+pongas dentro de `.EUI/`: esa carpeta solo admite el almacén, su `.gitignore`
+y las copias de absorción en `migracion/<lote>/`.
 
 ## Qué es una idea
 

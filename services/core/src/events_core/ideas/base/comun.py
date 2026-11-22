@@ -25,7 +25,13 @@ def escribir_atomico(destino: Path, datos: bytes) -> None:
     Las copias y los manifiestos de absorción no deben quedar a
     medias si el proceso muere o el disco falla: se escribe al lado y se
     sustituye con `os.replace`, que es atómico en el mismo sistema de ficheros.
+    Si el destino cae bajo `.EUI`, solo se aceptan rutas del contrato
+    (almacén, `.gitignore`, `migracion/<lote>/…`).
     """
+    # Import diferido: `rutas` / `eui_fs` importan `InvalidInput` de aquí.
+    from .eui_fs import asegurar_destino_eui
+
+    asegurar_destino_eui(destino)
     destino.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporal = tempfile.mkstemp(dir=destino.parent, prefix=f".{destino.name}.")
     try:

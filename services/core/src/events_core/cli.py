@@ -173,6 +173,24 @@ def evaluar(
             comprobaciones.append(
                 _comprobacion("escritura", "error", f"sin permiso de escritura en {raiz}")
             )
+        from .ideas.base.eui_fs import inventariar_ajenos
+        from .ideas.base.rutas import EUI_DIR
+
+        ajenos = inventariar_ajenos(raiz / EUI_DIR)
+        if ajenos:
+            muestra = ", ".join(ajenos[:3])
+            resto = f" (+{len(ajenos) - 3} más)" if len(ajenos) > 3 else ""
+            comprobaciones.append(
+                _comprobacion(
+                    ".EUI",
+                    "aviso",
+                    f"{len(ajenos)} ajenos (se purgan al abrir el almacén): {muestra}{resto}",
+                )
+            )
+        elif (raiz / EUI_DIR).is_dir():
+            comprobaciones.append(
+                _comprobacion(".EUI", "ok", "solo almacén, gitignore y migraciones")
+            )
 
     return comprobaciones
 

@@ -6,6 +6,12 @@ carpetas en Files no siembra nada. El core activa WAL y las claves foráneas en 
 conexiones de escritura. La versión del esquema de ideas es 31. El registro
 operativo de la aplicación vive en otro fichero y abarca varios repositorios.
 
+`.EUI` es configuración del producto, no un directorio de trabajo: solo
+`EUI_DATABASE.sqlite` (y sus auxiliares WAL/SHM), `.gitignore` y
+`migracion/<lote>/…` (copias y manifiesto de absorción). Cualquier otro
+fichero o carpeta se considera ajeno: el core lo rechaza al escribir y lo
+purga al abrir el almacén (`ensure_repo`).
+
 ## Tablas y relaciones
 
 | Tabla | Identidad y relación | Qué representa |

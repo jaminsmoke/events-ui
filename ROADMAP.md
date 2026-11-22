@@ -413,25 +413,25 @@ con el motivo, para no reabrirlo cada semana.
   (`PUT /config`, previa validación de la raíz en el core), `GET /health`
   publica versión y raíz, y `eui doctor`/`eui config` comprueban fichero, core,
   versión coincidente, raíz y permiso de escritura, con `--json` de una línea y
-  salida 1 si algo falla. El CLI sale como módulo (`python -m events_core.cli`)
-  con cliente HTTP propio sobre `urllib`, y la versión ya no se duplica:
-  `__version__` en `services/core/src/events_core/__init__.py` la comparten
-  core y CLI, y `bump.mjs` la sincroniza y la vigila. Cubierto en
-  `services/core/tests/test_config.py` y `services/core/tests/test_cli.py`.
+  salida 1 si algo falla. Encima de esa puerta, `eui repo` (y `repo list`),
+  `eui idea list|get` con los filtros del contrato y `eui schema` leen por la
+  misma API, con `--repo`/`--url`/`--port` y salidas 0/1/2 (bien, no encontrado,
+  fallo). El CLI sale como módulo (`python -m events_core.cli`) con cliente
+  HTTP propio sobre `urllib`, y la versión ya no se duplica: `__version__` en
+  `services/core/src/events_core/__init__.py` la comparten core y CLI, y
+  `bump.mjs` la sincroniza y la vigila. Cubierto en
+  `services/core/tests/test_config.py`, `services/core/tests/test_cli.py` y
+  `e2e/escenarios/config-compartida.mjs`, que abre el lab en la app y comprueba
+  con `eui doctor` que la raíz llegó al fichero.
 
 ## Pendientes
 
-- **Migración de Markdown, CLI y MCP — plan aprobado**: se aborda en este
-  orden, un paso cada vez y cerrando cada uno con sus tests antes de abrir el
-  siguiente. Los agentes no tocan la API cruda: usan `eui` o el MCP, que son
-  las dos caras del mismo cliente.
-  - **Paso 1 — `eui` de lectura.** La base ya está en Hecho: configuración
-    compartida, `/health` con versión y raíz, y `doctor`. Queda la lectura:
-    `eui repo`, `eui idea list`, `eui idea get <uid>` y `eui schema`, sobre el
-    cliente HTTP que ya usa `doctor`, con salida humana y `--json` de una línea
-    para los agentes y códigos de salida 0/1/2 (bien, no encontrado, fallo).
-    Sin dependencias nuevas y sin abrir SQLite: todo pasa por la API.
-  - **Paso 2 — migración con plan y lote.** Las pautas para el agente viven en
+- **Migración de Markdown, CLI y MCP — plan aprobado**: el paso de la base
+  —configuración compartida, `/health` y `eui` de lectura— está en Hecho. Los
+  siguientes se abordan en este orden, uno cada vez y cerrando cada uno con sus
+  tests antes de abrir el siguiente. Los agentes no tocan la API cruda: usan
+  `eui` o el MCP, que son las dos caras del mismo cliente.
+  - **Paso 1 — migración con plan y lote.** Las pautas para el agente viven en
     `docs/migracion.md` (qué se extrae, una idea por elemento, qué no se
     inventa). `eui migrate scan <ruta>` lista los Markdown con lo que reconoce,
     sin escribir; el agente propone un `plan.json` con esquema publicado
@@ -442,14 +442,14 @@ con el motivo, para no reabrirlo cada semana.
     rango de líneas, así que repetirlo no duplica. `eui migrate undo <lote>`
     borra solo lo que creó el lote y se niega, listando los conflictos, si algo
     se movió o editó después.
-  - **Paso 3 — MCP fino.** Servidor MCP por stdio que no reimplementa nada:
+  - **Paso 2 — MCP fino.** Servidor MCP por stdio que no reimplementa nada:
     cada herramienta llama al cliente compartido del CLI (`repo`, `idea.list`,
     `idea.get`, `migrate.scan`, `migrate.check`, `migrate.apply`) y publica el
     esquema del plan como recurso. Lectura primero; escritura y migración
     detrás de un ámbito, porque hoy la API admite peticiones sin `Origin` y
     cualquier proceso local puede escribir. El README dice a los agentes qué
     usar (`eui` o el MCP) y deja de presentar los endpoints como vía.
-  - **Paso 4 — CRUD completo y PATH opt-in.** El CLI cubre crear, editar,
+  - **Paso 3 — CRUD completo y PATH opt-in.** El CLI cubre crear, editar,
     mover, fases, requisitos y descartar. Instalarlo en el PATH es una casilla
     del instalador, nunca por defecto, con el binario en los datos del usuario;
     el MCP se configura por ruta absoluta, sin depender del PATH.

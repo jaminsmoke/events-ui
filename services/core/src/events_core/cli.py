@@ -1,9 +1,7 @@
 """CLI `eui`: lo que un agente usa en vez de la API cruda.
 
-Por ahora la puerta del plan: lee la configuración compartida (raíz y puerto) y
-comprueba que el core responde, con qué versión y con qué raíz. Los comandos de
-lectura (`repo`, `idea`, `schema`) y la migración llegan después, sobre este
-mismo cliente.
+Comandos: `doctor` (la puerta), `config`, y la lectura `repo`, `idea` y
+`schema`, todos sobre el mismo cliente HTTP. La migración llega después.
 
     uv run --directory services/core python -m events_core.cli doctor
     uv run --directory services/core python -m events_core.cli config --json
@@ -21,6 +19,7 @@ import sys
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
+from urllib.parse import quote, urlencode
 from urllib.request import urlopen
 
 from . import __version__
@@ -38,15 +37,31 @@ def _url(argumento: str | None, puerto: int) -> str:
     return f"http://127.0.0.1:{puerto}"
 
 
+def _detalle(exc: HTTPError) -> str | None:
+    """El `detail` del core (400/404), que ya está escrito para leerse."""
+    try:
+        cuerpo = json.loads(exc.read().decode("utf-8"))
+    except (OSError, ValueError):
+        return None
+    detalle = cuerpo.get("detail") if isinstance(cuerpo, dict) else None
+    return detalle if isinstance(detalle, str) else None
+
+
+def _get(url: str) -> tuple[Any | None, str | None, int]:
+    """GET en JSON: `(datos, detalle, estado)`; estado 0 si no hubo respuesta."""
+    try:
+        with urlopen(url, timeout=TIMEOUT_S) as respuesta:
+            return json.loads(respuesta.read().decode("utf-8")), None, respuesta.status
+    except HTTPError as exc:
+        return None, _detalle(exc) or f"HTTP {exc.code}", exc.code
+    except (URLError, OSError, ValueError) as exc:
+        return None, str(getattr(exc, "reason", exc)), 0
+
+
 def _health(url: str) -> tuple[dict[str, Any] | None, str | None]:
     """GET /health sin dependencias: el CLI no arrastra un cliente HTTP."""
-    try:
-        with urlopen(f"{url}/health", timeout=TIMEOUT_S) as respuesta:
-            return json.loads(respuesta.read().decode("utf-8")), None
-    except HTTPError as exc:
-        return None, f"HTTP {exc.code}"
-    except (URLError, OSError, ValueError) as exc:
-        return None, str(getattr(exc, "reason", exc))
+    datos, detalle, _ = _get(f"{url}/health")
+    return (datos if detalle is None else None), detalle
 
 
 def _comprobacion(nombre: str, estado: str, detalle: str) -> dict[str, str]:
@@ -220,6 +235,119 @@ def _config(args: argparse.Namespace) -> int:
     return 0
 
 
+def _contexto(args: argparse.Namespace) -> tuple[configuracion.Config, str]:
+    ajustes = configuracion.leer_segura()
+    return ajustes, _url(args.url, getattr(args, "port", None) or ajustes.port)
+
+
+def _raiz(args: argparse.Namespace, ajustes: configuracion.Config) -> str | None:
+    """La raíz sobre la que preguntar: `--repo`, o la de la configuración."""
+    if getattr(args, "repo", None):
+        return str(resolve_repo(args.repo))
+    return str(ajustes.repo) if ajustes.repo else None
+
+
+def _error(mensaje: str, codigo: int = 2) -> int:
+    print(f"error: {mensaje}", file=sys.stderr)
+    return codigo
+
+
+def _fallo(detalle: str, estado: int) -> int:
+    """Un 404 es «no encontrado» (1); cualquier otra cosa es fallo (2)."""
+    return _error(detalle, 1 if estado == 404 else 2)
+
+
+def _repo(args: argparse.Namespace) -> int:
+    ajustes, url = _contexto(args)
+
+    if args.accion == "list":
+        datos, detalle, estado = _get(f"{url}/repos")
+        if detalle:
+            return _fallo(detalle, estado)
+        if args.json:
+            print(json.dumps(datos))
+        else:
+            for item in datos:
+                print(f"{item['repo']}  {item['db_path']}")
+        return 0
+
+    try:
+        raiz = _raiz(args, ajustes)
+    except InvalidInput as exc:
+        return _error(str(exc))
+    if args.json:
+        print(json.dumps({"repo": raiz, "url": url}))
+    else:
+        print(raiz or "(sin definir: elige una carpeta en la app o `eui config set repo <ruta>`)")
+    return 0 if raiz else 1
+
+
+def _imprimir_idea(idea: dict[str, Any]) -> None:
+    print(idea.get("title", ""))
+    print(f"uid: {idea.get('uid', '')}")
+    print(f"estado: {idea.get('status', '')}")
+    if idea.get("tags"):
+        print(f"etiquetas: {', '.join(idea['tags'])}")
+    if idea.get("depende_de"):
+        print(f"depende de: {', '.join(idea['depende_de'])}")
+    print(f"fases: {len(idea.get('fases') or [])}")
+    if idea.get("description"):
+        print()
+        print(idea["description"])
+
+
+def _idea(args: argparse.Namespace) -> int:
+    ajustes, url = _contexto(args)
+    try:
+        raiz = _raiz(args, ajustes)
+    except InvalidInput as exc:
+        return _error(str(exc))
+    if raiz is None:
+        return _error(
+            "no hay raíz: elige una carpeta en la app, usa --repo o `eui config set repo`"
+        )
+
+    if args.accion == "get":
+        ruta = f"{url}/ideas/{quote(args.uid, safe='')}?repo={quote(raiz, safe='')}"
+        datos, detalle, estado = _get(ruta)
+        if detalle:
+            return _fallo(detalle, estado)
+        if args.json:
+            print(json.dumps(datos))
+        else:
+            _imprimir_idea(datos)
+        return 0
+
+    parametros = {"repo": raiz, "limit": str(args.limit), "offset": str(args.offset)}
+    if args.status:
+        parametros["status"] = args.status
+    if args.kind:
+        parametros["kind"] = args.kind
+    datos, detalle, estado = _get(f"{url}/ideas?{urlencode(parametros)}")
+    if detalle:
+        return _fallo(detalle, estado)
+    if args.json:
+        print(json.dumps(datos))
+        return 0
+    if not datos:
+        print("(ninguna idea)")
+        return 0
+    ancho_uid = max(len(idea["uid"]) for idea in datos)
+    ancho_estado = max(len(idea["status"]) for idea in datos)
+    for idea in datos:
+        print(f"{idea['uid']:<{ancho_uid}}  {idea['status']:<{ancho_estado}}  {idea['title']}")
+    return 0
+
+
+def _schema(args: argparse.Namespace) -> int:
+    _, url = _contexto(args)
+    datos, detalle, estado = _get(f"{url}/openapi.json")
+    if detalle:
+        return _fallo(detalle, estado)
+    print(json.dumps(datos, indent=2 if args.pretty else None))
+    return 0
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="eui", description="Cliente de Events UI para agentes.")
     parser.add_argument("--version", action="version", version=f"eui {__version__}")
@@ -239,6 +367,41 @@ def _parser() -> argparse.ArgumentParser:
     fijar.add_argument("clave", choices=["repo", "port"])
     fijar.add_argument("valor")
     ajustes.set_defaults(func=_config)
+
+    def conexion(p: argparse.ArgumentParser, *, con_repo: bool = True) -> None:
+        p.add_argument("--url", help="Base del core (por defecto, el puerto configurado)")
+        p.add_argument("--port", type=int, help="Puerto del core si no se da --url")
+        if con_repo:
+            p.add_argument("--repo", help="Raíz a usar en vez de la configurada")
+
+    repos = comandos.add_parser("repo", help="La raíz configurada o las del laboratorio")
+    repos.add_argument(
+        "accion", nargs="?", choices=["list"], help="`list`: carpetas del laboratorio"
+    )
+    repos.add_argument("--json", action="store_true")
+    conexion(repos)
+    repos.set_defaults(func=_repo)
+
+    ideas = comandos.add_parser("idea", help="Lee las ideas del repo")
+    acciones_idea = ideas.add_subparsers(dest="accion", required=True)
+    listar = acciones_idea.add_parser("list", help="Lista las ideas del mapa")
+    listar.add_argument("--status")
+    listar.add_argument("--kind")
+    listar.add_argument("--limit", type=int, default=100)
+    listar.add_argument("--offset", type=int, default=0)
+    listar.add_argument("--json", action="store_true")
+    conexion(listar)
+    listar.set_defaults(func=_idea)
+    ver = acciones_idea.add_parser("get", help="La ficha completa de una idea")
+    ver.add_argument("uid")
+    ver.add_argument("--json", action="store_true")
+    conexion(ver)
+    ver.set_defaults(func=_idea)
+
+    esquema = comandos.add_parser("schema", help="El contrato OpenAPI del core")
+    esquema.add_argument("--pretty", action="store_true", help="Indentado para leerlo")
+    conexion(esquema, con_repo=False)
+    esquema.set_defaults(func=_schema)
 
     return parser
 

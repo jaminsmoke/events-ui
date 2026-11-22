@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 
 import type { IdeaCreate } from "../core/api";
 
-/** Nueva idea: título obligatorio, descripción opcional. El `body` se
+/** Nuevo ítem: título obligatorio, descripción opcional. El `body` se
  *  compone contra `IdeaCreate` del contrato generado, así que un enum mal
  *  puesto no compila. */
 export function NuevaIdea({
@@ -47,8 +47,8 @@ export function NuevaIdea({
         className="mono"
         value={titulo}
         onChange={(e) => setTitulo(e.target.value)}
-        placeholder="Título de la idea"
-        aria-label="Título de la idea"
+        placeholder="Título del ítem"
+        aria-label="Título del ítem"
         autoFocus
       />
       <input
@@ -56,11 +56,11 @@ export function NuevaIdea({
         value={descripcion}
         onChange={(e) => setDescripcion(e.target.value)}
         placeholder="Descripción (opcional)"
-        aria-label="Descripción de la idea"
+        aria-label="Descripción del ítem"
       />
       <div className="nueva-acciones">
         <button className="btn" type="submit" disabled={guardando || !titulo.trim()}>
-          Crear idea
+          Crear ítem
         </button>
         <button className="btn ghost" type="button" onClick={onCerrar}>
           Cancelar

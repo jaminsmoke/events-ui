@@ -96,7 +96,7 @@ uv run --directory services/core python -m events_core.instantanea \
 El comando deja la copia sin auxiliares, en modo rollback, y comprueba
 `PRAGMA integrity_check` antes de darla por buena. Se sustituye el fichero
 versionado por la copia y se comprueba desde un directorio limpio abriéndola:
-debe ver las mismas ideas que la app, sin `-wal` al lado.
+debe ver los mismos ítems que la app, sin `-wal` al lado.
 
 Fuentes del modelo: [ideas y protocolos](../services/core/src/events_core/schema/ideas.sql),
 [eventos](../services/core/src/events_core/schema/eventos.sql),
@@ -118,4 +118,4 @@ integridad y referencias. Las escrituras de prueba se hicieron en bases temporal
 Los datos locales por sí solos no ejercitan las relaciones entre ideas. Con
 almacenes temporales se comprobaron sustituciones, enlaces recíprocos, fichas
 solapadas, tipos históricos, cursores tras un reinicio y lecturas con WAL activo.
-Los resultados y las pruebas de cierre están en los [pendientes del proyecto](../ROADMAP.md#pendientes).
+Los resultados y las pruebas de cierre están en Events UI; `eui migrate export ROADMAP.md` genera la vista Markdown del documento absorbido.

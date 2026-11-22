@@ -106,7 +106,7 @@ export default {
     await page.waitForTimeout(300);
     const golpe = page.locator('.wire-hit[data-cable="etapa-cola"]');
     const caja = await golpe.boundingBox();
-    expect(caja !== null, "el cable Entrada→En cola debe tener zona de golpe");
+    expect(caja !== null, "el cable Entrada→Backlog debe tener zona de golpe");
     if (!caja) throw new Error("sin caja para el cable");
     await page.mouse.click(caja.x + caja.width * 0.2, caja.y + caja.height / 2);
     await esperar(
@@ -118,7 +118,7 @@ export default {
       "la ficha del cable",
     );
     const fichaCable = (await panel.innerText()).toLowerCase();
-    expect(fichaCable.includes("en cola"), "la ficha del cable debe nombrar su destino");
+    expect(fichaCable.includes("backlog"), "la ficha del cable debe nombrar su destino");
     expect(
       fichaCable.includes("paso libre") || fichaCable.includes("no está en"),
       "la ficha del cable debe explicar la compuerta",
@@ -127,7 +127,7 @@ export default {
     // Un nudo: su rombo y sus celdas llevan a la ficha con todas las compuertas.
     const nudo = page.locator('.nudo-hit[data-nudo="entrada-cola"]');
     const cajaNudo = await nudo.boundingBox();
-    expect(cajaNudo !== null, "el nudo de Entrada↔En cola debe tener zona de golpe");
+    expect(cajaNudo !== null, "el nudo de Entrada↔Backlog debe tener zona de golpe");
     if (!cajaNudo) throw new Error("sin caja para el nudo");
     await page.mouse.click(cajaNudo.x + cajaNudo.width / 2, cajaNudo.y + cajaNudo.height / 2);
     await esperar(
@@ -178,7 +178,7 @@ export default {
     await esperar(
       () =>
         page.locator(".node.lane-cola").evaluate((el) => el.classList.contains("seleccionado")),
-      "dos flechas llevan al carril En cola",
+      "dos flechas llevan al carril Backlog",
     );
     await page.keyboard.press("Enter");
     await esperar(() => panel.isVisible(), "Enter abre el Inspector de lo marcado");
@@ -187,7 +187,7 @@ export default {
         panel
           .locator(".inspector-asunto")
           .innerText()
-          .then((t) => t === "En cola"),
+          .then((t) => t === "Backlog"),
       "la ficha del carril abierta por teclado",
     );
     await page.keyboard.press("ArrowLeft");

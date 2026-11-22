@@ -134,7 +134,7 @@ export function Compuerta({
    * sin él no se dibuja: queda únicamente la del Historial. */
   if (lane === "historial" || lane === "git") {
     if (!abierta) return null;
-    const destino = lane === "git" ? "Git" : "Historial";
+    const destino = lane === "git" ? "Git" : "Hecho";
     return (
       <g
         className={`compuerta ${lane}`}

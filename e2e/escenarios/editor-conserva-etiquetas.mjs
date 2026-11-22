@@ -22,7 +22,7 @@ export default {
       await page.getByRole("button", { name: "Editar", exact: true }).click();
       await page.getByRole("button", { name: "Datos…", exact: true }).click();
       await esperar(
-        () => page.getByRole("dialog", { name: "Editar idea" }).isVisible(),
+        () => page.getByRole("dialog", { name: "Editar ítem" }).isVisible(),
         "el editor abierto",
         10_000,
       );
@@ -57,7 +57,7 @@ export default {
 
     await page.getByRole("button", { name: "Guardar", exact: true }).click();
     await esperar(
-      () => page.getByRole("dialog", { name: "Editar idea" }).count().then((n) => n === 0),
+      () => page.getByRole("dialog", { name: "Editar ítem" }).count().then((n) => n === 0),
       "el editor se cierra tras guardar",
       10_000,
     );
@@ -102,7 +102,7 @@ export default {
     await page.getByLabel("Título", { exact: true }).fill("Titulo retocado");
     await page.getByRole("button", { name: "Guardar", exact: true }).click();
     await esperar(
-      () => page.getByRole("dialog", { name: "Editar idea" }).count().then((n) => n === 0),
+      () => page.getByRole("dialog", { name: "Editar ítem" }).count().then((n) => n === 0),
       "el editor se cierra tras el guardado sin tags",
       10_000,
     );

@@ -71,7 +71,7 @@ export default {
       await pruebas.click();
       await page.getByText(/Completada.*Laboratorio limpio/).waitFor();
       comprobarLimpieza();
-      await page.getByText("Todavía no hay ideas en este repo.").waitFor();
+      await page.getByText("Todavía no hay ítems en este repo.").waitFor();
       await comprobarAnclajes();
       await page.screenshot({ path: resultado("prueba-1-limpia.png") });
 

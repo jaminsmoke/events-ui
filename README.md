@@ -306,7 +306,7 @@ el caso del laboratorio dentro del repo de la aplicación. La proyección expone
 lo ignora (`True`) o si no hay Git (`None`). Resumen lo enseña y ofrece
 «Ignorar .EUI», que añade `.EUI/` al `.gitignore` de esa raíz.
 
-Hay dos mapas enlazados. El **Mapa de ideas** termina en el puente **Entregar
+Hay dos mapas enlazados. El **Mapa de trabajo** termina en el puente **Entregar
 a Git**, que solo se activa con work tree y abre el **Mapa de Git**.
 Su primer nodo, **Cambios sin commit**, lista lo que ve
 `git status --porcelain`: archivos modificados, preparados o sin seguimiento.
@@ -326,7 +326,7 @@ Para actualizar un almacén v12 existente, ábrelo desde la aplicación o ejecut
 `core:seed`: en los dos casos se aplica la migración que falte. Si un almacén
 quedó marcado como v13 por el fallo anterior de `core:seed`, al abrirlo se
 termina la migración 0013. Consulta el
-[modelo de datos](docs/base-de-datos.md) y los [pendientes](ROADMAP.md#pendientes).
+[modelo de datos](docs/base-de-datos.md) y la [migración de Markdown](docs/migracion.md).
 
 `repo` es la ruta de la carpeta (la que devuelve el selector de la UI) o un nombre
 dentro de `repoprobe/repos`. Va en query porque las rutas de Windows no son un
@@ -357,7 +357,7 @@ y el detalle por `ON DELETE CASCADE`. El paso `0004` es el ejemplo: reconstruye
 - **F0.5 (hecho):** tablas de ideas, seed de `.EUI/EUI_DATABASE.sqlite`, API CRUD por repo.
 - **F0.6 (hecho):** `/revision` y visor en vivo: cada dos segundos se comprueba la
   revisión y, si cambia, se lee `/mapa`. Una idea se anima al pasar entre carriles.
-- **F0.7 (hecho):** la UI escribe, no solo mira: crear ideas («Nueva idea»), editar
+- **F0.7 (hecho):** la UI escribe, no solo mira: crear ítems («Nuevo ítem»), editar
   título/descripción/tags y borrar desde la fila, y moverlas entre carriles. Todo por
   `openapi-fetch` tipado por el OpenAPI generado, con los errores 400/404 declarados
   en el contrato.

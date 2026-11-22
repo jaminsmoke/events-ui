@@ -13,11 +13,11 @@ export type Status = Idea["status"];
  *  (nombre, orden, por repo), no constantes.
  */
 export const LANES = [
-  { id: "cola", title: "En cola" },
-  { id: "roadmap", title: "En roadmap" },
-  { id: "verificacion", title: "En verificación" },
-  { id: "revision_aprobada", title: "Revisión aprobada" },
-  { id: "historial", title: "Historial" },
+  { id: "cola", title: "Backlog" },
+  { id: "roadmap", title: "Roadmap" },
+  { id: "verificacion", title: "Verificación" },
+  { id: "revision_aprobada", title: "Revisión" },
+  { id: "historial", title: "Hecho" },
   { id: "descartadas", title: "Descartadas" },
 ] as const;
 
@@ -29,14 +29,14 @@ export type LaneId = (typeof LANES)[number]["id"];
  *  su carril. Vive aquí, junto a `Status`, para compartirla sin exportar
  *  constantes desde un módulo de componentes (Fast Refresh). */
 export const ETIQUETA_ESTADO: Record<string, string> = {
-  draft: "En la entrada",
-  proposed: "En cola",
-  roadmap: "En roadmap",
-  verificacion: "En verificación",
-  revision_aprobada: "Revisión aprobada",
-  historial: "En historial",
-  rejected: "Descartada",
-  superseded: "Reemplazada",
+  draft: "Entrada",
+  proposed: "Backlog",
+  roadmap: "Roadmap",
+  verificacion: "Verificación",
+  revision_aprobada: "Revisión",
+  historial: "Hecho",
+  rejected: "Descartado",
+  superseded: "Reemplazado",
 };
 
 /** El título legible de un carril o de un extremo de cable: `root` es la

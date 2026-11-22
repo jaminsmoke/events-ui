@@ -106,12 +106,12 @@ export function EditorIdea({
       <div
         className="modal"
         role="dialog"
-        aria-label="Editar idea"
+        aria-label="Editar ítem"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.key === "Escape" && onCerrar()}
       >
         <form onSubmit={guardar}>
-          <h2>Editar idea</h2>
+          <h2>Editar ítem</h2>
           {estadoCarga === "cargando" && <p className="hint">Cargando tags…</p>}
           <label>
             Título

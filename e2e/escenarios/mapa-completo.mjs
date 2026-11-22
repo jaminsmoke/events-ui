@@ -155,8 +155,8 @@ export default {
     // El pane de Git y el de Mapas son excluyentes: volver a Mapas deja las
     // pestañas de mapa donde estaban antes de commitear.
     await page.getByRole("button", { name: "Mapas", exact: true }).click();
-    await page.getByRole("button", { name: "Mapa de ideas", exact: true }).click();
-    await esperar(() => page.locator(".wire").count().then((n) => n === 10), "de vuelta a Ideas");
+    await page.getByRole("button", { name: "Mapa de trabajo", exact: true }).click();
+    await esperar(() => page.locator(".wire").count().then((n) => n === 10), "de vuelta a Trabajo");
 
     await pruebas.click();
     const dialogo = page.getByRole("dialog", { name: "Pruebas del laboratorio" });
@@ -266,11 +266,11 @@ export default {
     await pruebas.click();
     await page.getByText(/Completada.*Laboratorio limpio/).waitFor({ timeout: 90_000 });
     await dialogo.getByRole("button", { name: "Cerrar", exact: true }).click();
-    await page.getByText("Todavía no hay ideas en este repo.").waitFor();
+    await page.getByText("Todavía no hay ítems en este repo.").waitFor();
     // La proyección de la barra de estado se refresca aparte; sin esto la foto
     // de la limpieza conservaría los conteos viejos aunque el mapa ya esté a cero.
     await esperar(
-      () => page.locator(".proyeccion").innerText().then((texto) => texto.includes("0 ideas")),
+      () => page.locator(".proyeccion").innerText().then((texto) => texto.includes("0 ítems")),
       "la proyección vacía",
       15_000,
     );

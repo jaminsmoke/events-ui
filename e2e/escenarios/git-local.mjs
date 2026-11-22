@@ -137,7 +137,7 @@ export default {
       );
 
       // Eliminar desde el puente: pide confirmación y vuelve a apagarse.
-      await page.getByRole("button", { name: "Mapa de ideas", exact: true }).click();
+      await page.getByRole("button", { name: "Mapa de trabajo", exact: true }).click();
       await page.getByRole("button", { name: "Eliminar repo…", exact: true }).click();
       const dialogoEliminar = page.getByRole("dialog", { name: "Eliminar repo local" });
       await dialogoEliminar.waitFor();

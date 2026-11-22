@@ -35,12 +35,12 @@ export function DescartaIdea({
       <div
         className="modal"
         role="dialog"
-        aria-label="Descartar idea"
+        aria-label="Descartar ítem"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.key === "Escape" && onCerrar()}
       >
         <form onSubmit={descartar}>
-          <h2>Descartar idea</h2>
+          <h2>Descartar ítem</h2>
           <p className="hint">«{titulo}» pasa a Descartadas. La descripción inicial se conserva.</p>
           <label>
             Motivo del rechazo

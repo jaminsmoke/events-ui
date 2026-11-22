@@ -54,7 +54,7 @@ export const PRUEBAS: Prueba[] = [
     id: "prueba-1",
     nombre: "Reparto y limpieza",
     descripcion:
-      "Crea 10 ideas, mueve 7 a En cola y descarta 3. Deja seis segundos para ver el reparto. " +
+      "Crea 10 ítems, mueve 7 a Backlog y descarta 3. Deja seis segundos para ver el reparto. " +
       "Al terminar, detenerse o fallar, se vacían todas las ideas, fichas y eventos del laboratorio, incluidos los datos anteriores.",
     construir: ({ crear, mover, editar }) => {
       const creadas: string[] = [];
@@ -71,17 +71,17 @@ export const PRUEBAS: Prueba[] = [
               kind: "idea",
               status: "draft",
             });
-            if (!idea) throw new Error("El core no devolvió la idea creada.");
+            if (!idea) throw new Error("El core no devolvió el ítem creado.");
             creadas.push(idea.uid);
           },
         });
       }
       for (let i = 0; i < 7; i++) {
         pasos.push({
-          texto: `En cola: «Reparto · ${i + 1}»`,
+          texto: `Backlog: «Reparto · ${i + 1}»`,
           ejecutar: async () => {
             const uid = creadas[i];
-            if (!uid) throw new Error("Falta el uid de una idea creada.");
+            if (!uid) throw new Error("Falta el uid de un ítem creado.");
             await mover(uid, "proposed");
           },
         });
@@ -97,7 +97,7 @@ export const PRUEBAS: Prueba[] = [
           texto: `Descartar «Reparto · ${indice + 1}» (${motivo})`,
           ejecutar: async () => {
             const uid = creadas[indice];
-            if (!uid) throw new Error("Falta el uid de una idea creada.");
+            if (!uid) throw new Error("Falta el uid de un ítem creado.");
             await editar(uid, { status: "rejected", rejected_description: motivo });
           },
         });
@@ -142,7 +142,7 @@ export const PRUEBAS: Prueba[] = [
           texto: `Crear «${body.title}» en ${donde}`,
           ejecutar: async () => {
             const idea = await crear(body);
-            if (!idea) throw new Error("El core no devolvió la idea creada.");
+            if (!idea) throw new Error("El core no devolvió el ítem creado.");
             uids[clave] = idea.uid;
             if (completar) await completar(idea.uid);
           },
@@ -172,7 +172,7 @@ export const PRUEBAS: Prueba[] = [
             kind: "idea",
             status: "proposed",
           },
-          "En cola",
+          "Backlog",
         );
       }
       sembrar(
@@ -284,8 +284,8 @@ export const PRUEBAS: Prueba[] = [
       sembrar(
         "historial-1",
         {
-          title: "Historial · cerrada",
-          description: "Una idea terminada que conserva su fase y su requisito.",
+          title: "Hecho · cerrada",
+          description: "Un ítem terminado que conserva su fase y su requisito.",
           content: "",
           kind: "idea",
           status: "historial",
@@ -300,7 +300,7 @@ export const PRUEBAS: Prueba[] = [
       sembrar(
         "historial-2",
         {
-          title: "Historial · con dos fases",
+          title: "Hecho · con dos fases",
           description: "El historial también conserva varias fases completadas.",
           content: "",
           kind: "idea",
@@ -319,8 +319,8 @@ export const PRUEBAS: Prueba[] = [
       sembrar(
         "historial-3",
         {
-          title: "Historial · otra cerrada",
-          description: "Una tercera ficha para ver el carril con varias ideas.",
+          title: "Hecho · otra cerrada",
+          description: "Una tercera ficha para ver el carril con varios ítems.",
           content: "",
           kind: "idea",
           status: "historial",
@@ -335,18 +335,18 @@ export const PRUEBAS: Prueba[] = [
       const descartes = [
         {
           clave: "descartada-1",
-          titulo: "Descartada · no aporta",
+          titulo: "Descartado · no aporta",
           motivo: "No aporta a este ciclo.",
         },
         {
           clave: "descartada-2",
-          titulo: "Descartada · duplicada",
-          motivo: "Duplica otra idea del mismo lote.",
+          titulo: "Descartado · duplicada",
+          motivo: "Duplica otro ítem del mismo lote.",
         },
         {
           clave: "descartada-3",
-          titulo: "Reemplazada · por otra idea",
-          motivo: "La releva una idea más reciente.",
+          titulo: "Reemplazado · por otro ítem",
+          motivo: "Lo releva un ítem más reciente.",
           estado: "superseded" as const,
         },
       ];
@@ -419,7 +419,7 @@ export const PRUEBAS: Prueba[] = [
       ];
       return [
         {
-          texto: "Crear la idea en En cola",
+          texto: "Crear el ítem en Backlog",
           ejecutar: async () => {
             const idea = await crear({
               title: "Marcha · cable",
@@ -428,7 +428,7 @@ export const PRUEBAS: Prueba[] = [
               kind: "idea",
               status: "proposed",
             });
-            if (!idea) throw new Error("El core no devolvió la idea creada.");
+            if (!idea) throw new Error("El core no devolvió el ítem creado.");
             uid = idea.uid;
           },
         },
@@ -457,7 +457,7 @@ export const PRUEBAS: Prueba[] = [
           },
         },
         {
-          texto: "Volver a En cola",
+          texto: "Volver a Backlog",
           ejecutar: async () => {
             await mover(conUid(), "proposed");
           },
@@ -508,7 +508,7 @@ export const PRUEBAS: Prueba[] = [
       ];
       return [
         {
-          texto: "Crear la idea en En cola",
+          texto: "Crear el ítem en Backlog",
           ejecutar: async () => {
             const idea = await crear({
               title: "Fases · aprobación",
@@ -517,7 +517,7 @@ export const PRUEBAS: Prueba[] = [
               kind: "idea",
               status: "proposed",
             });
-            if (!idea) throw new Error("El core no devolvió la idea creada.");
+            if (!idea) throw new Error("El core no devolvió el ítem creado.");
             uid = idea.uid;
           },
         },
@@ -590,7 +590,7 @@ export const PRUEBAS: Prueba[] = [
       const guardar = () => editar(conUid(), { fases });
       return [
         {
-          texto: "Crear «Fases · taller» en En cola",
+          texto: "Crear «Fases · taller» en Backlog",
           ejecutar: async () => {
             const idea = await crear({
               title: "Fases · taller",
@@ -599,7 +599,7 @@ export const PRUEBAS: Prueba[] = [
               kind: "idea",
               status: "proposed",
             });
-            if (!idea) throw new Error("El core no devolvió la idea creada.");
+            if (!idea) throw new Error("El core no devolvió el ítem creado.");
             uid = idea.uid;
           },
         },
@@ -750,7 +750,7 @@ export const PRUEBAS: Prueba[] = [
       };
       return [
         {
-          texto: "Crear «Motivo · fases» en En cola",
+          texto: "Crear «Motivo · fases» en Backlog",
           ejecutar: async () => {
             const idea = await crear({
               title: "Motivo · fases",
@@ -759,7 +759,7 @@ export const PRUEBAS: Prueba[] = [
               kind: "idea",
               status: "proposed",
             });
-            if (!idea) throw new Error("El core no devolvió la idea creada.");
+            if (!idea) throw new Error("El core no devolvió el ítem creado.");
             uid = idea.uid;
           },
         },
@@ -794,7 +794,7 @@ export const PRUEBAS: Prueba[] = [
           },
         },
         {
-          texto: "Volver a En cola",
+          texto: "Volver a Backlog",
           ejecutar: async () => {
             await mover(conUid(), "proposed");
           },
@@ -835,7 +835,7 @@ export const PRUEBAS: Prueba[] = [
       ];
       return [
         {
-          texto: "Crear «Requisitos · fases» en En cola",
+          texto: "Crear «Requisitos · fases» en Backlog",
           ejecutar: async () => {
             const idea = await crear({
               title: "Requisitos · fases",
@@ -844,7 +844,7 @@ export const PRUEBAS: Prueba[] = [
               kind: "idea",
               status: "proposed",
             });
-            if (!idea) throw new Error("El core no devolvió la idea creada.");
+            if (!idea) throw new Error("El core no devolvió el ítem creado.");
             uid = idea.uid;
           },
         },
@@ -918,7 +918,7 @@ export const PRUEBAS: Prueba[] = [
       ];
       return [
         {
-          texto: "Crear la idea en En cola",
+          texto: "Crear el ítem en Backlog",
           ejecutar: async () => {
             const idea = await crear({
               title: "Vuelta · descarte",
@@ -927,7 +927,7 @@ export const PRUEBAS: Prueba[] = [
               kind: "idea",
               status: "proposed",
             });
-            if (!idea) throw new Error("El core no devolvió la idea creada.");
+            if (!idea) throw new Error("El core no devolvió el ítem creado.");
             uid = idea.uid;
           },
         },
@@ -966,7 +966,7 @@ export const PRUEBAS: Prueba[] = [
           },
         },
         {
-          texto: "Volver a En cola",
+          texto: "Volver a Backlog",
           ejecutar: async () => {
             await mover(conUid(), "proposed");
           },

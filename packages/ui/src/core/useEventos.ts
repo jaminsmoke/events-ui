@@ -29,9 +29,9 @@ function campo(evento: Evento, nombre: string): string | undefined {
 export const RENDERIZADORES: Record<string, Renderizador> = {
   // El ciclo de vida de una idea: el título sale del payload sin tener que
   // abrir el mapa. Sin título no hay resumen: cae al fallback genérico.
-  "idea.created": (e) => (campo(e, "title") ? `Nueva idea: ${campo(e, "title")}` : ""),
-  "idea.updated": (e) => (campo(e, "title") ? `Idea actualizada: ${campo(e, "title")}` : ""),
-  "idea.deleted": (e) => (campo(e, "title") ? `Idea borrada: ${campo(e, "title")}` : ""),
+  "idea.created": (e) => (campo(e, "title") ? `Nuevo ítem: ${campo(e, "title")}` : ""),
+  "idea.updated": (e) => (campo(e, "title") ? `Ítem actualizado: ${campo(e, "title")}` : ""),
+  "idea.deleted": (e) => (campo(e, "title") ? `Ítem borrado: ${campo(e, "title")}` : ""),
   "idea.status": (e) => {
     const titulo = campo(e, "title");
     const estado = campo(e, "status");

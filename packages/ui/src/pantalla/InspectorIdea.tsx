@@ -120,7 +120,7 @@ export function CuerpoIdea({
 
       <p className="pane-rotulo">Dependencias</p>
       {deps.length === 0 ? (
-        <p className="hint">No espera a ninguna idea.</p>
+        <p className="hint">No espera a ningún ítem.</p>
       ) : (
         <ul className="inspector-lista">
           {deps.map((dep) => {

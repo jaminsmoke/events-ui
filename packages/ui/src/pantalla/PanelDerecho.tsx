@@ -434,7 +434,7 @@ function CuerpoCarril({
 
       {estados.includes("revision_aprobada") && (
         <p className="hint">
-          Archivar a Historial no cruza protocolo: lo habilita tener work tree.
+          Archivar a Hecho no cruza protocolo: lo habilita tener work tree.
         </p>
       )}
     </div>

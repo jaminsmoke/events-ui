@@ -557,7 +557,7 @@ export default function App({
         )}
         {repo && (
           <button className="btn" onClick={() => setNuevaAbierta(true)}>
-            Nueva idea
+            Nuevo ítem
           </button>
         )}
         {avisar && (
@@ -701,7 +701,7 @@ export default function App({
             )}
             {busy && <p className="hint">Cargando…</p>}
             {!busy && ideas?.length === 0 && (
-              <p className="hint">Todavía no hay ideas en este repo.</p>
+              <p className="hint">Todavía no hay ítems en este repo.</p>
             )}
             {!busy && tree && (
               <div
@@ -1033,7 +1033,7 @@ export default function App({
               </em>
             )}
             {' · '}
-            {proyeccion.ideas} ideas · {proyeccion.events}{" "}
+            {proyeccion.ideas} ítems · {proyeccion.events}{" "}
             eventos
             {Object.entries(proyeccion.por_estado).map(([estado, n]) => (
               <span key={estado}>

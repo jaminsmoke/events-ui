@@ -513,6 +513,32 @@ con el motivo, para no reabrirlo cada semana.
   - **PATH opt-in.** Instalar `eui` en el PATH es una casilla del instalador,
     nunca por defecto, con el binario en los datos del usuario; el MCP se
     configura por ruta absoluta, sin depender del PATH.
+- **Migración v2 — absorción de documentos**: la v1 crea ideas; esta cierra el
+  ciclo. Solo se absorben documentos que alimentan el mapa (`ROADMAP`, backlogs
+  y checklists); README, arquitectura y `docs/` son referencia. El agente
+  clasifica y propone; el importador valida y aplica. Retirar el origen es un
+  paso explícito, con copia y vuelta atrás.
+  - **Plan v2: destinos y fechas.** El plan admite `proposed`, `draft`,
+    `historial` y `rejected`, con `fecha`/`completado_at` opcional para el
+    archivo. Los pendientes explícitos van a `proposed`, las notas crudas a
+    `draft`, lo hecho a `historial` y «No se hace» a `rejected` con motivo;
+    `historial` y `rejected` no llevan fases. `apply` escribe el carril
+    indicado.
+  - **Clasificación y manifiesto de documentos.** `migrate classify` o
+    `migrate plan` produce `{documentos: [{ruta, clase, motivo, destino}]}`,
+    con una allowlist de documentos que alimentan el mapa y el resto como
+    referencia; `check` exige que todos los bloques estén clasificados y que
+    los parciales declaren sus rangos.
+  - **Absorción total.** `migrate absorb <lote> --dry-run|--confirmar` copia el
+    origen a `.EUI/migracion/`, comprueba que no queda ningún bloque sin migrar
+    y solo entonces retira el fichero. `undo` restaura la copia si el hash
+    sigue.
+  - **Absorción parcial.** Después de la total: rangos no solapados, se retiran
+    solo los bloques migrados y queda un marcador visible con el uid; nunca
+    por defecto.
+  - **Stub o export del ROADMAP.** Al absorber el ROADMAP entero, dejar un stub
+    generado con contadores y cómo abrirlo en EventsUI, o exportarlo desde el
+    almacén; el repo no se queda sin roadmap público.
 
 ## No se hace (por ahora)
 

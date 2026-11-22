@@ -9,6 +9,9 @@ cadena —con esto, el paquete entra sí o sí en el bundle.
 
 from __future__ import annotations
 
+import os
+import sys
+
 # Import absoluto, no relativo: PyInstaller ejecuta este fichero como módulo
 # suelto (`__main__` sin paquete) y `from .import` revienta con
 # "attempted relative import with no known parent package".
@@ -17,6 +20,12 @@ from events_core.main import app  # noqa: F401  (el import es para el análisis 
 
 
 def main() -> int:
+    # PyInstaller `--windowed` deja `sys.stdout` y `sys.stderr` en None.
+    # Uvicorn y `serve` escriben en ellos; se mandan a NUL antes de arrancar.
+    if sys.stdout is None:
+        sys.stdout = open(os.devnull, "w", encoding="utf-8")  # noqa: SIM115
+    if sys.stderr is None:
+        sys.stderr = open(os.devnull, "w", encoding="utf-8")  # noqa: SIM115
     return serve.main()
 
 

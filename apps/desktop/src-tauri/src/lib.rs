@@ -53,9 +53,10 @@ fn arrancar(app: &AppHandle) -> bool {
     if let Some(carpeta) = ruta.parent() {
       comando.current_dir(carpeta);
     }
-    // En Windows el sidecar es un binario de consola: sin esto, cada arranque
-    // abre una ventana de consola. Al cerrarla se muere el core y el vigilante
-    // lo relanza, así que la ventana vuelve a salir en bucle.
+    // El sidecar se empaqueta con subsistema GUI (`--windowed`), así que no
+    // abre consola. La bandera se queda como cinturón por si se compila como
+    // consola: sin ella, cada arranque abriría una ventana y, al cerrarla,
+    // el vigilante relanzaría el core en bucle.
     #[cfg(windows)]
     {
       const CREATE_NO_WINDOW: u32 = 0x0800_0000;

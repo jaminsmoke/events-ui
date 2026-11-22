@@ -3,6 +3,9 @@
 //
 // - `--onefile`: un solo `.exe`, que es lo que `externalBin` de Tauri puede
 //   llevar a los instaladores (con `--onedir` los DLLs no viajarían).
+// - `--windowed` solo para el core: el bootloader de onefile crea un hijo de
+//   consola si es un binario de consola y `CREATE_NO_WINDOW` del lanzador no
+//   evita esa ventana. El CLI `eui` sigue siendo consola para imprimir.
 // - Se comprueba que arranca y responde a `/health` antes de darlo por bueno:
 //   el binario se ejecuta en frío, con el puerto libre, y se mata al final.
 //
@@ -45,7 +48,7 @@ console.log(`── sidecar (PyInstaller, ${triple}) ──`);
 // does not exist" aunque el fichero esté).
 const srcCore = path.join(CORE, "src");
 const pyinstaller = execSync(
-  `uv run --directory services/core pyinstaller --onefile --noconfirm --name events-core --paths ${srcCore} --collect-all events_core ${path.join(srcCore, "events_core", "sidecar.py")}`,
+  `uv run --directory services/core pyinstaller --onefile --windowed --noconfirm --name events-core --paths ${srcCore} --collect-all events_core ${path.join(srcCore, "events_core", "sidecar.py")}`,
   { cwd: ROOT, encoding: "utf8", shell: true },
 );
 console.log(pyinstaller.trim().split("\n").slice(-3).join("\n"));
@@ -129,4 +132,5 @@ try {
   rmSync(path.join(CORE, "dist"), { recursive: true, force: true });
   rmSync(path.join(CORE, "build"), { recursive: true, force: true });
   rmSync(path.join(CORE, "events-core.spec"), { force: true });
+  rmSync(path.join(CORE, "eui.spec"), { force: true });
 }

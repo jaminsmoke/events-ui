@@ -51,9 +51,23 @@ Function EUI_PathPageLeave
   ${NSD_GetState} $EUI_PathCheck $EUI_PathCheckState
 FunctionEnd
 
+!macro NSIS_HOOK_PREINSTALL
+  ; El sidecar vivo bloquea `events-core.exe` (Windows no deja sobrescribir
+  ; un ejecutable en uso). Se para primero la app —y con ella su vigilante—
+  ; y después el árbol del core. En una instalación limpia no hay nada que
+  ; matar; taskkill devuelve error y se ignora.
+  nsExec::Exec '"$SYSDIR\taskkill.exe" /F /T /IM events-ui.exe'
+  nsExec::Exec '"$SYSDIR\taskkill.exe" /F /T /IM events-core.exe'
+  Sleep 500
+!macroend
+
 !macro NSIS_HOOK_POSTINSTALL
   ${If} $EUI_PathCheckState == ${BST_CHECKED}
     Call EUI_EnablePath
+  ${Else}
+    ; En una actualización silenciosa la casilla no se ve. Si el usuario ya
+    ; tenía `eui` en el PATH, se refresca el binario copiado sin tocar el PATH.
+    Call EUI_RefreshPathIfEnabled
   ${EndIf}
 !macroend
 
@@ -65,6 +79,19 @@ FunctionEnd
     Call un.EUI_DisablePath
   ${EndIf}
 !macroend
+
+Function EUI_RefreshPathIfEnabled
+  StrCpy $0 "$LOCALAPPDATA\Events UI\bin"
+  ReadRegStr $1 HKCU "Environment" "Path"
+  ${StrCase} $2 "$0" "L"
+  ${StrCase} $3 "$1" "L"
+  ${StrLoc} $4 "$3" "$2" ">"
+  ${If} $4 == ""
+    Return
+  ${EndIf}
+  CreateDirectory "$0"
+  CopyFiles /SILENT "$INSTDIR\eui.exe" "$0"
+FunctionEnd
 
 Function EUI_EnablePath
   StrCpy $0 "$LOCALAPPDATA\Events UI\bin"

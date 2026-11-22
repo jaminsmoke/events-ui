@@ -52,13 +52,18 @@ Function EUI_PathPageLeave
 FunctionEnd
 
 !macro NSIS_HOOK_PREINSTALL
-  ; El sidecar vivo bloquea `events-core.exe` (Windows no deja sobrescribir
-  ; un ejecutable en uso). Se para primero la app —y con ella su vigilante—
-  ; y después el árbol del core. En una instalación limpia no hay nada que
-  ; matar; taskkill devuelve error y se ignora.
-  nsExec::Exec '"$SYSDIR\taskkill.exe" /F /T /IM events-ui.exe'
-  nsExec::Exec '"$SYSDIR\taskkill.exe" /F /T /IM events-core.exe'
-  Sleep 500
+  ; El sidecar (y su hijo del onefile) bloquean `events-core.exe`; la UI
+  ; bloquea `events-ui.exe`. Un solo taskkill + 500 ms no bastaba: el
+  ; instalador pedía «omitir» ficheros en uso. Varias pasadas hasta que
+  ; Windows suelte los .exe. En instalación limpia taskkill falla y se ignora.
+  StrCpy $R9 0
+  eui_kill_loop:
+    nsExec::Exec '"$SYSDIR\taskkill.exe" /F /T /IM events-ui.exe'
+    nsExec::Exec '"$SYSDIR\taskkill.exe" /F /T /IM events-core.exe'
+    Sleep 800
+    IntOp $R9 $R9 + 1
+    IntCmp $R9 8 eui_kill_done 0 eui_kill_loop
+  eui_kill_done:
 !macroend
 
 !macro NSIS_HOOK_POSTINSTALL
@@ -68,6 +73,13 @@ FunctionEnd
     ; En una actualización silenciosa la casilla no se ve. Si el usuario ya
     ; tenía `eui` en el PATH, se refresca el binario copiado sin tocar el PATH.
     Call EUI_RefreshPathIfEnabled
+  ${EndIf}
+  ; El updater corre el NSIS con /S y PREINSTALL mata la app: el `relaunch`
+  ; de JS ya no corre. Aquí se abre la versión nueva. Instalación con UI: la
+  ; página final de MUI puede ofrecer ejecutar; no se fuerza un segundo arranque.
+  ${GetOptions} $CMDLINE "/S" $R8
+  ${IfNot} ${Errors}
+    Exec '"$INSTDIR\events-ui.exe"'
   ${EndIf}
 !macroend
 

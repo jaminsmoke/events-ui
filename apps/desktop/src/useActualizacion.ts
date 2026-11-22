@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
+import { invoke } from "@tauri-apps/api/core";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 
@@ -10,9 +11,10 @@ let comprobadoAlArrancar = false;
 
 /** Puente entre el plugin de Tauri y la UI compartida.
  *
- *  La descarga y la instalación viven aquí: la UI solo enseña el estado y
- *  llama a `instalar`. Al terminar, se relanza la app para ejecutar la
- *  versión nueva; el sidecar `events-core` viaja en el mismo instalador. */
+ *  Antes de instalar se para el sidecar (`preparar_actualizacion`) para no
+ *  bloquear el .exe. El NSIS mata la UI en PREINSTALL y, en modo silencioso
+ *  (updater), la vuelve a abrir en POSTINSTALL; `relaunch` queda de respaldo
+ *  por si el proceso sobreviviera. */
 export function useActualizacion(): Actualizacion {
   const [version, setVersion] = useState("…");
   const [estado, setEstado] = useState<Actualizacion["estado"]>("inactivo");
@@ -74,20 +76,25 @@ export function useActualizacion(): Actualizacion {
     setEstado("descargando");
     setProgreso(0);
     setMensaje(null);
-    void update
-      .downloadAndInstall((evento) => {
-        if (evento.event === "Started") {
-          total.current = evento.data.contentLength ?? 0;
-          setProgreso(total.current > 0 ? 0 : null);
-        } else if (evento.event === "Progress") {
-          descargado.current += evento.data.chunkLength;
-          if (total.current > 0) {
-            setProgreso(Math.min(1, descargado.current / total.current));
-          }
-        } else {
-          setProgreso(1);
-        }
+    void invoke("preparar_actualizacion")
+      .catch(() => {
+        // Sin comando (dev/web): el NSIS igual mata los procesos en PREINSTALL.
       })
+      .then(() =>
+        update.downloadAndInstall((evento) => {
+          if (evento.event === "Started") {
+            total.current = evento.data.contentLength ?? 0;
+            setProgreso(total.current > 0 ? 0 : null);
+          } else if (evento.event === "Progress") {
+            descargado.current += evento.data.chunkLength;
+            if (total.current > 0) {
+              setProgreso(Math.min(1, descargado.current / total.current));
+            }
+          } else {
+            setProgreso(1);
+          }
+        }),
+      )
       .then(() => relaunch())
       .catch((error: unknown) => {
         setEstado("error");

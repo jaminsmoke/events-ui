@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-preparar-actualizacion"
+description = "Para el sidecar antes de que el instalador sobrescriba los .exe"
+commands.allow = ["preparar_actualizacion"]

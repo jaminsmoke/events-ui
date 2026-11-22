@@ -207,6 +207,14 @@ fn mostrar_ventana(app: &tauri::AppHandle) {
   }
 }
 
+/// Antes de `downloadAndInstall`: para el vigilante y el sidecar para que el
+/// NSIS no pelee por `events-core.exe`. La UI la mata el PREINSTALL del
+/// instalador; el POSTINSTALL silencioso la vuelve a abrir.
+#[tauri::command]
+fn preparar_actualizacion(app: AppHandle) {
+  matar_sidecar(&app);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
@@ -218,6 +226,7 @@ pub fn run() {
     .plugin(tauri_plugin_process::init())
     .plugin(tauri_plugin_updater::Builder::new().build())
     .manage(Core::default())
+    .invoke_handler(tauri::generate_handler![preparar_actualizacion])
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(

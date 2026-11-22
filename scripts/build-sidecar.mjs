@@ -131,8 +131,24 @@ try {
     // ya no vivía
   }
   await new Promise((r) => proceso.on("exit", r));
-  rmSync(path.join(CORE, "dist"), { recursive: true, force: true });
-  rmSync(path.join(CORE, "build"), { recursive: true, force: true });
-  rmSync(path.join(CORE, "events-core.spec"), { force: true });
-  rmSync(path.join(CORE, "eui.spec"), { force: true });
+  // En Windows el exe puede seguir bloqueado un instante tras el exit:
+  // sin reintento, `rmSync(dist)` revienta con EPERM aunque el health OK.
+  const borrar = (ruta) => {
+    for (let i = 0; i < 8; i++) {
+      try {
+        rmSync(ruta, { recursive: true, force: true });
+        return;
+      } catch (err) {
+        if (err && (err.code === "EPERM" || err.code === "EBUSY") && i < 7) {
+          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 250);
+          continue;
+        }
+        throw err;
+      }
+    }
+  };
+  borrar(path.join(CORE, "dist"));
+  borrar(path.join(CORE, "build"));
+  borrar(path.join(CORE, "events-core.spec"));
+  borrar(path.join(CORE, "eui.spec"));
 }

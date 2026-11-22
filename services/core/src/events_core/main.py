@@ -55,7 +55,7 @@ def _origen_permitido(origen: str) -> bool:
     return partes.scheme == "http" and partes.hostname in {"localhost", "127.0.0.1", "::1"}
 
 
-app = FastAPI(title="Events UI Core", version="0.3.0")
+app = FastAPI(title="Events UI Core", version="0.3.1")
 
 app.add_middleware(
     CORSMiddleware,

@@ -722,6 +722,62 @@ def _migrar_undo(args: argparse.Namespace) -> int:
     return 0
 
 
+def _migrar_absorb(args: argparse.Namespace) -> int:
+    ajustes = configuracion.leer_segura()
+    try:
+        raiz = _raiz(args, ajustes)
+    except InvalidInput as exc:
+        return _error(str(exc))
+    if raiz is None:
+        return _error(
+            "no hay raíz: elige una carpeta en la app, usa --repo o `eui config set repo`"
+        )
+
+    try:
+        informe = migracion.revisar_absorcion(Path(raiz), args.lote)
+    except KeyError:
+        return _error(f"no existe el lote {args.lote}", 1)
+    except InvalidInput as exc:
+        return _error(str(exc))
+    except FileNotFoundError as exc:
+        return _error(str(exc), 1)
+
+    if args.json:
+        print(json.dumps(informe))
+        return 0 if informe["ok"] else 1
+
+    print(f"repo: {informe['repo']}")
+    print(f"lote: {informe['lote']} · {informe['plan_sha256']}")
+    for archivo in informe["archivos"]:
+        print(
+            f"{archivo['ruta']}  {archivo['cubiertos']}/{archivo['bloques']} bloques · "
+            f"{archivo['ideas_lote']} del lote · {archivo['ideas_fichero']} en total"
+        )
+        print(f"  hash: {'ok' if archivo['hash_ok'] else 'no cuadra'}")
+        if archivo["copia"]:
+            print(f"  copia: {archivo['copia']['destino']}")
+        if archivo["stub"]:
+            print(f"  stub: {archivo['stub']['ruta']} ({archivo['stub']['bytes']} B)")
+        for hueco in archivo["sin_migrar"][:10]:
+            print(f"  sin migrar L{hueco['linea']}: {hueco['texto']}")
+        if archivo["recortado"]:
+            print(f"  (huecos recortados a {migracion.MAX_HUECOS})")
+
+    resumen = informe["resumen"]
+    print(
+        f"{resumen['archivos']} archivos · {resumen['ideas_lote']} ideas del lote · "
+        f"{resumen['cubiertos']}/{resumen['bloques']} bloques cubiertos"
+    )
+    if informe["ok"]:
+        print("absorción posible: se copiaría y se retiraría el origen; no se ha escrito nada")
+        return 0
+    for error in informe["errores"]:
+        print(f"error  {error}", file=sys.stderr)
+    if resumen["sin_migrar"]:
+        print(f"{resumen['sin_migrar']} bloques sin migrar: no se absorbe", file=sys.stderr)
+    return 1
+
+
 def _mcp(args: argparse.Namespace) -> int:
     # Import perezoso: el CLI normal no carga el servidor ni su protocolo.
     from .mcp_servidor import permite_escritura, servir
@@ -898,6 +954,19 @@ def _parser() -> argparse.ArgumentParser:
     deshacer.add_argument("--json", action="store_true")
     conexion(deshacer)
     deshacer.set_defaults(func=_migrar_undo)
+
+    absorber = acciones_migrar.add_parser(
+        "absorb", help="Informe seco de absorción de un lote; no escribe"
+    )
+    absorber.add_argument("lote", help="Identificador del lote que devolvió apply")
+    absorber.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Informe sin escribir (por ahora es el único modo)",
+    )
+    absorber.add_argument("--json", action="store_true")
+    conexion(absorber)
+    absorber.set_defaults(func=_migrar_absorb)
 
     mcp = comandos.add_parser("mcp", help="Servidor MCP por stdio para agentes")
     mcp.add_argument(

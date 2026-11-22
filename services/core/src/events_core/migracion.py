@@ -13,10 +13,14 @@ import hashlib
 import json
 import os
 import re
+import sqlite3
+from contextlib import closing
 from pathlib import Path
 from typing import Any
 
+from .db import open_read_only
 from .ideas.base.comun import InvalidInput, fecha_iso
+from .ideas.base.rutas import EUI_DIR, db_file_for
 
 EXTENSIONES = {".md", ".markdown"}
 # Lo que nunca es documentación del proyecto: metadatos, dependencias y salidas
@@ -26,6 +30,9 @@ DIRECTORIOS_IGNORADOS = {".git", ".EUI", "node_modules", ".venv", "dist", "build
 # Tope de cortesía: un repo enorme no debe devolver un JSON gigante ni tardar
 # minutos en un comando de sondeo. Se avisa con `recortado`.
 MAX_ARCHIVOS = 1000
+# Un informe seco no debe crecer sin límite si el documento tiene miles de
+# viñetas; se avisa con `recortado`.
+MAX_HUECOS = 200
 
 _FRONTMATTER_CLAVE = re.compile(r"^([A-Za-z0-9_-]+)\s*:\s*(.*)$")
 _TITULO = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
@@ -677,3 +684,295 @@ def _tareas(texto: str, desde: int) -> tuple[int, int]:
             if coincidencia.group(1).lower() == "x":
                 hechas += 1
     return total, hechas
+
+
+def revisar_absorcion(raiz: Path, lote: str) -> dict[str, Any]:
+    """Informe seco para absorber un lote: no escribe ni borra nada.
+
+    La cobertura se calcula **por fichero**, no solo por el lote: un ROADMAP
+    puede haberse importado en varias tandas y la absorción tiene que contar
+    todas. Cada viñeta de nivel superior fuera de bloques de código es un
+    bloque; las anidadas van con su padre. Se compara además el hash actual
+    con el que guardó la procedencia: si el fichero cambió, el informe no es
+    seguro y no se propone retirar nada.
+    """
+    raiz = raiz.resolve()
+    db_file = db_file_for(str(raiz))
+    try:
+        conn = open_read_only(db_file)
+    except FileNotFoundError as exc:
+        raise KeyError(lote) from exc
+
+    with closing(conn):
+        try:
+            cabecera = conn.execute(
+                "SELECT plan_sha256 FROM migracion_lote WHERE id = ?", (lote,)
+            ).fetchone()
+        except sqlite3.OperationalError as exc:
+            raise InvalidInput("el almacén no tiene lotes de migración") from exc
+        if cabecera is None:
+            raise KeyError(lote)
+
+        filas = conn.execute(
+            "SELECT mi.idea_uid, mi.ruta, mi.desde_linea, mi.hasta_linea, mi.sha256,"
+            " mi.estado, mi.lote_id, idea_data.title"
+            " FROM migracion_idea mi"
+            " JOIN idea_data ON idea_data.uid = mi.idea_uid"
+            " WHERE mi.lote_id = ?"
+            " ORDER BY mi.ruta, mi.desde_linea, mi.hasta_linea",
+            (lote,),
+        ).fetchall()
+        if not filas:
+            return _informe_absorcion_vacio(
+                raiz, lote, str(cabecera["plan_sha256"]), "el lote no tiene ideas"
+            )
+
+        por_ruta: dict[str, list[dict[str, Any]]] = {}
+        for fila in filas:
+            por_ruta.setdefault(str(fila["ruta"]), []).append(dict(fila))
+
+        marcas = ",".join("?" for _ in por_ruta)
+        todas = conn.execute(
+            "SELECT mi.idea_uid, mi.ruta, mi.desde_linea, mi.hasta_linea, mi.sha256,"
+            " mi.estado, mi.lote_id, idea_data.title"
+            " FROM migracion_idea mi"
+            " JOIN idea_data ON idea_data.uid = mi.idea_uid"
+            f" WHERE mi.ruta IN ({marcas})"
+            " ORDER BY mi.ruta, mi.desde_linea, mi.hasta_linea",
+            tuple(por_ruta),
+        ).fetchall()
+
+        todas_por_ruta: dict[str, list[dict[str, Any]]] = {}
+        for fila in todas:
+            todas_por_ruta.setdefault(str(fila["ruta"]), []).append(dict(fila))
+
+        archivos = [
+            _informe_archivo(raiz, lote, ruta, por_ruta[ruta], todas_por_ruta[ruta])
+            for ruta in sorted(por_ruta)
+        ]
+
+    errores = [error for archivo in archivos for error in archivo["errores"]]
+    avisos = [aviso for archivo in archivos for aviso in archivo["avisos"]]
+    huecos = [hueco for archivo in archivos for hueco in archivo["sin_migrar"]]
+    ok = bool(archivos) and not errores and not huecos
+    resumen = {
+        "archivos": len(archivos),
+        "ideas_lote": len({str(fila["idea_uid"]) for fila in filas}),
+        "ideas_fichero": sum(archivo["ideas_fichero"] for archivo in archivos),
+        "bloques": sum(archivo["bloques"] for archivo in archivos),
+        "cubiertos": sum(archivo["cubiertos"] for archivo in archivos),
+        "sin_migrar": len(huecos),
+    }
+    return {
+        "repo": str(raiz),
+        "lote": lote,
+        "plan_sha256": str(cabecera["plan_sha256"]),
+        "dry_run": True,
+        "ok": ok,
+        "archivos": archivos,
+        "retirar": [archivo["ruta"] for archivo in archivos] if ok else [],
+        "errores": errores,
+        "avisos": avisos,
+        "resumen": resumen,
+    }
+
+
+def _informe_absorcion_vacio(raiz: Path, lote: str, plan_sha256: str, error: str) -> dict[str, Any]:
+    return {
+        "repo": str(raiz),
+        "lote": lote,
+        "plan_sha256": plan_sha256,
+        "dry_run": True,
+        "ok": False,
+        "archivos": [],
+        "retirar": [],
+        "errores": [error],
+        "avisos": [],
+        "resumen": {
+            "archivos": 0,
+            "ideas_lote": 0,
+            "ideas_fichero": 0,
+            "bloques": 0,
+            "cubiertos": 0,
+            "sin_migrar": 0,
+        },
+    }
+
+
+def _informe_archivo(
+    raiz: Path,
+    lote: str,
+    ruta: str,
+    filas_lote: list[dict[str, Any]],
+    filas_todas: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Cobertura y plan de copia/stub de un fichero, sin tocar el disco."""
+    errores: list[str] = []
+    avisos: list[str] = []
+    relativa = Path(ruta)
+    ideas_lote = len({str(fila["idea_uid"]) for fila in filas_lote})
+    ideas_fichero = len({str(fila["idea_uid"]) for fila in filas_todas})
+    lotes = sorted({str(fila["lote_id"]) for fila in filas_todas})
+    carriles: dict[str, int] = {}
+    for fila in filas_lote:
+        estado = str(fila["estado"])
+        carriles[estado] = carriles.get(estado, 0) + 1
+
+    informe: dict[str, Any] = {
+        "ruta": ruta,
+        "ideas_lote": ideas_lote,
+        "ideas_fichero": ideas_fichero,
+        "lotes": lotes,
+        "carriles": carriles,
+        "sha256": sorted({str(fila["sha256"]) for fila in filas_lote}),
+        "hash_actual": "",
+        "hash_ok": False,
+        "bloques": 0,
+        "cubiertos": 0,
+        "sin_migrar": [],
+        "recortado": False,
+        "rangos": [],
+        "solapamientos": [],
+        "copia": None,
+        "stub": None,
+        "errores": errores,
+        "avisos": avisos,
+    }
+
+    if relativa.is_absolute() or not relativa.parts or ".." in relativa.parts:
+        errores.append(f"{ruta}: ruta de origen fuera del repo")
+        return informe
+
+    archivo = (raiz / relativa).resolve()
+    if not archivo.is_relative_to(raiz):
+        errores.append(f"{ruta}: ruta de origen fuera del repo")
+        return informe
+    if not archivo.is_file():
+        errores.append(f"{ruta}: no existe el fichero de origen")
+        return informe
+
+    try:
+        crudo = archivo.read_bytes()
+    except OSError as exc:
+        errores.append(f"{ruta}: no se pudo leer: {exc}")
+        return informe
+
+    sha_actual = hashlib.sha256(crudo).hexdigest()
+    informe["hash_actual"] = sha_actual
+    hashes_lote = {str(fila["sha256"]) for fila in filas_lote}
+    informe["hash_ok"] = hashes_lote == {sha_actual}
+    if not informe["hash_ok"]:
+        errores.append(f"{ruta}: cambió desde el lote (sha256 no cuadra)")
+    if any(str(fila["sha256"]) != sha_actual for fila in filas_todas):
+        errores.append(f"{ruta}: hay procedencia de otra versión del fichero")
+
+    intervalos = sorted(
+        (int(fila["desde_linea"]), int(fila["hasta_linea"])) for fila in filas_todas
+    )
+    informe["rangos"] = [{"desde": desde, "hasta": hasta} for desde, hasta in _fusionar(intervalos)]
+    informe["solapamientos"] = _solapamientos(filas_todas)
+    if informe["solapamientos"]:
+        avisos.append(f"{ruta}: hay rangos de procedencia solapados")
+
+    texto = crudo.decode("utf-8", errors="replace").lstrip("\ufeff")
+    bloques = _bloques_markdown(texto)
+    informe["bloques"] = len(bloques)
+    if not bloques:
+        errores.append(f"{ruta}: no hay bloques accionables (viñetas de nivel superior)")
+
+    sin_migrar = [
+        bloque
+        for bloque in bloques
+        if not any(desde <= bloque["linea"] <= hasta for desde, hasta in intervalos)
+    ]
+    informe["cubiertos"] = len(bloques) - len(sin_migrar)
+    informe["sin_migrar"] = sin_migrar[:MAX_HUECOS]
+    informe["recortado"] = len(sin_migrar) > MAX_HUECOS
+
+    copia = Path(EUI_DIR) / "migracion" / lote / relativa
+    informe["copia"] = {
+        "destino": copia.as_posix(),
+        "sha256": sha_actual,
+        "bytes": len(crudo),
+    }
+    if _es_roadmap(ruta):
+        stub = _stub_roadmap(ruta, ideas_fichero, len(lotes), copia.as_posix())
+        informe["stub"] = {
+            "ruta": ruta,
+            "contenido": stub,
+            "bytes": len(stub.encode("utf-8")),
+        }
+    return informe
+
+
+def _fusionar(intervalos: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    fusionados: list[tuple[int, int]] = []
+    for desde, hasta in intervalos:
+        if fusionados and desde <= fusionados[-1][1] + 1:
+            fusionados[-1] = (fusionados[-1][0], max(fusionados[-1][1], hasta))
+        else:
+            fusionados.append((desde, hasta))
+    return fusionados
+
+
+def _solapamientos(filas: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    intervalos = sorted(
+        (int(fila["desde_linea"]), int(fila["hasta_linea"]), str(fila["idea_uid"]))
+        for fila in filas
+    )
+    encontrados: list[dict[str, Any]] = []
+    for indice, (_desde, hasta, uid) in enumerate(intervalos):
+        for otro_desde, otro_hasta, otro_uid in intervalos[indice + 1 :]:
+            if otro_desde > hasta:
+                break
+            encontrados.append(
+                {
+                    "desde": otro_desde,
+                    "hasta": min(hasta, otro_hasta),
+                    "ideas": [uid, otro_uid],
+                }
+            )
+            if len(encontrados) >= 20:
+                return encontrados
+    return encontrados
+
+
+def _bloques_markdown(texto: str) -> list[dict[str, Any]]:
+    """Viñetas de nivel superior fuera de frontmatter y bloques de código."""
+    bloques: list[dict[str, Any]] = []
+    _, desde = _frontmatter(texto)
+    en_codigo = False
+    for indice, linea in enumerate(texto.splitlines()):
+        if indice < desde:
+            continue
+        if _CERCA.match(linea):
+            en_codigo = not en_codigo
+            continue
+        if en_codigo:
+            continue
+        coincidencia = re.match(r"^([ \t]*)[-*+]\s+(\S.*)$", linea)
+        if coincidencia is None:
+            continue
+        sangria = len(coincidencia.group(1).replace("\t", "    "))
+        if sangria:
+            continue
+        resto = coincidencia.group(2).strip()
+        if resto in {"---", "***"}:
+            continue
+        bloques.append({"linea": indice + 1, "texto": resto[:160]})
+    return bloques
+
+
+def _es_roadmap(ruta: str) -> bool:
+    return Path(ruta).name.casefold() in {"roadmap.md", "roadmap.markdown"}
+
+
+def _stub_roadmap(ruta: str, ideas: int, lotes: int, copia: str) -> str:
+    return (
+        f"# {Path(ruta).stem}\n\n"
+        "Este documento se absorbió en Events UI; el mapa es la fuente de verdad.\n\n"
+        f"- Ideas: {ideas}\n"
+        f"- Lotes: {lotes}\n"
+        f"- Copia: `{copia}`\n\n"
+        "Abre el mapa en Events UI o con `eui idea list`.\n"
+    )

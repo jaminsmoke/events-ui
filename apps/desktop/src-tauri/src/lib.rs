@@ -1,4 +1,7 @@
 use std::process::{Child, Command, Stdio};
+
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::thread::sleep;
@@ -49,6 +52,14 @@ fn arrancar(app: &AppHandle) -> bool {
     let mut comando = Command::new(&ruta);
     if let Some(carpeta) = ruta.parent() {
       comando.current_dir(carpeta);
+    }
+    // En Windows el sidecar es un binario de consola: sin esto, cada arranque
+    // abre una ventana de consola. Al cerrarla se muere el core y el vigilante
+    // lo relanza, así que la ventana vuelve a salir en bucle.
+    #[cfg(windows)]
+    {
+      const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+      comando.creation_flags(CREATE_NO_WINDOW);
     }
     comando
       .stdin(Stdio::null())

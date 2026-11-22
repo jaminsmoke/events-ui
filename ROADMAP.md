@@ -503,6 +503,14 @@ con el motivo, para no reabrirlo cada semana.
   plan en `eui://schema/plan-migracion`. Los errores del CLI vuelven como
   `isError: true` con su texto y stdout queda solo para el protocolo. Cubierto
   en `services/core/tests/test_mcp.py`, incluido un subproceso real por stdio.
+- **Migración: plan v2 con destinos y fechas** (0031): el plan elige
+  `proposed`, `draft`, `historial` o `rejected`, con `fecha` opcional para
+  archivar y `motivo` obligatorio al descartar. El historial importado se firma
+  como `sistema` con nota de origen, y `undo` exige el carril de nacimiento
+  guardado en `migracion_idea.estado`. La v1 sigue aceptando solo `proposed`.
+  Cubierto en `services/core/tests/test_migracion.py`,
+  `services/core/tests/test_migracion_apply.py` y
+  `services/core/tests/test_mcp.py`.
 
 ## Pendientes
 
@@ -518,12 +526,6 @@ con el motivo, para no reabrirlo cada semana.
   y checklists); README, arquitectura y `docs/` son referencia. El agente
   clasifica y propone; el importador valida y aplica. Retirar el origen es un
   paso explícito, con copia y vuelta atrás.
-  - **Plan v2: destinos y fechas.** El plan admite `proposed`, `draft`,
-    `historial` y `rejected`, con `fecha`/`completado_at` opcional para el
-    archivo. Los pendientes explícitos van a `proposed`, las notas crudas a
-    `draft`, lo hecho a `historial` y «No se hace» a `rejected` con motivo;
-    `historial` y `rejected` no llevan fases. `apply` escribe el carril
-    indicado.
   - **Clasificación y manifiesto de documentos.** `migrate classify` o
     `migrate plan` produce `{documentos: [{ruta, clase, motivo, destino}]}`,
     con una allowlist de documentos que alimentan el mapa y el resto como

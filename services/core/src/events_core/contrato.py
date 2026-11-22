@@ -458,6 +458,20 @@ class MigracionAplicada(BaseModel):
     creadas: list[MigracionCreada] = Field(default_factory=list)
 
 
+class MigracionDeshecha(BaseModel):
+    """Respuesta de `DELETE /migracion/lotes/{lote}`.
+
+    `ausentes` son las ideas que ya no estaban (el usuario las borró a mano);
+    el resto se borró y el lote desaparece.
+    """
+
+    repo: str
+    lote: str
+    plan_sha256: str
+    borradas: int
+    ausentes: int
+
+
 class ErrorDetail(BaseModel):
     """Lo que devuelven los exception handlers de abajo: `{"detail": ...}`.
 

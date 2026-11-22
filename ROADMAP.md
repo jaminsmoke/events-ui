@@ -462,28 +462,35 @@ con el motivo, para no reabrirlo cada semana.
   antes de enviar y sale 0 aplicado o ya aplicado, 1 plan con problemas y 2
   fallo. Cubierto en `services/core/tests/test_migracion_apply.py` y
   `services/core/tests/test_migracion.py`.
+- **Migración: `eui migrate undo`**: deshace un lote con
+  `DELETE /migracion/lotes/{lote}`. Antes de borrar comprueba las ideas una a
+  una: si alguna salió de `proposed`, su `updated_at` ya no es el `creada_at`
+  del lote o una ficha de fuera la usa como sustituta, devuelve 409 con la
+  lista completa de conflictos y no toca nada. Si solo falta alguna porque el
+  usuario la borró a mano, la cuenta como ausente y deshace el resto. Borra en
+  una transacción (ideas, su cascada, el lote y su procedencia), emite
+  `idea.deleted` por idea y un `migracion.deshacer`, y retira los uids del lote
+  de las listas `depende_de` de las supervivientes. El CLI resume cuántas
+  borró y cuántas ya no estaban. Cubierto en
+  `services/core/tests/test_migracion_apply.py` y
+  `services/core/tests/test_migracion.py`.
 
 ## Pendientes
 
 - **Migración de Markdown, CLI y MCP — plan aprobado**: el paso de la base
-  —configuración compartida, `/health` y `eui` de lectura— está en Hecho. Los
-  siguientes se abordan en este orden, uno cada vez y cerrando cada uno con sus
-  tests antes de abrir el siguiente. Los agentes no tocan la API cruda: usan
-  `eui` o el MCP, que son las dos caras del mismo cliente.
-  - **Paso 1 — migración con plan y lote.** `scan`, las pautas, el esquema,
-    `check` y `apply` ya están en Hecho; queda `undo`: borrar solo lo que creó
-    el lote y negarse, listando los conflictos, si algo se movió o editó
-    después. La procedencia ya guarda `creada_at` y el estado tiene que seguir
-    en `proposed`; `undo` comparará esa firma con `idea_data.updated_at` y
-    borrará las ideas y el lote en una transacción.
-  - **Paso 2 — MCP fino.** Servidor MCP por stdio que no reimplementa nada:
+  —configuración compartida, `/health` y `eui` de lectura— está en Hecho, y la
+  migración con plan y lote (`scan`, esquema, `check`, `apply` y `undo`) también.
+  Los siguientes se abordan en este orden, uno cada vez y cerrando cada uno con
+  sus tests antes de abrir el siguiente. Los agentes no tocan la API cruda:
+  usan `eui` o el MCP, que son las dos caras del mismo cliente.
+  - **MCP fino.** Servidor MCP por stdio que no reimplementa nada:
     cada herramienta llama al cliente compartido del CLI (`repo`, `idea.list`,
     `idea.get`, `migrate.scan`, `migrate.check`, `migrate.apply`) y publica el
     esquema del plan como recurso. Lectura primero; escritura y migración
     detrás de un ámbito, porque hoy la API admite peticiones sin `Origin` y
     cualquier proceso local puede escribir. El README dice a los agentes qué
     usar (`eui` o el MCP) y deja de presentar los endpoints como vía.
-  - **Paso 3 — CRUD completo y PATH opt-in.** El CLI cubre crear, editar,
+  - **CRUD completo y PATH opt-in.** El CLI cubre crear, editar,
     mover, fases, requisitos y descartar. Instalarlo en el PATH es una casilla
     del instalador, nunca por defecto, con el binario en los datos del usuario;
     el MCP se configura por ruta absoluta, sin depender del PATH.

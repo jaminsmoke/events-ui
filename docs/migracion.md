@@ -21,8 +21,10 @@ aplica**. Nadie escribe el almacén a mano ni llama a la API cruda.
    entero en una transacción: si una idea falla, no queda ninguna. La huella
    del plan identifica el lote, así que repetir el mismo `apply` devuelve el
    mismo lote y no duplica nada.
-6. `eui migrate undo <lote>` deshace solo lo que creó ese lote, y se niega si
-   alguien movió o editó una idea después.
+6. `eui migrate undo <lote>` deshace solo lo que creó ese lote. Si una idea
+   cambió de carril, se editó después de crearse o una ficha ajena la usa como
+   sustituta, no borra nada y enumera los conflictos (409). Las que el usuario
+   ya borró a mano se cuentan como ausentes y el resto se deshace igual.
 
 El plan y el apply llegan con el importador; mientras tanto, `scan` y estas
 pautas son la preparación. Guarda el plan donde diga el usuario; si no dice
@@ -95,9 +97,14 @@ dos veces devuelve el mismo lote con `repetido: true` y no escribe nada.
 
 Las ideas nacen en `proposed`, al final de la cola, con sus fases pendientes y
 sus requisitos sin marcar; `depende_de` se resuelve de refs a uids dentro del
-lote. Un fallo a mitad deshace la transacción entera. `undo` usará la
-procedencia: solo borrará las ideas del lote y se negará si alguna cambió de
-estado o se editó después de crearse.
+lote. Un fallo a mitad deshace la transacción entera, igual al deshacer.
+
+`undo` usa la procedencia: borra en una transacción solo las ideas del lote y
+se niega entero (409, con la lista de conflictos) si alguna cambió de carril,
+se editó después de crearse —`updated_at` ya no coincide con `creada_at`— o una
+ficha de fuera del lote la usa como sustituta. No se lleva por delante las
+listas `depende_de` de las supervivientes: les retira los uids del lote. El
+lote y su procedencia desaparecen con las ideas.
 
 ## Lo que no se hace
 

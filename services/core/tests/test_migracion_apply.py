@@ -121,6 +121,109 @@ def test_el_contrato_rechaza_otro_estado(client, tmp_path) -> None:
     assert client.get("/ideas", params={"repo": str(tmp_path)}).json() == []
 
 
+def test_undo_borra_el_lote(client, tmp_path) -> None:
+    datos = client.post(
+        "/migracion/aplicar", params={"repo": str(tmp_path)}, json=_plan(tmp_path)
+    ).json()
+
+    respuesta = client.delete(f"/migracion/lotes/{datos['lote']}", params={"repo": str(tmp_path)})
+
+    assert respuesta.status_code == 200, respuesta.text
+    deshecho = respuesta.json()
+    assert deshecho["borradas"] == 2
+    assert deshecho["ausentes"] == 0
+    assert client.get("/ideas", params={"repo": str(tmp_path)}).json() == []
+    with closing(ideas.connect(ideas.ensure_repo(str(tmp_path)))) as conn:
+        assert conn.execute("SELECT count(*) FROM migracion_lote").fetchone()[0] == 0
+        assert conn.execute("SELECT count(*) FROM migracion_idea").fetchone()[0] == 0
+        tipos = {fila["type"] for fila in conn.execute("SELECT type FROM event")}
+        assert "migracion.deshacer" in tipos
+
+
+def test_undo_se_niega_si_la_idea_cambio_de_carril(client, tmp_path) -> None:
+    datos = client.post(
+        "/migracion/aplicar", params={"repo": str(tmp_path)}, json=_plan(tmp_path)
+    ).json()
+    uid = {creada["ref"]: creada["uid"] for creada in datos["creadas"]}["uno"]
+    assert (
+        client.patch(
+            f"/ideas/{uid}", params={"repo": str(tmp_path)}, json={"status": "roadmap"}
+        ).status_code
+        == 200
+    )
+
+    respuesta = client.delete(f"/migracion/lotes/{datos['lote']}", params={"repo": str(tmp_path)})
+
+    assert respuesta.status_code == 409
+    assert "roadmap" in respuesta.json()["detail"]
+    assert len(client.get("/ideas", params={"repo": str(tmp_path)}).json()) == 2
+
+
+def test_undo_se_niega_si_la_idea_se_edito(client, tmp_path) -> None:
+    datos = client.post(
+        "/migracion/aplicar", params={"repo": str(tmp_path)}, json=_plan(tmp_path)
+    ).json()
+    uid = {creada["ref"]: creada["uid"] for creada in datos["creadas"]}["dos"]
+    with closing(ideas.connect(ideas.ensure_repo(str(tmp_path)))) as conn:
+        conn.execute(
+            "UPDATE idea_data SET updated_at = '2020-01-01T00:00:00+00:00' WHERE uid = ?", (uid,)
+        )
+        conn.commit()
+
+    respuesta = client.delete(f"/migracion/lotes/{datos['lote']}", params={"repo": str(tmp_path)})
+
+    assert respuesta.status_code == 409
+    assert "se editó" in respuesta.json()["detail"]
+    assert len(client.get("/ideas", params={"repo": str(tmp_path)}).json()) == 2
+
+
+def test_undo_salta_las_ideas_que_ya_no_estaban(client, tmp_path) -> None:
+    datos = client.post(
+        "/migracion/aplicar", params={"repo": str(tmp_path)}, json=_plan(tmp_path)
+    ).json()
+    uid = {creada["ref"]: creada["uid"] for creada in datos["creadas"]}["dos"]
+    assert client.delete(f"/ideas/{uid}", params={"repo": str(tmp_path)}).status_code == 204
+
+    respuesta = client.delete(f"/migracion/lotes/{datos['lote']}", params={"repo": str(tmp_path)})
+
+    assert respuesta.status_code == 200
+    assert respuesta.json()["borradas"] == 1
+    assert respuesta.json()["ausentes"] == 1
+    assert client.get("/ideas", params={"repo": str(tmp_path)}).json() == []
+
+
+def test_undo_lote_inexistente(client, tmp_path) -> None:
+    respuesta = client.delete("/migracion/lotes/no-existe", params={"repo": str(tmp_path)})
+
+    assert respuesta.status_code == 404
+
+
+def test_fallo_al_deshacer_no_borra_nada(client, tmp_path, monkeypatch) -> None:
+    datos = client.post(
+        "/migracion/aplicar", params={"repo": str(tmp_path)}, json=_plan(tmp_path)
+    ).json()
+    from events_core.ideas import migracion as lote
+
+    llamadas = {"n": 0}
+    original = lote._emitir
+
+    def falla(conn, tipo, payload):
+        if tipo == "idea.deleted":
+            llamadas["n"] += 1
+            if llamadas["n"] == 2:
+                raise RuntimeError("fallo simulado")
+        original(conn, tipo, payload)
+
+    monkeypatch.setattr(lote, "_emitir", falla)
+
+    respuesta = client.delete(f"/migracion/lotes/{datos['lote']}", params={"repo": str(tmp_path)})
+
+    assert respuesta.status_code == 500
+    assert len(client.get("/ideas", params={"repo": str(tmp_path)}).json()) == 2
+    with closing(ideas.connect(ideas.ensure_repo(str(tmp_path)))) as conn:
+        assert conn.execute("SELECT count(*) FROM migracion_lote").fetchone()[0] == 1
+
+
 def test_fallo_a_mitad_deshace_el_lote(client, tmp_path, monkeypatch) -> None:
     from events_core.ideas import migracion as lote
 

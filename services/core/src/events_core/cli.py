@@ -77,6 +77,17 @@ def _post(url: str, datos: Any) -> tuple[Any | None, str | None, int]:
         return None, str(getattr(exc, "reason", exc)), 0
 
 
+def _delete(url: str) -> tuple[Any | None, str | None, int]:
+    """DELETE sin cuerpo: `(datos, detalle, estado)`; estado 0 si no hubo respuesta."""
+    try:
+        with urlopen(Request(url, method="DELETE"), timeout=TIMEOUT_LARGO_S) as respuesta:
+            return json.loads(respuesta.read().decode("utf-8")), None, respuesta.status
+    except HTTPError as exc:
+        return None, _detalle(exc) or f"HTTP {exc.code}", exc.code
+    except (URLError, OSError, ValueError) as exc:
+        return None, str(getattr(exc, "reason", exc)), 0
+
+
 def _health(url: str) -> tuple[dict[str, Any] | None, str | None]:
     """GET /health sin dependencias: el CLI no arrastra un cliente HTTP."""
     datos, detalle, _ = _get(f"{url}/health")
@@ -492,6 +503,33 @@ def _migrar_apply(args: argparse.Namespace) -> int:
     return 0
 
 
+def _migrar_undo(args: argparse.Namespace) -> int:
+    ajustes = configuracion.leer_segura()
+    try:
+        raiz = _raiz(args, ajustes)
+    except InvalidInput as exc:
+        return _error(str(exc))
+    if raiz is None:
+        return _error(
+            "no hay raíz: elige una carpeta en la app, usa --repo o `eui config set repo`"
+        )
+
+    _, url = _contexto(args)
+    destino = f"{url}/migracion/lotes/{quote(args.lote, safe='')}?repo={quote(raiz, safe='')}"
+    datos, detalle, estado = _delete(destino)
+    if detalle:
+        return _error(detalle, 1 if estado in (400, 404, 409) else 2)
+
+    if args.json:
+        print(json.dumps(datos))
+        return 0
+    print(f"lote {datos['lote']} deshecho: {datos['borradas']} ideas borradas", end="")
+    if datos["ausentes"]:
+        print(f" ({datos['ausentes']} ya no estaban)", end="")
+    print()
+    return 0
+
+
 def _schema(args: argparse.Namespace) -> int:
     if args.tema == "migrate":
         # El esquema del plan es local: no hace falta core ni raíz.
@@ -592,6 +630,14 @@ def _parser() -> argparse.ArgumentParser:
     aplicar.add_argument("--json", action="store_true")
     conexion(aplicar)
     aplicar.set_defaults(func=_migrar_apply)
+
+    deshacer = acciones_migrar.add_parser(
+        "undo", help="Deshace un lote si nadie tocó sus ideas después"
+    )
+    deshacer.add_argument("lote", help="Identificador del lote que devolvió apply")
+    deshacer.add_argument("--json", action="store_true")
+    conexion(deshacer)
+    deshacer.set_defaults(func=_migrar_undo)
 
     return parser
 

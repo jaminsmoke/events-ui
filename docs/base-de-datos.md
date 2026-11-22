@@ -61,8 +61,9 @@ conservando la firma de `revision_node`.
 Los lotes de la migración de Markdown (`migracion_lote` y `migracion_idea`,
 0030) también cuelgan de las ideas: `plan_sha256` es único, así que aplicar dos
 veces el mismo plan devuelve el mismo lote, y la procedencia de cada idea se va
-con ella por la cascada. `creada_at` es la firma que `undo` comparará con
-`idea_data.updated_at`; el estado tiene que seguir en `proposed`.
+con ella por la cascada. `creada_at` es la firma que `undo` compara con
+`idea_data.updated_at`; solo borra si el estado sigue en `proposed`, nadie
+editó la idea y ninguna ficha ajena la usa como sustituta.
 
 La posición única indexa la cola y el log tiene índice por `(origen, id)`. Las
 migraciones 0019 y 0020 retiraron `connections` y `idea_cola` junto con sus

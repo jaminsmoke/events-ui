@@ -36,7 +36,7 @@ from .base.migraciones import MIGRATIONS_DIR
 from .base.rutas import DB_FILENAME, EUI_DIR, db_file_for, repos_root, resolve_repo
 from .consulta import get_idea, list_ideas, list_repos, listar_protocolos, map_snapshot, revision
 from .crud import create_idea, delete_idea, reiniciar, update_idea
-from .migracion import aplicar_migracion
+from .migracion import MigracionEnConflicto, aplicar_migracion, deshacer_migracion
 
 __all__ = [
     "DB_FILENAME",
@@ -50,6 +50,7 @@ __all__ = [
     "aplicar_esquema",
     "aplicar_migracion",
     "connect",
+    "deshacer_migracion",
     "create_idea",
     "db_file_for",
     "delete_idea",
@@ -60,6 +61,7 @@ __all__ = [
     "list_repos",
     "listar_protocolos",
     "map_snapshot",
+    "MigracionEnConflicto",
     "now_iso",
     "reiniciar",
     "repos_root",

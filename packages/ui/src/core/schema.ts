@@ -519,6 +519,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/migracion/lotes/{lote}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Lote
+         * @description Deshace un lote: borra solo sus ideas si nadie las tocó después.
+         *
+         *     Un 409 enumera todos los conflictos (carril distinto de `proposed`,
+         *     `updated_at` posterior a `creada_at`, o una ficha ajena que la usa como
+         *     sustituta) y no borra nada; un 404 es un lote que no existe.
+         */
+        delete: operations["delete_lote_migracion_lotes__lote__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1029,6 +1053,25 @@ export interface components {
             ref: string;
             /** Uid */
             uid: string;
+        };
+        /**
+         * MigracionDeshecha
+         * @description Respuesta de `DELETE /migracion/lotes/{lote}`.
+         *
+         *     `ausentes` son las ideas que ya no estaban (el usuario las borró a mano);
+         *     el resto se borró y el lote desaparece.
+         */
+        MigracionDeshecha: {
+            /** Repo */
+            repo: string;
+            /** Lote */
+            lote: string;
+            /** Plan Sha256 */
+            plan_sha256: string;
+            /** Borradas */
+            borradas: number;
+            /** Ausentes */
+            ausentes: number;
         };
         /**
          * NivelArbol
@@ -2668,6 +2711,65 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_lote_migracion_lotes__lote__delete: {
+        parameters: {
+            query: {
+                /** @description Carpeta del repo: ruta absoluta o nombre en el lab */
+                repo: string;
+            };
+            header?: never;
+            path: {
+                lote: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MigracionDeshecha"];
+                };
+            };
+            /** @description Petición inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description No existe el repo o la idea */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description El lote ya no está como lo dejó el apply */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

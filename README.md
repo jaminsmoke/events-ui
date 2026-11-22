@@ -109,6 +109,7 @@ uv run --directory services/core python -m events_core.cli schema migrate --pret
 uv run --directory services/core python -m events_core.cli migrate scan docs --json
 uv run --directory services/core python -m events_core.cli migrate check migracion/plan.json
 uv run --directory services/core python -m events_core.cli migrate apply migracion/plan.json
+uv run --directory services/core python -m events_core.cli migrate undo <lote>
 ```
 
 `repo` enseña la raíz configurada (`repo list`, las del laboratorio), `idea
@@ -123,7 +124,9 @@ tareas. Las pautas para el agente que propone el plan están en
 sale de `eui schema migrate` y `migrate check` lo valida contra él sin escribir
 nada (refs, ciclos, origen y hash incluidos). `migrate apply` lo envía al core,
 que lo escribe entero en una transacción (`POST /migracion/aplicar`); repetir
-el mismo plan devuelve el mismo lote sin duplicar nada.
+el mismo plan devuelve el mismo lote sin duplicar nada. `migrate undo <lote>`
+lo deshace (`DELETE /migracion/lotes/{lote}`) solo si nadie movió, editó o
+reemplazó sus ideas después.
 
 El registro operativo de la app (arranques, errores y operaciones) vive en su
 propio SQLite, `data/registro.sqlite` en la raíz del repo (`EVENTSUI_REGISTRO_DB` para cambiarlo);
@@ -187,6 +190,7 @@ corepack pnpm core:dev           # Swagger en http://127.0.0.1:18765/docs
 | GET | `/mapa?repo=<ruta>` — las ideas del mapa en una sola lectura |
 | GET | `/revision?repo=<ruta>` — firma barata (`PRAGMA data_version` + conteos) para el refresco en vivo |
 | POST | `/migracion/aplicar?repo=<ruta>` — aplica un plan de migración como lote (todo a `proposed`, idempotente) |
+| DELETE | `/migracion/lotes/{lote}?repo=<ruta>` — deshace el lote si sus ideas no cambiaron (409 con conflictos) |
 | GET | `/protocolos?repo=<ruta>` — uniones permitidas entre carriles (allowlist) |
 | GET | `/eventos?repo=<ruta>` — tail del log (`desde`, `limite`, `origen`) |
 | GET | `/eventos/stream?repo=<ruta>` — SSE en vivo con backfill |

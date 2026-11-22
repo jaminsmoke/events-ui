@@ -370,6 +370,45 @@ def test_cli_migrate_apply_no_envia_un_plan_malo(tmp_path, capsys, monkeypatch) 
     assert "no se aplica nada" in capsys.readouterr().err
 
 
+def test_cli_migrate_undo(tmp_path, capsys, monkeypatch) -> None:
+    config.guardar(repo=str(tmp_path))
+    visto = {}
+
+    def falso(url):
+        visto["url"] = url
+        return (
+            {
+                "repo": str(tmp_path),
+                "lote": "lote-1",
+                "plan_sha256": "x",
+                "borradas": 2,
+                "ausentes": 1,
+            },
+            None,
+            200,
+        )
+
+    monkeypatch.setattr(cli, "_delete", falso)
+
+    assert cli.main(["migrate", "undo", "lote-1"]) == 0
+    salida = capsys.readouterr().out
+    assert "2 ideas borradas" in salida
+    assert "1 ya no estaban" in salida
+    assert "/migracion/lotes/lote-1" in visto["url"]
+
+
+def test_cli_migrate_undo_conflicto(tmp_path, capsys, monkeypatch) -> None:
+    config.guardar(repo=str(tmp_path))
+    monkeypatch.setattr(
+        cli,
+        "_delete",
+        lambda url: (None, "no se puede deshacer el lote lote-1: uno está en roadmap", 409),
+    )
+
+    assert cli.main(["migrate", "undo", "lote-1"]) == 1
+    assert "roadmap" in capsys.readouterr().err
+
+
 def test_cli_migrate_apply_repetido_lo_dice(tmp_path, capsys, monkeypatch) -> None:
     destino = tmp_path / "plan.json"
     destino.write_text(json.dumps(_plan_valido(tmp_path)), encoding="utf-8")

@@ -8,7 +8,7 @@ import uuid
 from contextlib import closing
 from typing import Any
 
-from .base.comun import _emitir, now_iso
+from .base.comun import _emitir, _tags_json, now_iso
 from .base.esquema import connect, ensure_repo
 from .modelo.dependencias import _validar_dependencias
 from .modelo.estados import _escribir_estado
@@ -131,6 +131,122 @@ def _anotar_origen(
             ts,
         ),
     )
+
+
+class MigracionEnConflicto(Exception):
+    """El lote ya no está como lo dejó el apply: no se deshace nada."""
+
+    def __init__(self, lote: str, conflictos: list[str]) -> None:
+        self.lote = lote
+        self.conflictos = conflictos
+        super().__init__(f"no se puede deshacer el lote {lote}: " + "; ".join(conflictos))
+
+
+def deshacer_migracion(repo: str, lote: str) -> dict[str, Any]:
+    """Borra solo las ideas que creó el lote, si nadie las tocó después.
+
+    Se niega entero (409) si alguna idea cambió de carril, se editó después de
+    crearse o una ficha ajena la usa como sustituta: borrar media migración deja
+    el repo peor que no deshacerla. Las que el usuario ya borró a mano no son un
+    conflicto: se cuentan como ausentes y el resto se deshace igual.
+    """
+    with closing(connect(ensure_repo(repo))) as conn:
+        fila = conn.execute(
+            "SELECT plan_sha256, ideas FROM migracion_lote WHERE id = ?", (lote,)
+        ).fetchone()
+        if fila is None:
+            raise KeyError(lote)
+        plan_sha256 = str(fila["plan_sha256"])
+        total = int(fila["ideas"])
+        filas = conn.execute(
+            "SELECT ref, idea_uid, creada_at FROM migracion_idea WHERE lote_id = ? ORDER BY rowid",
+            (lote,),
+        ).fetchall()
+        uids = [str(fila["idea_uid"]) for fila in filas]
+
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            titulos: dict[str, str] = {}
+            conflictos: list[str] = []
+            for fila in filas:
+                uid = str(fila["idea_uid"])
+                idea = conn.execute(
+                    "SELECT idea_data.title, idea_data.updated_at, idea_node.estado"
+                    " FROM idea_data JOIN idea_node ON idea_node.uid = idea_data.uid"
+                    " WHERE idea_data.uid = ?",
+                    (uid,),
+                ).fetchone()
+                if idea is None:
+                    continue
+                titulos[uid] = str(idea["title"])
+                estado = str(idea["estado"])
+                if estado != "proposed":
+                    conflictos.append(
+                        f"{fila['ref']} ({idea['title']}): está en {estado}, no en proposed"
+                    )
+                elif str(idea["updated_at"]) != str(fila["creada_at"]):
+                    conflictos.append(
+                        f"{fila['ref']} ({idea['title']}): se editó después de crearse"
+                    )
+
+            if uids:
+                marcas = ",".join("?" for _ in uids)
+                ajenas = conn.execute(
+                    "SELECT rejected_node.uid, idea_data.title FROM rejected_node"
+                    " JOIN idea_data ON idea_data.uid = rejected_node.uid"
+                    f" WHERE rejected_node.superseded_by_uid IN ({marcas})"
+                    f" AND rejected_node.uid NOT IN ({marcas})",
+                    (*uids, *uids),
+                ).fetchall()
+                conflictos.extend(
+                    f"{fila[0]} ({fila[1]}): usa como sustituta una idea del lote"
+                    for fila in ajenas
+                )
+            if conflictos:
+                raise MigracionEnConflicto(lote, conflictos)
+
+            if uids:
+                marcas = ",".join("?" for _ in uids)
+                # Las sustitutas dentro del lote se van juntas: soltar el
+                # vínculo antes evita que la FK pare el primer DELETE.
+                conn.execute(
+                    "UPDATE rejected_node SET superseded_by_uid = NULL"
+                    f" WHERE uid IN ({marcas}) AND superseded_by_uid IN ({marcas})",
+                    (*uids, *uids),
+                )
+            for uid, titulo in titulos.items():
+                conn.execute("DELETE FROM idea_data WHERE uid = ?", (uid,))
+                _emitir(conn, "idea.deleted", {"uid": uid, "title": titulo})
+
+            # Las listas `depende_de` de las supervivientes no pueden seguir
+            # apuntando a uids que ya no existen (igual que `delete_idea`).
+            for superviviente in conn.execute("SELECT uid, depende_de FROM idea_data").fetchall():
+                deps = _tags_json(superviviente["depende_de"])
+                quedan = [dep for dep in deps if dep not in titulos]
+                if quedan != deps:
+                    conn.execute(
+                        "UPDATE idea_data SET depende_de = ? WHERE uid = ?",
+                        (json.dumps(quedan), superviviente["uid"]),
+                    )
+
+            conn.execute("DELETE FROM migracion_lote WHERE id = ?", (lote,))
+            _emitir(
+                conn,
+                "migracion.deshacer",
+                {"lote": lote, "plan_sha256": plan_sha256, "ideas": len(titulos)},
+            )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+
+        return {
+            "repo": repo,
+            "lote": lote,
+            "plan_sha256": plan_sha256,
+            "borradas": len(titulos),
+            "ausentes": total - len(titulos),
+        }
 
 
 def _lote_por_huella(conn: sqlite3.Connection, plan_sha256: str) -> str | None:

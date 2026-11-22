@@ -474,6 +474,22 @@ con el motivo, para no reabrirlo cada semana.
   borró y cuántas ya no estaban. Cubierto en
   `services/core/tests/test_migracion_apply.py` y
   `services/core/tests/test_migracion.py`.
+- **CRUD del CLI**: `eui idea create|edit|move|fases|requisito` cubre el ciclo de
+  una idea sin tocar la API cruda. `create` manda título, descripción,
+  contenido, tipo, estado, etiquetas y dependencias; `edit` cambia solo los
+  campos dados y permite vaciar etiquetas o dependencias; `move` traslada a
+  cualquier carril con los datos de su ficha (resultado y referencia de
+  roadmap, resultado y comentario de verificación, autor y nota de la
+  aprobación, motivo/autor/sustituta del descarte); `fases` reemplaza la lista
+  desde un JSON o `{"fases": [...]}`; y `requisito` marca o desmarca uno
+  leyendo la idea y conservando estados, notas y las demás marcas. Todos
+  aceptan `--json` y salen 0 bien, 1 no encontrado y 2 fallo. Cubierto en
+  `services/core/tests/test_cli.py`.
+- **E2E de la migración**: `e2e/escenarios/migracion-lote.mjs` recorre el flujo
+  real por el CLI contra el core del runner: `check`, `apply`, repetir el plan
+  (mismo lote, sin duplicar), comprobar por API que las dos ideas están en
+  `proposed` y que `depende_de` quedó resuelto a uids, y `undo` hasta dejar el
+  almacén vacío.
 
 ## Pendientes
 
@@ -489,11 +505,9 @@ con el motivo, para no reabrirlo cada semana.
     esquema del plan como recurso. Lectura primero; escritura y migración
     detrás de un ámbito, porque hoy la API admite peticiones sin `Origin` y
     cualquier proceso local puede escribir. El README dice a los agentes qué
-    usar (`eui` o el MCP) y deja de presentar los endpoints como vía.
-  - **CRUD completo y PATH opt-in.** El CLI cubre crear, editar,
-    mover, fases, requisitos y descartar. Instalarlo en el PATH es una casilla
-    del instalador, nunca por defecto, con el binario en los datos del usuario;
-    el MCP se configura por ruta absoluta, sin depender del PATH.
+    usar (`eui` o el MCP) y deja de presentar los endpoints como vía.  - **PATH opt-in.** Instalar `eui` en el PATH es una casilla del instalador,
+    nunca por defecto, con el binario en los datos del usuario; el MCP se
+    configura por ruta absoluta, sin depender del PATH.
 
 ## No se hace (por ahora)
 

@@ -110,11 +110,16 @@ uv run --directory services/core python -m events_core.cli migrate scan docs --j
 uv run --directory services/core python -m events_core.cli migrate check migracion/plan.json
 uv run --directory services/core python -m events_core.cli migrate apply migracion/plan.json
 uv run --directory services/core python -m events_core.cli migrate undo <lote>
+uv run --directory services/core python -m events_core.cli idea create --title "Revisar el login" --tag ui
+uv run --directory services/core python -m events_core.cli idea edit <uid> --description "..."
+uv run --directory services/core python -m events_core.cli idea move <uid> roadmap --resultado "..."
+uv run --directory services/core python -m events_core.cli idea fases <uid> fases.json
+uv run --directory services/core python -m events_core.cli idea requisito <uid> 1 1 --hecho
 ```
 
 `repo` enseña la raíz configurada (`repo list`, las del laboratorio), `idea
-list|get` leen con los filtros del contrato y `schema` vuelca el OpenAPI del
-core. Todos aceptan `--repo`/`--url`/`--port` para pisar la configuración y
+list|get` leen y `create|edit|move|fases|requisito` escriben con el mismo
+contrato que la UI, y `schema` vuelca el OpenAPI del core. Todos aceptan `--repo`/`--url`/`--port` para pisar la configuración y
 `--json` de una línea; salen con 0 bien, 1 no encontrado y 2 fallo o mal uso.
 
 La migración de Markdown empieza por `migrate scan`, que solo lee: recorre una
@@ -127,6 +132,15 @@ que lo escribe entero en una transacción (`POST /migracion/aplicar`); repetir
 el mismo plan devuelve el mismo lote sin duplicar nada. `migrate undo <lote>`
 lo deshace (`DELETE /migracion/lotes/{lote}`) solo si nadie movió, editó o
 reemplazó sus ideas después.
+
+El CRUD del CLI no adivina campos: `create` manda título, descripción,
+contenido, tipo, estado, etiquetas y dependencias; `edit` cambia solo lo que se
+le da (`--tag`/`--dep` reemplazan la lista y `--sin-etiquetas`/
+`--sin-dependencias` la vacían); `move` lleva los datos de la ficha de destino
+(`--resultado`, `--verificacion-resultado`, `--nota`, `--motivo`,
+`--sustituye-a`…); `fases` reemplaza la lista desde un JSON y `requisito` marca
+o desmarca uno conservando estados, notas y el resto de marcas. Todos aceptan
+`--json`.
 
 El registro operativo de la app (arranques, errores y operaciones) vive en su
 propio SQLite, `data/registro.sqlite` en la raíz del repo (`EVENTSUI_REGISTRO_DB` para cambiarlo);

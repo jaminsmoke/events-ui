@@ -157,3 +157,159 @@ def test_schema_imprime_el_contrato(capsys, monkeypatch) -> None:
 
     assert cli.main(["schema"]) == 0
     assert json.loads(capsys.readouterr().out)["openapi"] == "3.1.0"
+
+
+def test_idea_create_manda_el_cuerpo(tmp_path, capsys, monkeypatch) -> None:
+    _con_raiz(tmp_path)
+    visto = {}
+
+    def falso(url, datos):
+        visto["url"] = url
+        visto["datos"] = datos
+        return ({"uid": "u1", "title": datos["title"], "status": datos["status"]}, None, 201)
+
+    monkeypatch.setattr(cli, "_post", falso)
+
+    assert (
+        cli.main(["idea", "create", "--title", "Login", "--tag", "ui", "--dep", "u0", "--json"])
+        == 0
+    )
+    assert json.loads(capsys.readouterr().out)["uid"] == "u1"
+    assert visto["datos"] == {
+        "title": "Login",
+        "description": "",
+        "content": "",
+        "kind": "idea",
+        "status": "draft",
+        "tags": ["ui"],
+        "depende_de": ["u0"],
+    }
+    assert "/ideas?repo=" in visto["url"]
+
+
+def test_idea_edit_solo_los_campos_dados(tmp_path, capsys, monkeypatch) -> None:
+    _con_raiz(tmp_path)
+    visto = {}
+
+    def falso(url, datos):
+        visto["url"] = url
+        visto["datos"] = datos
+        return ({"uid": "u1", "title": "Nuevo", "status": "proposed"}, None, 200)
+
+    monkeypatch.setattr(cli, "_patch", falso)
+
+    assert cli.main(["idea", "edit", "u1", "--title", "Nuevo", "--sin-etiquetas"]) == 0
+    assert visto["datos"] == {"title": "Nuevo", "tags": []}
+    assert "/ideas/u1?repo=" in visto["url"]
+    assert "Nuevo" in capsys.readouterr().out
+
+
+def test_idea_edit_sin_cambios_es_uso_invalido(tmp_path, capsys) -> None:
+    _con_raiz(tmp_path)
+
+    assert cli.main(["idea", "edit", "u1"]) == 2
+    assert "nada que editar" in capsys.readouterr().err
+
+
+def test_idea_move_descarta_con_motivo(tmp_path, capsys, monkeypatch) -> None:
+    _con_raiz(tmp_path)
+    visto = {}
+
+    def falso(url, datos):
+        visto["datos"] = datos
+        return ({"uid": "u1", "title": "T", "status": "rejected"}, None, 200)
+
+    monkeypatch.setattr(cli, "_patch", falso)
+
+    assert (
+        cli.main(
+            [
+                "idea",
+                "move",
+                "u1",
+                "rejected",
+                "--motivo",
+                "duplicada",
+                "--descartado-por",
+                "agente",
+            ]
+        )
+        == 0
+    )
+    assert visto["datos"] == {
+        "status": "rejected",
+        "rejected_description": "duplicada",
+        "rejected_by": "agente",
+    }
+    assert "rejected" in capsys.readouterr().out
+
+
+def test_idea_fases_reemplaza_desde_json(tmp_path, capsys, monkeypatch) -> None:
+    _con_raiz(tmp_path)
+    fichero = tmp_path / "fases.json"
+    fases = [{"titulo": "Preparar", "requisitos": [{"titulo": "Listo"}]}]
+    fichero.write_text(json.dumps(fases), encoding="utf-8")
+    visto = {}
+
+    def falso(url, datos):
+        visto["url"] = url
+        visto["datos"] = datos
+        return ({"uid": "u1", "title": "T", "status": "proposed"}, None, 200)
+
+    monkeypatch.setattr(cli, "_patch", falso)
+
+    assert cli.main(["idea", "fases", "u1", str(fichero)]) == 0
+    assert visto["datos"] == {"fases": fases}
+    assert "/ideas/u1?repo=" in visto["url"]
+
+
+def test_idea_requisito_marca_uno_y_conserva_el_resto(tmp_path, capsys, monkeypatch) -> None:
+    _con_raiz(tmp_path)
+    idea = {
+        "uid": "u1",
+        "title": "T",
+        "status": "proposed",
+        "fases": [
+            {
+                "orden": 1,
+                "titulo": "A",
+                "estado": "pendiente",
+                "nota": "nota",
+                "requisitos": [
+                    {"orden": 1, "titulo": "a", "hecho": False},
+                    {"orden": 2, "titulo": "b", "hecho": False},
+                ],
+            },
+            {
+                "orden": 2,
+                "titulo": "B",
+                "estado": "pendiente",
+                "nota": "",
+                "requisitos": [{"orden": 1, "titulo": "c", "hecho": True}],
+            },
+        ],
+    }
+    visto = {}
+    monkeypatch.setattr(cli, "_get", lambda url: (idea, None, 200))
+
+    def falso(url, datos):
+        visto["datos"] = datos
+        return (idea, None, 200)
+
+    monkeypatch.setattr(cli, "_patch", falso)
+
+    assert cli.main(["idea", "requisito", "u1", "1", "2", "--hecho"]) == 0
+    fases = visto["datos"]["fases"]
+    assert fases[0]["requisitos"][0]["hecho"] is False
+    assert fases[0]["requisitos"][1]["hecho"] is True
+    assert fases[0]["nota"] == "nota"
+    assert fases[1]["requisitos"][0]["hecho"] is True
+    assert "1.2" in capsys.readouterr().out
+
+
+def test_idea_requisito_inexistente_sale_con_1(tmp_path, capsys, monkeypatch) -> None:
+    _con_raiz(tmp_path)
+    monkeypatch.setattr(cli, "_get", lambda url: ({"uid": "u1", "fases": []}, None, 200))
+
+    assert cli.main(["idea", "requisito", "u1", "1", "1", "--hecho"]) == 1
+    assert "no tiene la fase" in capsys.readouterr().err

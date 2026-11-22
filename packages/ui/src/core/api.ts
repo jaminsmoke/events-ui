@@ -43,6 +43,9 @@ export type CambioGit = Schemas["CambioGit"];
 export type NodoArbol = Schemas["NodoArbol"];
 export type NivelArbol = Schemas["NivelArbol"];
 
+/** El texto de un archivo del repo (`GET /archivo`), acotado para el visor. */
+export type Archivo = Schemas["Archivo"];
+
 /** La respuesta de POST /reiniciar (LAB): cuántas filas se vaciaron. */
 export type Reinicio = Schemas["Reinicio"];
 

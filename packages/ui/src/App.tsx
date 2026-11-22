@@ -47,6 +47,7 @@ import { AvisoRecorte, Controles } from "./pantalla/Controles";
 import { EditorIdea } from "./pantalla/EditorIdea";
 import { PanelLog } from "./pantalla/PanelLog";
 import { PanelDerecho } from "./pantalla/PanelDerecho";
+import { VisorArchivo } from "./pantalla/VisorArchivo";
 import { Pruebas } from "./pantalla/Pruebas";
 import { pruebaPendiente, soltar } from "./pantalla/pruebaEnCurso";
 
@@ -118,6 +119,8 @@ export default function App({
   // Lo seleccionado en el lienzo: una sola clave para nodos, ideas, archivos
   // y commits. Seleccionar no despliega nada en el nodo.
   const [seleccion, setSeleccion] = useState<Seleccion | null>(null);
+  // Archivo abierto en el visor del marco (ruta relativa); `null`, cerrado.
+  const [archivoAbierto, setArchivoAbierto] = useState<string | null>(null);
   // Ancho de la ventana, no del lienzo: el marco que la rodea es fijo (dos
   // rail de 44, el pane de 232 y el Resumen de 272).
   const [ventanaEstrecha, setVentanaEstrecha] = useState(
@@ -178,9 +181,14 @@ export default function App({
   // que soltar o cerrar: con el panel derecho abierto, un segundo Escape lo
   // cierra en vez de quedarse sin oyente tras la primera pulsación.
   useEffect(() => {
-    if (!panel && !vistaDerecha && seleccion === null) return;
+    if (!panel && !vistaDerecha && !archivoAbierto && seleccion === null) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
+      // El visor ocupa el centro: Escape lo cierra antes que nada.
+      if (archivoAbierto) {
+        setArchivoAbierto(null);
+        return;
+      }
       if (seleccion !== null) {
         setSeleccion(null);
         return;
@@ -190,7 +198,7 @@ export default function App({
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [panel, vistaDerecha, seleccion]);
+  }, [panel, vistaDerecha, archivoAbierto, seleccion]);
 
   const {
     ideas,
@@ -375,6 +383,7 @@ export default function App({
       setRepo(path);
       setMapa("ideas");
       setSeleccion(null);
+      setArchivoAbierto(null);
       setSelectorAbierto(false);
     },
     [olvidar],
@@ -642,7 +651,14 @@ export default function App({
           />
         )}
         {repo && pane === "archivos" && (
-          <PaneExplorador proyeccion={proyeccion} onCerrar={() => setPane(null)} />
+          <PaneExplorador
+            proyeccion={proyeccion}
+            onAbrirArchivo={(ruta) => {
+              setArchivoAbierto(ruta);
+              setVistaDerecha(null);
+            }}
+            onCerrar={() => setPane(null)}
+          />
         )}
         {repo && pane === "git" && (
           <PaneGit
@@ -651,6 +667,14 @@ export default function App({
             onIniciar={() => setDialogoGit("crear")}
             onCommit={commit}
             onCerrar={() => setPane(null)}
+          />
+        )}
+        {repo && archivoAbierto && (
+          <VisorArchivo
+            key={archivoAbierto}
+            repo={repo}
+            ruta={archivoAbierto}
+            onClose={() => setArchivoAbierto(null)}
           />
         )}
         {repo && (!error || ideas) && (

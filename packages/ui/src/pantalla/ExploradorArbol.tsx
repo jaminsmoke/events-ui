@@ -9,7 +9,16 @@ import { useArbol } from "../core/useArbol";
  *  Solo pide los niveles desplegados: el resto del repo no se recorre. Un
  *  archivo con cambios sin commit lleva su marca de Git, la misma que cuenta
  *  el mapa. */
-export function ExploradorArbol({ repo, cambios }: { repo: string; cambios: CambioGit[] }) {
+export function ExploradorArbol({
+  repo,
+  cambios,
+  onAbrir,
+}: {
+  repo: string;
+  cambios: CambioGit[];
+  /** Pulsar un archivo lo abre en el visor del marco. */
+  onAbrir: (ruta: string) => void;
+}) {
   const [abiertas, setAbiertas] = useState<string[]>([]);
   // La raíz (`""`) va siempre; lo demás es lo que el usuario desplegó.
   const rutas = useMemo(() => ["", ...abiertas], [abiertas]);
@@ -42,6 +51,7 @@ export function ExploradorArbol({ repo, cambios }: { repo: string; cambios: Camb
         estado={estado}
         profundidad={0}
         onAlternar={alternar}
+        onAbrir={onAbrir}
       />
     </div>
   );
@@ -56,6 +66,7 @@ function Nivel({
   estado,
   profundidad,
   onAlternar,
+  onAbrir,
 }: {
   ruta: string;
   mapa: Record<string, NodoArbol[]>;
@@ -63,6 +74,7 @@ function Nivel({
   estado: Map<string, string>;
   profundidad: number;
   onAlternar: (ruta: string) => void;
+  onAbrir: (ruta: string) => void;
 }) {
   // Todavía sin respuesta: ni "vacía" ni filas, para no parpadear al abrir.
   const hijos = mapa[ruta];
@@ -101,21 +113,25 @@ function Nivel({
                 estado={estado}
                 profundidad={profundidad + 1}
                 onAlternar={onAlternar}
+                onAbrir={onAbrir}
               />
             )}
           </li>
         ) : (
-          <li
-            key={hijo.ruta}
-            className="arbol-fila arbol-archivo"
-            style={{ paddingLeft: 4 + profundidad * 12 }}
-            title={hijo.ruta}
-          >
-            <span className="arbol-flecha" aria-hidden="true" />
-            <span className="arbol-nombre">{hijo.nombre}</span>
-            {estado.has(hijo.ruta) && (
-              <span className="arbol-cambio">{estado.get(hijo.ruta)}</span>
-            )}
+          <li key={hijo.ruta}>
+            <button
+              type="button"
+              className="arbol-fila arbol-archivo"
+              style={{ paddingLeft: 4 + profundidad * 12 }}
+              title={hijo.ruta}
+              onClick={() => onAbrir(hijo.ruta)}
+            >
+              <span className="arbol-flecha" aria-hidden="true" />
+              <span className="arbol-nombre">{hijo.nombre}</span>
+              {estado.has(hijo.ruta) && (
+                <span className="arbol-cambio">{estado.get(hijo.ruta)}</span>
+              )}
+            </button>
           </li>
         ),
       )}

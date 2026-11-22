@@ -350,9 +350,9 @@ button.arbol-fila:hover {
   background: #1c2432;
 }
 
-/* Un archivo no se abre: su fila es de lectura, no un botón. */
+/* Un archivo se abre en el visor al pulsarlo. */
 .arbol-archivo {
-  cursor: default;
+  cursor: pointer;
 }
 
 .arbol-flecha {

@@ -1,0 +1,194 @@
+/* Visor de archivos: panel ancho junto al árbol, con Markdown y código.
+ *
+ *  El fondo del código es el del tema github-dark de Shiki; el resto usa las
+ *  variables del marco para no encender otra paleta. */
+
+.visor {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: clamp(360px, 52vw, 900px);
+  min-height: 0;
+  border-right: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.visor-cabecera {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 6px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.visor-titulo {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.visor-ruta {
+  overflow: hidden;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.visor-meta {
+  color: var(--muted);
+  font-size: 9.5px;
+}
+
+.visor-cuerpo {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 12px;
+}
+
+.visor-aviso {
+  margin: 0 0 10px;
+  padding: 6px 8px;
+  border: 1px solid #4b3b12;
+  border-radius: 5px;
+  background: #1f1a0d;
+  color: #d29922;
+  font-size: 10.5px;
+}
+
+/* Código: una fila por línea, con el número fijo a la izquierda. */
+.visor-codigo {
+  margin: 0;
+  padding: 8px 0;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #0d1117;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.55;
+  tab-size: 2;
+}
+
+.visor-linea {
+  display: flex;
+  min-width: max-content;
+}
+
+.visor-numero {
+  flex: none;
+  width: 38px;
+  padding-right: 10px;
+  color: #5b6572;
+  text-align: right;
+  user-select: none;
+}
+
+.visor-texto {
+  padding-right: 12px;
+  white-space: pre;
+}
+
+/* Markdown renderizado: la tipografía de una ficha, no la de un documento
+ *  gigante; tablas y citas con el borde del marco. */
+.visor-md {
+  color: var(--fg);
+  font-size: 12px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.visor-md h1,
+.visor-md h2,
+.visor-md h3,
+.visor-md h4 {
+  margin: 18px 0 8px;
+  line-height: 1.25;
+}
+
+.visor-md h1 {
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+  font-size: 17px;
+}
+
+.visor-md h2 {
+  font-size: 14.5px;
+}
+
+.visor-md h3 {
+  font-size: 12.5px;
+}
+
+.visor-md h4 {
+  font-size: 11.5px;
+}
+
+.visor-md p,
+.visor-md ul,
+.visor-md ol,
+.visor-md blockquote,
+.visor-md table {
+  margin: 0 0 10px;
+}
+
+.visor-md ul,
+.visor-md ol {
+  padding-left: 20px;
+}
+
+.visor-md li {
+  margin: 2px 0;
+}
+
+.visor-md a {
+  color: var(--accent);
+}
+
+.visor-md blockquote {
+  padding: 2px 10px;
+  border-left: 3px solid var(--line);
+  color: var(--muted);
+}
+
+.visor-md hr {
+  margin: 14px 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+
+.visor-md table {
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.visor-md th,
+.visor-md td {
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  text-align: left;
+}
+
+.visor-md th {
+  background: #16233a;
+}
+
+.visor-md .visor-codigo {
+  margin: 8px 0;
+}
+
+.visor-inline {
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: #16233a;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 10.5px;
+}
+
+.visor-imagen {
+  color: var(--muted);
+  font-size: 10.5px;
+}

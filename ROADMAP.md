@@ -374,15 +374,6 @@ con el motivo, para no reabrirlo cada semana.
 
 ## Pendientes
 
-- **Visor de archivos en Files**: pulsar un archivo del Explorador abre un
-  visor de solo lectura con el contenido real del repo. Markdown con dos
-  pestañas, **Raw** y **Renderizado**; el resto de archivos, con resaltado por
-  lenguaje y números de línea. El core **ya expone** `GET /archivo?repo=&ruta=`
-  con la misma guarda de rutas que `/arbol` (nada fuera de la raíz), tope de
-  tamaño (512 KiB, como los parches), detección de binarios y lectura UTF-8
-  tolerante; sin fichero, 404 y sin texto legible, 415. Falta la UI: abrirlo
-  desde el árbol y desde la ficha de un cambio del inspector, con las pestañas
-  y el resaltado.
   **Decidido**: Markdown con `react-markdown` 10 + `remark-gfm` 4 y sin
   `rehype-raw` —el HTML crudo se queda como texto, así que no hay `innerHTML`
   ni sanitizador que mantener—; el código con **Shiki** 4 desde `shiki/core` y
@@ -399,6 +390,13 @@ con el motivo, para no reabrirlo cada semana.
   aparte), con UTF-8 tolerante, 415 en binarios y la guarda de rutas de
   `/arbol`; la ruta vuelve canónica. Cubierto en
   `services/core/tests/test_visor.py`.
+- **Visor de archivos**: pulsar un archivo del Explorador lo abre en un panel
+  ancho junto al árbol, sin modal. Markdown abre renderizado y ofrece Raw; el
+  resto se pinta con Shiki 4 —`shiki/core`, motor de regex JS y gramáticas bajo
+  demanda—, con números de línea y texto plano si no hay gramática o el archivo
+  pasa de 200 000 caracteres. El HTML crudo del Markdown se queda como texto,
+  los enlaces abren fuera y las imágenes se anuncian. Cubierto en
+  `e2e/escenarios/visor.mjs`.
 - **Migración de roadmaps y backlogs en Markdown**: aparcada a propósito hasta
   decidir el formato destino; si llega antes, será un importador explícito a
   `proposed` con lote reversible y sin adivinar estados.

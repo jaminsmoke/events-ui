@@ -219,9 +219,11 @@ export function PaneMapas({
  *  Git. El nombre de la carpeta lo pone el propio árbol como rótulo. */
 export function PaneExplorador({
   proyeccion,
+  onAbrirArchivo,
   onCerrar,
 }: {
   proyeccion: ProyeccionRepo | null | undefined;
+  onAbrirArchivo: (ruta: string) => void;
   onCerrar: () => void;
 }) {
   return (
@@ -241,7 +243,11 @@ export function PaneExplorador({
       <div className="pane-cuerpo">
         {proyeccion ? (
           <div className="pane-seccion">
-            <ExploradorArbol repo={proyeccion.repo} cambios={proyeccion.git_cambios} />
+            <ExploradorArbol
+              repo={proyeccion.repo}
+              cambios={proyeccion.git_cambios}
+              onAbrir={onAbrirArchivo}
+            />
           </div>
         ) : (
           <p className="hint">Cargando…</p>

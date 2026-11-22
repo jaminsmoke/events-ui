@@ -67,7 +67,11 @@ o 5.000 eventos y la del registro operativo de 90 días o 2.000 entradas.
 ## Versionar el almacén
 
 El fichero principal se versiona con el repo, pero `-wal` y `-shm` quedan
-fuera por el `.gitignore` del almacén. Copiar `EUI_DATABASE.sqlite` a mano
+fuera por el `.gitignore` del almacén. La proyección lo dice en `eui_ignorado`
+(`False` versionado, `True` ignorado, `None` sin Git); Resumen ofrece
+«Ignorar .EUI» cuando no lo está, y añade `.EUI/` al `.gitignore` de esta raíz
+—nunca al de una carpeta superior— con `POST /git/ignorar-almacen`, sin
+duplicar la línea. Copiar `EUI_DATABASE.sqlite` a mano
 mientras la app lo tiene abierto deja fuera lo confirmado que aún vive en el
 WAL. La instantánea se saca con el API de backup de SQLite, que lee una
 transacción y escribe una copia completa:

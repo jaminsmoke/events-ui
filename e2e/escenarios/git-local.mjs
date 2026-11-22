@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { rmSync, writeFileSync } from "node:fs";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 /** Git del sistema, siempre dentro de la carpeta indicada. */
@@ -90,6 +90,29 @@ export default {
       await page.waitForTimeout(900);
       await page.screenshot({ path: resultado("git-local.png") });
 
+      // El Resumen enseña si el almacén se versiona y deja ignorarlo desde ahí.
+      await page.getByRole("button", { name: "Resumen", exact: true }).click();
+      const panelDerecho = page.locator('.resumen[aria-label="Panel derecho"]');
+      await panelDerecho.waitFor();
+      await esperar(
+        () =>
+          panelDerecho.innerText().then((t) => t.includes("se versiona con el repo")),
+        "el almacén versionado en Resumen",
+        15_000,
+      );
+      await panelDerecho.getByRole("button", { name: "Ignorar .EUI", exact: true }).click();
+      await panelDerecho.getByRole("button", { name: "Confirmar", exact: true }).click();
+      await esperar(
+        () => panelDerecho.innerText().then((t) => t.includes("ignorado por Git")),
+        "el almacén ignorado en Resumen",
+        15_000,
+      );
+      expect(
+        readFileSync(path.join(lab, ".gitignore"), "utf8").includes(".EUI/"),
+        "el .gitignore de la raíz debe ignorar el almacén",
+      );
+      await page.getByRole("button", { name: "Cerrar panel derecho" }).click();
+
       // Eliminar desde el puente: pide confirmación y vuelve a apagarse.
       await page.getByRole("button", { name: "Mapa de ideas", exact: true }).click();
       await page.getByRole("button", { name: "Eliminar repo…", exact: true }).click();
@@ -104,6 +127,7 @@ export default {
       expect(await pestanaGit.isDisabled(), "la pestaña de Git debe volver a deshabilitarse");
     } finally {
       rmSync(path.join(lab, ".git"), { recursive: true, force: true });
+      rmSync(path.join(lab, ".gitignore"), { force: true });
       rmSync(path.join(repos, ".git"), { recursive: true, force: true });
       rmSync(path.join(repos, ".gitignore"), { force: true });
     }

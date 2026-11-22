@@ -372,6 +372,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/git/ignorar-almacen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Git Ignorar Almacen
+         * @description Añade `.EUI/` al `.gitignore` de la raíz; devuelve la proyección al día.
+         */
+        post: operations["post_git_ignorar_almacen_git_ignorar_almacen_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/arbol": {
         parameters: {
             query?: never;
@@ -922,6 +942,8 @@ export interface components {
              * @default []
              */
             git_cambios: components["schemas"]["CambioGit"][];
+            /** Eui Ignorado */
+            eui_ignorado?: boolean | null;
             /** Ideas */
             ideas: number;
             /** Events */
@@ -1973,6 +1995,56 @@ export interface operations {
                 "application/json": components["schemas"]["CommitPeticion"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProyeccionRepo"];
+                };
+            };
+            /** @description Petición inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description No existe el repo o la idea */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_git_ignorar_almacen_git_ignorar_almacen_post: {
+        parameters: {
+            query: {
+                /** @description Carpeta del repo: ruta absoluta o nombre en el lab */
+                repo: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

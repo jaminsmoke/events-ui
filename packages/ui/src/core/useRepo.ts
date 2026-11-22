@@ -198,6 +198,17 @@ export function useRepo(repo: string | null) {
     [repo],
   );
 
+  // Ignorar el almacén: escribe `.EUI/` en el `.gitignore` de la raíz elegida.
+  // La respuesta trae la proyección, así que el Resumen cambia al instante.
+  const ignorarAlmacen = useCallback(async (): Promise<ProyeccionRepo | null> => {
+    if (!repo) return null;
+    const p: ProyeccionRepo = await unwrap(
+      api.POST("/git/ignorar-almacen", { params: { query: { repo } } }),
+    );
+    setProyeccionEstado({ repo, datos: p });
+    return p;
+  }, [repo]);
+
   const proyeccion =
     repo && proyeccionEstado?.repo === repo ? proyeccionEstado.datos : null;
 
@@ -244,5 +255,6 @@ export function useRepo(repo: string | null) {
     crearRepoGit,
     eliminarRepoGit,
     commit,
+    ignorarAlmacen,
   };
 }

@@ -212,7 +212,10 @@ La línea termina en un nodo **Git** de solo lectura. Se enciende cuando la
 carpeta es un work tree Git —también con un `git init` sin commits— y se apaga
 si no lo es. Una carpeta ignorada por el repo que la contiene no cuenta, que es
 el caso del laboratorio dentro del repo de la aplicación. La proyección expone
-`git`, `git_root`, `branch`, `commit` y `git_cambios`; este último puede faltar.
+`git`, `git_root`, `branch`, `commit`, `git_cambios` y `eui_ignorado`; este
+último dice si el `.EUI` entraría en el próximo commit (`False`), si el repo ya
+lo ignora (`True`) o si no hay Git (`None`). Resumen lo enseña y ofrece
+«Ignorar .EUI», que añade `.EUI/` al `.gitignore` de esa raíz.
 
 Hay dos mapas enlazados. El **Mapa de ideas** termina en el puente **Entregar
 a Git**, que solo se activa con work tree y abre el **Mapa de Git**.

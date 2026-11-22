@@ -348,6 +348,10 @@ con el motivo, para no reabrirlo cada semana.
   flechas.
 - **Historial filtrable**: la ficha del nodo de commits filtra por asunto,
   hash o autor, sin tocar la selección ni el mapa, y cuenta lo que queda.
+- **El almacén dice si se versiona**: la proyección expone `eui_ignorado` y
+  Resumen lo enseña con una acción explícita que añade `.EUI/` al `.gitignore`
+  de la raíz elegida —nunca al de una carpeta superior— de forma idempotente.
+  Cubierto en `services/core/tests/test_git.py` y `e2e/escenarios/git-local.mjs`.
 - **El inspector se prueba solo**: `e2e/escenarios/inspector.mjs` abre el
   panel por su icono, selecciona una idea y un carril desde el lienzo y desde
   la lista del propio panel, y comprueba que Escape y el clic en el fondo

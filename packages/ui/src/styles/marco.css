@@ -629,6 +629,27 @@ button.arbol-fila:hover {
   outline-offset: -1px;
 }
 
+/* El aviso del almacén: estado del versionado y acción explícita. */
+.resumen-almacen {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.resumen-almacen code {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 10px;
+}
+
+.resumen-almacen-acciones {
+  display: flex;
+  gap: 6px;
+}
+
 /* La ficha de un carril: la lista de ideas y las salidas del protocolo. */
 .inspector-lista,
 .inspector-uniones {

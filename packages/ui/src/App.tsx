@@ -202,6 +202,7 @@ export default function App({
     editar,
     borrar,
     cargarIdea,
+    ignorarAlmacen,
     reiniciar,
     crearRepoGit,
     eliminarRepoGit,
@@ -967,6 +968,7 @@ export default function App({
                 setEditando({ uid, titulo, descripcion }),
             }}
             onSeleccionar={seleccionar}
+            onIgnorarAlmacen={ignorarAlmacen}
             conectado={conectado}
             onClose={() => setVistaDerecha(null)}
           />

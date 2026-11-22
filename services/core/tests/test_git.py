@@ -395,3 +395,55 @@ def test_historial_respeta_el_limite(client, tmp_path):  # noqa: ANN001, ANN202
     commits = client.get("/git/commits", params={"repo": str(carpeta), "limite": 2}).json()
 
     assert [c["asunto"] for c in commits] == ["commit 2", "commit 1"]
+
+
+def test_el_almacen_se_versiona_por_defecto_y_se_puede_ignorar(client, tmp_path):  # noqa: ANN001, ANN202
+    carpeta = tmp_path / "versionado"
+    _inicializar(carpeta)
+    (carpeta / "nota.txt").write_text("hola", encoding="utf-8")
+    _git(carpeta, "add", ".")
+    _git(carpeta, "commit", "-m", "inicial")
+
+    antes = _proyeccion(client, carpeta)  # siembra `.EUI` y su `.gitignore`
+    assert antes["eui_ignorado"] is False
+
+    r = client.post("/git/ignorar-almacen", params={"repo": str(carpeta)})
+
+    assert r.status_code == 200, r.json()
+    assert r.json()["eui_ignorado"] is True
+    assert (carpeta / ".gitignore").read_text(encoding="utf-8") == ".EUI/\n"
+    # Idempotente: la segunda pasada no duplica la línea.
+    assert client.post("/git/ignorar-almacen", params={"repo": str(carpeta)}).status_code == 200
+    assert (carpeta / ".gitignore").read_text(encoding="utf-8") == ".EUI/\n"
+
+
+def test_ignorar_el_almacen_conserva_las_otras_lineas(client, tmp_path):  # noqa: ANN001, ANN202
+    carpeta = tmp_path / "lineas"
+    _inicializar(carpeta)
+    (carpeta / ".gitignore").write_text("dist/\n*.log", encoding="utf-8")
+    _git(carpeta, "add", ".gitignore")
+    _git(carpeta, "commit", "-m", "ignorar")
+
+    r = client.post("/git/ignorar-almacen", params={"repo": str(carpeta)})
+
+    assert r.status_code == 200, r.json()
+    texto = (carpeta / ".gitignore").read_text(encoding="utf-8")
+    assert texto == "dist/\n*.log\n.EUI/\n"
+    assert r.json()["eui_ignorado"] is True
+
+
+def test_ignorar_el_almacen_sin_git_es_400(client, tmp_path):  # noqa: ANN001, ANN202
+    carpeta = tmp_path / "sin-git"
+    carpeta.mkdir()
+
+    r = client.post("/git/ignorar-almacen", params={"repo": str(carpeta)})
+
+    assert r.status_code == 400, r.json()
+    assert not (carpeta / ".gitignore").exists()
+
+
+def test_sin_git_la_proyeccion_no_sabe_si_el_almacen_se_versiona(client, tmp_path):  # noqa: ANN001, ANN202
+    carpeta = tmp_path / "suelta"
+    carpeta.mkdir()
+
+    assert _proyeccion(client, carpeta)["eui_ignorado"] is None

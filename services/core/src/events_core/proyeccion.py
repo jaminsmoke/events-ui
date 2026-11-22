@@ -28,7 +28,7 @@ from typing import Any
 
 from .db import open_read_only
 from .ideas import InvalidInput, _existe, ensure_repo, repos_root, resolve_repo
-from .ideas.base.rutas import EUI_DIR
+from .ideas.base.rutas import DB_FILENAME, EUI_DIR
 
 
 def _git(carpeta: Path, *args: str) -> str | None:
@@ -105,6 +105,67 @@ def _git_cambios(carpeta: Path) -> list[dict[str, str]]:
             continue
         cambios.append(cambio)
     return cambios
+
+
+def _almacen_ignorado(carpeta: Path) -> bool | None:
+    """¿Git ignora el almacén de la app en esta raíz?
+
+    `check-ignore` sale con 0 si la ruta está ignorada, 1 si no y 128 cuando
+    no hay repo o Git falla: el tercer caso no se confunde con «no ignorado».
+    Se pregunta por el fichero, no por la carpeta, que es lo que decide si el
+    binario entra en el próximo commit.
+    """
+    try:
+        salida = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(carpeta),
+                "check-ignore",
+                "-q",
+                "--",
+                f"{EUI_DIR}/{DB_FILENAME}",
+            ],
+            capture_output=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if salida.returncode == 0:
+        return True
+    if salida.returncode == 1:
+        return False
+    return None
+
+
+def ignorar_almacen(carpeta: Path) -> None:
+    """Añade `.EUI/` al `.gitignore` de la raíz elegida.
+
+    Solo se toca la carpeta abierta: si es una subcarpeta de otro repo, su
+    `.gitignore` ignora su propio almacén y el árbol padre queda intacto. Es
+    idempotente: si la línea ya está (con o sin barra final) no reescribe, y
+    conserva el resto del fichero tal cual.
+    """
+    es_git, _ = _git_repo(carpeta)
+    if not es_git:
+        raise InvalidInput("Sin repositorio Git en esta carpeta")
+    destino = carpeta / ".gitignore"
+    try:
+        actual = destino.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        actual = ""
+    except OSError as exc:
+        raise InvalidInput(f"No se pudo leer {destino}: {exc}") from exc
+    if any(line.strip().rstrip("/") == EUI_DIR for line in actual.splitlines()):
+        return
+    nuevo = actual
+    if nuevo and not nuevo.endswith("\n"):
+        nuevo += "\n"
+    nuevo += f"{EUI_DIR}/\n"
+    try:
+        destino.write_text(nuevo, encoding="utf-8")
+    except OSError as exc:
+        raise InvalidInput(f"No se pudo escribir {destino}: {exc}") from exc
 
 
 def historial(carpeta: Path, limite: int = 20) -> list[dict[str, str]]:
@@ -316,6 +377,7 @@ def repo_estado_actual(repo: str) -> dict[str, Any]:
         "branch": _git(carpeta, "symbolic-ref", "--short", "HEAD") if es_git else None,
         "commit": _git(carpeta, "rev-parse", "--short", "HEAD") if es_git else None,
         "git_cambios": _git_cambios(carpeta) if es_git else [],
+        "eui_ignorado": _almacen_ignorado(carpeta) if es_git else None,
         "ideas": ideas,
         "events": eventos,
         "por_estado": por_estado,

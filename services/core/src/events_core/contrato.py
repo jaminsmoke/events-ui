@@ -300,6 +300,9 @@ class ProyeccionRepo(BaseModel):
     branch: str | None = None
     commit: str | None = None
     git_cambios: list[CambioGit] = []
+    # `None` sin Git. `True` si el repo ya ignora `.EUI`; `False` si el binario
+    # entraría en el próximo commit.
+    eui_ignorado: bool | None = None
     ideas: int
     events: int
     por_estado: dict[str, int]

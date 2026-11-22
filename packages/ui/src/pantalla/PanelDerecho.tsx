@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 
 import type { CommitGit, Idea, ProyeccionRepo } from "../core/api";
 import { folderName } from "../core/repo";
@@ -32,6 +32,7 @@ export function PanelDerecho({
   vista,
   onVista,
   proyeccion,
+  onIgnorarAlmacen,
   commits,
   seleccion,
   ideas,
@@ -46,6 +47,8 @@ export function PanelDerecho({
   vista: VistaDerecha;
   onVista: (vista: VistaDerecha) => void;
   proyeccion: ProyeccionRepo | null | undefined;
+  /** Escribe `.EUI/` en el `.gitignore` de esta raíz; lo ofrece el Resumen. */
+  onIgnorarAlmacen: () => Promise<unknown>;
   commits: readonly CommitGit[];
   /** Lo seleccionado en el lienzo; `null`, nada. */
   seleccion: Seleccion | null;
@@ -94,7 +97,11 @@ export function PanelDerecho({
       </div>
 
       {vista === "resumen" ? (
-        <CuerpoResumen proyeccion={proyeccion} conectado={conectado} />
+        <CuerpoResumen
+          proyeccion={proyeccion}
+          conectado={conectado}
+          onIgnorarAlmacen={onIgnorarAlmacen}
+        />
       ) : (
         <CuerpoInspector
           proyeccion={proyeccion}
@@ -115,10 +122,37 @@ export function PanelDerecho({
 function CuerpoResumen({
   proyeccion,
   conectado,
+  onIgnorarAlmacen,
 }: {
   proyeccion: ProyeccionRepo | null | undefined;
   conectado: boolean;
+  onIgnorarAlmacen: () => Promise<unknown>;
 }) {
+  // La acción pide confirmación en la propia ficha: escribir en el `.gitignore`
+  // del repo es pequeño, pero no silencioso.
+  const [confirmando, setConfirmando] = useState(false);
+  const [ignorando, setIgnorando] = useState(false);
+  const [falloIgnorar, setFalloIgnorar] = useState<string | null>(null);
+  const estadoAlmacen =
+    proyeccion?.git !== true
+      ? "—"
+      : proyeccion.eui_ignorado === true
+        ? "ignorado por Git"
+        : proyeccion.eui_ignorado === false
+          ? "se versiona con el repo"
+          : "sin comprobar";
+  const ignorar = async () => {
+    setIgnorando(true);
+    setFalloIgnorar(null);
+    try {
+      await onIgnorarAlmacen();
+      setConfirmando(false);
+    } catch (err) {
+      setFalloIgnorar(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIgnorando(false);
+    }
+  };
   // De mayor a menor: el carril que más tiene es el que más interesa.
   const estados = proyeccion
     ? Object.entries(proyeccion.por_estado).sort(
@@ -162,6 +196,8 @@ function CuerpoResumen({
             <dd>{proyeccion.commit ?? "—"}</dd>
             <dt>Work tree</dt>
             <dd>{proyeccion.git ? "sí" : "no"}</dd>
+            <dt>Almacén</dt>
+            <dd>{estadoAlmacen}</dd>
             <dt>Última actividad</dt>
             <dd>
               {proyeccion.ultima_actividad ? fechaCorta(proyeccion.ultima_actividad) : "—"}
@@ -169,6 +205,56 @@ function CuerpoResumen({
             <dt>En vivo</dt>
             <dd>{conectado ? "conectado" : "sin SSE"}</dd>
           </dl>
+
+          {proyeccion.git && proyeccion.eui_ignorado === false && (
+            <div className="resumen-almacen">
+              {!confirmando ? (
+                <>
+                  <p className="hint">
+                    El almacén entrará en el próximo commit. Si prefieres que las
+                    ideas no viajen en Git, ignóralo en esta raíz.
+                  </p>
+                  <button
+                    type="button"
+                    className="btn ghost"
+                    aria-label="Ignorar .EUI"
+                    onClick={() => {
+                      setFalloIgnorar(null);
+                      setConfirmando(true);
+                    }}
+                  >
+                    Ignorar .EUI
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="hint">
+                    Se añadirá <code>.EUI/</code> al <code>.gitignore</code> de
+                    esta raíz. Las ideas dejarán de versionarse con el código.
+                  </p>
+                  <div className="resumen-almacen-acciones">
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => void ignorar()}
+                      disabled={ignorando}
+                    >
+                      {ignorando ? "Ignorando…" : "Confirmar"}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn ghost"
+                      onClick={() => setConfirmando(false)}
+                      disabled={ignorando}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </>
+              )}
+              {falloIgnorar && <p className="hint">{falloIgnorar}</p>}
+            </div>
+          )}
 
           <p className="pane-rotulo">Por estado</p>
           {estados.length === 0 ? (

@@ -60,6 +60,27 @@ const destino = path.join(DESTINO, `events-core-${triple}${sufijo}`);
 cpSync(congelado, destino);
 console.log(`Copiado a ${destino}`);
 
+// El CLI `eui` es otro binario, no el servidor: Tauri lo deja junto a la app y
+// el instalador puede copiarlo a los datos del usuario si se marca el opt-in.
+const cli = path.join(srcCore, "events_core", "eui.py");
+const pyinstallerCli = execSync(
+  `uv run --directory services/core pyinstaller --onefile --noconfirm --name eui --paths ${srcCore} --collect-all events_core ${cli}`,
+  { cwd: ROOT, encoding: "utf8", shell: true },
+);
+console.log(pyinstallerCli.trim().split("\n").slice(-3).join("\n"));
+
+const congeladoCli = path.join(CORE, "dist", `eui${sufijo}`);
+if (!existsSync(congeladoCli)) {
+  throw new Error(`PyInstaller no dejó el binario en ${congeladoCli}`);
+}
+const destinoCli = path.join(DESTINO, `eui-${triple}${sufijo}`);
+cpSync(congeladoCli, destinoCli);
+const versionCli = execFileSync(destinoCli, ["--version"], { encoding: "utf8" }).trim();
+if (!versionCli.startsWith("eui ")) {
+  throw new Error(`El CLI empaquetado no responde: ${versionCli}`);
+}
+console.log(`Copiado a ${destinoCli} (${versionCli})`);
+
 // Prueba en frío: arranca en el puerto de verdad (18765) y responde /health.
 if (!(await puertoLibre(18765))) {
   throw new Error("El puerto 18765 ya está ocupado: no se puede probar el sidecar.");

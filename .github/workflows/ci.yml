@@ -67,6 +67,7 @@ jobs:
         run: |
           mkdir -p apps/desktop/src-tauri/binaries
           touch apps/desktop/src-tauri/binaries/events-core-x86_64-unknown-linux-gnu
+          touch apps/desktop/src-tauri/binaries/eui-x86_64-unknown-linux-gnu
 
       - name: check completo
         run: corepack pnpm check

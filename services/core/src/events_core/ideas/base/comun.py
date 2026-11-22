@@ -22,7 +22,7 @@ def now_iso() -> str:
 def escribir_atomico(destino: Path, datos: bytes) -> None:
     """Escribe el fichero entero o deja el anterior intacto.
 
-    Los stubs, las copias y los manifiestos de absorción no deben quedar a
+    Las copias y los manifiestos de absorción no deben quedar a
     medias si el proceso muere o el disco falla: se escribe al lado y se
     sustituye con `os.replace`, que es atómico en el mismo sistema de ficheros.
     """

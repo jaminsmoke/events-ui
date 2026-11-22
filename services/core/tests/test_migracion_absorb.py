@@ -1,4 +1,4 @@
-"""Absorción en seco: cobertura por fichero, copia y stub sin escribir."""
+"""Absorción en seco: cobertura, copia y retirada sin escribir."""
 
 from __future__ import annotations
 
@@ -73,10 +73,7 @@ def test_absorb_cubre_el_fichero_entre_varios_lotes(client, tmp_path) -> None:
     assert set(ficha["lotes"]) == {primero["lote"], segundo["lote"]}
     assert ficha["copia"]["destino"] == f".EUI/migracion/{segundo['lote']}/ROADMAP.md"
     assert ficha["copia"]["sha256"] == ficha["hash_actual"]
-    assert ficha["stub"]["ruta"] == "ROADMAP.md"
-    assert "- Ítems: 3" in ficha["stub"]["contenido"]
-    assert "- Lotes: 2" in ficha["stub"]["contenido"]
-    assert "eui migrate export ROADMAP.md" in ficha["stub"]["contenido"]
+    assert "stub" not in ficha
     assert archivo.read_text(encoding="utf-8") == texto
     assert not (tmp_path / ".EUI" / "migracion").exists()
 
@@ -138,7 +135,7 @@ def test_absorb_de_un_lote_inexistente(client, tmp_path) -> None:
         migracion.revisar_absorcion(tmp_path, "no-existe")
 
 
-def test_absorb_confirmar_copia_stub_y_exporta(client, tmp_path) -> None:
+def test_absorb_confirmar_copia_borra_y_exporta(client, tmp_path) -> None:
     texto = "# ROADMAP\n\n- **Uno.** Hecho.\n"
     archivo = _documento(tmp_path, texto)
     lote = _aplicar(client, archivo, [("uno", "Uno", 3)])
@@ -150,9 +147,7 @@ def test_absorb_confirmar_copia_stub_y_exporta(client, tmp_path) -> None:
     assert informe["manifest"] == f".EUI/migracion/{lote['lote']}/absorcion.json"
     copia = tmp_path / ".EUI" / "migracion" / lote["lote"] / "ROADMAP.md"
     assert copia.read_text(encoding="utf-8") == texto
-    stub = archivo.read_text(encoding="utf-8")
-    assert "Este documento se absorbió" in stub
-    assert "- Ítems: 1" in stub
+    assert not archivo.exists()
     assert (tmp_path / ".EUI" / "migracion" / lote["lote"] / "absorcion.json").is_file()
 
     exportado = migracion.exportar_documento(tmp_path, "ROADMAP.md")
@@ -178,7 +173,7 @@ def test_undo_restaura_el_documento_absorbido(client, tmp_path) -> None:
     archivo = _documento(tmp_path, texto)
     lote = _aplicar(client, archivo, [("uno", "Uno", 3)])
     migracion.confirmar_absorcion(tmp_path, lote["lote"])
-    assert archivo.read_text(encoding="utf-8") != texto
+    assert not archivo.exists()
 
     respuesta = client.delete(f"/migracion/lotes/{lote['lote']}", params={"repo": str(tmp_path)})
 
@@ -207,7 +202,7 @@ def test_cli_absorb_json(client, tmp_path, capsys) -> None:
     assert cli.main(["migrate", "absorb", lote["lote"], "--dry-run", "--json"]) == 0
     salida = json.loads(capsys.readouterr().out)
     assert salida["ok"] is True
-    assert salida["archivos"][0]["stub"]["ruta"] == "ROADMAP.md"
+    assert "stub" not in salida["archivos"][0]
 
 
 def test_cli_absorb_confirmar_y_export(client, tmp_path, capsys) -> None:
@@ -219,6 +214,7 @@ def test_cli_absorb_confirmar_y_export(client, tmp_path, capsys) -> None:
     salida = json.loads(capsys.readouterr().out)
     assert salida["absorbido"] is True
     assert salida["manifest"].endswith("absorcion.json")
+    assert not archivo.exists()
 
     assert cli.main(["migrate", "export", "ROADMAP.md", "--salida", "vista.md"]) == 0
     vista = (tmp_path / "vista.md").read_text(encoding="utf-8")

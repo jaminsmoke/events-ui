@@ -759,8 +759,7 @@ def _migrar_absorb(args: argparse.Namespace) -> int:
         print(f"  hash: {'ok' if archivo['hash_ok'] else 'no cuadra'}")
         if archivo["copia"]:
             print(f"  copia: {archivo['copia']['destino']}")
-        if archivo["stub"]:
-            print(f"  stub: {archivo['stub']['ruta']} ({archivo['stub']['bytes']} B)")
+        print("  retirada: se elimina el original")
         for hueco in archivo["sin_migrar"][:10]:
             print(f"  sin migrar L{hueco['linea']}: {hueco['texto']}")
         if archivo["recortado"]:
@@ -993,9 +992,7 @@ def _parser() -> argparse.ArgumentParser:
     conexion(deshacer)
     deshacer.set_defaults(func=_migrar_undo)
 
-    absorber = acciones_migrar.add_parser(
-        "absorb", help="Copia, escribe el stub y retira un lote ya migrado"
-    )
+    absorber = acciones_migrar.add_parser("absorb", help="Copia y retira un lote ya migrado")
     absorber.add_argument("lote", help="Identificador del lote que devolvió apply")
     modo = absorber.add_mutually_exclusive_group()
     modo.add_argument(
@@ -1006,7 +1003,7 @@ def _parser() -> argparse.ArgumentParser:
     modo.add_argument(
         "--confirmar",
         action="store_true",
-        help="Copia el origen, escribe el stub y lo retira",
+        help="Copia el origen y lo elimina",
     )
     absorber.add_argument("--json", action="store_true")
     conexion(absorber)

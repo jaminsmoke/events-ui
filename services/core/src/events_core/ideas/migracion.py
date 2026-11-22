@@ -227,9 +227,9 @@ def restaurar_absorcion(repo: str, lote: str) -> dict[str, Any] | None:
     """Devuelve los documentos a su sitio desde la copia del lote.
 
     Se valida todo antes de escribir: si un original cambió, falta una copia o
-    el stub ya no es el que dejó la absorción, no se restaura ninguno y `undo`
-    devuelve el conflicto. Repetir la restauración es seguro: un documento que
-    ya coincide con su copia se salta.
+    el documento ya no está como lo dejó la absorción, no se restaura ninguno y
+    `undo` devuelve el conflicto. Repetir la restauración es seguro: un
+    documento que ya coincide con su copia se salta.
     """
     manifiesto = leer_absorcion(repo, lote)
     if manifiesto is None:
@@ -258,13 +258,12 @@ def restaurar_absorcion(repo: str, lote: str) -> dict[str, Any] | None:
             actual = _sha256(fuente)
             if actual == sha_copia:
                 continue
+            # Compatibilidad con manifiestos antiguos que dejaron un stub:
+            # si el origen sigue teniendo exactamente ese stub, se restaura.
             sha_stub = archivo.get("sha256_stub")
             if not sha_stub or actual != str(sha_stub):
                 conflictos.append(f"{ruta}: el documento cambió después de absorberlo")
                 continue
-        elif archivo.get("stub"):
-            conflictos.append(f"{ruta}: falta el stub que dejó la absorción")
-            continue
         pendientes.append((fuente, crudo))
 
     if conflictos:
@@ -350,7 +349,7 @@ def deshacer_migracion(repo: str, lote: str) -> dict[str, Any]:
             # El documento vuelve antes de borrar las ideas: si el borrado
             # falla, el usuario conserva el Markdown y puede reintentar. El
             # manifiesto queda en `restaurado` para que el reintento no vuelva
-            # a chocar con el hash del stub.
+            # a chocar con el estado del origen.
             restaurar_absorcion(repo, lote)
 
             if uids:

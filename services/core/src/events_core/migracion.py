@@ -806,7 +806,7 @@ def _informe_archivo(
     filas_lote: list[dict[str, Any]],
     filas_todas: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Cobertura y plan de copia/stub de un fichero, sin tocar el disco."""
+    """Cobertura y plan de copia y retirada de un fichero, sin tocar el disco."""
     errores: list[str] = []
     avisos: list[str] = []
     relativa = Path(ruta)
@@ -834,7 +834,6 @@ def _informe_archivo(
         "rangos": [],
         "solapamientos": [],
         "copia": None,
-        "stub": None,
         "errores": errores,
         "avisos": avisos,
     }
@@ -895,13 +894,6 @@ def _informe_archivo(
         "sha256": sha_actual,
         "bytes": len(crudo),
     }
-    if _es_roadmap(ruta):
-        stub = _stub_roadmap(ruta, ideas_fichero, len(lotes), copia.as_posix())
-        informe["stub"] = {
-            "ruta": ruta,
-            "contenido": stub,
-            "bytes": len(stub.encode("utf-8")),
-        }
     return informe
 
 
@@ -978,22 +970,6 @@ def _bloques_markdown(texto: str) -> list[dict[str, Any]]:
     return bloques
 
 
-def _es_roadmap(ruta: str) -> bool:
-    return Path(ruta).name.casefold() in {"roadmap.md", "roadmap.markdown"}
-
-
-def _stub_roadmap(ruta: str, ideas: int, lotes: int, copia: str) -> str:
-    return (
-        f"# {Path(ruta).stem}\n\n"
-        "Este documento se absorbió en Events UI; el mapa es la fuente de verdad.\n\n"
-        f"- Ítems: {ideas}\n"
-        f"- Lotes: {lotes}\n"
-        f"- Copia: `{copia}`\n"
-        f"- Vista: `eui migrate export {ruta}`\n\n"
-        "Abre el mapa en Events UI o exporta el documento para leerlo en Markdown.\n"
-    )
-
-
 SECCIONES_EXPORT = (
     ("draft", "Entrada"),
     ("proposed", "Backlog"),
@@ -1013,11 +989,12 @@ def _ruta_en_repo(raiz: Path, ruta: str) -> Path:
 
 
 def confirmar_absorcion(raiz: Path, lote: str) -> dict[str, Any]:
-    """Copia los documentos, escribe sus stubs y los retira del repo.
+    """Copia los documentos y los retira del repo.
 
     La validación es la misma que la del dry-run. Primero copia y verifica
-    todos los ficheros, después escribe el manifiesto y solo entonces sustituye
-    o retira los originales. Si algo falla, deja los documentos como estaban.
+    todos los ficheros, después escribe el manifiesto y solo entonces borra los
+    originales. Si algo falla, deja los documentos como estaban. La vista
+    posterior se genera con `migrate export`; no queda un stub en la ruta.
     """
     from .ideas.migracion import escribir_absorcion, leer_absorcion
 
@@ -1049,8 +1026,6 @@ def confirmar_absorcion(raiz: Path, lote: str) -> dict[str, Any]:
             if hashlib.sha256(copia.read_bytes()).hexdigest() != sha:
                 raise InvalidInput(f"{ruta}: la copia no coincide con el original")
 
-            stub = archivo.get("stub")
-            stub_bytes = stub["contenido"].encode("utf-8") if stub else None
             originales[ruta] = crudo
             copias.append(copia)
             archivos.append(
@@ -1059,10 +1034,6 @@ def confirmar_absorcion(raiz: Path, lote: str) -> dict[str, Any]:
                     "copia": copia_rel,
                     "sha256_origen": sha,
                     "sha256_copia": sha,
-                    "sha256_stub": (
-                        hashlib.sha256(stub_bytes).hexdigest() if stub_bytes is not None else None
-                    ),
-                    "stub": stub is not None,
                 }
             )
 
@@ -1077,12 +1048,7 @@ def confirmar_absorcion(raiz: Path, lote: str) -> dict[str, Any]:
         manifiesto_ruta = raiz / ".EUI" / "migracion" / lote / "absorcion.json"
 
         for archivo in informe["archivos"]:
-            ruta = str(archivo["ruta"])
-            origen = _ruta_en_repo(raiz, ruta)
-            if archivo.get("stub"):
-                escribir_atomico(origen, archivo["stub"]["contenido"].encode("utf-8"))
-            else:
-                origen.unlink()
+            _ruta_en_repo(raiz, str(archivo["ruta"])).unlink()
 
         manifiesto["estado"] = "absorbido"
         escribir_absorcion(str(raiz), lote, manifiesto)
@@ -1116,8 +1082,7 @@ def exportar_documento(raiz: Path, ruta: str) -> str:
 
     No lee el fichero de origen: usa la procedencia (`migracion_idea`) para
     saber qué ítems salieron de él y su orden, y el estado actual de cada uno.
-    Así el stub puede apuntar a una vista siempre al día aunque el Markdown ya
-    no exista.
+    Así la vista sigue disponible aunque el Markdown ya se haya retirado.
     """
     raiz = raiz.resolve()
     _ruta_en_repo(raiz, ruta)

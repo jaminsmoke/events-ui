@@ -27,12 +27,12 @@ aplica**. Nadie escribe el almacén a mano ni llama a la API cruda.
    sustituta, no borra nada y enumera los conflictos (409). Las que el usuario
    ya borró a mano se cuentan como ausentes y el resto se deshace igual.
 7. `eui migrate absorb <lote> --dry-run` prepara la retirada del origen, pero
-   **no escribe**: comprueba la cobertura por fichero, los hashes, la copia y el
-   stub que se generarían. `--confirmar` copia el origen, escribe el stub y
-   retira el Markdown; `undo` restaura la copia si el hash sigue.
+   **no escribe**: comprueba la cobertura por fichero, los hashes y la copia que
+   se generaría. `--confirmar` copia el origen, deja el manifiesto y **elimina**
+   el Markdown; `undo` restaura la copia si el hash sigue.
 8. `eui migrate export <ruta>` reconstruye el Markdown actual desde SQLite,
-   agrupado por carril y ordenado por la procedencia. El stub apunta a esta
-   vista para que el documento siga disponible sin duplicar el contenido.
+   agrupado por carril y ordenado por la procedencia. Es la vista del documento
+   una vez retirado, sin duplicar el contenido en el repo.
 
 El plan y el apply llegan con el importador; mientras tanto, `scan` y estas
 pautas son la preparación. Guarda el plan donde diga el usuario; si no dice
@@ -135,21 +135,21 @@ varias tandas y todas cuentan. Para cada fichero:
 - marca como hueco cada bloque cuya línea no cae en ningún rango;
 - compara el `sha256` actual con el de todas las filas de procedencia: si el
   fichero cambió, no propone absorber;
-- calcula la copia en `.EUI/migracion/<lote>/<ruta>` y, si es `ROADMAP.md`, el
-  stub con contadores que ocupará su lugar.
+- calcula la copia en `.EUI/migracion/<lote>/<ruta>` y verifica que el
+  documento se puede retirar.
 
 El informe sale con `ok: false` y `retirar: []` si hay huecos, hashes viejos,
 ficheros ausentes o un documento sin bloques. `--dry-run` no crea
-`.EUI/migracion/`, no escribe el stub y no borra nada. `--confirmar` solo actúa
-si el informe está en verde: copia el origen en `.EUI/migracion/<lote>/`, deja
-un manifiesto `absorcion.json` con los hashes y escribe el stub. `undo` restaura
-la copia antes de borrar las ideas del lote, y `migrate export` genera la vista
-Markdown desde `migracion_idea` + `idea_data`.
+`.EUI/migracion/` y no borra nada. `--confirmar` solo actúa si el informe está
+en verde: copia el origen en `.EUI/migracion/<lote>/`, deja un manifiesto
+`absorcion.json` con los hashes y elimina el Markdown. `undo` restaura la copia
+antes de borrar las ideas del lote, y `migrate export` genera la vista Markdown
+desde `migracion_idea` + `idea_data`.
 
 ## Lo que no se hace
 
 - No editar, mover ni borrar el Markdown de origen durante `scan`, `check` o
-  `apply`. `absorb --dry-run` solo informa; la retirada con copia y stub exige
+  `apply`. `absorb --dry-run` solo informa; la retirada con copia exige
   `--confirmar` explícito. La migración es un alta, no una reescritura del
   repo.
 - No inventar ideas, estados, fechas, responsables ni uids.

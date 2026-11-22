@@ -5,7 +5,7 @@
 
 UI reactiva sobre un log de eventos en SQLite, para monitorizar repositorios en
 tiempo real. Las decisiones de arquitectura viven en los comentarios del código.
-Plan vivo en [`ROADMAP.md`](ROADMAP.md): qué hay hecho, qué va ahora y qué no se hace.
+Plan vivo en Events UI; la vista Markdown se genera con `eui migrate export ROADMAP.md`.
 
 **Idea central:** la app **no produce eventos**. Un proceso externo escribe el log;
 esta app lo abre en solo lectura, detecta novedades baratas con `PRAGMA data_version`

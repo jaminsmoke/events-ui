@@ -333,6 +333,21 @@ class NivelArbol(BaseModel):
     recortado: bool = False
 
 
+class Archivo(BaseModel):
+    """Un archivo de texto del repo, acotado para el visor.
+
+    `texto` viene en UTF-8 tolerante (los bytes inválidos se sustituyen) y
+    nunca supera los 512 KiB; `bytes` es el tamaño real en disco y `truncado`
+    avisa de que solo se leyó el principio. `ruta` sale canónica, relativa a
+    la raíz y con barras normales.
+    """
+
+    ruta: str
+    texto: str
+    bytes: int
+    truncado: bool = False
+
+
 class EventosCompactados(BaseModel):
     """Respuesta de `POST /eventos/compactar`: qué se recortó del log.
 

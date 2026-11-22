@@ -95,3 +95,41 @@ def niveles(carpeta: Path, rutas: list[str]) -> list[dict[str, Any]]:
         if len(pedidas) >= LIMITE_NIVELES:
             break
     return [nivel(carpeta, ruta) for ruta in pedidas]
+
+
+# El visor no carga un repo entero: 512 KiB bastan para leer y resaltar sin
+# congelar la UI, y es el mismo techo que ya usan los parches de fase.
+LIMITE_ARCHIVO = 512 * 1024
+
+
+class ArchivoBinario(Exception):
+    """El archivo no es texto legible: el router lo traduce a un 415."""
+
+
+def leer_archivo(carpeta: Path, ruta: str) -> dict[str, Any]:
+    """El texto de un archivo del repo, acotado y sin salir de la raíz.
+
+    La ruta pasa por la misma guarda que `/arbol` (`_relativa`), así que `..`
+    no lee fuera del repo. Se lee de más para saber si hay truncamiento sin
+    hacer un `stat` previo; un NUL en lo leído delata un binario y se responde
+    415 en vez de devolver texto con basura. Los bytes UTF-8 inválidos se
+    sustituyen: una nota mal codificada sigue siendo legible.
+    """
+    _, destino = _relativa(carpeta, ruta)
+    if not destino.is_file():
+        raise FileNotFoundError(f"no existe el archivo {ruta!r}")
+    try:
+        with destino.open("rb") as fichero:
+            datos = fichero.read(LIMITE_ARCHIVO + 1)
+        tamano = destino.stat().st_size
+    except OSError as exc:
+        raise FileNotFoundError(f"no se pudo leer {ruta!r}: {exc}") from exc
+    if b"\x00" in datos:
+        raise ArchivoBinario(ruta)
+    truncado = len(datos) > LIMITE_ARCHIVO
+    return {
+        "ruta": destino.relative_to(carpeta.resolve()).as_posix(),
+        "texto": datos[:LIMITE_ARCHIVO].decode("utf-8", errors="replace"),
+        "bytes": tamano,
+        "truncado": truncado,
+    }

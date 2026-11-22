@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 
 from .. import arbol, ideas
-from ..contrato import RESPUESTAS_ERROR, NivelArbol, RepoParam
+from ..contrato import RESPUESTAS_ERROR, Archivo, ErrorDetail, NivelArbol, RepoParam
 
 router = APIRouter()
 
@@ -28,3 +28,32 @@ def get_arbol(
     """
     carpeta = ideas.resolve_repo(repo)
     return arbol.niveles(carpeta, list(rutas or []))
+
+
+@router.get(
+    "/archivo",
+    response_model=Archivo,
+    tags=["arbol"],
+    responses={
+        **RESPUESTAS_ERROR,
+        415: {"model": ErrorDetail, "description": "El archivo no es texto legible"},
+    },
+)
+def get_archivo(
+    repo: RepoParam,
+    ruta: Annotated[
+        str,
+        Query(min_length=1, description="Ruta del archivo, relativa a la raíz del repo"),
+    ],
+) -> dict[str, Any]:
+    """El texto de un archivo del repo para el visor, acotado a 512 KiB.
+
+    Un binario responde 415 y no se inventa una decodificación: el visor puede
+    enseñar el aviso sin intentar pintar bytes. La ruta no sale de la raíz.
+    """
+    try:
+        return arbol.leer_archivo(ideas.resolve_repo(repo), ruta)
+    except arbol.ArchivoBinario as exc:
+        raise HTTPException(
+            status_code=415, detail=f"El archivo no es texto legible: {exc}"
+        ) from exc

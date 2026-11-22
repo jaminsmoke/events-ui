@@ -416,10 +416,55 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/archivo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Archivo
+         * @description El texto de un archivo del repo para el visor, acotado a 512 KiB.
+         *
+         *     Un binario responde 415 y no se inventa una decodificación: el visor puede
+         *     enseñar el aviso sin intentar pintar bytes. La ruta no sale de la raíz.
+         */
+        get: operations["get_archivo_archivo_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * Archivo
+         * @description Un archivo de texto del repo, acotado para el visor.
+         *
+         *     `texto` viene en UTF-8 tolerante (los bytes inválidos se sustituyen) y
+         *     nunca supera los 512 KiB; `bytes` es el tamaño real en disco y `truncado`
+         *     avisa de que solo se leyó el principio. `ruta` sale canónica, relativa a
+         *     la raíz y con barras normales.
+         */
+        Archivo: {
+            /** Ruta */
+            ruta: string;
+            /** Texto */
+            texto: string;
+            /** Bytes */
+            bytes: number;
+            /**
+             * Truncado
+             * @default false
+             */
+            truncado: boolean;
+        };
         /**
          * ArchivoFase
          * @description Un archivo que cambió durante una fase o un requisito (0028, 0029).
@@ -2118,6 +2163,67 @@ export interface operations {
             };
             /** @description No existe el repo o la idea */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_archivo_archivo_get: {
+        parameters: {
+            query: {
+                /** @description Carpeta del repo: ruta absoluta o nombre en el lab */
+                repo: string;
+                /** @description Ruta del archivo, relativa a la raíz del repo */
+                ruta: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Archivo"];
+                };
+            };
+            /** @description Petición inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description No existe el repo o la idea */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description El archivo no es texto legible */
+            415: {
                 headers: {
                     [name: string]: unknown;
                 };

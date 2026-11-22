@@ -172,11 +172,16 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           notes=$(gh release view "$TAG" --json body -q .body)
+          # GitHub cambia los espacios del nombre del activo por puntos. El
+          # manifiesto tiene que apuntar al nombre publicado, no al local, o
+          # la URL del updater da 404.
+          exe_asset=$(gh release view "$TAG" --json assets \
+            -q '.assets[] | select(.name | endswith("-setup.exe")) | .name' | head -1)
           node scripts/latest-json.mjs \
             --version "${TAG#v}" \
             --tag "$TAG" \
             --repo "$GITHUB_REPOSITORY" \
-            --artifact "$(basename "${{ steps.instaladores.outputs.exe }}")" \
+            --artifact "$exe_asset" \
             --signature "${{ steps.instaladores.outputs.exe_sig }}" \
             --notes "$notes" \
             --output latest.json

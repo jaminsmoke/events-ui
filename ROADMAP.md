@@ -423,6 +423,14 @@ con el motivo, para no reabrirlo cada semana.
   `services/core/tests/test_config.py`, `services/core/tests/test_cli.py` y
   `e2e/escenarios/config-compartida.mjs`, que abre el lab en la app y comprueba
   con `eui doctor` que la raíz llegó al fichero.
+- **Migración: `eui migrate scan`**: recorre una carpeta del repo (o un Markdown
+  suelto) sin salir de la raíz y sin escribir nada, y devuelve cada fichero con
+  bytes, `sha256`, frontmatter simple, títulos fuera de bloques de código y
+  tareas `[ ]`/`[x]`, más un resumen; orden estable, ignora `.git`, `.EUI`,
+  `node_modules`, `.venv`, `dist` y `build`, y recorta a 1 000 ficheros
+  avisando. Las pautas del agente —una idea por elemento accionable, todo a
+  `proposed`, origen con líneas y hash— viven en `docs/migracion.md`. Cubierto
+  en `services/core/tests/test_migracion.py`.
 
 ## Pendientes
 
@@ -431,10 +439,9 @@ con el motivo, para no reabrirlo cada semana.
   siguientes se abordan en este orden, uno cada vez y cerrando cada uno con sus
   tests antes de abrir el siguiente. Los agentes no tocan la API cruda: usan
   `eui` o el MCP, que son las dos caras del mismo cliente.
-  - **Paso 1 — migración con plan y lote.** Las pautas para el agente viven en
-    `docs/migracion.md` (qué se extrae, una idea por elemento, qué no se
-    inventa). `eui migrate scan <ruta>` lista los Markdown con lo que reconoce,
-    sin escribir; el agente propone un `plan.json` con esquema publicado
+  - **Paso 1 — migración con plan y lote.** `scan` y las pautas del agente ya
+    están en Hecho; queda el plan: el agente propone un `plan.json` con esquema
+    publicado
     (`eui schema migrate`), y `eui migrate check` lo valida —esquema, uids que
     existan, sin ciclos ni duplicados— y enseña el diff sin tocar nada.
     `eui migrate apply` lo aplica como lote: todo entra en `proposed`, sin

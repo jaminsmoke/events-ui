@@ -22,7 +22,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
 from urllib.request import urlopen
 
-from . import __version__
+from . import __version__, migracion
 from . import config as configuracion
 from .ideas.base.comun import InvalidInput
 from .ideas.base.rutas import resolve_repo
@@ -339,6 +339,54 @@ def _idea(args: argparse.Namespace) -> int:
     return 0
 
 
+def _migrate(args: argparse.Namespace) -> int:
+    ajustes = configuracion.leer_segura()
+    try:
+        raiz = _raiz(args, ajustes)
+    except InvalidInput as exc:
+        return _error(str(exc))
+    if raiz is None:
+        return _error(
+            "no hay raíz: elige una carpeta en la app, usa --repo o `eui config set repo`"
+        )
+
+    try:
+        informe = migracion.escanear(Path(raiz), args.ruta)
+    except InvalidInput as exc:
+        return _error(str(exc))
+    except FileNotFoundError as exc:
+        return _error(str(exc), 1)
+
+    if args.json:
+        print(json.dumps(informe))
+        return 0
+
+    print(f"repo: {informe['repo']}")
+    print(f"ruta: {informe['ruta']}")
+    if not informe["archivos"]:
+        print("(no hay Markdown)")
+        return 0
+    for ficha in informe["archivos"]:
+        if "error" in ficha:
+            print(f"{ficha['ruta']}  error: {ficha['error']}")
+            continue
+        tareas = ficha["tareas"]
+        print(
+            f"{ficha['ruta']}  {ficha['secciones']} secciones · "
+            f"{tareas['total']} tareas ({tareas['hechas']} hechas) · "
+            f"{ficha['bytes']} B"
+        )
+    resumen = informe["resumen"]
+    print()
+    print(
+        f"{resumen['archivos']} archivos · {resumen['secciones']} secciones · "
+        f"{resumen['tareas']} tareas"
+    )
+    if informe["recortado"]:
+        print(f"(recortado a {migracion.MAX_ARCHIVOS} archivos)")
+    return 0
+
+
 def _schema(args: argparse.Namespace) -> int:
     _, url = _contexto(args)
     datos, detalle, estado = _get(f"{url}/openapi.json")
@@ -402,6 +450,16 @@ def _parser() -> argparse.ArgumentParser:
     esquema.add_argument("--pretty", action="store_true", help="Indentado para leerlo")
     conexion(esquema, con_repo=False)
     esquema.set_defaults(func=_schema)
+
+    migrar = comandos.add_parser("migrate", help="Migración de Markdown (empieza por scan)")
+    acciones_migrar = migrar.add_subparsers(dest="accion", required=True)
+    escanear = acciones_migrar.add_parser(
+        "scan", help="Lista los Markdown y lo que reconoce; no escribe"
+    )
+    escanear.add_argument("ruta", nargs="?", help="Carpeta o archivo; por defecto, la raíz")
+    escanear.add_argument("--json", action="store_true")
+    conexion(escanear)
+    escanear.set_defaults(func=_migrate)
 
     return parser
 

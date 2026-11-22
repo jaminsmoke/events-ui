@@ -107,6 +107,7 @@ uv run --directory services/core python -m events_core.cli idea list --status pr
 uv run --directory services/core python -m events_core.cli schema --pretty
 uv run --directory services/core python -m events_core.cli schema migrate --pretty
 uv run --directory services/core python -m events_core.cli migrate scan docs --json
+uv run --directory services/core python -m events_core.cli migrate classify docs --json
 uv run --directory services/core python -m events_core.cli migrate check migracion/plan.json
 uv run --directory services/core python -m events_core.cli migrate apply migracion/plan.json
 uv run --directory services/core python -m events_core.cli migrate undo <lote>
@@ -124,16 +125,16 @@ contrato que la UI, y `schema` vuelca el OpenAPI del core. Todos aceptan `--repo
 
 La migración de Markdown empieza por `migrate scan`, que solo lee: recorre una
 carpeta del repo y devuelve cada `.md` con su `sha256`, frontmatter, títulos y
-tareas. Las pautas para el agente que propone el plan están en
-[`docs/migracion.md`](docs/migracion.md), y el esquema que debe cumplir ese plan
-sale de `eui schema migrate` y `migrate check` lo valida contra él sin escribir
-nada (refs, ciclos, origen y hash incluidos). `migrate apply` lo envía al core,
-que lo escribe entero en una transacción (`POST /migracion/aplicar`); repetir
-el mismo plan devuelve el mismo lote sin duplicar nada. El plan v2
-(`version: 2`) admite `proposed`, `draft`, `historial` y `rejected`, con
-`fecha` opcional para archivar y `motivo` obligatorio al descartar. `migrate undo <lote>`
-lo deshace (`DELETE /migracion/lotes/{lote}`) solo si nadie movió, editó o
-reemplazó sus ideas después.
+tareas. `migrate classify` (alias `plan`) propone el manifiesto `documentos`
+(allowlist `mapa`/`parcial` vs `referencia`). Las pautas para el agente están
+en [`docs/migracion.md`](docs/migracion.md), y el esquema sale de
+`eui schema migrate`; `migrate check` lo valida sin escribir (refs, ciclos,
+origen, hash y clasificación). `migrate apply` lo envía al core en una
+transacción (`POST /migracion/aplicar`); repetir el mismo plan no duplica.
+El plan v2 admite `proposed`/`draft`/`historial`/`rejected`; el v3 añade
+`documentos`. `migrate undo <lote>` lo deshace
+(`DELETE /migracion/lotes/{lote}`) solo si nadie movió, editó o reemplazó sus
+ideas después.
 
 El CRUD del CLI no adivina campos: `create` manda título, descripción,
 contenido, tipo, estado, etiquetas y dependencias; `edit` cambia solo lo que se
@@ -168,11 +169,11 @@ solo se anuncian con `--permitir-escritura` o `EVENTSUI_MCP_ESCRITURA=1`.
 ```
 
 Herramientas de lectura: `doctor`, `repo_actual`, `repo_list`, `idea_list`,
-`idea_get`, `migrate_scan` y `migrate_check`. Con escritura se suman
-`idea_create`, `idea_edit`, `idea_move`, `idea_fases`, `idea_requisito`,
-`migrate_apply` y `migrate_undo`. El esquema del plan se lee en el recurso
-`eui://schema/plan-migracion`. stdout es solo protocolo; los errores del CLI
-vuelven como `isError: true` y los logs van a stderr.
+`idea_get`, `migrate_scan`, `migrate_classify` y `migrate_check`. Con escritura
+se suman `idea_create`, `idea_edit`, `idea_move`, `idea_fases`,
+`idea_requisito`, `migrate_apply` y `migrate_undo`. El esquema del plan se lee
+en el recurso `eui://schema/plan-migracion`. stdout es solo protocolo; los
+errores del CLI vuelven como `isError: true` y los logs van a stderr.
 
 El registro operativo de la app (arranques, errores y operaciones) vive en su
 propio SQLite, `data/registro.sqlite` en la raíz del repo (`EVENTSUI_REGISTRO_DB` para cambiarlo);

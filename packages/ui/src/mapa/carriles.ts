@@ -17,7 +17,7 @@ export const LANES = [
   { id: "roadmap", title: "Roadmap" },
   { id: "verificacion", title: "Verificación" },
   { id: "revision_aprobada", title: "Revisión" },
-  { id: "historial", title: "Hecho" },
+  { id: "historial", title: "Changelog" },
   { id: "descartadas", title: "Descartadas" },
 ] as const;
 
@@ -34,7 +34,7 @@ export const ETIQUETA_ESTADO: Record<string, string> = {
   roadmap: "Roadmap",
   verificacion: "Verificación",
   revision_aprobada: "Revisión",
-  historial: "Hecho",
+  historial: "Changelog",
   rejected: "Descartado",
   superseded: "Reemplazado",
 };

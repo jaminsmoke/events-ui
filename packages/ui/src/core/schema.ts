@@ -1179,6 +1179,28 @@ export interface components {
             tipo: "carpeta" | "archivo";
         };
         /**
+         * PlanDocumento
+         * @description Clasificación de un Markdown del plan: allowlist o referencia.
+         */
+        PlanDocumento: {
+            /** Ruta */
+            ruta: string;
+            /**
+             * Clase
+             * @enum {string}
+             */
+            clase: "mapa" | "referencia" | "parcial";
+            /** Motivo */
+            motivo: string;
+            /**
+             * Destino
+             * @enum {string}
+             */
+            destino: "mapa" | "referencia";
+            /** Rangos */
+            rangos?: components["schemas"]["PlanRango"][] | null;
+        };
+        /**
          * PlanFase
          * @description Una fase del plan: entra pendiente y con al menos un requisito.
          */
@@ -1246,17 +1268,20 @@ export interface components {
          * PlanMigracion
          * @description El plan completo que se aplica como un lote.
          *
-         *     La versión 2 añade destinos, fechas y motivo; la 1 se conserva para los
-         *     planes que solo crean ideas en `proposed`.
+         *     La versión 2 añade destinos, fechas y motivo; la 3 el manifiesto
+         *     `documentos` (allowlist del mapa). La 1 se conserva para los planes que
+         *     solo crean ideas en `proposed`.
          */
         PlanMigracion: {
             /**
              * Version
              * @enum {integer}
              */
-            version: 1 | 2;
+            version: 1 | 2 | 3;
             /** Ideas */
             ideas: components["schemas"]["PlanIdea"][];
+            /** Documentos */
+            documentos?: components["schemas"]["PlanDocumento"][] | null;
         };
         /**
          * PlanOrigen
@@ -1271,6 +1296,16 @@ export interface components {
             hasta_linea: number;
             /** Sha256 */
             sha256: string;
+        };
+        /**
+         * PlanRango
+         * @description Un tramo 1-based de un documento parcial.
+         */
+        PlanRango: {
+            /** Desde */
+            desde: number;
+            /** Hasta */
+            hasta: number;
         };
         /**
          * PlanRequisito

@@ -19,6 +19,7 @@ import {
   NodoCambios,
   NodoCommits,
   NodoGit,
+  NodoPuenteDocumentos,
   NodoPuenteGit,
   VueloCambio,
   VueloFila,
@@ -32,12 +33,11 @@ import { useProtocolos } from "./core/useProtocolos";
 import {
   BarraActividad,
   BarraDerecha,
-  PaneDocumentos,
   PaneExplorador,
   PaneGit,
   PaneMapas,
 } from "./pantalla/Actividad";
-import type { VistaDerecha, VistaPane } from "./pantalla/Actividad";
+import type { MapaLienzo, VistaDerecha, VistaPane } from "./pantalla/Actividad";
 import { Ajustes as DialogoAjustes } from "./pantalla/Ajustes";
 import { AvisoError } from "./pantalla/AvisoError";
 import { BannerActualizacion } from "./pantalla/BannerActualizacion";
@@ -93,9 +93,9 @@ export default function App({
   const [ajustesAbiertos, setAjustesAbiertos] = useState(false);
   const [pruebaEnCurso, setPruebaEnCurso] = useState(false);
   const [pruebasAbiertas, setPruebasAbiertas] = useState(false);
-  // Dos mapas enlazados: el de Ideas y el de Git. El puente de Ideas solo
-  // abre el de Git cuando hay work tree; la vista se anima al cambiar.
-  const [mapa, setMapa] = useState<"ideas" | "git">("ideas");
+  // Tres mapas enlazados: trabajo, Git y Documentos (Changelog). El puente
+  // de Git solo abre con work tree; el de Documentos siempre.
+  const [mapa, setMapa] = useState<MapaLienzo>("ideas");
   // Crear o eliminar el repo local: no se hace al pulsar, hay confirmación.
   const [dialogoGit, setDialogoGit] = useState<null | "crear" | "eliminar">(null);
   const [avisoRecuperacion, setAvisoRecuperacion] = useState<string | null>(null);
@@ -179,17 +179,6 @@ export default function App({
     (ruta: string) => {
       setArchivoAbierto(ruta);
       setVistaDerecha("archivo");
-      if (ventanaEstrecha) setPane(null);
-    },
-    [ventanaEstrecha],
-  );
-
-  // Abrir un documento absorbido estrena su visor en el panel derecho. El
-  // Markdown se pide al core: no hay fichero que leer en el repo.
-  const abrirDocumento = useCallback(
-    (ruta: string) => {
-      setDocumentoAbierto(ruta);
-      setVistaDerecha("documento");
       if (ventanaEstrecha) setPane(null);
     },
     [ventanaEstrecha],
@@ -431,10 +420,31 @@ export default function App({
     if (gitActivo) setMapa("git");
   }, [gitActivo]);
   const irIdeas = useCallback(() => setMapa("ideas"), []);
+  const irDocumentos = useCallback(() => setMapa("documentos"), []);
+  const irMapa = useCallback(
+    (m: MapaLienzo) => {
+      switch (m) {
+        case "git":
+          irGit();
+          return;
+        case "documentos":
+          irDocumentos();
+          return;
+        case "ideas":
+          irIdeas();
+          return;
+        default: {
+          const _agotado: never = m;
+          void _agotado;
+        }
+      }
+    },
+    [irGit, irDocumentos, irIdeas],
+  );
 
   // Paradas del teclado, en el orden en que se lee el lienzo: la Entrada, los
-  // carriles, las ideas, los nudos, los cables y el puente. En el Mapa de Git,
-  // el nodo de Git, el historial, sus commits y los cambios sin commit.
+  // carriles, las ideas, los nudos, los cables y los puentes. En el Mapa de
+  // Git: nodo, historial, commits y cambios. En Documentos: el Changelog.
   const paradas = useMemo<Seleccion[]>(() => {
     if (mapa === "git") {
       const cambios = proyeccion?.git_cambios ?? [];
@@ -446,13 +456,27 @@ export default function App({
         ...cambios.map((cambio) => ({ tipo: "cambio" as const, ruta: cambio.ruta })),
       ];
     }
+    if (mapa === "documentos") {
+      return [
+        { tipo: "carril", clave: "lane-historial" },
+        ...(ideas ?? [])
+          .filter((idea) => idea.status === "historial")
+          .map((idea) => ({ tipo: "idea" as const, uid: idea.uid })),
+      ];
+    }
     return [
       { tipo: "cajon" },
-      ...LANES.map((lane) => ({ tipo: "carril" as const, clave: `lane-${lane.id}` })),
-      ...(ideas ?? []).map((idea) => ({ tipo: "idea" as const, uid: idea.uid })),
+      ...LANES.filter((lane) => lane.id !== "historial").map((lane) => ({
+        tipo: "carril" as const,
+        clave: `lane-${lane.id}`,
+      })),
+      ...(ideas ?? [])
+        .filter((idea) => idea.status !== "historial")
+        .map((idea) => ({ tipo: "idea" as const, uid: idea.uid })),
       ...nudos.map((nudo) => ({ tipo: "nudo" as const, id: nudo.id })),
       ...cables.map((cable) => ({ tipo: "cable" as const, id: cable.id })),
       { tipo: "puente" },
+      { tipo: "puente_documentos" },
     ];
   }, [mapa, proyeccion, commits, ideas, nudos, cables]);
 
@@ -498,13 +522,22 @@ export default function App({
       if (e.key === "Enter" && seleccion) {
         if (destino?.closest("button, a[href]")) return;
         e.preventDefault();
+        // Los puentes abren su mapa, no el inspector.
+        if (seleccion.tipo === "puente" && gitActivo) {
+          irGit();
+          return;
+        }
+        if (seleccion.tipo === "puente_documentos") {
+          irDocumentos();
+          return;
+        }
         setVistaDerecha("inspector");
         if (ventanaEstrecha) setPane(null);
       }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [paradas, seleccion, ventanaEstrecha]);
+  }, [paradas, seleccion, ventanaEstrecha, gitActivo, irGit, irDocumentos]);
 
   // Mover entre carriles es cambiar el `status` (PATCH tipado). El sondeo
   // de `/revision` relee el mapa y el vuelo existente anima la fila.
@@ -530,9 +563,9 @@ export default function App({
   // `null` = todavía sin respuesta; `[]` = el repo está sembrado pero vacío.
   const busy = repo !== null && ideas === null && error === null;
 
-  /* Cada carril es un nodo de la línea. El del Historial se pinta aparte,
-   *  dentro de la estación de Git, pero se sigue guardando en su índice de
-   *  `LANES` para que los cables lo midan como un carril más. */
+  /* Cada carril es un nodo de la línea. Changelog vive en el mapa Documentos;
+   *  en el de trabajo su índice de `LANES` lo ocupa el puente Documentos, para
+   *  que el cable de archivo lo mida igual. */
   const nodoDeCarril = (lane: TreeNode, i: number) => (
     <NodeBox
       key={lane.key}
@@ -686,7 +719,7 @@ export default function App({
           <PaneMapas
             mapa={mapa}
             gitActivo={gitActivo}
-            onMapa={(m) => (m === "git" ? irGit() : irIdeas())}
+            onMapa={irMapa}
             onCerrar={() => setPane(null)}
           />
         )}
@@ -703,13 +736,6 @@ export default function App({
             commits={commits}
             onIniciar={() => setDialogoGit("crear")}
             onCommit={commit}
-            onCerrar={() => setPane(null)}
-          />
-        )}
-        {repo && pane === "documentos" && (
-          <PaneDocumentos
-            repo={repo}
-            onAbrirDocumento={abrirDocumento}
             onCerrar={() => setPane(null)}
           />
         )}
@@ -918,7 +944,7 @@ export default function App({
                   })}
                 </svg>
                 )}
-                {mapa === "ideas" ? (
+                {mapa === "ideas" && (
                 <div className="linea">
                   <NodeBox
                     node={tree.cajon}
@@ -959,11 +985,22 @@ export default function App({
                       onEliminar={() => setDialogoGit("eliminar")}
                     />
                     {tree.carriles.map((lane, i) =>
-                      lane.tone === "historial" ? nodoDeCarril(lane, i) : null,
+                      lane.tone === "historial" ? (
+                        <NodoPuenteDocumentos
+                          key="puente-documentos"
+                          seleccion={seleccion}
+                          onSeleccionar={seleccionar}
+                          boxRef={(el) => {
+                            carrilRefs.current[i] = el;
+                          }}
+                          onAbrir={irDocumentos}
+                        />
+                      ) : null,
                     )}
                   </div>
                 </div>
-                ) : (
+                )}
+                {mapa === "git" && (
                 <div className="linea linea-git">
                   <div className="git-cabecera">
                     <div>
@@ -995,6 +1032,19 @@ export default function App({
                     onSeleccionar={seleccionar}
                     boxRef={commitsRef}
                   />
+                </div>
+                )}
+                {mapa === "documentos" && (
+                <div className="linea linea-documentos">
+                  <div className="git-cabecera">
+                    <div>
+                      <p className="git-kicker">Archivo</p>
+                      <p className="git-titulo">Mapa de Documentos</p>
+                    </div>
+                  </div>
+                  {tree.carriles.map((lane, i) =>
+                    lane.tone === "historial" ? nodoDeCarril(lane, i) : null,
+                  )}
                 </div>
                 )}
               </div>

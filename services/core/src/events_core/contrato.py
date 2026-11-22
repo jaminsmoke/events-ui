@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Annotated, Literal
 
 from fastapi import Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 # Se repiten los CHECK de `schema/ideas.sql` a propÃ³sito: aquÃ­ sirven para que el
 # contrato OpenAPI publique los enums y la UI no tenga que adivinarlos.
@@ -433,15 +433,43 @@ class PlanIdea(BaseModel):
     origen: PlanOrigen
 
 
+class PlanRango(BaseModel):
+    """Un tramo 1-based de un documento parcial."""
+
+    desde: int = Field(ge=1)
+    hasta: int = Field(ge=1)
+
+
+class PlanDocumento(BaseModel):
+    """Clasificación de un Markdown del plan: allowlist o referencia."""
+
+    ruta: str = Field(min_length=1, pattern=r"^[^\\]+$")
+    clase: Literal["mapa", "referencia", "parcial"]
+    motivo: str = Field(min_length=1)
+    destino: Literal["mapa", "referencia"]
+    rangos: list[PlanRango] | None = None
+
+
 class PlanMigracion(BaseModel):
     """El plan completo que se aplica como un lote.
 
-    La versión 2 añade destinos, fechas y motivo; la 1 se conserva para los
-    planes que solo crean ideas en `proposed`.
+    La versión 2 añade destinos, fechas y motivo; la 3 el manifiesto
+    `documentos` (allowlist del mapa). La 1 se conserva para los planes que
+    solo crean ideas en `proposed`.
     """
 
-    version: Literal[1, 2]
+    version: Literal[1, 2, 3]
     ideas: list[PlanIdea] = Field(min_length=1)
+    documentos: list[PlanDocumento] | None = None
+
+    @model_validator(mode="after")
+    def _documentos_segun_version(self) -> PlanMigracion:
+        if self.version == 3:
+            if not self.documentos:
+                raise ValueError("la versión 3 exige el manifiesto documentos")
+        elif self.documentos is not None:
+            raise ValueError("documentos solo vale con version 3")
+        return self
 
 
 class MigracionCreada(BaseModel):

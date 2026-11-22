@@ -15,7 +15,7 @@ export type Acciones = {
   /** Archivos sin commit ahora mismo, para avisar antes de commitear. */
   cambios: number;
   /** Cambiar de mapa: la prueba se ve donde ocurre, no donde se lanzó. */
-  abrirMapa: (mapa: "ideas" | "git") => void;
+  abrirMapa: (mapa: "ideas" | "git" | "documentos") => void;
 };
 
 export type Paso = { texto: string; ejecutar: () => Promise<void> };
@@ -284,7 +284,7 @@ export const PRUEBAS: Prueba[] = [
       sembrar(
         "historial-1",
         {
-          title: "Hecho · cerrada",
+          title: "Changelog · cerrada",
           description: "Un ítem terminado que conserva su fase y su requisito.",
           content: "",
           kind: "idea",
@@ -300,8 +300,8 @@ export const PRUEBAS: Prueba[] = [
       sembrar(
         "historial-2",
         {
-          title: "Hecho · con dos fases",
-          description: "El historial también conserva varias fases completadas.",
+          title: "Changelog · con dos fases",
+          description: "El Changelog también conserva varias fases completadas.",
           content: "",
           kind: "idea",
           status: "historial",
@@ -319,7 +319,7 @@ export const PRUEBAS: Prueba[] = [
       sembrar(
         "historial-3",
         {
-          title: "Hecho · otra cerrada",
+          title: "Changelog · otra cerrada",
           description: "Una tercera ficha para ver el carril con varios ítems.",
           content: "",
           kind: "idea",

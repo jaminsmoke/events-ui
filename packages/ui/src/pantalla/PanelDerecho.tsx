@@ -449,7 +449,7 @@ function CuerpoCarril({
 
       {estados.includes("revision_aprobada") && (
         <p className="hint">
-          Archivar a Hecho no cruza protocolo: lo habilita tener work tree.
+          Archivar a Changelog no cruza protocolo: lo habilita tener work tree.
         </p>
       )}
     </div>
@@ -502,6 +502,19 @@ function CuerpoInspector({
 
   if (seleccion && (seleccion.tipo === "git" || seleccion.tipo === "puente")) {
     return <CuerpoNodoGit tipo={seleccion.tipo} proyeccion={proyeccion} />;
+  }
+
+  if (seleccion && seleccion.tipo === "puente_documentos") {
+    return (
+      <div className="panel-cuerpo inspector-cuerpo">
+        <p className="inspector-asunto">Mapa de Documentos</p>
+        <p className="inspector-meta">puente al Changelog</p>
+        <p className="hint">
+          El cable de archivo llega aquí. Abrir el mapa muestra el Changelog:
+          las ideas archivadas con el mismo aspecto de siempre.
+        </p>
+      </div>
+    );
   }
 
   if (seleccion && seleccion.tipo === "nudo") {

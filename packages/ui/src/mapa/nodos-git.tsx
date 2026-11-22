@@ -228,6 +228,51 @@ export function NodoGit({
   );
 }
 
+/** El puente al Mapa de Documentos: cierra el archivo del flujo. El cable de
+ *  aprobación sigue midiendo este nodo; al abrirlo se ve el Changelog. */
+export function NodoPuenteDocumentos({
+  seleccion,
+  onSeleccionar,
+  boxRef,
+  onAbrir,
+}: {
+  seleccion?: Seleccion | null;
+  onSeleccionar?: (seleccion: Seleccion) => void;
+  boxRef?: Ref<HTMLElement>;
+  onAbrir: () => void;
+}) {
+  return (
+    <section
+      ref={boxRef}
+      className={`node nodo-git nodo-puente activo${
+        mismoElemento(seleccion, { tipo: "puente_documentos" }) ? " seleccionado" : ""
+      }`}
+      aria-label="Mapa de Documentos"
+      onClick={(e) => {
+        if ((e.target as Element).closest("button")) return;
+        onSeleccionar?.({ tipo: "puente_documentos" });
+      }}
+      onDoubleClick={(e) => {
+        if ((e.target as Element).closest("button")) return;
+        e.stopPropagation();
+        onAbrir();
+      }}
+    >
+      <div className="node-head">
+        <span className="git-punto on" aria-hidden="true" />
+        <span className="node-title">Documentos</span>
+        <span className="git-estado on">Changelog</span>
+      </div>
+      <div className="git-detalle">
+        <span className="git-ayuda">Ideas archivadas</span>
+      </div>
+      <button type="button" className="btn puente-abrir" onClick={onAbrir}>
+        Abrir mapa de Documentos <span aria-hidden="true">→</span>
+      </button>
+    </section>
+  );
+}
+
 /** El puente al Mapa de Git: cierra el flujo de Ideas y solo se activa con
  *  work tree. No guarda ideas; abre la vista de Control de versiones. Sin
  *  repo ofrece crearlo y con repo, eliminarlo (con confirmación). */
@@ -265,6 +310,11 @@ export function NodoPuenteGit({
         // Abrir y Eliminar son botones: pulsarlos no cambia la selección.
         if ((e.target as Element).closest("button")) return;
         onSeleccionar?.({ tipo: "puente" });
+      }}
+      onDoubleClick={(e) => {
+        if ((e.target as Element).closest("button")) return;
+        e.stopPropagation();
+        if (activo) onAbrir();
       }}
     >
       <div className="node-head">

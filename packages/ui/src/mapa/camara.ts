@@ -287,8 +287,14 @@ export function useCamara({
       setArrastrando(false);
     },
     // Mismo corte que en el arrastre: el portal no debe reencuadrar el mapa.
+    // Sobre un nodo (p. ej. el puente Git) el doble clic es del nodo, no un
+    // reset de cámara: si no, «abrir mapa de Git» parece que no hace nada.
     onDoubleClick: (e: ReactMouseEvent<HTMLElement>) => {
-      if (e.currentTarget.contains(e.target as Node)) reset();
+      if (!e.currentTarget.contains(e.target as Node)) return;
+      if ((e.target as HTMLElement).closest(".node, .vista, .aviso-recorte, .mapas-nav")) {
+        return;
+      }
+      reset();
     },
   };
 

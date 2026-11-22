@@ -35,7 +35,7 @@ URI_ESQUEMA = "eui://schema/plan-migracion"
 
 INSTRUCCIONES = (
     "Cliente de Events UI. Lee con doctor, repo_actual, repo_list, idea_list, "
-    "idea_get, migrate_scan y migrate_check. Las herramientas que escriben solo "
+    "idea_get, migrate_scan, migrate_classify y migrate_check. Las herramientas que escriben solo "
     "aparecen si el servidor arrancó con --permitir-escritura o "
     "EVENTSUI_MCP_ESCRITURA=1."
 )
@@ -108,8 +108,18 @@ _LECTURA: tuple[dict[str, Any], ...] = (
         "inputSchema": _esquema({**_COMUNES, "ruta": {"type": "string"}}),
     },
     {
+        "name": "migrate_classify",
+        "description": (
+            "Propone el manifiesto documentos (mapa/referencia/parcial) a partir del scan."
+        ),
+        "inputSchema": _esquema({**_COMUNES, "ruta": {"type": "string"}}),
+    },
+    {
         "name": "migrate_check",
-        "description": "Valida un plan.json sin escribir: esquema, refs, ciclos, origen y hash.",
+        "description": (
+            "Valida un plan.json sin escribir: esquema, refs, ciclos, origen, "
+            "hash y clasificación de documentos."
+        ),
         "inputSchema": _esquema({**_COMUNES, "plan": {"type": "string"}}, ["plan"]),
     },
 )
@@ -350,6 +360,10 @@ def _orden(nombre: str, a: dict[str, Any]) -> tuple[list[str], str | None]:
         ]
     elif nombre == "migrate_scan":
         argv = ["migrate", "scan"]
+        if a.get("ruta"):
+            argv.append(str(a["ruta"]))
+    elif nombre == "migrate_classify":
+        argv = ["migrate", "classify"]
         if a.get("ruta"):
             argv.append(str(a["ruta"]))
     elif nombre == "migrate_check":

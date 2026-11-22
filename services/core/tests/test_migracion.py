@@ -128,9 +128,11 @@ def test_esquema_del_plan_cierra_lo_que_no_se_negocia() -> None:
     esquema = migracion.ESQUEMA_PLAN
     idea = esquema["$defs"]["idea"]
     origen = esquema["$defs"]["origen"]
+    documento = esquema["$defs"]["documento"]
 
     assert esquema["$id"] == "urn:events-ui:plan-migracion:1"
     assert set(esquema["required"]) == {"version", "ideas"}
+    assert esquema["properties"]["version"]["enum"] == [1, 2, 3]
     assert idea["required"] == ["ref", "title", "origen"]
     assert set(idea["properties"]["status"]["enum"]) == {
         "proposed",
@@ -143,6 +145,12 @@ def test_esquema_del_plan_cierra_lo_que_no_se_negocia() -> None:
     assert origen["properties"]["sha256"]["pattern"] == "^[0-9a-f]{64}$"
     assert esquema["$defs"]["fase"]["properties"]["estado"]["enum"] == ["pendiente"]
     assert esquema["$defs"]["requisito"]["properties"]["hecho"]["const"] is False
+    assert documento["required"] == ["ruta", "clase", "motivo", "destino"]
+    assert set(documento["properties"]["clase"]["enum"]) == {
+        "mapa",
+        "referencia",
+        "parcial",
+    }
 
 
 def test_cli_schema_migrate_pretty(capsys) -> None:
@@ -516,3 +524,112 @@ def test_cli_migrate_apply_repetido_lo_dice(tmp_path, capsys, monkeypatch) -> No
 
     assert cli.main(["migrate", "apply", str(destino)]) == 0
     assert "ya se aplicó" in capsys.readouterr().out
+
+
+def _plan_v3(tmp_path, **cambios):
+    """Plan v3 con manifiesto mapa que cubre el único bloque del fixture."""
+    plan = _plan_valido(tmp_path, **cambios)
+    plan["version"] = 3
+    plan["documentos"] = [
+        {
+            "ruta": "docs/backlog.md",
+            "clase": "mapa",
+            "motivo": "backlog del fixture",
+            "destino": "mapa",
+        }
+    ]
+    return plan
+
+
+def test_classify_propone_mapa_y_referencia(tmp_path) -> None:
+    (tmp_path / "ROADMAP.md").write_text("- [ ] una\n", encoding="utf-8")
+    (tmp_path / "README.md").write_text("# Hola\n\nTexto.\n", encoding="utf-8")
+    (tmp_path / "notas.md").write_text("- [ ] tarea\n", encoding="utf-8")
+
+    informe = migracion.clasificar(tmp_path)
+
+    por_ruta = {doc["ruta"]: doc for doc in informe["documentos"]}
+    assert por_ruta["ROADMAP.md"]["clase"] == "mapa"
+    assert por_ruta["ROADMAP.md"]["destino"] == "mapa"
+    assert por_ruta["README.md"]["clase"] == "referencia"
+    assert por_ruta["notas.md"]["clase"] == "mapa"
+    assert set(informe["resumen"]) == {"documentos", "mapa", "referencia"}
+
+
+def test_cli_migrate_classify_y_alias_plan(tmp_path, capsys) -> None:
+    (tmp_path / "backlog.md").write_text("- [ ] x\n", encoding="utf-8")
+    config.guardar(repo=str(tmp_path))
+
+    assert cli.main(["migrate", "classify", "--json"]) == 0
+    informe = json.loads(capsys.readouterr().out)
+    assert informe["documentos"][0]["ruta"] == "backlog.md"
+
+    assert cli.main(["migrate", "plan", "--json"]) == 0
+    alias = json.loads(capsys.readouterr().out)
+    assert alias["documentos"] == informe["documentos"]
+
+
+def test_plan_v3_ok_con_documentos(tmp_path) -> None:
+    informe = migracion.revisar(tmp_path, _plan_v3(tmp_path))
+
+    assert informe["ok"] is True
+    assert informe["documentos"] == [
+        {"ruta": "docs/backlog.md", "clase": "mapa", "destino": "mapa"}
+    ]
+
+
+def test_plan_v3_exige_documentos(tmp_path) -> None:
+    plan = _plan_valido(tmp_path)
+    plan["version"] = 3
+
+    errores = migracion.revisar(tmp_path, plan)["errores"]
+
+    assert any("documentos" in error and "versión 3" in error for error in errores)
+
+
+def test_plan_v2_no_admite_documentos(tmp_path) -> None:
+    plan = _plan_v3(tmp_path)
+    plan["version"] = 2
+
+    errores = migracion.revisar(tmp_path, plan)["errores"]
+
+    assert any("documentos" in error and "version 3" in error for error in errores)
+
+
+def test_check_rechaza_idea_en_referencia(tmp_path) -> None:
+    plan = _plan_v3(tmp_path)
+    plan["documentos"][0]["clase"] = "referencia"
+    plan["documentos"][0]["destino"] = "referencia"
+
+    errores = migracion.revisar(tmp_path, plan)["errores"]
+
+    assert any("referencia" in error and "mapa" in error for error in errores)
+
+
+def test_check_exige_bloques_clasificados(tmp_path) -> None:
+    plan = _plan_v3(tmp_path)
+    archivo = tmp_path / "docs" / "backlog.md"
+    archivo.write_text(
+        "# Backlog\n\n## Idea uno\n\n- [ ] hacer algo\n\n- [ ] otra sin idea\n",
+        encoding="utf-8",
+    )
+    plan["ideas"][0]["origen"]["sha256"] = hashlib.sha256(archivo.read_bytes()).hexdigest()
+
+    errores = migracion.revisar(tmp_path, plan)["errores"]
+
+    assert any("bloques sin clasificar" in error for error in errores)
+
+
+def test_parcial_exige_rangos_y_cubre_ideas(tmp_path) -> None:
+    plan = _plan_v3(tmp_path)
+    plan["documentos"][0]["clase"] = "parcial"
+    plan["documentos"][0]["destino"] = "mapa"
+
+    assert any("rangos" in error for error in migracion.revisar(tmp_path, plan)["errores"])
+
+    plan["documentos"][0]["rangos"] = [{"desde": 1, "hasta": 2}]
+    errores = migracion.revisar(tmp_path, plan)["errores"]
+    assert any("fuera de los rangos parciales" in error for error in errores)
+
+    plan["documentos"][0]["rangos"] = [{"desde": 1, "hasta": 5}]
+    assert migracion.revisar(tmp_path, plan)["ok"] is True

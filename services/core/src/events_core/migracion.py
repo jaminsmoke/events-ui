@@ -44,6 +44,29 @@ class PlanInvalido(ValueError):
     """El plan no se puede leer o no es un objeto JSON."""
 
 
+# Nombres (stem) que `classify` trata como fuente del mapa por defecto.
+_NOMBRES_MAPA = {
+    "roadmap",
+    "backlog",
+    "todo",
+    "todos",
+    "ideas",
+    "cola",
+    "changelog",
+    "pendientes",
+}
+# Nombres que `classify` deja como referencia (no alimentan el mapa).
+_NOMBRES_REFERENCIA = {
+    "readme",
+    "license",
+    "licence",
+    "copying",
+    "contributing",
+    "code_of_conduct",
+    "security",
+    "authors",
+}
+
 # El contrato del plan que propone el agente. Se publica con
 # `eui schema migrate` y es lo primero que mira `check`: cierra lo que no se
 # negocia (todo a `proposed`, fases pendientes, origen obligatorio) para que el
@@ -54,9 +77,10 @@ ESQUEMA_PLAN: dict[str, Any] = {
     "title": "Plan de migración de Markdown",
     "description": (
         "Lo que propone el agente antes de tocar el almacén. Cada idea cita el "
-        "Markdown del que sale (ruta, líneas y sha256) y todas entran en "
-        "`proposed`; `check` añade lo que el esquema no puede comprobar (refs "
-        "repetidos, dependencias, hash del fichero) y `apply` lo aplica como un "
+        "Markdown del que sale (ruta, líneas y sha256). La v3 añade el "
+        "manifiesto `documentos` (mapa / referencia / parcial). `check` añade "
+        "lo que el esquema no puede comprobar (refs, dependencias, hash, "
+        "clasificación y cobertura de bloques) y `apply` lo aplica como un "
         "lote reversible."
     ),
     "type": "object",
@@ -64,13 +88,25 @@ ESQUEMA_PLAN: dict[str, Any] = {
     "required": ["version", "ideas"],
     "properties": {
         "version": {
-            "enum": [1, 2],
-            "description": "1: solo proposed; 2: destinos, fechas y motivo.",
+            "enum": [1, 2, 3],
+            "description": (
+                "1: solo proposed; 2: destinos, fechas y motivo; "
+                "3: manifiesto de documentos (allowlist del mapa)."
+            ),
         },
         "ideas": {
             "type": "array",
             "minItems": 1,
             "items": {"$ref": "#/$defs/idea"},
+        },
+        "documentos": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"$ref": "#/$defs/documento"},
+            "description": (
+                "Obligatorio en version 3. Clasificación de cada Markdown del "
+                "plan: allowlist (`mapa`/`parcial`) o `referencia`."
+            ),
         },
     },
     "$defs": {
@@ -78,6 +114,61 @@ ESQUEMA_PLAN: dict[str, Any] = {
             "type": "string",
             "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
             "description": "Identificador local del plan; no es un uid del almacén.",
+        },
+        "documento": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["ruta", "clase", "motivo", "destino"],
+            "properties": {
+                "ruta": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[^\\\\]+$",
+                    "description": "Ruta relativa al repo, con `/` y sin `..`.",
+                },
+                "clase": {
+                    "enum": ["mapa", "referencia", "parcial"],
+                    "description": (
+                        "`mapa` alimenta el mapa entero; `referencia` no crea "
+                        "ideas; `parcial` solo los rangos declarados."
+                    ),
+                },
+                "motivo": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Por qué esta clasificación.",
+                },
+                "destino": {
+                    "enum": ["mapa", "referencia"],
+                    "description": (
+                        "Dónde va el contenido: `mapa` (allowlist) o "
+                        "`referencia`. Debe cuadrar con `clase`."
+                    ),
+                },
+                "rangos": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {"$ref": "#/$defs/rango"},
+                    "description": "Obligatorio con clase `parcial`; 1-based inclusive.",
+                },
+            },
+        },
+        "rango": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["desde", "hasta"],
+            "properties": {
+                "desde": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Primera línea del rango (1-based).",
+                },
+                "hasta": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Última línea del rango (1-based, incluida).",
+                },
+            },
         },
         "idea": {
             "type": "object",
@@ -242,6 +333,72 @@ def escanear(raiz: Path, ruta: str | None = None) -> dict[str, Any]:
     }
 
 
+def clasificar(raiz: Path, ruta: str | None = None) -> dict[str, Any]:
+    """Propone el manifiesto `documentos` a partir del scan.
+
+    No escribe nada: es la mitad legible de la allowlist. El agente revisa
+    clase/motivo/destino, añade `parcial` con rangos si hace falta y lo mete
+    en el plan v3. Los nombres típicos de backlog van a `mapa`; README y
+    licencias a `referencia`; el resto, a `mapa` si tiene tareas o a
+    `referencia` si solo parece documentación.
+    """
+    informe = escanear(raiz, ruta)
+    documentos: list[dict[str, Any]] = []
+    for ficha in informe["archivos"]:
+        if "error" in ficha:
+            continue
+        documento = _proponer_documento(ficha)
+        if documento is not None:
+            documentos.append(documento)
+    return {
+        "repo": informe["repo"],
+        "ruta": informe["ruta"],
+        "documentos": documentos,
+        "resumen": {
+            "documentos": len(documentos),
+            "mapa": sum(1 for doc in documentos if doc["clase"] == "mapa"),
+            "referencia": sum(1 for doc in documentos if doc["clase"] == "referencia"),
+        },
+        "recortado": informe["recortado"],
+    }
+
+
+def _proponer_documento(ficha: dict[str, Any]) -> dict[str, Any] | None:
+    """Una entrada del manifiesto a partir de la ficha del scan."""
+    ruta = str(ficha.get("ruta") or "")
+    if not ruta:
+        return None
+    stem = Path(ruta).stem.casefold()
+    tareas = int((ficha.get("tareas") or {}).get("total") or 0)
+    if stem in _NOMBRES_MAPA or any(stem.startswith(f"{nombre}-") for nombre in _NOMBRES_MAPA):
+        return {
+            "ruta": ruta,
+            "clase": "mapa",
+            "motivo": f"nombre {stem!r}: fuente habitual del mapa",
+            "destino": "mapa",
+        }
+    if stem in _NOMBRES_REFERENCIA:
+        return {
+            "ruta": ruta,
+            "clase": "referencia",
+            "motivo": f"nombre {stem!r}: documentación de referencia",
+            "destino": "referencia",
+        }
+    if tareas > 0:
+        return {
+            "ruta": ruta,
+            "clase": "mapa",
+            "motivo": f"{tareas} tareas reconocidas en el scan",
+            "destino": "mapa",
+        }
+    return {
+        "ruta": ruta,
+        "clase": "referencia",
+        "motivo": "sin tareas reconocidas: se deja como referencia",
+        "destino": "referencia",
+    }
+
+
 def cargar_plan(ruta: Path) -> dict[str, Any]:
     """Lee el plan del disco; separa «no existe» de «no es JSON»."""
     try:
@@ -302,6 +459,7 @@ def revisar(raiz: Path, plan: dict[str, Any], *, plan_ruta: str = "plan.json") -
             "repo": str(raiz),
             "plan": plan_ruta,
             "crear": [],
+            "documentos": [],
             "errores": errores,
             "resumen": resumen,
         }
@@ -333,6 +491,7 @@ def revisar(raiz: Path, plan: dict[str, Any], *, plan_ruta: str = "plan.json") -
         errores.append(f"dependencia circular: {' → '.join(ciclo)}")
 
     errores.extend(_errores_de_origen(raiz, ideas))
+    errores.extend(_errores_de_documentos(raiz, plan, ideas))
 
     titulos: dict[tuple[str, str], int] = {}
     for indice, idea in enumerate(ideas):
@@ -359,6 +518,15 @@ def revisar(raiz: Path, plan: dict[str, Any], *, plan_ruta: str = "plan.json") -
         "repo": str(raiz),
         "plan": plan_ruta,
         "crear": crear,
+        "documentos": [
+            {
+                "ruta": doc["ruta"],
+                "clase": doc["clase"],
+                "destino": doc["destino"],
+            }
+            for doc in (plan.get("documentos") or [])
+            if isinstance(doc, dict) and "ruta" in doc and "clase" in doc
+        ],
         "errores": errores,
         "resumen": resumen,
     }
@@ -368,6 +536,12 @@ def _errores_de_destino(plan: dict[str, Any]) -> list[str]:
     """Lo que el esquema no puede decir de los carriles y sus datos."""
     errores: list[str] = []
     version = plan.get("version")
+    documentos = plan.get("documentos")
+    if version == 3:
+        if not isinstance(documentos, list) or not documentos:
+            errores.append("documentos: la versión 3 exige el manifiesto de documentos")
+    elif documentos is not None:
+        errores.append("documentos: solo vale con version 3")
     for indice, idea in enumerate(plan.get("ideas") or []):
         if not isinstance(idea, dict):
             continue
@@ -389,6 +563,150 @@ def _errores_de_destino(plan: dict[str, Any]) -> list[str]:
                 fecha_iso(str(fecha))
             except InvalidInput as exc:
                 errores.append(f"ideas[{indice}].fecha: {exc}")
+    return errores
+
+
+def _errores_de_documentos(
+    raiz: Path, plan: dict[str, Any], ideas: list[dict[str, Any]]
+) -> list[str]:
+    """Allowlist del mapa, cobertura de bloques y rangos de los parciales.
+
+    Solo corre con version 3 (el manifiesto ya pasó el esquema). Las ideas solo
+    pueden salir de `mapa`/`parcial`; en `mapa` todos los bloques accionables
+    tienen que estar cubiertos; en `parcial` hace falta `rangos` y las ideas
+    (y los bloques dentro de esos rangos) tienen que caer dentro.
+    """
+    if plan.get("version") != 3:
+        return []
+    documentos = plan.get("documentos")
+    if not isinstance(documentos, list):
+        return []
+
+    errores: list[str] = []
+    por_ruta: dict[str, dict[str, Any]] = {}
+    for indice, documento in enumerate(documentos):
+        if not isinstance(documento, dict):
+            continue
+        prefijo = f"documentos[{indice}]"
+        ruta = str(documento.get("ruta") or "")
+        clase = documento.get("clase")
+        destino = documento.get("destino")
+        if ruta in por_ruta:
+            errores.append(f"{prefijo}.ruta: repetida ({ruta!r})")
+            continue
+        por_ruta[ruta] = documento
+
+        if clase == "referencia" and destino != "referencia":
+            errores.append(f"{prefijo}.destino: clase referencia exige destino referencia")
+        if clase in ("mapa", "parcial") and destino != "mapa":
+            errores.append(f"{prefijo}.destino: clase {clase} exige destino mapa")
+
+        rangos = documento.get("rangos")
+        if clase == "parcial":
+            if not isinstance(rangos, list) or not rangos:
+                errores.append(f"{prefijo}.rangos: parcial exige al menos un rango")
+            else:
+                for posicion, rango in enumerate(rangos):
+                    if not isinstance(rango, dict):
+                        continue
+                    desde = rango.get("desde")
+                    hasta = rango.get("hasta")
+                    if isinstance(desde, int) and isinstance(hasta, int) and desde > hasta:
+                        errores.append(
+                            f"{prefijo}.rangos[{posicion}]: desde {desde} va después "
+                            f"de hasta {hasta}"
+                        )
+        elif rangos is not None:
+            errores.append(f"{prefijo}.rangos: solo vale con clase parcial")
+
+        try:
+            archivo = resolver(raiz, ruta)
+        except (InvalidInput, FileNotFoundError) as exc:
+            errores.append(f"{prefijo}.ruta: {exc}")
+            continue
+        if archivo.is_dir():
+            errores.append(f"{prefijo}.ruta: {ruta!r} es una carpeta")
+
+    allowlist = {
+        ruta
+        for ruta, documento in por_ruta.items()
+        if documento.get("clase") in ("mapa", "parcial")
+    }
+    ideas_por_ruta: dict[str, list[tuple[int, dict[str, Any]]]] = {}
+    for indice, idea in enumerate(ideas):
+        if not isinstance(idea, dict) or not isinstance(idea.get("origen"), dict):
+            continue
+        ruta = str(idea["origen"].get("ruta") or "")
+        ideas_por_ruta.setdefault(ruta, []).append((indice, idea))
+        if ruta not in por_ruta:
+            errores.append(
+                f"ideas[{indice}].origen.ruta: {ruta!r} no está en documentos "
+                "(hay que clasificarla)"
+            )
+        elif ruta not in allowlist:
+            errores.append(
+                f"ideas[{indice}].origen.ruta: {ruta!r} es referencia; no puede alimentar el mapa"
+            )
+
+    for ruta, documento in por_ruta.items():
+        clase = documento.get("clase")
+        if clase not in ("mapa", "parcial"):
+            continue
+        try:
+            archivo = resolver(raiz, ruta)
+        except (InvalidInput, FileNotFoundError):
+            continue
+        if not archivo.is_file():
+            continue
+        try:
+            texto = archivo.read_text(encoding="utf-8")
+        except OSError as exc:
+            errores.append(f"documentos ({ruta!r}): no se pudo leer: {exc}")
+            continue
+        bloques = _bloques_markdown(texto)
+        origenes = [
+            (
+                int(idea["origen"]["desde_linea"]),
+                int(idea["origen"]["hasta_linea"]),
+            )
+            for _indice, idea in ideas_por_ruta.get(ruta, [])
+            if isinstance(idea.get("origen"), dict)
+        ]
+        if clase == "parcial":
+            rangos = [
+                (int(rango["desde"]), int(rango["hasta"]))
+                for rango in (documento.get("rangos") or [])
+                if isinstance(rango, dict)
+                and isinstance(rango.get("desde"), int)
+                and isinstance(rango.get("hasta"), int)
+            ]
+            fusion = _fusionar(sorted(rangos))
+            for indice, idea in ideas_por_ruta.get(ruta, []):
+                desde = int(idea["origen"]["desde_linea"])
+                hasta = int(idea["origen"]["hasta_linea"])
+                if not any(r_desde <= desde and hasta <= r_hasta for r_desde, r_hasta in fusion):
+                    errores.append(
+                        f"ideas[{indice}].origen: fuera de los rangos parciales de {ruta!r}"
+                    )
+            bloques = [
+                bloque
+                for bloque in bloques
+                if any(desde <= bloque["linea"] <= hasta for desde, hasta in fusion)
+            ]
+
+        sin_clasificar = [
+            bloque
+            for bloque in bloques
+            if not any(desde <= bloque["linea"] <= hasta for desde, hasta in origenes)
+        ]
+        if sin_clasificar:
+            muestra = ", ".join(
+                f"L{bloque['linea']} «{bloque['texto']}»" for bloque in sin_clasificar[:5]
+            )
+            errores.append(
+                f"documentos ({ruta!r}): quedan {len(sin_clasificar)} bloques sin "
+                f"clasificar: {muestra}"
+            )
     return errores
 
 

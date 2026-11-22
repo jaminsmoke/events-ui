@@ -9,6 +9,7 @@ export type Seleccion =
   | { tipo: "carril"; clave: string }
   | { tipo: "idea"; uid: string }
   | { tipo: "puente" }
+  | { tipo: "puente_documentos" }
   | { tipo: "git" }
   | { tipo: "commits" }
   | { tipo: "cambios" }
@@ -23,6 +24,7 @@ export const ETIQUETA_SELECCION: Record<Seleccion["tipo"], string> = {
   carril: "Carril",
   idea: "Idea",
   puente: "Entregar a Git",
+  puente_documentos: "Mapa de Documentos",
   git: "Nodo de Git",
   commits: "Commits",
   cambios: "Cambios sin commit",
@@ -37,6 +39,7 @@ export function claveSeleccion(seleccion: Seleccion): string {
   switch (seleccion.tipo) {
     case "cajon":
     case "puente":
+    case "puente_documentos":
     case "git":
     case "commits":
     case "cambios":
@@ -53,6 +56,11 @@ export function claveSeleccion(seleccion: Seleccion): string {
       return `cable:${seleccion.id}`;
     case "nudo":
       return `nudo:${seleccion.id}`;
+    default: {
+      const _agotado: never = seleccion;
+      void _agotado;
+      return "";
+    }
   }
 }
 

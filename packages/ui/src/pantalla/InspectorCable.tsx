@@ -37,7 +37,7 @@ export function CuerpoCable({
           <p className="hint">
             {cable.lane === "git"
               ? "El tramo a Git no es una unión de protocolo: se abre por la disponibilidad del work tree."
-              : "Hecho se alcanza por disponibilidad, no por una fila de protocolo; por eso no exige fases."}
+              : "Changelog se alcanza por disponibilidad, no por una fila de protocolo; por eso no exige fases."}
           </p>
         </>
       ) : (

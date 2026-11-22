@@ -2,12 +2,14 @@ import { useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 
 import type { CommitGit, ProyeccionRepo } from "../core/api";
-import { useDocumentos } from "../core/useDocumentos";
 import { fechaCorta } from "../mapa/formato";
 import { ExploradorArbol } from "./ExploradorArbol";
 
 /** Vista del rail izquierdo. `null` es el pane cerrado. */
-export type VistaPane = "mapas" | "archivos" | "git" | "documentos";
+export type VistaPane = "mapas" | "archivos" | "git";
+
+/** Los tres mapas del lienzo. Documentos ya no vive en el activity. */
+export type MapaLienzo = "ideas" | "git" | "documentos";
 
 /** Vista del rail derecho: las estadísticas del repo, el inspector de lo que
  *  se selecciona en el lienzo, el archivo abierto y el documento absorbido.
@@ -95,24 +97,6 @@ export function BarraActividad({
           <path d="M6.5 8.3v7.4M8.8 6h3.4a5.3 5.3 0 0 1 5.3 5.3" />
         </svg>,
       )}
-      {item(
-        "documentos",
-        "Documentos",
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.7"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M6 3.5h8l4 4v13H6z" />
-          <path d="M14 3.5v4h4M9 11h6M9 14.5h6M9 18h4" />
-        </svg>,
-      )}
     </nav>
   );
 }
@@ -197,21 +181,20 @@ export function BarraDerecha({
   );
 }
 
-/** Pane de Mapas: cuál de los dos mapas se está mirando.
+/** Pane de Mapas: cuál de los tres mapas se está mirando.
  *
  *  Es navegación del lienzo, no del sistema de ficheros: por eso vive en su
- *  propia vista del rail y no dentro del Explorador. Se llama «Mapas» y no
- *  «Flujos y protocolos» porque dentro está el de Git también; los carriles y
- *  las compuertas se ven en el propio lienzo, no en una lista. */
+ *  propia vista del rail y no dentro del Explorador. Documentos es un mapa
+ *  (Changelog), no un pane del activity. */
 export function PaneMapas({
   mapa,
   gitActivo,
   onMapa,
   onCerrar,
 }: {
-  mapa: "ideas" | "git";
+  mapa: MapaLienzo;
   gitActivo: boolean;
-  onMapa: (mapa: "ideas" | "git") => void;
+  onMapa: (mapa: MapaLienzo) => void;
   onCerrar: () => void;
 }) {
   return (
@@ -244,70 +227,16 @@ export function PaneMapas({
             >
               Mapa de Git
             </button>
+            <button
+              type="button"
+              className={`pane-item${mapa === "documentos" ? " activo" : ""}`}
+              aria-pressed={mapa === "documentos"}
+              onClick={() => onMapa("documentos")}
+            >
+              Mapa de Documentos
+            </button>
           </div>
         </div>
-      </div>
-    </aside>
-  );
-}
-
-/** Pane de documentos absorbidos: la lista de los que ya solo viven en EUI.
- *
- *  El visor se abre en el panel derecho con el Markdown generado desde sus
- *  ítems; no se ofrece el fichero original porque ya no existe. */
-export function PaneDocumentos({
-  repo,
-  onAbrirDocumento,
-  onCerrar,
-}: {
-  repo: string;
-  onAbrirDocumento: (ruta: string) => void;
-  onCerrar: () => void;
-}) {
-  const { documentos, error, cargando } = useDocumentos(repo);
-
-  return (
-    <aside className="pane" aria-label="Documentos">
-      <div className="pane-cabecera">
-        <span className="panel-titulo">Documentos</span>
-        <button
-          type="button"
-          className="btn ghost"
-          onClick={onCerrar}
-          aria-label="Cerrar documentos"
-        >
-          ✕
-        </button>
-      </div>
-
-      <div className="pane-cuerpo">
-        {cargando && <p className="hint">Cargando…</p>}
-        {error && <p className="hint">{error}</p>}
-        {documentos && documentos.length === 0 && (
-          <p className="hint">
-            No hay documentos absorbidos. Los que se absorban aparecerán aquí,
-            aunque su fichero ya no esté en el repo.
-          </p>
-        )}
-        {documentos && documentos.length > 0 && (
-          <div className="pane-seccion">
-            <div className="pane-lista">
-              {documentos.map((documento) => (
-                <button
-                  key={documento.ruta}
-                  type="button"
-                  className="pane-item documento-item"
-                  onClick={() => onAbrirDocumento(documento.ruta)}
-                >
-                  <span className="documento-ruta">{documento.ruta}</span>
-                  <span className="documento-meta">
-                    {documento.items} {documento.items === 1 ? "ítem" : "ítems"}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </aside>
   );

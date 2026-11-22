@@ -9,36 +9,44 @@ aplica**. Nadie escribe el almacén a mano ni llama a la API cruda.
 1. `eui migrate scan <ruta>` lee la carpeta (o un Markdown suelto) y devuelve
    cada fichero con su `sha256`, su frontmatter simple, sus títulos y sus
    tareas. Solo lee: ni el almacén ni el Markdown se tocan.
-2. Lee los ficheros del scan y decide qué es una idea y qué es contexto.
-3. Escribe `plan.json` con las ideas y su `origen` (fichero, rango de líneas y
-   `sha256` del scan). No inventes uids: los pone el importador.
-4. `eui migrate check plan.json` valida el esquema, los refs, las
-   dependencias, los ciclos y el `sha256` de cada origen, y enseña lo que se
-   crearía sin escribir nada. Sale con 0 si se aplicaría, 1 si hay problemas y
-   2 si el plan no se puede leer.
-5. `eui migrate apply plan.json` aplica el lote de una vez. Cada idea entra en
+2. `eui migrate classify <ruta>` (alias `migrate plan`) propone el manifiesto
+   `documentos`: cada Markdown con `ruta`, `clase` (`mapa` / `referencia` /
+   `parcial`), `motivo` y `destino`. La allowlist del mapa son `mapa` y
+   `parcial`; el resto queda como referencia y no crea ideas. Revisa el
+   resultado antes de pegarlo en el plan.
+3. Lee los ficheros del scan y decide qué es una idea y qué es contexto. Solo
+   saca ideas de documentos en la allowlist.
+4. Escribe `plan.json` v3 con `documentos`, las ideas y su `origen` (fichero,
+   rango de líneas y `sha256` del scan). No inventes uids: los pone el
+   importador. Un `parcial` declara `rangos`; las ideas de ese fichero tienen
+   que caer dentro.
+5. `eui migrate check plan.json` valida el esquema, los refs, las
+   dependencias, los ciclos, el `sha256` de cada origen, la clasificación y
+   que no queden bloques accionables sin cubrir en los documentos `mapa` /
+   `parcial`. Sale con 0 si se aplicaría, 1 si hay problemas y 2 si el plan
+   no se puede leer.
+6. `eui migrate apply plan.json` aplica el lote de una vez. Cada idea entra en
    el carril que declara el plan: `proposed` por defecto, `draft` para notas
    sin triar, `historial` para lo hecho y `rejected` con `motivo` para lo que
    no se hace. El core escribe el lote entero en una transacción: si una idea
    falla, no queda ninguna. La huella del plan identifica el lote, así que
    repetir el mismo `apply` devuelve el mismo lote y no duplica nada.
-6. `eui migrate undo <lote>` deshace solo lo que creó ese lote. Si una idea
+7. `eui migrate undo <lote>` deshace solo lo que creó ese lote. Si una idea
    cambió de carril, se editó después de crearse o una ficha ajena la usa como
    sustituta, no borra nada y enumera los conflictos (409). Las que el usuario
    ya borró a mano se cuentan como ausentes y el resto se deshace igual.
-7. `eui migrate absorb <lote> --dry-run` prepara la retirada del origen, pero
+8. `eui migrate absorb <lote> --dry-run` prepara la retirada del origen, pero
    **no escribe**: comprueba la cobertura por fichero, los hashes y la copia que
    se generaría. `--confirmar` copia el origen, deja el manifiesto y **elimina**
    el Markdown; `undo` restaura la copia si el hash sigue.
-8. `eui migrate export <ruta>` reconstruye el Markdown actual desde SQLite,
+9. `eui migrate export <ruta>` reconstruye el Markdown actual desde SQLite,
    agrupado por carril y ordenado por la procedencia. Es la vista del documento
    una vez retirado, sin duplicar el contenido en el repo.
 
-El plan y el apply llegan con el importador; mientras tanto, `scan` y estas
-pautas son la preparación. Guarda el plan donde diga el usuario; si no dice
-nada, junto al Markdown de origen (p. ej. `ROADMAP.plan.json`). **No** lo
-pongas dentro de `.EUI/`: esa carpeta solo admite el almacén, su `.gitignore`
-y las copias de absorción en `migracion/<lote>/`.
+Guarda el plan donde diga el usuario; si no dice nada, junto al Markdown de
+origen (p. ej. `ROADMAP.plan.json`). **No** lo pongas dentro de `.EUI/`: esa
+carpeta solo admite el almacén, su `.gitignore` y las copias de absorción en
+`migracion/<lote>/`.
 
 ## Qué es una idea
 
@@ -86,10 +94,14 @@ plan y el apply, y el lote dejaría de ser repetible.
 ## El plan
 
 `eui schema migrate --pretty` publica el JSON Schema (draft 2020-12) del plan;
-sin `--pretty` sale en una línea. La forma es `{"version": 2, "ideas": [...]}`,
-con una idea por elemento migrado. La v1 solo admitía `proposed`; la v2 añade
-destinos, fechas y motivo, y sigue aceptando planes v1 que solo crean ideas:
+sin `--pretty` sale en una línea. La forma v3 es
+`{"version": 3, "documentos": [...], "ideas": [...]}`. La v1 solo admitía
+`proposed`; la v2 añade destinos, fechas y motivo; la v3 añade el manifiesto
+de documentos. Las v1/v2 siguen válidas sin `documentos`.
 
+- `documentos[]` (v3): `ruta`, `clase` (`mapa` / `referencia` / `parcial`),
+  `motivo` y `destino` (`mapa` / `referencia`). `parcial` exige `rangos`
+  `[{desde, hasta}]`. Solo `mapa` y `parcial` alimentan el mapa.
 - `ref` identifica la idea dentro del plan (`idea-1`, `backlog-login`…) y es lo
   que usa `depende_de`; no es un uid y no puede repetirse.
 - `kind` siempre `idea`; `status` puede ser `proposed`, `draft`, `historial`
@@ -98,10 +110,12 @@ destinos, fechas y motivo, y sigue aceptando planes v1 que solo crean ideas:
 - `fecha` (ISO 8601) solo con `historial` o `rejected`; sin ella se usa la de
   importación. Lo demás se rechaza antes de mirar el repo.
 - Cada idea exige `origen` con `ruta`, `desde_linea`, `hasta_linea` y `sha256`.
-  Las líneas son 1-based e incluyen el título y el cuerpo del elemento.
+  Las líneas son 1-based e incluyen el título y el cuerpo del elemento. La
+  `ruta` tiene que estar clasificada en la allowlist.
 - `check` añade lo que el esquema no puede comprobar: `ref` repetidos,
-  dependencias que no existan o formen ciclo, `origen.ruta` fuera del repo y un
-  `sha256` que ya no cuadre con el fichero actual.
+  dependencias que no existan o formen ciclo, `origen.ruta` fuera del repo, un
+  `sha256` que ya no cuadre, documentos sin clasificar, ideas saliendo de
+  `referencia`, bloques accionables sin cubrir y rangos de `parcial`.
 
 ## El lote
 
@@ -166,6 +180,8 @@ desde `migracion_idea` + `idea_data`.
 ## Antes de aplicar
 
 - [ ] `check` sale sin errores ni avisos nuevos.
+- [ ] El plan v3 trae `documentos` y cada origen cae en la allowlist.
+- [ ] Los `mapa`/`parcial` no dejan bloques accionables sin idea.
 - [ ] Cada idea tiene `origen` con `sha256` y su rango de líneas.
 - [ ] No hay dos ideas con la misma referencia ni con el mismo título y origen.
 - [ ] Los totales del plan cuadran con el resumen del scan.

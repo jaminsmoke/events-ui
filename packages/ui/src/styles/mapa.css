@@ -234,8 +234,7 @@
   transform: translateX(calc((var(--col) + var(--gap)) / -2));
 }
 
-/* El puente a Git y el Historial comparten la última columna: el historial
- * cuelga debajo porque en producción solo crece y no debe estirar la línea. */
+/* El puente a Git y el de Documentos comparten la última columna. */
 .estacion-git {
   grid-column: 7;
   display: flex;
@@ -247,6 +246,16 @@
 .linea-git {
   grid-template-columns: repeat(2, clamp(260px, 20vw, 340px));
   padding-bottom: 0;
+}
+
+/* El Mapa de Documentos: cabecera y Changelog a ancho de línea. */
+.linea-documentos {
+  grid-template-columns: clamp(280px, 28vw, 420px);
+  padding-bottom: 0;
+}
+
+.linea-documentos > .node {
+  grid-column: 1;
 }
 
 .git-cabecera {
@@ -280,7 +289,9 @@
 .linea > .node,
 .estacion-git > .node,
 .linea-git > .node,
-.linea-git > .git-cabecera {
+.linea-git > .git-cabecera,
+.linea-documentos > .node,
+.linea-documentos > .git-cabecera {
   animation: nodo-entra 0.45s cubic-bezier(0.2, 0.9, 0.25, 1.1) both;
 }
 
@@ -319,7 +330,9 @@
   .linea > .node,
   .estacion-git > .node,
   .linea-git > .node,
-  .linea-git > .git-cabecera {
+  .linea-git > .git-cabecera,
+  .linea-documentos > .node,
+  .linea-documentos > .git-cabecera {
     animation: none;
   }
 }

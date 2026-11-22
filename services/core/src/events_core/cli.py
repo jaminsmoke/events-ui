@@ -627,6 +627,49 @@ def _migrar_scan(args: argparse.Namespace) -> int:
     return 0
 
 
+def _migrar_classify(args: argparse.Namespace) -> int:
+    ajustes = configuracion.leer_segura()
+    try:
+        raiz = _raiz(args, ajustes)
+    except InvalidInput as exc:
+        return _error(str(exc))
+    if raiz is None:
+        return _error(
+            "no hay raíz: elige una carpeta en la app, usa --repo o `eui config set repo`"
+        )
+
+    try:
+        informe = migracion.clasificar(Path(raiz), args.ruta)
+    except InvalidInput as exc:
+        return _error(str(exc))
+    except FileNotFoundError as exc:
+        return _error(str(exc), 1)
+
+    if args.json:
+        print(json.dumps(informe))
+        return 0
+
+    print(f"repo: {informe['repo']}")
+    print(f"ruta: {informe['ruta']}")
+    if not informe["documentos"]:
+        print("(no hay Markdown que clasificar)")
+        return 0
+    for documento in informe["documentos"]:
+        print(
+            f"{documento['ruta']}  {documento['clase']} → {documento['destino']}  "
+            f"{documento['motivo']}"
+        )
+    resumen = informe["resumen"]
+    print()
+    print(
+        f"{resumen['documentos']} documentos · {resumen['mapa']} mapa · "
+        f"{resumen['referencia']} referencia"
+    )
+    if informe["recortado"]:
+        print(f"(recortado a {migracion.MAX_ARCHIVOS} archivos)")
+    return 0
+
+
 def _migrar_check(args: argparse.Namespace) -> int:
     ajustes = configuracion.leer_segura()
     try:
@@ -653,6 +696,8 @@ def _migrar_check(args: argparse.Namespace) -> int:
 
     print(f"plan: {informe['plan']}")
     print(f"repo: {informe['repo']}")
+    for documento in informe.get("documentos") or []:
+        print(f"· {documento['ruta']}  {documento['clase']} → {documento['destino']}")
     for idea in informe["crear"]:
         origen = idea["origen"]
         print(
@@ -987,6 +1032,16 @@ def _parser() -> argparse.ArgumentParser:
     escanear.add_argument("--json", action="store_true")
     conexion(escanear)
     escanear.set_defaults(func=_migrar_scan)
+
+    clasificar = acciones_migrar.add_parser(
+        "classify",
+        help="Propone el manifiesto documentos (mapa/referencia); no escribe",
+        aliases=["plan"],
+    )
+    clasificar.add_argument("ruta", nargs="?", help="Carpeta o archivo; por defecto, la raíz")
+    clasificar.add_argument("--json", action="store_true")
+    conexion(clasificar)
+    clasificar.set_defaults(func=_migrar_classify)
 
     comprobar = acciones_migrar.add_parser(
         "check", help="Valida el plan y enseña lo que se crearía; no escribe"

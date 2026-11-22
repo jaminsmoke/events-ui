@@ -203,16 +203,19 @@ fn matar_sidecar(app: &AppHandle) {
   }
   // El onefile de PyInstaller deja un hijo aparte del stub: `Child::kill` no
   // siempre lo lleva. taskkill por imagen cubre huérfanos en actualización.
+  // `eui.exe` (MCP / PATH) también bloquea la copia del instalador.
   #[cfg(windows)]
   {
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-    let _ = Command::new("taskkill")
-      .args(["/F", "/T", "/IM", "events-core.exe"])
-      .creation_flags(CREATE_NO_WINDOW)
-      .stdin(Stdio::null())
-      .stdout(Stdio::null())
-      .stderr(Stdio::null())
-      .status();
+    for imagen in ["events-core.exe", "eui.exe"] {
+      let _ = Command::new("taskkill")
+        .args(["/F", "/T", "/IM", imagen])
+        .creation_flags(CREATE_NO_WINDOW)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+    }
   }
 }
 

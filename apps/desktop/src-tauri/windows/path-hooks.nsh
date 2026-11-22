@@ -57,7 +57,7 @@ FunctionEnd
   ; events-ui sigue vivo —sobre todo si la app iba elevada y el instalador no—
   ; aborta con «Insufficient permissions to close». Esperamos a que desaparezca
   ; (el exit del updater) y usamos taskkill solo como respaldo (instalación a
-  ; mano). El sidecar onefile también debe soltar events-core.exe.
+  ; mano). También hay que soltar events-core.exe (sidecar) y eui.exe (MCP/CLI).
   StrCpy $R9 0
   eui_wait_ui:
     nsExec::ExecToStack 'cmd /c tasklist /FI "IMAGENAME eq events-ui.exe" /NH 2>nul | find /I "events-ui.exe" >nul'
@@ -83,6 +83,21 @@ FunctionEnd
     IntOp $R9 $R9 + 1
     IntCmp $R9 25 eui_core_fuera 0 eui_wait_core
   eui_core_fuera:
+
+  ; El CLI `eui.exe` (MCP, PATH, scripts) también bloquea la copia al INSTDIR.
+  ; Sin esto el instalador pide «Omitir» en eui.exe.
+  StrCpy $R9 0
+  eui_wait_cli:
+    nsExec::Exec '"$SYSDIR\taskkill.exe" /F /T /IM eui.exe'
+    nsExec::ExecToStack 'cmd /c tasklist /FI "IMAGENAME eq eui.exe" /NH 2>nul | find /I "eui.exe" >nul'
+    Pop $R7
+    Pop $R8
+    IntCmp $R7 0 eui_cli_vivo eui_cli_fuera eui_cli_fuera
+  eui_cli_vivo:
+    Sleep 400
+    IntOp $R9 $R9 + 1
+    IntCmp $R9 25 eui_cli_fuera 0 eui_wait_cli
+  eui_cli_fuera:
   Sleep 300
 !macroend
 

@@ -30,6 +30,10 @@ uv run --directory services/core python -m events_core.seed <repo>
 El seed es idempotente y aplica `services/core/src/events_core/schema/ideas.sql`.
 Crea `repoprobe/repos/<repo>/.EUI/EUI_DATABASE.sqlite` si no existe.
 
+La carpeta que pasas es la raíz y la única que se siembra: el seed no recorre
+subcarpetas ni crea `.EUI` en ellas. Desde la app pasa lo mismo, y elegir una
+subcarpeta como raíz la convierte en un workspace propio, no en el del padre.
+
 ## Operar sin scripts
 
 ```bash

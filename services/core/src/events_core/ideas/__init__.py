@@ -1,7 +1,8 @@
 """Ideas: la primera tabla del sistema, y no la de eventos.
 
-Cada repositorio investigado es su propio almacén: lleva dentro una carpeta
-`.EUI` con un SQLite llamado `EUI_DATABASE`. El fichero viaja con el repo.
+La raíz de cada repo abierto es su propio almacén: en ella vive la carpeta
+`.EUI` con un SQLite llamado `EUI_DATABASE`. El fichero viaja con el repo; las
+subcarpetas no llevan almacén propio salvo que se abran como raíz.
 
 El esquema no se escribe aquí: vive en `schema/ideas.sql`, que es el fichero que
 se edita a mano. Este paquete solo lo aplica y hace CRUD sobre él.

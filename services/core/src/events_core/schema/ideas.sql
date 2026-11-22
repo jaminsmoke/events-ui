@@ -1,6 +1,6 @@
 -- Ideas de un repositorio investigado.
 --
--- Vive dentro del propio repo, en `.EUI/EUI_DATABASE.sqlite`. Es a propósito: las ideas
+-- Vive en la raíz del repo elegido, en `.EUI/EUI_DATABASE.sqlite`. Es a propósito: las
 -- sobre un repo viajan, se versionan y se revisan junto a su código.
 --
 -- Este fichero es la fuente de verdad del esquema. Se aplica con

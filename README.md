@@ -121,16 +121,22 @@ pnpm 11+ no ejecuta postinstall de dependencias sin permiso: la política vive e
 ## Ideas por repositorio
 
 La primera tabla no es la de eventos, es la de ideas.
-Cada repo investigado lleva dentro `.EUI/EUI_DATABASE.sqlite`, un SQLite con esa tabla: las
+La carpeta raíz elegida lleva dentro `.EUI/EUI_DATABASE.sqlite`, un SQLite con esa tabla: las
 ideas sobre un repo viajan con su código.
 
-La primera petición sobre una carpeta existente siembra su `.EUI/EUI_DATABASE.sqlite` con
+La raíz es la carpeta que se abre en la app —la del diálogo nativo o el nombre dentro
+de `repoprobe/repos`— y es la única que se siembra: desplegar subcarpetas en Files no
+crea `.EUI` en ellas. Abrir una subcarpeta como raíz la convierte en un workspace
+propio, con su propio almacén; el estado de Git puede seguir viniendo del repo que la
+contiene. Es la misma regla que VS Code: lo que abres es la raíz.
+
+La primera petición sobre esa raíz siembra su `.EUI/EUI_DATABASE.sqlite` con
 `schema/ideas.sql` si aún no está, así que abrir un repo en la UI basta. El seed sigue
 existiendo para hacerlo sin arrancar el core:
 
 ```bash
 git clone <url> repoprobe/repos/<repo>
-corepack pnpm core:seed <repo>   # crear un almacén nuevo
+corepack pnpm core:seed <repo>   # o <ruta-absoluta>: siembra esa raíz
 corepack pnpm core:dev           # Swagger en http://127.0.0.1:18765/docs
 ```
 

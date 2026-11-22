@@ -1,10 +1,11 @@
-"""Siembra un repo investigado con su `.EUI/EUI_DATABASE`.
+"""Siembra la raíz de un repo con su `.EUI/EUI_DATABASE`.
 
 Uso:
-    uv run --directory services/core python -m events_core.seed gonzalezreal-markdownui
-    corepack pnpm core:seed gonzalezreal-markdownui   # atajo equivalente
+    uv run --directory services/core python -m events_core.seed <carpeta-raíz>
+    corepack pnpm core:seed <carpeta-raíz>            # atajo equivalente
 
-Es idempotente: si el fichero ya existe, solo asegura el esquema.
+La carpeta es la raíz: no recorre subcarpetas ni crea `.EUI` en ellas. Es
+idempotente: si el fichero ya existe, solo asegura el esquema.
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ from . import ideas
 
 def main(argv: list[str]) -> int:
     if len(argv) != 1:
-        print("uso: python -m events_core.seed <nombre-del-repo>", file=sys.stderr)
+        print("uso: python -m events_core.seed <carpeta-raíz>", file=sys.stderr)
         return 2
 
     repo = argv[0]

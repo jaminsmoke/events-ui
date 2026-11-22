@@ -5,7 +5,7 @@ escriben el log y este servicio lo expone a la UI. `/health` además prueba el
 mecanismo de tiempo real (`PRAGMA data_version`).
 
 Lo de aquí abajo: CRUD de ideas sobre
-el `EUI_DATABASE` que vive dentro de cada repositorio investigado. Sin ORM a
+el `EUI_DATABASE` que vive en la raíz del repo abierto. Sin ORM a
 propósito: el SQL está en `schema/ideas.sql` y el de las consultas, a la vista.
 FastAPI publica el contrato en `/openapi.json` (Swagger en `/docs`), de ahí
 saldrán los tipos TS del cliente.

@@ -1,7 +1,8 @@
 # Modelo de datos de Events UI
 
-Cada repositorio guarda sus ideas, relaciones y protocolos en
-`.EUI/EUI_DATABASE.sqlite`. El core activa WAL y las claves foráneas en sus
+La raíz elegida de cada repo guarda sus ideas, relaciones y protocolos en
+`.EUI/EUI_DATABASE.sqlite`. Es un almacén por raíz, no por subcarpeta: desplegar
+carpetas en Files no siembra nada. El core activa WAL y las claves foráneas en sus
 conexiones de escritura. La versión del esquema de ideas es 29. El registro
 operativo de la aplicación vive en otro fichero y abarca varios repositorios.
 

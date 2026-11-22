@@ -52,18 +52,38 @@ Function EUI_PathPageLeave
 FunctionEnd
 
 !macro NSIS_HOOK_PREINSTALL
-  ; El sidecar (y su hijo del onefile) bloquean `events-core.exe`; la UI
-  ; bloquea `events-ui.exe`. Un solo taskkill + 500 ms no bastaba: el
-  ; instalador pedía «omitir» ficheros en uso. Varias pasadas hasta que
-  ; Windows suelte los .exe. En instalación limpia taskkill falla y se ignora.
+  ; El updater hace ShellExecute de este instalador y acto seguido exit(0).
+  ; CheckIfAppIsRunning (Restart Manager) corre justo después de este hook: si
+  ; events-ui sigue vivo —sobre todo si la app iba elevada y el instalador no—
+  ; aborta con «Insufficient permissions to close». Esperamos a que desaparezca
+  ; (el exit del updater) y usamos taskkill solo como respaldo (instalación a
+  ; mano). El sidecar onefile también debe soltar events-core.exe.
   StrCpy $R9 0
-  eui_kill_loop:
+  eui_wait_ui:
+    nsExec::ExecToStack 'cmd /c tasklist /FI "IMAGENAME eq events-ui.exe" /NH 2>nul | find /I "events-ui.exe" >nul'
+    Pop $R7
+    Pop $R8
+    IntCmp $R7 0 eui_ui_viva eui_ui_fuera eui_ui_fuera
+  eui_ui_viva:
     nsExec::Exec '"$SYSDIR\taskkill.exe" /F /T /IM events-ui.exe'
-    nsExec::Exec '"$SYSDIR\taskkill.exe" /F /T /IM events-core.exe'
-    Sleep 800
+    Sleep 500
     IntOp $R9 $R9 + 1
-    IntCmp $R9 8 eui_kill_done 0 eui_kill_loop
-  eui_kill_done:
+    IntCmp $R9 40 eui_ui_fuera 0 eui_wait_ui
+  eui_ui_fuera:
+
+  StrCpy $R9 0
+  eui_wait_core:
+    nsExec::Exec '"$SYSDIR\taskkill.exe" /F /T /IM events-core.exe'
+    nsExec::ExecToStack 'cmd /c tasklist /FI "IMAGENAME eq events-core.exe" /NH 2>nul | find /I "events-core.exe" >nul'
+    Pop $R7
+    Pop $R8
+    IntCmp $R7 0 eui_core_vivo eui_core_fuera eui_core_fuera
+  eui_core_vivo:
+    Sleep 400
+    IntOp $R9 $R9 + 1
+    IntCmp $R9 25 eui_core_fuera 0 eui_wait_core
+  eui_core_fuera:
+  Sleep 300
 !macroend
 
 !macro NSIS_HOOK_POSTINSTALL
@@ -74,13 +94,8 @@ FunctionEnd
     ; tenía `eui` en el PATH, se refresca el binario copiado sin tocar el PATH.
     Call EUI_RefreshPathIfEnabled
   ${EndIf}
-  ; El updater corre el NSIS con /S y PREINSTALL mata la app: el `relaunch`
-  ; de JS ya no corre. Aquí se abre la versión nueva. Instalación con UI: la
-  ; página final de MUI puede ofrecer ejecutar; no se fuerza un segundo arranque.
-  ${GetOptions} $CMDLINE "/S" $R8
-  ${IfNot} ${Errors}
-    Exec '"$INSTDIR\events-ui.exe"'
-  ${EndIf}
+  ; El relanzamiento tras updater lo hace `.onInstSuccess` con /R (passive y
+  ; quiet). No se fuerza otro Exec aquí para no abrir dos instancias.
 !macroend
 
 !macro NSIS_HOOK_POSTUNINSTALL

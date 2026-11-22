@@ -23,7 +23,11 @@ const PUERTO_CORE: u16 = 18765;
 struct Core {
   hijo: Mutex<Option<Child>>,
   parado: AtomicBool,
+  /// El updater va a sustituir los binarios: CloseRequested debe salir de
+  /// verdad (no minimizar a la bandeja) si Restart Manager manda WM_CLOSE.
+  actualizando: AtomicBool,
 }
+
 
 /// Arranca el sidecar si no hay uno vivo. `true` si el hijo quedó en marcha.
 fn arrancar(app: &AppHandle) -> bool {
@@ -197,6 +201,29 @@ fn matar_sidecar(app: &AppHandle) {
       let _ = hijo.wait();
     }
   }
+  // El onefile de PyInstaller deja un hijo aparte del stub: `Child::kill` no
+  // siempre lo lleva. taskkill por imagen cubre huérfanos en actualización.
+  #[cfg(windows)]
+  {
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let _ = Command::new("taskkill")
+      .args(["/F", "/T", "/IM", "events-core.exe"])
+      .creation_flags(CREATE_NO_WINDOW)
+      .stdin(Stdio::null())
+      .stdout(Stdio::null())
+      .stderr(Stdio::null())
+      .status();
+  }
+}
+
+/// Para el core, quita la bandeja y marca actualización: el proceso debe poder
+/// morir (exit del updater o WM_CLOSE del Restart Manager) sin quedarse oculto.
+fn preparar_salida_actualizacion(app: &AppHandle) {
+  if let Some(core) = app.try_state::<Core>() {
+    core.actualizando.store(true, Ordering::Relaxed);
+  }
+  matar_sidecar(app);
+  let _ = app.remove_tray_by_id("bandeja");
 }
 
 /// Vuelve a mostrar la ventana principal y le da el foco (desde la bandeja).
@@ -207,12 +234,12 @@ fn mostrar_ventana(app: &tauri::AppHandle) {
   }
 }
 
-/// Antes de `downloadAndInstall`: para el vigilante y el sidecar para que el
-/// NSIS no pelee por `events-core.exe`. La UI la mata el PREINSTALL del
-/// instalador; el POSTINSTALL silencioso la vuelve a abrir.
+/// Antes de `downloadAndInstall`: para el vigilante y el sidecar, quita la
+/// bandeja y marca actualización. El plugin en Windows hace `exit(0)` tras
+/// lanzar el NSIS; el PREINSTALL espera a que no quede el proceso.
 #[tauri::command]
 fn preparar_actualizacion(app: AppHandle) {
-  matar_sidecar(&app);
+  preparar_salida_actualizacion(&app);
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -283,9 +310,13 @@ pub fn run() {
     })
     .on_window_event(|window, evento| {
       if let tauri::WindowEvent::CloseRequested { api, .. } = evento {
-        if cfg!(debug_assertions) {
-          // En dev no hay bandeja: cerrar cierra (el sidecar en dev lo
-          // levanta dev.mjs y lo apaga él).
+        let actualizando = window
+          .app_handle()
+          .try_state::<Core>()
+          .is_some_and(|core| core.actualizando.load(Ordering::Relaxed));
+        if cfg!(debug_assertions) || actualizando {
+          // Dev: sin bandeja. Actualización: Restart Manager / exit deben
+          // poder matar el proceso; minimizar dejaría el .exe en uso.
           matar_sidecar(window.app_handle());
         } else {
           // En release cerrar minimiza a la bandeja: la app y el sidecar

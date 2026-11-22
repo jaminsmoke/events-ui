@@ -11,10 +11,11 @@ let comprobadoAlArrancar = false;
 
 /** Puente entre el plugin de Tauri y la UI compartida.
  *
- *  Antes de instalar se para el sidecar (`preparar_actualizacion`) para no
- *  bloquear el .exe. El NSIS mata la UI en PREINSTALL y, en modo silencioso
- *  (updater), la vuelve a abrir en POSTINSTALL; `relaunch` queda de respaldo
- *  por si el proceso sobreviviera. */
+ *  Antes de instalar se para el sidecar y se quita la bandeja
+ *  (`preparar_actualizacion`). En Windows el plugin lanza el NSIS y hace
+ *  `exit(0)`; el PREINSTALL espera a que no quede `events-ui`/`events-core`
+ *  y el `/R` del modo passive vuelve a abrir la app. `relaunch` queda de
+ *  respaldo fuera de Windows. */
 export function useActualizacion(): Actualizacion {
   const [version, setVersion] = useState("…");
   const [estado, setEstado] = useState<Actualizacion["estado"]>("inactivo");
@@ -76,25 +77,27 @@ export function useActualizacion(): Actualizacion {
     setEstado("descargando");
     setProgreso(0);
     setMensaje(null);
-    void invoke("preparar_actualizacion")
-      .catch(() => {
-        // Sin comando (dev/web): el NSIS igual mata los procesos en PREINSTALL.
+    void update
+      .download((evento) => {
+        if (evento.event === "Started") {
+          total.current = evento.data.contentLength ?? 0;
+          setProgreso(total.current > 0 ? 0 : null);
+        } else if (evento.event === "Progress") {
+          descargado.current += evento.data.chunkLength;
+          if (total.current > 0) {
+            setProgreso(Math.min(1, descargado.current / total.current));
+          }
+        } else {
+          setProgreso(1);
+        }
       })
       .then(() =>
-        update.downloadAndInstall((evento) => {
-          if (evento.event === "Started") {
-            total.current = evento.data.contentLength ?? 0;
-            setProgreso(total.current > 0 ? 0 : null);
-          } else if (evento.event === "Progress") {
-            descargado.current += evento.data.chunkLength;
-            if (total.current > 0) {
-              setProgreso(Math.min(1, descargado.current / total.current));
-            }
-          } else {
-            setProgreso(1);
-          }
+        // Sidecar, bandeja y flag: justo antes del NSIS, no durante la descarga.
+        invoke("preparar_actualizacion").catch(() => {
+          // Sin comando (dev/web): el PREINSTALL igual espera/mata procesos.
         }),
       )
+      .then(() => update.install())
       .then(() => relaunch())
       .catch((error: unknown) => {
         setEstado("error");

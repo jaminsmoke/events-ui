@@ -10,6 +10,7 @@ almacén ni se modifica ningún fichero: solo lectura.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 from pathlib import Path
@@ -30,6 +31,11 @@ _FRONTMATTER_CLAVE = re.compile(r"^([A-Za-z0-9_-]+)\s*:\s*(.*)$")
 _TITULO = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
 _TAREA = re.compile(r"^\s*[-*+]\s+\[([ xX])\]\s+")
 _CERCA = re.compile(r"^\s*(```|~~~)")
+
+
+class PlanInvalido(ValueError):
+    """El plan no se puede leer o no es un objeto JSON."""
+
 
 # El contrato del plan que propone el agente. Se publica con
 # `eui schema migrate` y es lo primero que mira `check`: cierra lo que no se
@@ -208,6 +214,298 @@ def escanear(raiz: Path, ruta: str | None = None) -> dict[str, Any]:
         },
         "recortado": recortado,
     }
+
+
+def cargar_plan(ruta: Path) -> dict[str, Any]:
+    """Lee el plan del disco; separa «no existe» de «no es JSON»."""
+    try:
+        texto = ruta.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(f"no existe el plan: {ruta}") from exc
+    except OSError as exc:
+        raise PlanInvalido(f"no se pudo leer {ruta}: {exc}") from exc
+    try:
+        plan = json.loads(texto)
+    except json.JSONDecodeError as exc:
+        raise PlanInvalido(f"{ruta} no es JSON válido: {exc}") from exc
+    if not isinstance(plan, dict):
+        raise PlanInvalido(f"{ruta} no es un objeto JSON")
+    return plan
+
+
+def validar_esquema(datos: Any, esquema: dict[str, Any] | None = None) -> list[str]:
+    """Valida contra el esquema publicado, sin dependencias nuevas.
+
+    Cubre las palabras que usa `ESQUEMA_PLAN` (y ninguna más): `$ref` local,
+    `type`, `const`, `enum`, `required`, `properties`,
+    `additionalProperties: false`, `items`, `minItems`, `uniqueItems`,
+    `minLength`, `pattern` y `minimum`. Así el contrato publicado y lo que
+    `check` acepta no pueden separarse.
+    """
+    raiz_esquema = ESQUEMA_PLAN if esquema is None else esquema
+    errores: list[str] = []
+    _validar(datos, raiz_esquema, raiz_esquema, "plan", errores)
+    return errores
+
+
+def revisar(raiz: Path, plan: dict[str, Any], *, plan_ruta: str = "plan.json") -> dict[str, Any]:
+    """Valida el plan y enseña lo que se crearía, sin escribir nada.
+
+    Primero el esquema; solo si pasa se miran los refs, las dependencias, los
+    ciclos y cada origen contra el fichero de verdad. Un error de esquema corta
+    aquí: seguir con un plan mal formado solo añadiría ruido.
+    """
+    raiz = raiz.resolve()
+    ideas = plan.get("ideas") if isinstance(plan.get("ideas"), list) else []
+    resumen = _resumen(ideas)
+    errores = validar_esquema(plan)
+    if errores:
+        return {
+            "ok": False,
+            "repo": str(raiz),
+            "plan": plan_ruta,
+            "crear": [],
+            "errores": errores,
+            "resumen": resumen,
+        }
+
+    errores = []
+    vistos: dict[str, int] = {}
+    for indice, idea in enumerate(ideas):
+        ref = idea["ref"]
+        if ref in vistos:
+            errores.append(
+                f"ideas[{indice}].ref: repetida ({ref!r}); ya estaba en ideas[{vistos[ref]}]"
+            )
+        else:
+            vistos[ref] = indice
+
+    for indice, idea in enumerate(ideas):
+        for posicion, dependencia in enumerate(idea.get("depende_de") or []):
+            ruta_dep = f"ideas[{indice}].depende_de[{posicion}]"
+            if dependencia == idea["ref"]:
+                errores.append(f"{ruta_dep}: se apunta a sí misma ({dependencia!r})")
+            elif dependencia not in vistos:
+                errores.append(f"{ruta_dep}: no existe la idea {dependencia!r}")
+
+    grafo = {
+        idea["ref"]: [dep for dep in idea.get("depende_de") or [] if dep in vistos]
+        for idea in ideas
+    }
+    for ciclo in _ciclos(grafo):
+        errores.append(f"dependencia circular: {' → '.join(ciclo)}")
+
+    errores.extend(_errores_de_origen(raiz, ideas))
+
+    titulos: dict[tuple[str, str], int] = {}
+    for indice, idea in enumerate(ideas):
+        clave = (idea["title"].strip().casefold(), idea["origen"]["ruta"])
+        if clave in titulos:
+            errores.append(
+                f"ideas[{indice}]: «{idea['title']}» ya sale en ideas[{titulos[clave]}] "
+                "del mismo fichero"
+            )
+        else:
+            titulos[clave] = indice
+
+    crear = [
+        {"ref": idea["ref"], "title": idea["title"], "origen": idea["origen"]} for idea in ideas
+    ]
+    return {
+        "ok": not errores,
+        "repo": str(raiz),
+        "plan": plan_ruta,
+        "crear": crear,
+        "errores": errores,
+        "resumen": resumen,
+    }
+
+
+def _resumen(ideas: list[Any]) -> dict[str, int]:
+    archivos = {
+        idea["origen"]["ruta"]
+        for idea in ideas
+        if isinstance(idea, dict)
+        and isinstance(idea.get("origen"), dict)
+        and isinstance(idea["origen"].get("ruta"), str)
+    }
+    return {"ideas": len(ideas), "archivos": len(archivos), "refs": len(ideas)}
+
+
+def _errores_de_origen(raiz: Path, ideas: list[dict[str, Any]]) -> list[str]:
+    """Cada origen tiene que seguir siendo el fichero del scan."""
+    errores: list[str] = []
+    for indice, idea in enumerate(ideas):
+        origen = idea["origen"]
+        prefijo = f"ideas[{indice}].origen"
+        try:
+            archivo = resolver(raiz, origen["ruta"])
+        except InvalidInput as exc:
+            errores.append(f"{prefijo}: {exc}")
+            continue
+        except FileNotFoundError:
+            errores.append(f"{prefijo}: no existe {origen['ruta']!r}")
+            continue
+        if archivo.is_dir():
+            errores.append(f"{prefijo}: {origen['ruta']!r} es una carpeta")
+            continue
+        try:
+            crudo = archivo.read_bytes()
+        except OSError as exc:
+            errores.append(f"{prefijo}: no se pudo leer {origen['ruta']!r}: {exc}")
+            continue
+
+        if hashlib.sha256(crudo).hexdigest() != origen["sha256"]:
+            errores.append(f"{prefijo}: {origen['ruta']!r} cambió desde el scan (sha256 no cuadra)")
+        lineas = len(crudo.decode("utf-8", errors="replace").splitlines())
+        if origen["desde_linea"] > origen["hasta_linea"]:
+            errores.append(
+                f"{prefijo}: desde_linea {origen['desde_linea']} va después de "
+                f"hasta_linea {origen['hasta_linea']}"
+            )
+        elif origen["hasta_linea"] > lineas:
+            errores.append(
+                f"{prefijo}: hasta_linea {origen['hasta_linea']} supera las "
+                f"{lineas} líneas del fichero"
+            )
+    return errores
+
+
+def _ciclos(grafo: dict[str, list[str]]) -> list[list[str]]:
+    """Los ciclos del grafo de dependencias, cada uno con su recorrido."""
+    colores: dict[str, int] = {}
+    pila: list[str] = []
+    encontrados: list[list[str]] = []
+    vistos: set[tuple[str, ...]] = set()
+
+    def visitar(nodo: str) -> None:
+        colores[nodo] = 1
+        pila.append(nodo)
+        for vecino in grafo.get(nodo, []):
+            if colores.get(vecino, 0) == 0:
+                visitar(vecino)
+            elif colores.get(vecino) == 1:
+                ciclo = pila[pila.index(vecino) :] + [vecino]
+                clave = tuple(sorted(ciclo[:-1]))
+                if clave not in vistos:
+                    vistos.add(clave)
+                    encontrados.append(ciclo)
+        pila.pop()
+        colores[nodo] = 2
+
+    for nodo in grafo:
+        if colores.get(nodo, 0) == 0:
+            visitar(nodo)
+    return encontrados
+
+
+def _validar(
+    valor: Any, nodo: dict[str, Any], raiz: dict[str, Any], ruta: str, errores: list[str]
+) -> None:
+    if "$ref" in nodo:
+        nodo = _resolver_ref(raiz, nodo["$ref"])
+
+    if "const" in nodo and not _igual(valor, nodo["const"]):
+        errores.append(f"{ruta}: {_texto(valor)} no es el valor exigido ({_texto(nodo['const'])})")
+    if "enum" in nodo and not any(_igual(valor, opcion) for opcion in nodo["enum"]):
+        opciones = ", ".join(_texto(opcion) for opcion in nodo["enum"])
+        errores.append(f"{ruta}: {_texto(valor)} no está entre {opciones}")
+
+    esperado = nodo.get("type")
+    if isinstance(esperado, str) and not _tipo_ok(valor, esperado):
+        errores.append(f"{ruta}: se esperaba {esperado} y llegó {_nombre_tipo(valor)}")
+        return
+
+    if isinstance(valor, str):
+        minimo = nodo.get("minLength", 0)
+        if len(valor) < minimo:
+            errores.append(f"{ruta}: {len(valor)} caracteres; mínimo {minimo}")
+        patron = nodo.get("pattern")
+        if isinstance(patron, str) and re.search(patron, valor) is None:
+            errores.append(f"{ruta}: no cumple el patrón {patron}")
+
+    if isinstance(valor, (int, float)) and not isinstance(valor, bool):
+        minimo = nodo.get("minimum")
+        if isinstance(minimo, (int, float)) and valor < minimo:
+            errores.append(f"{ruta}: {valor}; mínimo {minimo}")
+
+    if isinstance(valor, list):
+        min_items = nodo.get("minItems", 0)
+        if len(valor) < min_items:
+            errores.append(f"{ruta}: {len(valor)} elementos; mínimo {min_items}")
+        if nodo.get("uniqueItems"):
+            vistos = [
+                json.dumps(elemento, sort_keys=True, ensure_ascii=False) for elemento in valor
+            ]
+            if len(set(vistos)) != len(vistos):
+                errores.append(f"{ruta}: hay elementos repetidos")
+        items = nodo.get("items")
+        if isinstance(items, dict):
+            for indice, elemento in enumerate(valor):
+                _validar(elemento, items, raiz, f"{ruta}[{indice}]", errores)
+
+    if isinstance(valor, dict):
+        propiedades = nodo.get("properties", {})
+        for clave in nodo.get("required", []):
+            if clave not in valor:
+                errores.append(f"{ruta}.{clave}: falta")
+        for clave, sub in propiedades.items():
+            if clave in valor:
+                _validar(valor[clave], sub, raiz, f"{ruta}.{clave}", errores)
+        if nodo.get("additionalProperties") is False:
+            for clave in valor:
+                if clave not in propiedades:
+                    errores.append(f"{ruta}.{clave}: no está permitido")
+
+
+def _resolver_ref(raiz: dict[str, Any], referencia: str) -> dict[str, Any]:
+    if not referencia.startswith("#/"):
+        return {}
+    actual: Any = raiz
+    for parte in referencia[2:].split("/"):
+        actual = actual[parte]
+    return actual
+
+
+def _tipo_ok(valor: Any, esperado: str) -> bool:
+    if esperado == "integer":
+        return isinstance(valor, int) and not isinstance(valor, bool)
+    if esperado == "number":
+        return isinstance(valor, (int, float)) and not isinstance(valor, bool)
+    tipos = {
+        "object": dict,
+        "array": list,
+        "string": str,
+        "boolean": bool,
+        "null": type(None),
+    }
+    tipo = tipos.get(esperado)
+    return tipo is not None and isinstance(valor, tipo)
+
+
+def _nombre_tipo(valor: Any) -> str:
+    for nombre, tipo in (
+        ("null", type(None)),
+        ("boolean", bool),
+        ("integer", int),
+        ("number", float),
+        ("string", str),
+        ("array", list),
+        ("object", dict),
+    ):
+        if isinstance(valor, tipo) and not (nombre != "boolean" and isinstance(valor, bool)):
+            return nombre
+    return type(valor).__name__
+
+
+def _igual(a: Any, b: Any) -> bool:
+    if isinstance(a, bool) != isinstance(b, bool):
+        return False
+    return a == b
+
+
+def _texto(valor: Any) -> str:
+    return json.dumps(valor, ensure_ascii=False)
 
 
 def _relativa(archivo: Path, raiz: Path) -> str:

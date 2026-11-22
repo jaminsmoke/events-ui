@@ -439,6 +439,16 @@ con el motivo, para no reabrirlo cada semana.
   fases solo en `pendiente`, requisitos sin marcar y un `origen` obligatorio por
   idea con ruta relativa, líneas 1-based y sha256 de 64 hex. Cubierto en
   `services/core/tests/test_migracion.py`.
+- **Migración: `eui migrate check`**: valida un `plan.json` sin escribir nada ni
+  abrir el almacén. Primero lo pasa por el esquema publicado con un validador
+  propio de las palabras que este usa (tipos, `const`, `enum`, `required`,
+  `pattern`, `uniqueItems`, `additionalProperties: false`, sin dependencias
+  nuevas); después comprueba lo que el esquema no ve: `ref` repetidos,
+  `depende_de` inexistentes o apuntándose a sí mismas, ciclos, `origen` fuera
+  del repo o que ya no coincide con el `sha256` o las líneas del fichero, y dos
+  ideas con el mismo título en el mismo fichero. Enseña lo que se crearía (todo
+  a `proposed`) y sale con 0 si se aplicaría, 1 si hay problemas y 2 si el plan
+  no se puede leer. Cubierto en `services/core/tests/test_migracion.py`.
 
 ## Pendientes
 
@@ -447,11 +457,10 @@ con el motivo, para no reabrirlo cada semana.
   siguientes se abordan en este orden, uno cada vez y cerrando cada uno con sus
   tests antes de abrir el siguiente. Los agentes no tocan la API cruda: usan
   `eui` o el MCP, que son las dos caras del mismo cliente.
-  - **Paso 1 — migración con plan y lote.** `scan`, las pautas y el esquema del
-    plan ya están en Hecho; queda el importador: `eui migrate check` valida el
-    plan contra el esquema y lo que el esquema no puede (refs repetidos,
-    dependencias inexistentes o con ciclo, `origen` fuera del repo o con un
-    sha256 que ya no cuadra) y enseña el diff sin tocar nada.
+  - **Paso 1 — migración con plan y lote.** `scan`, las pautas, el esquema y
+    `check` ya están en Hecho; quedan `apply` y `undo`: aplicar el plan como un
+    lote (todo a `proposed`, con el sha256 del origen y en una transacción) y
+    deshacerlo solo si nadie tocó después las ideas que creó.
     `eui migrate apply` lo aplica como lote: todo entra en `proposed`, sin
     adivinar estados, guardando el lote, el sha256 del fichero de origen y el
     rango de líneas, así que repetirlo no duplica. `eui migrate undo <lote>`

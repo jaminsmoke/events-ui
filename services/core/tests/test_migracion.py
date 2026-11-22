@@ -151,3 +151,159 @@ def test_cli_schema_migrate_en_una_linea(capsys) -> None:
     salida = capsys.readouterr().out.strip()
     assert "\n" not in salida
     assert json.loads(salida)["$defs"]["idea"]["properties"]["status"]["const"] == "proposed"
+
+
+def _plan_valido(tmp_path, **cambios):
+    """Un plan mínimo correcto: un Markdown, una idea y su origen con hash."""
+    archivo = tmp_path / "docs" / "backlog.md"
+    archivo.parent.mkdir(parents=True, exist_ok=True)
+    archivo.write_text("# Backlog\n\n## Idea uno\n\n- [ ] hacer algo\n", encoding="utf-8")
+    idea = {
+        "ref": "idea-1",
+        "title": "Idea uno",
+        "description": "Hacer algo.",
+        "content": "## Idea uno\n\n- [ ] hacer algo",
+        "kind": "idea",
+        "status": "proposed",
+        "tags": ["backlog"],
+        "origen": {
+            "ruta": "docs/backlog.md",
+            "desde_linea": 3,
+            "hasta_linea": 5,
+            "sha256": hashlib.sha256(archivo.read_bytes()).hexdigest(),
+        },
+    }
+    idea.update(cambios)
+    return {"version": 1, "ideas": [idea]}
+
+
+def test_validar_esquema_rechaza_lo_que_no_toca(tmp_path) -> None:
+    plan = _plan_valido(tmp_path)
+    plan["ideas"][0]["status"] = "roadmap"
+    plan["ideas"][0]["origen"]["sha256"] = "abc"
+    plan["ideas"][0]["sobra"] = True
+
+    texto = "\n".join(migracion.validar_esquema(plan))
+
+    assert "ideas[0].status" in texto and "proposed" in texto
+    assert "ideas[0].origen.sha256" in texto
+    assert "ideas[0].sobra" in texto
+
+
+def test_validar_esquema_exige_titulo(tmp_path) -> None:
+    plan = _plan_valido(tmp_path)
+    del plan["ideas"][0]["title"]
+
+    errores = migracion.validar_esquema(plan)
+
+    assert any("ideas[0].title" in error and "falta" in error for error in errores)
+
+
+def test_check_plan_correcto(tmp_path) -> None:
+    informe = migracion.revisar(tmp_path, _plan_valido(tmp_path), plan_ruta="plan.json")
+
+    assert informe["ok"] is True
+    assert informe["errores"] == []
+    assert informe["repo"] == str(tmp_path.resolve())
+    assert [idea["ref"] for idea in informe["crear"]] == ["idea-1"]
+    assert informe["resumen"] == {"ideas": 1, "archivos": 1, "refs": 1}
+
+
+def test_check_ref_repetida(tmp_path) -> None:
+    plan = _plan_valido(tmp_path)
+    plan["ideas"].append({**plan["ideas"][0], "title": "Otra"})
+
+    informe = migracion.revisar(tmp_path, plan)
+
+    assert informe["ok"] is False
+    assert any("repetida" in error for error in informe["errores"])
+
+
+def test_check_dependencia_inexistente(tmp_path) -> None:
+    informe = migracion.revisar(tmp_path, _plan_valido(tmp_path, depende_de=["nadie"]))
+
+    assert any("no existe la idea" in error for error in informe["errores"])
+
+
+def test_check_dependencia_circular(tmp_path) -> None:
+    plan = _plan_valido(tmp_path)
+    plan["ideas"].append(
+        {**plan["ideas"][0], "ref": "idea-2", "title": "Idea dos", "depende_de": ["idea-1"]}
+    )
+    plan["ideas"][0]["depende_de"] = ["idea-2"]
+
+    informe = migracion.revisar(tmp_path, plan)
+
+    assert any("dependencia circular" in error for error in informe["errores"])
+
+
+def test_check_hash_obsoleto(tmp_path) -> None:
+    plan = _plan_valido(tmp_path)
+    (tmp_path / "docs" / "backlog.md").write_text("# otro\n", encoding="utf-8")
+
+    informe = migracion.revisar(tmp_path, plan)
+
+    assert any("cambió desde el scan" in error for error in informe["errores"])
+
+
+def test_check_origen_fuera_del_repo(tmp_path) -> None:
+    plan = _plan_valido(tmp_path)
+    plan["ideas"][0]["origen"]["ruta"] = "../fuera.md"
+
+    informe = migracion.revisar(tmp_path, plan)
+
+    assert any("dentro del repo" in error for error in informe["errores"])
+
+
+def test_check_lineas_fuera_del_fichero(tmp_path) -> None:
+    plan = _plan_valido(tmp_path)
+    plan["ideas"][0]["origen"]["hasta_linea"] = 99
+
+    informe = migracion.revisar(tmp_path, plan)
+
+    assert any("supera las" in error for error in informe["errores"])
+
+
+def test_check_titulo_repetido_en_el_mismo_fichero(tmp_path) -> None:
+    plan = _plan_valido(tmp_path)
+    plan["ideas"].append({**plan["ideas"][0], "ref": "idea-2"})
+
+    informe = migracion.revisar(tmp_path, plan)
+
+    assert any("ya sale en" in error for error in informe["errores"])
+
+
+def test_cli_migrate_check_json(tmp_path, capsys) -> None:
+    destino = tmp_path / "plan.json"
+    destino.write_text(json.dumps(_plan_valido(tmp_path)), encoding="utf-8")
+    config.guardar(repo=str(tmp_path))
+
+    assert cli.main(["migrate", "check", str(destino), "--json"]) == 0
+    informe = json.loads(capsys.readouterr().out)
+    assert informe["ok"] is True
+    assert informe["crear"][0]["ref"] == "idea-1"
+
+
+def test_cli_migrate_check_con_problemas(tmp_path, capsys) -> None:
+    destino = tmp_path / "plan.json"
+    destino.write_text(json.dumps(_plan_valido(tmp_path, status="roadmap")), encoding="utf-8")
+    config.guardar(repo=str(tmp_path))
+
+    assert cli.main(["migrate", "check", str(destino)]) == 1
+    assert "no se aplicaría" in capsys.readouterr().err
+
+
+def test_cli_migrate_check_json_roto(tmp_path, capsys) -> None:
+    destino = tmp_path / "plan.json"
+    destino.write_text("{", encoding="utf-8")
+    config.guardar(repo=str(tmp_path))
+
+    assert cli.main(["migrate", "check", str(destino)]) == 2
+    assert "JSON" in capsys.readouterr().err
+
+
+def test_cli_migrate_check_sin_plan(tmp_path, capsys) -> None:
+    config.guardar(repo=str(tmp_path))
+
+    assert cli.main(["migrate", "check", str(tmp_path / "no.json")]) == 1
+    assert "no existe" in capsys.readouterr().err

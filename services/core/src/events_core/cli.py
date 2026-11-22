@@ -339,7 +339,7 @@ def _idea(args: argparse.Namespace) -> int:
     return 0
 
 
-def _migrate(args: argparse.Namespace) -> int:
+def _migrar_scan(args: argparse.Namespace) -> int:
     ajustes = configuracion.leer_segura()
     try:
         raiz = _raiz(args, ajustes)
@@ -385,6 +385,49 @@ def _migrate(args: argparse.Namespace) -> int:
     if informe["recortado"]:
         print(f"(recortado a {migracion.MAX_ARCHIVOS} archivos)")
     return 0
+
+
+def _migrar_check(args: argparse.Namespace) -> int:
+    ajustes = configuracion.leer_segura()
+    try:
+        raiz = _raiz(args, ajustes)
+    except InvalidInput as exc:
+        return _error(str(exc))
+    if raiz is None:
+        return _error(
+            "no hay raíz: elige una carpeta en la app, usa --repo o `eui config set repo`"
+        )
+
+    try:
+        plan = migracion.cargar_plan(Path(args.plan))
+    except FileNotFoundError as exc:
+        return _error(str(exc), 1)
+    except migracion.PlanInvalido as exc:
+        return _error(str(exc), 2)
+
+    informe = migracion.revisar(Path(raiz), plan, plan_ruta=str(args.plan))
+
+    if args.json:
+        print(json.dumps(informe))
+        return 0 if informe["ok"] else 1
+
+    print(f"plan: {informe['plan']}")
+    print(f"repo: {informe['repo']}")
+    for idea in informe["crear"]:
+        origen = idea["origen"]
+        print(
+            f"+ {idea['title']}  [{idea['ref']}]  "
+            f"{origen['ruta']}:{origen['desde_linea']}-{origen['hasta_linea']}"
+        )
+    resumen = informe["resumen"]
+    print(f"{resumen['ideas']} ideas · {resumen['archivos']} archivos · {resumen['refs']} refs")
+    if informe["ok"]:
+        print("plan válido: se aplicaría como un lote y todo entraría en proposed")
+        return 0
+    for error in informe["errores"]:
+        print(f"error  {error}", file=sys.stderr)
+    print(f"{len(informe['errores'])} problemas: no se aplicaría", file=sys.stderr)
+    return 1
 
 
 def _schema(args: argparse.Namespace) -> int:
@@ -472,7 +515,15 @@ def _parser() -> argparse.ArgumentParser:
     escanear.add_argument("ruta", nargs="?", help="Carpeta o archivo; por defecto, la raíz")
     escanear.add_argument("--json", action="store_true")
     conexion(escanear)
-    escanear.set_defaults(func=_migrate)
+    escanear.set_defaults(func=_migrar_scan)
+
+    comprobar = acciones_migrar.add_parser(
+        "check", help="Valida el plan y enseña lo que se crearía; no escribe"
+    )
+    comprobar.add_argument("plan", help="Ruta del plan.json")
+    comprobar.add_argument("--json", action="store_true")
+    conexion(comprobar)
+    comprobar.set_defaults(func=_migrar_check)
 
     return parser
 

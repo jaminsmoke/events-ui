@@ -12,8 +12,10 @@ aplica**. Nadie escribe el almacén a mano ni llama a la API cruda.
 2. Lee los ficheros del scan y decide qué es una idea y qué es contexto.
 3. Escribe `plan.json` con las ideas y su `origen` (fichero, rango de líneas y
    `sha256` del scan). No inventes uids: los pone el importador.
-4. `eui migrate check plan.json` valida esquema, referencias y duplicados y
-   enseña el diff sin aplicar nada.
+4. `eui migrate check plan.json` valida el esquema, los refs, las
+   dependencias, los ciclos y el `sha256` de cada origen, y enseña lo que se
+   crearía sin escribir nada. Sale con 0 si se aplicaría, 1 si hay problemas y
+   2 si el plan no se puede leer.
 5. `eui migrate apply plan.json` aplica el lote de una vez. Todas las ideas
    entran en `proposed`; ninguna en otro carril.
 6. `eui migrate undo <lote>` deshace solo lo que creó ese lote, y se niega si

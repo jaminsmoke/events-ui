@@ -504,7 +504,9 @@ con el motivo, para no reabrirlo cada semana.
   `isError: true` con su texto y stdout queda solo para el protocolo. Cubierto
   en `services/core/tests/test_mcp.py`, incluido un subproceso real por stdio.
 
-## Pendientes- **Migración de Markdown, CLI y MCP — plan aprobado**: la base, la migración
+## Pendientes
+
+- **Migración de Markdown, CLI y MCP — plan aprobado**: la base, la migración
   con plan y lote, el CRUD del CLI y el MCP están en Hecho; queda el PATH
   opt-in. Los agentes no tocan la API cruda: usan `eui` o el MCP, que son las
   dos caras del mismo cliente.

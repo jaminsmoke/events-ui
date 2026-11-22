@@ -7,6 +7,8 @@ binaries/
 __pycache__/
 *.pyc
 data/
+# Almacén local de Events UI: vive en cada repo, no se versiona.
+.EUI/
 *.db
 *.db-wal
 *.db-shm

@@ -13,10 +13,11 @@ type Estado =
  *  abrir para ver otra versión. El estado pertenece a una ruta, así que cambiar
  *  de archivo no enseña el anterior ni un frame.
  */
-export function useArchivo(repo: string, ruta: string) {
+export function useArchivo(repo: string, ruta: string, activo = true) {
   const [estado, setEstado] = useState<Estado | null>(null);
 
   useEffect(() => {
+    if (!activo) return;
     let vivo = true;
     void unwrap(api.GET("/archivo", { params: { query: { repo, ruta } } }))
       .then((datos) => {
@@ -30,12 +31,12 @@ export function useArchivo(repo: string, ruta: string) {
     return () => {
       vivo = false;
     };
-  }, [repo, ruta]);
+  }, [repo, ruta, activo]);
 
-  const actual = estado && estado.ruta === ruta ? estado : null;
+  const actual = activo && estado && estado.ruta === ruta ? estado : null;
   return {
     datos: actual && "datos" in actual ? actual.datos : null,
     error: actual && "error" in actual ? actual.error : null,
-    cargando: actual === null,
+    cargando: activo && actual === null,
   };
 }

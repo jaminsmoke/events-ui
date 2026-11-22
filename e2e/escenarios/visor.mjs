@@ -9,14 +9,23 @@ export default {
     const md = path.join(lab, "visor-prueba.md");
     const ts = path.join(lab, "visor-prueba.ts");
     const json = path.join(lab, "visor-prueba.json");
+    const png = path.join(lab, "visor-prueba.png");
 
     writeFileSync(
       md,
-      "# Visor de prueba\n\nTexto **fuerte**.\n\n```ts\nconst x: number = 1;\n```\n",
+      "# Visor de prueba\n\nTexto **fuerte**.\n\n![punto](visor-prueba.png)\n\n```ts\nconst x: number = 1;\n```\n",
       "utf8",
     );
     writeFileSync(ts, "export const cuadrado = (n: number): number => n * n;\n", "utf8");
     writeFileSync(json, '{"a":1,"b":[2,3]}\n', "utf8");
+    // PNG 1×1 válido: basta para comprobar el endpoint y el <img>.
+    writeFileSync(
+      png,
+      Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
+        "base64",
+      ),
+    );
 
     try {
       await page.goto(UI, { waitUntil: "domcontentloaded" });
@@ -45,6 +54,13 @@ export default {
       expect(
         (await visor.innerText()).includes("Texto fuerte."),
         "el Markdown debe renderizarse",
+      );
+      await esperar(
+        () =>
+          visor
+            .locator(".visor-md-imagen")
+            .evaluateAll((imgs) => imgs.some((img) => img.naturalWidth > 0)),
+        "la imagen relativa del Markdown",
       );
       await page.screenshot({ path: resultado("visor-md.png") });
 
@@ -87,6 +103,17 @@ export default {
         "el JSON original",
       );
 
+      // Imagen del repo: se pinta como imagen, con sus medidas, no como texto.
+      await page.locator('.arbol-archivo[title="visor-prueba.png"]').click();
+      const imagen = visor.locator(".visor-imagen-real");
+      await imagen.waitFor();
+      await esperar(
+        () => imagen.evaluate((img) => img.naturalWidth > 0),
+        "la imagen del visor",
+      );
+      expect((await visor.innerText()).includes("1 × 1 px"), "las medidas de la imagen");
+      await page.screenshot({ path: resultado("visor-imagen.png") });
+
       await page.keyboard.press("Escape");
       await esperar(
         () => page.locator(".visor").count().then((n) => n === 0),
@@ -100,6 +127,7 @@ export default {
       rmSync(md, { force: true });
       rmSync(ts, { force: true });
       rmSync(json, { force: true });
+      rmSync(png, { force: true });
     }
   },
 };

@@ -6,20 +6,24 @@ import remarkGfm from "remark-gfm";
 
 import { lenguajeDe, resaltar } from "../core/resaltado";
 import { useArchivo } from "../core/useArchivo";
+import { esImagen, resolverImagen, useImagen } from "../core/useImagen";
 
 /** Visor de un archivo del repo, como vista Archivo del panel derecho.
  *
  *  Markdown abre en renderizado y ofrece la pestaña Raw; un JSON válido se
- *  enseña formateado y guarda su fuente en Original; el resto se pinta como
- *  código. Es solo lectura: no se edita ni se guarda nada. El HTML crudo del
- *  Markdown se queda como texto (react-markdown no lo interpreta) y las
- *  imágenes se anuncian en vez de cargar rutas relativas que aún no se sirven.
- *  El cierre es el del panel; aquí solo van la ruta y las pestañas de vista.
+ *  enseña formateado y guarda su fuente en Original; las imágenes se pintan
+ *  desde `/archivo-bytes` (también las relativas del Markdown) y el resto se
+ *  pinta como código. Es solo lectura: no se edita ni se guarda nada. El HTML
+ *  crudo del Markdown se queda como texto (react-markdown no lo interpreta).
  */
 export function VisorArchivo({ repo, ruta }: { repo: string; ruta: string }) {
-  const { datos, error, cargando } = useArchivo(repo, ruta);
+  const imagenRuta = esImagen(ruta);
+  const { datos, error, cargando } = useArchivo(repo, ruta, !imagenRuta);
+  const imagen = useImagen(repo, imagenRuta ? ruta : null);
   const esMarkdown = /\.(md|markdown)$/i.test(ruta);
   const [modo, setModo] = useState<"render" | "raw">("render");
+  const [copiado, setCopiado] = useState<"no" | "si" | "fallo">("no");
+  const [medidas, setMedidas] = useState<{ ancho: number; alto: number } | null>(null);
   // Un minificado se lee mal aunque tenga colores: si parsea, se formatea. Si
   // no —JSONC, un error de sintaxis— se queda el fuente y su resaltado.
   const json = useMemo(() => {
@@ -42,6 +46,16 @@ export function VisorArchivo({ repo, ruta }: { repo: string; ruta: string }) {
         ] as const)
       : null;
 
+  const copiar = async () => {
+    if (!datos) return;
+    try {
+      await navigator.clipboard.writeText(datos.texto);
+      setCopiado("si");
+    } catch {
+      setCopiado("fallo");
+    }
+  };
+
   return (
     <section className="visor" aria-label={`Visor de ${ruta}`}>
       <header className="visor-cabecera">
@@ -50,9 +64,13 @@ export function VisorArchivo({ repo, ruta }: { repo: string; ruta: string }) {
             {ruta}
           </span>
           <span className="visor-meta">
-            {datos
-              ? `${datos.bytes.toLocaleString("es-ES")} B${datos.truncado ? " · solo el principio" : ""}`
-              : "…"}
+            {imagenRuta
+              ? imagen.bytes === null
+                ? "…"
+                : `${formatoBytes(imagen.bytes)} B`
+              : datos
+                ? `${formatoBytes(datos.bytes)} B${datos.truncado ? " · solo el principio" : ""}`
+                : "…"}
           </span>
         </div>
 
@@ -76,30 +94,73 @@ export function VisorArchivo({ repo, ruta }: { repo: string; ruta: string }) {
             ))}
           </div>
         )}
+
+        {!imagenRuta && datos && (
+          <button
+            type="button"
+            className="btn ghost visor-copiar"
+            title="Copiar el fuente"
+            onClick={() => void copiar()}
+          >
+            {copiado === "si" ? "Copiado" : copiado === "fallo" ? "No se pudo" : "Copiar"}
+          </button>
+        )}
       </header>
 
-      <div className="visor-cuerpo">
-        {cargando && <p className="hint">Cargando…</p>}
-        {error && <p className="hint">{error}</p>}
-        {datos && (
+      <div className={`visor-cuerpo${imagenRuta ? " visor-cuerpo-imagen" : ""}`}>
+        {imagenRuta ? (
           <>
-            {datos.truncado && (
-              <p className="visor-aviso">
-                El archivo supera 512 KiB: se muestra solo el principio.
-              </p>
+            {imagen.cargando && <p className="hint">Cargando…</p>}
+            {imagen.error && <p className="hint">{imagen.error}</p>}
+            {imagen.url && (
+              <figure className="visor-figura">
+                <img
+                  className="visor-imagen-real"
+                  src={imagen.url}
+                  alt={ruta}
+                  onLoad={(e) =>
+                    setMedidas({
+                      ancho: e.currentTarget.naturalWidth,
+                      alto: e.currentTarget.naturalHeight,
+                    })
+                  }
+                />
+                <figcaption className="visor-pie">
+                  {medidas ? `${medidas.ancho} × ${medidas.alto} px · ` : ""}
+                  {formatoBytes(imagen.bytes)} B
+                </figcaption>
+              </figure>
             )}
-            {esMarkdown && modo === "render" ? (
-              <Markdown texto={datos.texto} />
-            ) : json !== null && modo === "render" ? (
-              <Codigo codigo={json} lenguaje="json" />
-            ) : (
-              <Codigo codigo={datos.texto} lenguaje={lenguajeDe(datos.ruta)} />
+          </>
+        ) : (
+          <>
+            {cargando && <p className="hint">Cargando…</p>}
+            {error && <p className="hint">{error}</p>}
+            {datos && (
+              <>
+                {datos.truncado && (
+                  <p className="visor-aviso">
+                    El archivo supera 512 KiB: se muestra solo el principio.
+                  </p>
+                )}
+                {esMarkdown && modo === "render" ? (
+                  <Markdown texto={datos.texto} repo={repo} ruta={ruta} />
+                ) : json !== null && modo === "render" ? (
+                  <Codigo codigo={json} lenguaje="json" />
+                ) : (
+                  <Codigo codigo={datos.texto} lenguaje={lenguajeDe(datos.ruta)} />
+                )}
+              </>
             )}
           </>
         )}
       </div>
     </section>
   );
+}
+
+function formatoBytes(bytes: number | null): string {
+  return bytes === null ? "…" : bytes.toLocaleString("es-ES");
 }
 
 /** Un bloque de código con números de línea. Mientras Shiki carga —o si no hay
@@ -145,36 +206,76 @@ function Codigo({ codigo, lenguaje }: { codigo: string; lenguaje: string | null 
 }
 
 /** Render de Markdown con el mismo resaltador que el visor de código. Los
- *  enlaces no navegan dentro de la app (abren fuera) y las imágenes quedan
- *  como aviso hasta que exista un endpoint de binarios. */
-const COMPONENTES: Components = {
-  pre: ({ children }) => <>{children}</>,
-  code: ({ className, children }) => {
-    const texto = String(children).replace(/\n$/, "");
-    const lenguaje = /language-([\w-]+)/.exec(className ?? "")?.[1] ?? null;
-    if (lenguaje !== null || texto.includes("\n")) {
-      return <Codigo codigo={texto} lenguaje={lenguaje} />;
-    }
-    return <code className="visor-inline">{children}</code>;
-  },
-  a: ({ href, children }) => (
-    <a href={href} target="_blank" rel="noreferrer noopener">
-      {children}
-    </a>
-  ),
-  img: ({ alt, src }) => (
-    <span className="visor-imagen" title={src}>
-      [imagen: {alt || src}]
-    </span>
-  ),
-};
-
-function Markdown({ texto }: { texto: string }) {
+ *  enlaces abren fuera y las imágenes relativas se resuelven contra el repo;
+ *  las de red o `data:` las carga el navegador. */
+function Markdown({ texto, repo, ruta }: { texto: string; repo: string; ruta: string }) {
+  const componentes = useMemo(() => componentesDe(repo, ruta), [repo, ruta]);
   return (
     <div className="visor-md">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={COMPONENTES}>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={componentes}>
         {texto}
       </ReactMarkdown>
     </div>
+  );
+}
+
+function componentesDe(repo: string, ruta: string): Components {
+  return {
+    pre: ({ children }) => <>{children}</>,
+    code: ({ className, children }) => {
+      const texto = String(children).replace(/\n$/, "");
+      const lenguaje = /language-([\w-]+)/.exec(className ?? "")?.[1] ?? null;
+      if (lenguaje !== null || texto.includes("\n")) {
+        return <Codigo codigo={texto} lenguaje={lenguaje} />;
+      }
+      return <code className="visor-inline">{children}</code>;
+    },
+    a: ({ href, children }) => (
+      <a href={href} target="_blank" rel="noreferrer noopener">
+        {children}
+      </a>
+    ),
+    img: ({ alt, src }) =>
+      src ? (
+        <ImagenMarkdown repo={repo} md={ruta} src={src} alt={alt} />
+      ) : (
+        <span className="visor-imagen">[imagen: {alt ?? ""}]</span>
+      ),
+  };
+}
+
+function ImagenMarkdown({
+  repo,
+  md,
+  src,
+  alt,
+}: {
+  repo: string;
+  md: string;
+  src: string;
+  alt?: string;
+}) {
+  const externa = /^(https?:|data:)/i.test(src);
+  const relativa = useMemo(() => (externa ? null : resolverImagen(md, src)), [externa, md, src]);
+  const { url, error } = useImagen(repo, relativa);
+
+  if (externa) {
+    return (
+      <img
+        className="visor-md-imagen"
+        src={src}
+        alt={alt ?? ""}
+        loading="lazy"
+        referrerPolicy="no-referrer"
+      />
+    );
+  }
+  if (url) {
+    return <img className="visor-md-imagen" src={url} alt={alt ?? ""} loading="lazy" />;
+  }
+  return (
+    <span className="visor-imagen" title={error ?? src}>
+      [{error ? "imagen no disponible" : "cargando imagen"}: {alt || src}]
+    </span>
   );
 }

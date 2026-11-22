@@ -382,14 +382,18 @@ con el motivo, para no reabrirlo cada semana.
   resaltador. Se descartan `highlight.js` (5,5 MB desempaquetado) y
   `prism-react-renderer` (734 KB y gramáticas más pobres en TSX y diffs): el
   coste inicial de Shiki es su core y crece solo con los lenguajes que se abren.
-  Queda abierto qué hacer con imágenes y enlaces del Markdown (¿rutas relativas
-  del repo?, ¿abrir fuera?) y si el visor vive en el panel derecho o en un
-  modal ancho. Las tres dependencias entran al empezar el visor, no antes.
+  Las imágenes del Markdown se resuelven contra el repo (`/archivo-bytes`) y los
+  enlaces abren fuera; el visor vive en el panel derecho, no en un modal. Las
+  tres dependencias entran al empezar el visor, no antes.
 - **Lectura de archivos para el visor**: `GET /archivo` devuelve el texto de
   cualquier archivo del repo, acotado a 512 KiB (`bytes` real y `truncado`
   aparte), con UTF-8 tolerante, 415 en binarios y la guarda de rutas de
   `/arbol`; la ruta vuelve canónica. Cubierto en
   `services/core/tests/test_visor.py`.
+- **Imágenes para el visor**: `GET /archivo-bytes` sirve solo `image/*` con su
+  `Content-Type`, `nosniff` y tope de 12 MiB (413); comparte la guarda de rutas
+  de `/archivo`. El visor pinta la imagen con sus medidas y resuelve las rutas
+  relativas del Markdown. Cubierto en `services/core/tests/test_imagenes.py`.
 - **Visor de archivos**: pulsar un archivo del Explorador lo abre en la vista
   **Archivo** del panel derecho —con su icono junto a Resumen e Inspector—, sin
   modal ni otro panel; esa vista se ensancha para leer. El árbol fija la
@@ -398,9 +402,11 @@ con el motivo, para no reabrirlo cada semana.
   resto se pinta con Shiki 4 —`shiki/core`, motor de regex JS y gramáticas bajo
   demanda—, con números de línea y texto plano si no hay gramática o el archivo
   pasa de 200 000 caracteres. El mapa cubre lenguajes de web, scripts, sistemas,
-  datos e infraestructura; las extensiones desconocidas se leen sin colores. El HTML crudo del Markdown se queda como texto,
-  los enlaces abren fuera y las imágenes se anuncian. También se abre desde la
-  ficha de un cambio del inspector (un archivo borrado no ofrece el botón).
+  datos e infraestructura; las extensiones desconocidas se leen sin colores. El
+  HTML crudo del Markdown se queda como texto, los enlaces abren fuera y las
+  imágenes —también las relativas del Markdown— se pintan desde
+  `/archivo-bytes`; el fuente se puede copiar. También se abre desde la ficha de
+  un cambio del inspector (un archivo borrado no ofrece el botón).
   Cubierto en `e2e/escenarios/visor.mjs` y `e2e/escenarios/git-local.mjs`.
 - **Migración de roadmaps y backlogs en Markdown**: aparcada a propósito hasta
   decidir el formato destino; si llega antes, será un importador explícito a

@@ -15,6 +15,7 @@ encima es el orden y el tope por nivel.
 
 from __future__ import annotations
 
+import mimetypes
 import os
 from pathlib import Path
 from typing import Any
@@ -102,8 +103,21 @@ def niveles(carpeta: Path, rutas: list[str]) -> list[dict[str, Any]]:
 LIMITE_ARCHIVO = 512 * 1024
 
 
+# Las imágenes se sirven enteras, pero con tope: una foto de 40 MiB no debe
+# llegar al webview ni bloquear el panel.
+LIMITE_IMAGEN = 12 * 1024 * 1024
+
+
 class ArchivoBinario(Exception):
     """El archivo no es texto legible: el router lo traduce a un 415."""
+
+
+class ArchivoNoImagen(Exception):
+    """El archivo no es una imagen: el router lo traduce a un 415."""
+
+
+class ArchivoDemasiadoGrande(Exception):
+    """La imagen supera el tope: el router lo traduce a un 413."""
 
 
 def leer_archivo(carpeta: Path, ruta: str) -> dict[str, Any]:
@@ -133,3 +147,26 @@ def leer_archivo(carpeta: Path, ruta: str) -> dict[str, Any]:
         "bytes": tamano,
         "truncado": truncado,
     }
+
+
+def leer_imagen(carpeta: Path, ruta: str) -> tuple[bytes, str]:
+    """Los bytes de una imagen del repo, con su tipo MIME.
+
+    Solo se sirven tipos `image/*`: el visor pinta un `<img>`, no un archivo
+    cualquiera. La guarda de rutas es la misma que en `/archivo`, y el tope se
+    comprueba por `stat` antes de leer para no cargar media docena de MiB de
+    más. Un SVG llega como texto, pero se sirve igual: su tipo es de imagen.
+    """
+    _, destino = _relativa(carpeta, ruta)
+    if not destino.is_file():
+        raise FileNotFoundError(f"no existe el archivo {ruta!r}")
+    tipo, _ = mimetypes.guess_type(destino.name)
+    if tipo is None or not tipo.startswith("image/"):
+        raise ArchivoNoImagen(ruta)
+    try:
+        if destino.stat().st_size > LIMITE_IMAGEN:
+            raise ArchivoDemasiadoGrande(ruta)
+        datos = destino.read_bytes()
+    except OSError as exc:
+        raise FileNotFoundError(f"no se pudo leer {ruta!r}: {exc}") from exc
+    return datos, tipo

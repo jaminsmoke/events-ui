@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Response
 
 from .. import arbol, ideas
 from ..contrato import RESPUESTAS_ERROR, Archivo, ErrorDetail, NivelArbol, RepoParam
@@ -57,3 +57,37 @@ def get_archivo(
         raise HTTPException(
             status_code=415, detail=f"El archivo no es texto legible: {exc}"
         ) from exc
+
+
+@router.get(
+    "/archivo-bytes",
+    tags=["arbol"],
+    responses={
+        **RESPUESTAS_ERROR,
+        413: {"model": ErrorDetail, "description": "La imagen supera el tope"},
+        415: {"model": ErrorDetail, "description": "El archivo no es una imagen"},
+    },
+)
+def get_archivo_bytes(
+    repo: RepoParam,
+    ruta: Annotated[
+        str,
+        Query(min_length=1, description="Ruta de la imagen, relativa a la raíz del repo"),
+    ],
+) -> Response:
+    """Los bytes de una imagen del repo para pintarla en el visor.
+
+    Solo se sirve `image/*`, hasta 12 MiB, y la ruta no sale de la raíz. El
+    tipo viaja en `Content-Type` y `nosniff` evita que el navegador lo adivine.
+    """
+    try:
+        datos, tipo = arbol.leer_imagen(ideas.resolve_repo(repo), ruta)
+    except arbol.ArchivoNoImagen as exc:
+        raise HTTPException(status_code=415, detail=f"No es una imagen: {exc}") from exc
+    except arbol.ArchivoDemasiadoGrande as exc:
+        raise HTTPException(status_code=413, detail=f"La imagen supera 12 MiB: {exc}") from exc
+    return Response(
+        content=datos,
+        media_type=tipo,
+        headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "no-store"},
+    )

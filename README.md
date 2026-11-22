@@ -144,6 +144,7 @@ corepack pnpm core:dev           # Swagger en http://127.0.0.1:18765/docs
 | --- | --- |
 | GET | `/repos` — carpetas del laboratorio ya sembradas |
 | GET | `/archivo?repo=<ruta>&ruta=<relativa>` — texto de un archivo (512 KiB, 415 si es binario) |
+| GET | `/archivo-bytes?repo=<ruta>&ruta=<relativa>` — bytes de una imagen (12 MiB, solo `image/*`) |
 | GET | `/ideas?repo=<ruta>` (filtros `status`, `kind`, `limit`, `offset`) |
 | POST | `/ideas?repo=<ruta>` |
 | GET / PATCH / DELETE | `/ideas/{uid}?repo=<ruta>` |

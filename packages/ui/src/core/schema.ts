@@ -439,6 +439,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/archivo-bytes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Archivo Bytes
+         * @description Los bytes de una imagen del repo para pintarla en el visor.
+         *
+         *     Solo se sirve `image/*`, hasta 12 MiB, y la ruta no sale de la raíz. El
+         *     tipo viaja en `Content-Type` y `nosniff` evita que el navegador lo adivine.
+         */
+        get: operations["get_archivo_bytes_archivo_bytes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2223,6 +2246,76 @@ export interface operations {
                 };
             };
             /** @description El archivo no es texto legible */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_archivo_bytes_archivo_bytes_get: {
+        parameters: {
+            query: {
+                /** @description Carpeta del repo: ruta absoluta o nombre en el lab */
+                repo: string;
+                /** @description Ruta de la imagen, relativa a la raíz del repo */
+                ruta: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Petición inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description No existe el repo o la idea */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description La imagen supera el tope */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description El archivo no es una imagen */
             415: {
                 headers: {
                     [name: string]: unknown;

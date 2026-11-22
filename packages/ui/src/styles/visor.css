@@ -196,3 +196,46 @@
   color: var(--muted);
   font-size: 10.5px;
 }
+
+/* Imagen del repo: centrada, ajustada al panel y con cuadros para que se vean
+ *  las transparencias. El pie dice tamaño y píxeles. */
+.visor-cuerpo-imagen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.visor-figura {
+  display: flex;
+  max-width: 100%;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.visor-imagen-real {
+  max-width: 100%;
+  max-height: 70vh;
+  border-radius: 6px;
+  background: repeating-conic-gradient(#1b2230 0% 25%, #121821 0% 50%) 50% / 16px 16px;
+}
+
+.visor-pie {
+  color: var(--muted);
+  font-size: 9.5px;
+}
+
+/* Imagen dentro del Markdown: nunca desborda la columna de texto. */
+.visor-md-imagen {
+  max-width: 100%;
+  height: auto;
+  margin: 4px 0;
+  border-radius: 5px;
+}
+
+/* Copiar el fuente: pequeño, junto a las pestañas de vista. */
+.visor-copiar {
+  padding: 1px 8px;
+  font-size: 10.5px;
+}

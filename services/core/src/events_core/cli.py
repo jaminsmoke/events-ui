@@ -722,6 +722,13 @@ def _migrar_undo(args: argparse.Namespace) -> int:
     return 0
 
 
+def _mcp(args: argparse.Namespace) -> int:
+    # Import perezoso: el CLI normal no carga el servidor ni su protocolo.
+    from .mcp_servidor import permite_escritura, servir
+
+    return servir(permitir_escritura=permite_escritura(args.permitir_escritura))
+
+
 def _schema(args: argparse.Namespace) -> int:
     if args.tema == "migrate":
         # El esquema del plan es local: no hace falta core ni raíz.
@@ -891,6 +898,14 @@ def _parser() -> argparse.ArgumentParser:
     deshacer.add_argument("--json", action="store_true")
     conexion(deshacer)
     deshacer.set_defaults(func=_migrar_undo)
+
+    mcp = comandos.add_parser("mcp", help="Servidor MCP por stdio para agentes")
+    mcp.add_argument(
+        "--permitir-escritura",
+        action="store_true",
+        help="Anuncia y permite las herramientas que escriben",
+    )
+    mcp.set_defaults(func=_mcp)
 
     return parser
 

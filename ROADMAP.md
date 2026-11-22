@@ -490,22 +490,25 @@ con el motivo, para no reabrirlo cada semana.
   (mismo lote, sin duplicar), comprobar por API que las dos ideas están en
   `proposed` y que `depende_de` quedó resuelto a uids, y `undo` hasta dejar el
   almacén vacío.
+- **MCP por stdio**: `python -m events_core.mcp_servidor` (o `eui mcp`) habla
+  JSON-RPC 2.0 por líneas sin dependencias nuevas: `initialize` (negocia la
+  versión), `ping`, `tools/list`, `tools/call`, `resources/list`,
+  `resources/templates/list` y `resources/read`. Cada herramienta arma el argv
+  del CLI y ejecuta `cli.main` en proceso con stdout y stderr capturados, así
+  que no reimplementa payloads ni validaciones. En solo lectura anuncia
+  `doctor`, `repo_actual`, `repo_list`, `idea_list`, `idea_get`, `migrate_scan`
+  y `migrate_check`; con `--permitir-escritura` o `EVENTSUI_MCP_ESCRITURA=1` se
+  suman `idea_create`, `idea_edit`, `idea_move`, `idea_fases`,
+  `idea_requisito`, `migrate_apply` y `migrate_undo`. Publica el esquema del
+  plan en `eui://schema/plan-migracion`. Los errores del CLI vuelven como
+  `isError: true` con su texto y stdout queda solo para el protocolo. Cubierto
+  en `services/core/tests/test_mcp.py`, incluido un subproceso real por stdio.
 
-## Pendientes
-
-- **Migración de Markdown, CLI y MCP — plan aprobado**: el paso de la base
-  —configuración compartida, `/health` y `eui` de lectura— está en Hecho, y la
-  migración con plan y lote (`scan`, esquema, `check`, `apply` y `undo`) también.
-  Los siguientes se abordan en este orden, uno cada vez y cerrando cada uno con
-  sus tests antes de abrir el siguiente. Los agentes no tocan la API cruda:
-  usan `eui` o el MCP, que son las dos caras del mismo cliente.
-  - **MCP fino.** Servidor MCP por stdio que no reimplementa nada:
-    cada herramienta llama al cliente compartido del CLI (`repo`, `idea.list`,
-    `idea.get`, `migrate.scan`, `migrate.check`, `migrate.apply`) y publica el
-    esquema del plan como recurso. Lectura primero; escritura y migración
-    detrás de un ámbito, porque hoy la API admite peticiones sin `Origin` y
-    cualquier proceso local puede escribir. El README dice a los agentes qué
-    usar (`eui` o el MCP) y deja de presentar los endpoints como vía.  - **PATH opt-in.** Instalar `eui` en el PATH es una casilla del instalador,
+## Pendientes- **Migración de Markdown, CLI y MCP — plan aprobado**: la base, la migración
+  con plan y lote, el CRUD del CLI y el MCP están en Hecho; queda el PATH
+  opt-in. Los agentes no tocan la API cruda: usan `eui` o el MCP, que son las
+  dos caras del mismo cliente.
+  - **PATH opt-in.** Instalar `eui` en el PATH es una casilla del instalador,
     nunca por defecto, con el binario en los datos del usuario; el MCP se
     configura por ruta absoluta, sin depender del PATH.
 

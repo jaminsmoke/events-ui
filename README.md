@@ -142,6 +142,36 @@ le da (`--tag`/`--dep` reemplazan la lista y `--sin-etiquetas`/
 o desmarca uno conservando estados, notas y el resto de marcas. Todos aceptan
 `--json`.
 
+### MCP para agentes
+
+`eui` y el MCP son las dos caras del mismo cliente. El servidor MCP habla
+JSON-RPC por stdio (`python -m events_core.mcp_servidor`, o `eui mcp`) y no
+reimplementa nada: cada herramienta arma el comando del CLI y devuelve su
+`--json` como texto. Arranca en solo lectura; las herramientas que escriben
+solo se anuncian con `--permitir-escritura` o `EVENTSUI_MCP_ESCRITURA=1`.
+
+```json
+{
+  "mcpServers": {
+    "events-ui": {
+      "command": "uv",
+      "args": [
+        "run", "--directory", "<ruta-a-events-ui>/services/core",
+        "python", "-m", "events_core.mcp_servidor"
+      ],
+      "env": { "EVENTSUI_MCP_ESCRITURA": "1" }
+    }
+  }
+}
+```
+
+Herramientas de lectura: `doctor`, `repo_actual`, `repo_list`, `idea_list`,
+`idea_get`, `migrate_scan` y `migrate_check`. Con escritura se suman
+`idea_create`, `idea_edit`, `idea_move`, `idea_fases`, `idea_requisito`,
+`migrate_apply` y `migrate_undo`. El esquema del plan se lee en el recurso
+`eui://schema/plan-migracion`. stdout es solo protocolo; los errores del CLI
+vuelven como `isError: true` y los logs van a stderr.
+
 El registro operativo de la app (arranques, errores y operaciones) vive en su
 propio SQLite, `data/registro.sqlite` en la raíz del repo (`EVENTSUI_REGISTRO_DB` para cambiarlo);
 se ve con `GET /log` y su purga —90 días / 2.000 entradas, automática al

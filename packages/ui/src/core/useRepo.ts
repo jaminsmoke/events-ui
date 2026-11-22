@@ -46,6 +46,9 @@ export function useRepo(repo: string | null) {
             } catch {
               // Recordar la carpeta es opcional.
             }
+            // El CLI y el MCP no ven `localStorage`: la raíz se comparte por el
+            // fichero de configuración del core (paso 1 del roadmap).
+            void api.PUT("/config", { body: { repo } }).catch(() => {});
           }
           setCargado({ repo, mapa });
           firma = actual;

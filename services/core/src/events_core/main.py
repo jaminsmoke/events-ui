@@ -21,10 +21,12 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from . import ideas, registro
+from . import __version__, ideas, registro
+from . import config as configuracion
 from .contrato import Health
 from .db import data_version, db_path, journal_mode, open_read_only
 from .routers import arbol as rutas_arbol
+from .routers import config as rutas_config
 from .routers import eventos as rutas_eventos
 from .routers import git as rutas_git
 from .routers import ideas as rutas_ideas
@@ -55,7 +57,7 @@ def _origen_permitido(origen: str) -> bool:
     return partes.scheme == "http" and partes.hostname in {"localhost", "127.0.0.1", "::1"}
 
 
-app = FastAPI(title="Events UI Core", version="0.3.1")
+app = FastAPI(title="Events UI Core", version=__version__)
 
 app.add_middleware(
     CORSMiddleware,
@@ -119,11 +121,16 @@ def health() -> dict[str, Any]:
     """Estado del core y de la BD de eventos.
 
     `degraded` cuando el fichero no existe todavía: es normal la primera vez,
-    porque la app no lo crea.
+    porque la app no lo crea. Publica además la `version` (el CLI comprueba que
+    habla con el binario que espera) y la `repo` por defecto de la
+    configuración compartida, que es la que ven los clientes de fuera.
     """
     path = db_path()
+    ajustes = configuracion.leer_segura()
     report: dict[str, Any] = {
         "status": "degraded",
+        "version": app.version,
+        "repo": str(ajustes.repo) if ajustes.repo else None,
         "db_path": str(path),
         "db_exists": path.exists(),
     }
@@ -145,3 +152,4 @@ app.include_router(rutas_eventos.router)
 app.include_router(rutas_log.router)
 app.include_router(rutas_git.router)
 app.include_router(rutas_arbol.router)
+app.include_router(rutas_config.router)

@@ -82,6 +82,9 @@ function arrancarCore(tmp, puerto) {
         ...process.env,
         EVENTSUI_REPOS_ROOT: path.join(tmp, "repos"),
         EVENTSUI_REGISTRO_DB: path.join(tmp, "registro.sqlite"),
+        // La UI escribe la raíz en la configuración compartida al abrir: que
+        // caiga en el temporal del runner y no en el perfil del usuario.
+        EVENTSUI_CONFIG: path.join(tmp, "config.json"),
       },
     },
   );

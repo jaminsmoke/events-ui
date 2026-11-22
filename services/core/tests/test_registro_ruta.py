@@ -34,4 +34,4 @@ def test_sin_raiz_de_proyecto_usa_los_datos_del_usuario(tmp_path, monkeypatch) -
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
     monkeypatch.delenv("XDG_STATE_HOME", raising=False)
 
-    assert registro._raiz_datos_usuario() == tmp_path / "EventsUI"
+    assert registro.raiz_datos_usuario() == tmp_path / "EventsUI"

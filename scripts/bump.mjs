@@ -3,7 +3,8 @@
 // `node scripts/bump.mjs 0.2.0` deja la versión en:
 // - los `package.json` (raíz, UI, desktop, web) —la raíz es la fuente—
 // - `tauri.conf.json` y `Cargo.toml`
-// - el `version=` del core (`main.py`), para Swagger y `/health`.
+// - `__version__` del core (`__init__.py`), que publican Swagger, `/health`
+//   y el CLI (`eui --version`).
 //
 // Sin argumento lee la versión actual de la raíz y sugiere el siguiente
 // `patch` (bump sin argumento = mismo número, para revisar). Escribe con el
@@ -20,17 +21,18 @@ import { spawnSync } from "node:child_process";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const VERSION_RE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 
-// `FastAPI(...)` puede llevar argumentos extra o ir en varias líneas: se busca
-// su `version=` sin exigir la línea exacta. Con la forma anterior, añadir
-// `lifespan=` rompía `check:versions` y el release.
-const MAIN_VERSION_RE = /FastAPI\([\s\S]*?version="([^"]+)"/;
+// La versión del core vive en `__version__` y no en el `version=` de
+// `FastAPI(...)`: así el CLI y el core leen el mismo literal y un
+// `lifespan=` nuevo no rompe `check:versions`.
+const CORE_VERSION_PATH = "services/core/src/events_core/__init__.py";
+const VERSION_PY_RE = /^__version__ = "([^"]+)"/m;
 
-function versionDeMain(texto) {
-  return texto.match(MAIN_VERSION_RE)?.[1] ?? null;
+function versionDeCore(texto) {
+  return texto.match(VERSION_PY_RE)?.[1] ?? null;
 }
 
-function conVersionDeMain(texto, version) {
-  return texto.replace(/(FastAPI\([\s\S]*?version=")[^"]+(")/, `$1${version}$2`);
+function conVersionDeCore(texto, version) {
+  return texto.replace(VERSION_PY_RE, `__version__ = "${version}"`);
 }
 
 /** Los ficheros que llevan la versión, con el camino hasta el valor. */
@@ -68,11 +70,8 @@ function vigentes() {
   const cargo = readFileSync(path.join(ROOT, "apps/desktop/src-tauri/Cargo.toml"), "utf8");
   const m = cargo.match(/^version = "([^"]+)"/m);
   versiones.set("apps/desktop/src-tauri/Cargo.toml", m ? m[1] : "(sin version)");
-  const main = readFileSync(path.join(ROOT, "services/core/src/events_core/main.py"), "utf8");
-  versiones.set(
-    "services/core/src/events_core/main.py",
-    versionDeMain(main) ?? "(sin version)",
-  );
+  const core = readFileSync(path.join(ROOT, CORE_VERSION_PATH), "utf8");
+  versiones.set(CORE_VERSION_PATH, versionDeCore(core) ?? "(sin version)");
   return versiones;
 }
 
@@ -117,17 +116,17 @@ writeFileSync(
   "utf8",
 );
 
-// Core: la versión que publica Swagger.
-const mainRuta = path.join(ROOT, "services/core/src/events_core/main.py");
-const main = readFileSync(mainRuta, "utf8");
-writeFileSync(mainRuta, conVersionDeMain(main, destino), "utf8");
+// Core: la versión que publican Swagger, `/health` y el CLI.
+const coreRuta = path.join(ROOT, CORE_VERSION_PATH);
+const core = readFileSync(coreRuta, "utf8");
+writeFileSync(coreRuta, conVersionDeCore(core, destino), "utf8");
 
 console.log(`Versiones actualizadas a ${destino}:`);
 for (const { ruta } of ARCHIVOS) {
   console.log(`  ${ruta}: ${antes.get(ruta)} → ${destino}`);
 }
 console.log(`  apps/desktop/src-tauri/Cargo.toml: ${antes.get("apps/desktop/src-tauri/Cargo.toml")} → ${destino}`);
-console.log(`  services/core/src/events_core/main.py: ${antes.get("services/core/src/events_core/main.py")} → ${destino}`);
+console.log(`  ${CORE_VERSION_PATH}: ${antes.get(CORE_VERSION_PATH)} → ${destino}`);
 
 // El lockfile guarda la versión de la raíz: se sincroniza en el propio bump.
 const install = spawnSync("corepack pnpm install --lockfile-only", { cwd: ROOT, stdio: "inherit", shell: true });

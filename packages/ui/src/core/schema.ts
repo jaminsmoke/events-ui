@@ -14,7 +14,9 @@ export interface paths {
          * @description Estado del core y de la BD de eventos.
          *
          *     `degraded` cuando el fichero no existe todavía: es normal la primera vez,
-         *     porque la app no lo crea.
+         *     porque la app no lo crea. Publica además la `version` (el CLI comprueba que
+         *     habla con el binario que espera) y la `repo` por defecto de la
+         *     configuración compartida, que es la que ven los clientes de fuera.
          */
         get: operations["health_health_get"];
         put?: never;
@@ -462,6 +464,36 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Config
+         * @description La configuración que ve el core.
+         *
+         *     Tolera un fichero roto (valores por defecto): quien quiera el detalle del
+         *     problema lo mira con `eui doctor`, que sí lo reporta.
+         */
+        get: operations["get_config_config_get"];
+        /**
+         * Put Config
+         * @description Cambia la raíz y/o el puerto; la clave ausente no se toca.
+         *
+         *     La UI lo llama al abrir una carpeta para que el CLI y el MCP sepan cuál es
+         *     la raíz por defecto; `repo: null` la limpia.
+         */
+        put: operations["put_config_config_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -554,6 +586,33 @@ export interface components {
         CommitPeticion: {
             /** Mensaje */
             mensaje: string;
+        };
+        /**
+         * Config
+         * @description Configuración compartida con los clientes de fuera (CLI, MCP).
+         *
+         *     `repo` es la raíz por defecto ya resuelta (absoluta) y `port`, dónde escucha
+         *     el core: con esos dos datos un proceso de fuera sabe a quién preguntar y
+         *     sobre qué carpeta, sin leer el `localStorage` del webview.
+         */
+        Config: {
+            /** Repo */
+            repo?: string | null;
+            /**
+             * Port
+             * @default 18765
+             */
+            port: number;
+        };
+        /**
+         * ConfigEntrada
+         * @description Cambios de configuración: la clave ausente no se toca; `null` limpia.
+         */
+        ConfigEntrada: {
+            /** Repo */
+            repo?: string | null;
+            /** Port */
+            port?: number | null;
         };
         /**
          * EntradaLog
@@ -698,6 +757,10 @@ export interface components {
              * @enum {string}
              */
             status: "ok" | "degraded";
+            /** Version */
+            version: string;
+            /** Repo */
+            repo?: string | null;
             /** Db Path */
             db_path: string;
             /** Db Exists */
@@ -2317,6 +2380,77 @@ export interface operations {
             };
             /** @description El archivo no es una imagen */
             415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_config_config_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Config"];
+                };
+            };
+        };
+    };
+    put_config_config_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfigEntrada"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Config"];
+                };
+            };
+            /** @description Petición inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description No existe el repo o la idea */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

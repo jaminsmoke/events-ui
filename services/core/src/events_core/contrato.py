@@ -409,10 +409,33 @@ RESPUESTAS_ERROR = {
 }
 
 
+class Config(BaseModel):
+    """Configuración compartida con los clientes de fuera (CLI, MCP).
+
+    `repo` es la raíz por defecto ya resuelta (absoluta) y `port`, dónde escucha
+    el core: con esos dos datos un proceso de fuera sabe a quién preguntar y
+    sobre qué carpeta, sin leer el `localStorage` del webview.
+    """
+
+    repo: str | None = None
+    port: int = Field(default=18765, ge=1, le=65535)
+
+
+class ConfigEntrada(BaseModel):
+    """Cambios de configuración: la clave ausente no se toca; `null` limpia."""
+
+    repo: str | None = None
+    port: int | None = Field(default=None, ge=1, le=65535)
+
+
 class Health(BaseModel):
     """Respuesta de `/health`: `journal_mode`/`data_version` solo si hay BD."""
 
     status: Literal["ok", "degraded"]
+    # La versión del core: el CLI compara la suya antes de fiarse del resto.
+    version: str
+    # La raíz por defecto que comparte la configuración; `None` si no hay.
+    repo: str | None = None
     db_path: str
     db_exists: bool
     journal_mode: str | None = None

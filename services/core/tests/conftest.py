@@ -14,6 +14,8 @@ _RAIZ_TMP = Path(tempfile.mkdtemp(prefix="eui-tests-"))
 (REPOS := _RAIZ_TMP / "repos").mkdir(parents=True, exist_ok=True)
 os.environ["EVENTSUI_REPOS_ROOT"] = str(REPOS)
 os.environ["EVENTSUI_REGISTRO_DB"] = str(_RAIZ_TMP / "registro.sqlite")
+# La configuración compartida también es estado: fuera del perfil del usuario.
+os.environ["EVENTSUI_CONFIG"] = str(_RAIZ_TMP / "config.json")
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -24,6 +26,17 @@ from events_core.main import app  # noqa: E402
 @pytest.fixture()
 def client() -> TestClient:
     return TestClient(app, raise_server_exceptions=False)
+
+
+@pytest.fixture(autouse=True)
+def _config_limpia():
+    """Cada test empieza sin `config.json`: es estado que comparten los tests."""
+    from events_core import config
+
+    ruta = config.ruta()
+    ruta.unlink(missing_ok=True)
+    yield
+    ruta.unlink(missing_ok=True)
 
 
 @pytest.fixture()

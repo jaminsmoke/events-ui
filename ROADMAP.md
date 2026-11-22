@@ -371,20 +371,17 @@ con el motivo, para no reabrirlo cada semana.
   comparaba como `false`; las condiciones miran ahora `github.event_name`, y
   `publicar: false` sigue sirviendo para reconstruir sin tocar la release.
   La v0.2.3 salió con su MSI y su NSIS.
-
-## Pendientes
-
-  **Decidido**: Markdown con `react-markdown` 10 + `remark-gfm` 4 y sin
-  `rehype-raw` —el HTML crudo se queda como texto, así que no hay `innerHTML`
-  ni sanitizador que mantener—; el código con **Shiki** 4 desde `shiki/core` y
-  el motor de regex JS (sin WASM), con gramáticas cargadas bajo demanda desde un
-  mapa extensión→lenguaje; el bloque de código del Markdown reutiliza el mismo
-  resaltador. Se descartan `highlight.js` (5,5 MB desempaquetado) y
-  `prism-react-renderer` (734 KB y gramáticas más pobres en TSX y diffs): el
-  coste inicial de Shiki es su core y crece solo con los lenguajes que se abren.
-  Las imágenes del Markdown se resuelven contra el repo (`/archivo-bytes`) y los
-  enlaces abren fuera; el visor vive en el panel derecho, no en un modal. Las
-  tres dependencias entran al empezar el visor, no antes.
+- **Visor: decisiones**: Markdown con `react-markdown` 10 + `remark-gfm` 4 y
+  sin `rehype-raw` —el HTML crudo se queda como texto, así que no hay
+  `innerHTML` ni sanitizador que mantener—; el código con **Shiki** 4 desde
+  `shiki/core` y el motor de regex JS (sin WASM), con gramáticas cargadas bajo
+  demanda desde un mapa extensión→lenguaje; el bloque de código del Markdown
+  reutiliza el mismo resaltador. Se descartan `highlight.js` (5,5 MB
+  desempaquetado) y `prism-react-renderer` (734 KB y gramáticas más pobres en
+  TSX y diffs): el coste inicial de Shiki es su core y crece solo con los
+  lenguajes que se abren. Las imágenes del Markdown se resuelven contra el repo
+  (`/archivo-bytes`) y los enlaces abren fuera; el visor vive en el panel
+  derecho, no en un modal.
 - **Lectura de archivos para el visor**: `GET /archivo` devuelve el texto de
   cualquier archivo del repo, acotado a 512 KiB (`bytes` real y `truncado`
   aparte), con UTF-8 tolerante, 415 en binarios y la guarda de rutas de
@@ -408,22 +405,32 @@ con el motivo, para no reabrirlo cada semana.
   `/archivo-bytes`; el fuente se puede copiar. También se abre desde la ficha de
   un cambio del inspector (un archivo borrado no ofrece el botón).
   Cubierto en `e2e/escenarios/visor.mjs` y `e2e/escenarios/git-local.mjs`.
+- **Configuración compartida y `eui doctor`**: la raíz elegida vivía solo en
+  `localStorage` (`eui.repo`) y el puerto, en constantes por proceso, así que un
+  cliente de fuera no encontraba ni una ni otro. Ahora hay un `config.json` con
+  `repo` y `port` en los datos del usuario (`%LOCALAPPDATA%/EventsUI`,
+  `EVENTSUI_CONFIG` para cambiarlo): la UI lo escribe al abrir una carpeta
+  (`PUT /config`, previa validación de la raíz en el core), `GET /health`
+  publica versión y raíz, y `eui doctor`/`eui config` comprueban fichero, core,
+  versión coincidente, raíz y permiso de escritura, con `--json` de una línea y
+  salida 1 si algo falla. El CLI sale como módulo (`python -m events_core.cli`)
+  con cliente HTTP propio sobre `urllib`, y la versión ya no se duplica:
+  `__version__` en `services/core/src/events_core/__init__.py` la comparten
+  core y CLI, y `bump.mjs` la sincroniza y la vigila. Cubierto en
+  `services/core/tests/test_config.py` y `services/core/tests/test_cli.py`.
+
+## Pendientes
+
 - **Migración de Markdown, CLI y MCP — plan aprobado**: se aborda en este
   orden, un paso cada vez y cerrando cada uno con sus tests antes de abrir el
   siguiente. Los agentes no tocan la API cruda: usan `eui` o el MCP, que son
   las dos caras del mismo cliente.
-  - **Paso 1 — configuración y `eui` de lectura.** `GET /health` devuelve
-    también `version` y la raíz que atiende, para que un cliente sepa con
-    quién habla. La raíz elegida hoy solo vive en `localStorage` (`eui.repo`),
-    así que un proceso de fuera no la encuentra: se añade un fichero de
-    configuración (raíz por defecto y puerto) que `--repo` y `--url` mandan
-    por encima. `eui doctor` comprueba versión, core vivo, raíz y permisos; el
-    resto es lectura: `eui repo`, `eui idea list`, `eui idea get <uid>` y
-    `eui schema`, con salida humana y `--json` de una línea para los agentes y
-    códigos de salida 0/1/2 (bien, no encontrado, fallo). Habla HTTP con el
-    mismo contrato del OpenAPI y no abre SQLite. Va en Python dentro de
-    `services/core` para reutilizar `contrato.py` y el empaquetado de
-    PyInstaller que ya existe, sin dependencias nuevas; a confirmar al empezar.
+  - **Paso 1 — `eui` de lectura.** La base ya está en Hecho: configuración
+    compartida, `/health` con versión y raíz, y `doctor`. Queda la lectura:
+    `eui repo`, `eui idea list`, `eui idea get <uid>` y `eui schema`, sobre el
+    cliente HTTP que ya usa `doctor`, con salida humana y `--json` de una línea
+    para los agentes y códigos de salida 0/1/2 (bien, no encontrado, fallo).
+    Sin dependencias nuevas y sin abrir SQLite: todo pasa por la API.
   - **Paso 2 — migración con plan y lote.** Las pautas para el agente viven en
     `docs/migracion.md` (qué se extrae, una idea por elemento, qué no se
     inventa). `eui migrate scan <ruta>` lista los Markdown con lo que reconoce,

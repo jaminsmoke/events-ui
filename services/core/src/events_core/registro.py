@@ -42,10 +42,10 @@ def _raiz_del_repo() -> Path:
     padres = Path(__file__).resolve().parents
     if len(padres) > 4 and (padres[4] / "services" / "core").is_dir():
         return padres[4]
-    return _raiz_datos_usuario()
+    return raiz_datos_usuario()
 
 
-def _raiz_datos_usuario() -> Path:
+def raiz_datos_usuario() -> Path:
     """Dónde dejar el estado cuando no hay raíz de proyecto (sidecar congelado).
 
     El binario instalado no reconoce `services/core` y su directorio de trabajo

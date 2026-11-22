@@ -87,8 +87,22 @@ los fijan, y un explícito ocupado avisa y no arranca. Al terminar
 que los puertos quedan libres. Las capturas de cada corrida quedan en
 `e2e/resultados/`.
 
-`/health` comprueba el fichero `EVENTSUI_DB` (por defecto, `data/events.db`).
-El historial que ve la UI se lee de la tabla `event` del repositorio seleccionado.
+`/health` publica la `version` del core y la `repo` por defecto que comparte la
+configuración, y comprueba el fichero `EVENTSUI_DB` (por defecto,
+`data/events.db`). El historial que ve la UI se lee de la tabla `event` del
+repositorio seleccionado.
+
+La raíz elegida y el puerto también viven en `config.json`, dentro de los datos
+del usuario (`%LOCALAPPDATA%/EventsUI`; `EVENTSUI_CONFIG` cambia la ruta), no
+solo en el `localStorage` del webview: la UI lo escribe al abrir una carpeta
+y el CLI o el MCP lo leen. `eui doctor` comprueba fichero, core, versión
+coincidente, raíz y permiso de escritura; `--json` devuelve una línea para
+agentes y sale con 1 si algo falla:
+
+```bash
+uv run --directory services/core python -m events_core.cli doctor
+uv run --directory services/core python -m events_core.cli config --json
+```
 
 El registro operativo de la app (arranques, errores y operaciones) vive en su
 propio SQLite, `data/registro.sqlite` en la raíz del repo (`EVENTSUI_REGISTRO_DB` para cambiarlo);
@@ -143,6 +157,7 @@ corepack pnpm core:dev           # Swagger en http://127.0.0.1:18765/docs
 | Método | Ruta |
 | --- | --- |
 | GET | `/repos` — carpetas del laboratorio ya sembradas |
+| GET / PUT | `/config` — raíz por defecto y puerto compartidos con el CLI |
 | GET | `/archivo?repo=<ruta>&ruta=<relativa>` — texto de un archivo (512 KiB, 415 si es binario) |
 | GET | `/archivo-bytes?repo=<ruta>&ruta=<relativa>` — bytes de una imagen (12 MiB, solo `image/*`) |
 | GET | `/ideas?repo=<ruta>` (filtros `status`, `kind`, `limit`, `offset`) |

@@ -8,6 +8,7 @@ export default {
     const lab = path.join(tmp, "repos", "lab");
     const md = path.join(lab, "visor-prueba.md");
     const ts = path.join(lab, "visor-prueba.ts");
+    const json = path.join(lab, "visor-prueba.json");
 
     writeFileSync(
       md,
@@ -15,6 +16,7 @@ export default {
       "utf8",
     );
     writeFileSync(ts, "export const cuadrado = (n: number): number => n * n;\n", "utf8");
+    writeFileSync(json, '{"a":1,"b":[2,3]}\n', "utf8");
 
     try {
       await page.goto(UI, { waitUntil: "domcontentloaded" });
@@ -25,10 +27,20 @@ export default {
 
       await page.getByRole("button", { name: "Archivos", exact: true }).click();
       await page.locator(".arbol").waitFor();
-      await page.locator('.arbol-archivo[title="visor-prueba.md"]').click();
+      const filaMd = page.locator('.arbol-archivo[title="visor-prueba.md"]');
+      await filaMd.waitFor();
+      expect(
+        (await filaMd.innerText()).includes(".md"),
+        "el árbol debe enseñar la extensión",
+      );
+      await filaMd.click();
 
       const visor = page.locator(".visor");
       await visor.waitFor();
+      expect(
+        (await page.locator('.resumen[aria-label="Panel derecho"] .visor').count()) === 1,
+        "el visor vive en el panel derecho",
+      );
       await visor.getByRole("heading", { name: "Visor de prueba" }).waitFor();
       expect(
         (await visor.innerText()).includes("Texto fuerte."),
@@ -47,8 +59,8 @@ export default {
         "el raw debe enseñar el bloque de código",
       );
 
-      // Código: números de línea y tokens con color de Shiki.
-      await visor.getByRole("button", { name: "Cerrar visor" }).click();
+      // Código: números de línea y tokens con color de Shiki. La vista cambia
+      // de archivo sin cerrar el panel.
       await page.locator('.arbol-archivo[title="visor-prueba.ts"]').click();
       await esperar(
         () => visor.locator(".visor-linea").count().then((n) => n >= 1),
@@ -62,14 +74,32 @@ export default {
       expect((await visor.innerText()).includes("cuadrado"), "el código debe verse");
       await page.screenshot({ path: resultado("visor-codigo.png") });
 
+      // JSON: se abre formateado y el original sigue a un clic.
+      await page.locator('.arbol-archivo[title="visor-prueba.json"]').click();
+      await esperar(
+        () => visor.innerText().then((t) => t.includes('"a": 1')),
+        "el JSON formateado",
+      );
+      await visor.getByRole("tab", { name: "Original" }).click();
+      await esperar(
+        () =>
+          visor.locator(".visor-codigo").innerText().then((t) => t.includes('{"a":1')),
+        "el JSON original",
+      );
+
       await page.keyboard.press("Escape");
       await esperar(
         () => page.locator(".visor").count().then((n) => n === 0),
         "Escape cierra el visor",
       );
+      await esperar(
+        () => page.locator(".resumen").count().then((n) => n === 0),
+        "Escape cierra el panel del visor",
+      );
     } finally {
       rmSync(md, { force: true });
       rmSync(ts, { force: true });
+      rmSync(json, { force: true });
     }
   },
 };

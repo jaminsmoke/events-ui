@@ -390,11 +390,15 @@ con el motivo, para no reabrirlo cada semana.
   aparte), con UTF-8 tolerante, 415 en binarios y la guarda de rutas de
   `/arbol`; la ruta vuelve canónica. Cubierto en
   `services/core/tests/test_visor.py`.
-- **Visor de archivos**: pulsar un archivo del Explorador lo abre en un panel
-  ancho junto al árbol, sin modal. Markdown abre renderizado y ofrece Raw; el
+- **Visor de archivos**: pulsar un archivo del Explorador lo abre en la vista
+  **Archivo** del panel derecho —con su icono junto a Resumen e Inspector—, sin
+  modal ni otro panel; esa vista se ensancha para leer. El árbol fija la
+  extensión aunque el nombre se recorte. Markdown abre renderizado y ofrece Raw;
+  un JSON válido abre formateado y guarda su fuente en Original; el
   resto se pinta con Shiki 4 —`shiki/core`, motor de regex JS y gramáticas bajo
   demanda—, con números de línea y texto plano si no hay gramática o el archivo
-  pasa de 200 000 caracteres. El HTML crudo del Markdown se queda como texto,
+  pasa de 200 000 caracteres. El mapa cubre lenguajes de web, scripts, sistemas,
+  datos e infraestructura; las extensiones desconocidas se leen sin colores. El HTML crudo del Markdown se queda como texto,
   los enlaces abren fuera y las imágenes se anuncian. También se abre desde la
   ficha de un cambio del inspector (un archivo borrado no ofrece el botón).
   Cubierto en `e2e/escenarios/visor.mjs` y `e2e/escenarios/git-local.mjs`.

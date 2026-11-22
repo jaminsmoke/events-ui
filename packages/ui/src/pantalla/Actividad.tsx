@@ -8,9 +8,10 @@ import { ExploradorArbol } from "./ExploradorArbol";
 /** Vista del rail izquierdo. `null` es el pane cerrado. */
 export type VistaPane = "mapas" | "archivos" | "git";
 
-/** Vista del rail derecho: las estadísticas del repo y el inspector de lo que
- *  se selecciona en el lienzo. `null` es el panel cerrado. */
-export type VistaDerecha = "resumen" | "inspector";
+/** Vista del rail derecho: las estadísticas del repo, el inspector de lo que
+ *  se selecciona en el lienzo y el archivo abierto. `null` es el panel
+ *  cerrado. */
+export type VistaDerecha = "resumen" | "inspector" | "archivo";
 
 /** Barra de actividad izquierda: una tira de iconos, cada uno con su vista.
  *  No navega ella misma: solo decide qué panel se ve. Repetir el icono activo
@@ -153,6 +154,24 @@ export function BarraDerecha({
         >
           <circle cx="10.5" cy="10.5" r="5.2" />
           <path d="M14.4 14.4 19 19" />
+        </svg>,
+      )}
+      {item(
+        "archivo",
+        "Archivo",
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M6 3.5h7.5L18 8v12.5H6z" />
+          <path d="M13.5 3.5V8H18M9 12h6M9 15.5h6" />
         </svg>,
       )}
     </nav>

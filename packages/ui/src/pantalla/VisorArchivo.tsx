@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import type { ThemedToken } from "shiki/core";
@@ -7,25 +7,40 @@ import remarkGfm from "remark-gfm";
 import { lenguajeDe, resaltar } from "../core/resaltado";
 import { useArchivo } from "../core/useArchivo";
 
-/** Visor de un archivo del repo, en un panel ancho junto al árbol.
+/** Visor de un archivo del repo, como vista Archivo del panel derecho.
  *
- *  Markdown abre en renderizado y ofrece la pestaña Raw; el resto se pinta
- *  como código. Es solo lectura: no se edita ni se guarda nada. El HTML crudo
- *  del Markdown se queda como texto (react-markdown no lo interpreta) y las
+ *  Markdown abre en renderizado y ofrece la pestaña Raw; un JSON válido se
+ *  enseña formateado y guarda su fuente en Original; el resto se pinta como
+ *  código. Es solo lectura: no se edita ni se guarda nada. El HTML crudo del
+ *  Markdown se queda como texto (react-markdown no lo interpreta) y las
  *  imágenes se anuncian en vez de cargar rutas relativas que aún no se sirven.
+ *  El cierre es el del panel; aquí solo van la ruta y las pestañas de vista.
  */
-export function VisorArchivo({
-  repo,
-  ruta,
-  onClose,
-}: {
-  repo: string;
-  ruta: string;
-  onClose: () => void;
-}) {
+export function VisorArchivo({ repo, ruta }: { repo: string; ruta: string }) {
   const { datos, error, cargando } = useArchivo(repo, ruta);
   const esMarkdown = /\.(md|markdown)$/i.test(ruta);
   const [modo, setModo] = useState<"render" | "raw">("render");
+  // Un minificado se lee mal aunque tenga colores: si parsea, se formatea. Si
+  // no —JSONC, un error de sintaxis— se queda el fuente y su resaltado.
+  const json = useMemo(() => {
+    if (!datos || !/\.json$/i.test(ruta)) return null;
+    try {
+      return `${JSON.stringify(JSON.parse(datos.texto), null, 2)}\n`;
+    } catch {
+      return null;
+    }
+  }, [datos, ruta]);
+  const pestanas = esMarkdown
+    ? ([
+        ["render", "Renderizado"],
+        ["raw", "Raw"],
+      ] as const)
+    : json !== null
+      ? ([
+          ["render", "Formateado"],
+          ["raw", "Original"],
+        ] as const)
+      : null;
 
   return (
     <section className="visor" aria-label={`Visor de ${ruta}`}>
@@ -41,9 +56,13 @@ export function VisorArchivo({
           </span>
         </div>
 
-        {esMarkdown && datos && (
-          <div className="panel-pestanas" role="tablist" aria-label="Vista del Markdown">
-            {(["render", "raw"] as const).map((clave) => (
+        {pestanas && datos && (
+          <div
+            className="panel-pestanas"
+            role="tablist"
+            aria-label={esMarkdown ? "Vista del Markdown" : "Vista del JSON"}
+          >
+            {pestanas.map(([clave, etiqueta]) => (
               <button
                 key={clave}
                 type="button"
@@ -52,15 +71,11 @@ export function VisorArchivo({
                 className={`chip${modo === clave ? " activo" : ""}`}
                 onClick={() => setModo(clave)}
               >
-                {clave === "render" ? "Renderizado" : "Raw"}
+                {etiqueta}
               </button>
             ))}
           </div>
         )}
-
-        <button type="button" className="btn ghost" onClick={onClose} aria-label="Cerrar visor">
-          ✕
-        </button>
       </header>
 
       <div className="visor-cuerpo">
@@ -75,6 +90,8 @@ export function VisorArchivo({
             )}
             {esMarkdown && modo === "render" ? (
               <Markdown texto={datos.texto} />
+            ) : json !== null && modo === "render" ? (
+              <Codigo codigo={json} lenguaje="json" />
             ) : (
               <Codigo codigo={datos.texto} lenguaje={lenguajeDe(datos.ruta)} />
             )}

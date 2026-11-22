@@ -131,7 +131,10 @@ export default {
         () => page.locator(".visor").count().then((n) => n === 0),
         "Escape cierra el visor",
       );
-      await fichaCambios.getByRole("button", { name: "Cerrar panel derecho" }).click();
+      await esperar(
+        () => page.locator(".resumen").count().then((n) => n === 0),
+        "Escape cierra el panel del visor",
+      );
 
       // Eliminar desde el puente: pide confirmación y vuelve a apagarse.
       await page.getByRole("button", { name: "Mapa de ideas", exact: true }).click();

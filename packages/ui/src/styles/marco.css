@@ -355,6 +355,22 @@ button.arbol-fila:hover {
   cursor: pointer;
 }
 
+/* La extensión no se recorta: se come antes la base del nombre. */
+.arbol-nombre-archivo {
+  display: flex;
+  min-width: 0;
+}
+
+.arbol-nombre-base {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.arbol-nombre-ext {
+  flex: none;
+}
+
 .arbol-flecha {
   flex: none;
   width: 9px;

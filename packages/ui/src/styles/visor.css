@@ -1,16 +1,20 @@
-/* Visor de archivos: panel ancho junto al árbol, con Markdown y código.
+/* Visor de archivos: vista Archivo del panel derecho, con Markdown y código.
  *
  *  El fondo del código es el del tema github-dark de Shiki; el resto usa las
  *  variables del marco para no encender otra paleta. */
 
 .visor {
   display: flex;
-  flex: none;
-  flex-direction: column;
-  width: clamp(360px, 52vw, 900px);
+  flex: 1;
+  min-width: 0;
   min-height: 0;
-  border-right: 1px solid var(--line);
-  background: var(--panel);
+  flex-direction: column;
+}
+
+/* El visor necesita más ancho que una ficha; el resto de vistas del panel se
+ *  quedan en los 272 px de `.resumen`. */
+.resumen--visor {
+  width: clamp(420px, 46vw, 860px);
 }
 
 .visor-cabecera {

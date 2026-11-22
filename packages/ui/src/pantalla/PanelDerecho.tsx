@@ -21,16 +21,20 @@ import {
 import { CuerpoIdea } from "./InspectorIdea";
 import { CuerpoNudo } from "./InspectorNudo";
 import type { AccionesIdea } from "./InspectorIdea";
-/** Panel derecho del marco, con dos vistas que comparten ancho y cabecera.
+import { VisorArchivo } from "./VisorArchivo";
+/** Panel derecho del marco, con tres vistas que comparten cabecera.
  *
  *  Resumen es el estado del repo de un vistazo: sale por encima del lienzo —no
  *  le roba ancho— y se lee de la misma `ProyeccionRepo` que la statusbar, sin
  *  pedir nada nuevo al core. El Inspector recibe lo que se pulsa en el mapa:
  *  así los detalles caben aquí y las filas del lienzo pueden quedarse en una
- *  sola línea. */
+ *  sola línea. Archivo reutiliza el mismo panel para el visor: al abrir un
+ *  archivo no se monta otro panel, y al cerrarlo vuelve el lienzo entero. */
 export function PanelDerecho({
   vista,
   onVista,
+  repo,
+  archivoAbierto,
   proyeccion,
   onIgnorarAlmacen,
   commits,
@@ -47,6 +51,10 @@ export function PanelDerecho({
 }: {
   vista: VistaDerecha;
   onVista: (vista: VistaDerecha) => void;
+  /** Repo del archivo abierto: el visor pide su texto a `/archivo`. */
+  repo: string;
+  /** Ruta abierta en la vista Archivo; `null` deja el aviso de vacío. */
+  archivoAbierto: string | null;
   proyeccion: ProyeccionRepo | null | undefined;
   /** Escribe `.EUI/` en el `.gitignore` de esta raíz; lo ofrece el Resumen. */
   onIgnorarAlmacen: () => Promise<unknown>;
@@ -65,7 +73,7 @@ export function PanelDerecho({
   acciones: AccionesIdea;
   /** Pulsar una idea en la ficha la selecciona en el lienzo. */
   onSeleccionar: (seleccion: Seleccion) => void;
-  /** Abrir un archivo de una ficha (cambio) en el visor del marco. */
+  /** Abrir un archivo de una ficha (cambio) en la vista Archivo. */
   onAbrirArchivo: (ruta: string) => void;
   conectado: boolean;
   onClose: () => void;
@@ -83,11 +91,15 @@ export function PanelDerecho({
   );
 
   return (
-    <aside className="resumen" aria-label="Panel derecho">
+    <aside
+      className={`resumen${vista === "archivo" ? " resumen--visor" : ""}`}
+      aria-label="Panel derecho"
+    >
       <div className="panel-cabecera">
         <div className="panel-pestanas" role="tablist">
           {pestana("resumen", "Resumen")}
           {pestana("inspector", "Inspector")}
+          {archivoAbierto && pestana("archivo", "Archivo")}
         </div>
         <button
           type="button"
@@ -99,7 +111,18 @@ export function PanelDerecho({
         </button>
       </div>
 
-      {vista === "resumen" ? (
+      {vista === "archivo" ? (
+        archivoAbierto ? (
+          <VisorArchivo key={archivoAbierto} repo={repo} ruta={archivoAbierto} />
+        ) : (
+          <div className="panel-cuerpo">
+            <p className="hint">
+              Ningún archivo abierto. Pulsa uno en el Explorador o en la ficha de
+              un cambio.
+            </p>
+          </div>
+        )
+      ) : vista === "resumen" ? (
         <CuerpoResumen
           proyeccion={proyeccion}
           conectado={conectado}

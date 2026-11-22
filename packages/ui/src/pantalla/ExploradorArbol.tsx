@@ -57,6 +57,23 @@ export function ExploradorArbol({
   );
 }
 
+/** El nombre de un archivo con la extensión fija al final.
+ *
+ *  El ancho del pane recorta la base con puntos suspensivos, pero `.md`, `.ts`
+ *  o `.py` se quedan: sin ellos un archivo no dice qué es. */
+function NombreArchivo({ nombre }: { nombre: string }) {
+  const punto = nombre.lastIndexOf(".");
+  const hayExtension = punto > 0 && punto < nombre.length - 1;
+  return (
+    <span className="arbol-nombre arbol-nombre-archivo" title={nombre}>
+      <span className="arbol-nombre-base">
+        {hayExtension ? nombre.slice(0, punto) : nombre}
+      </span>
+      {hayExtension && <span className="arbol-nombre-ext">{nombre.slice(punto)}</span>}
+    </span>
+  );
+}
+
 /** Un nivel y, debajo, los que estén desplegados: el árbol se pinta solo con
  *  lo pedido, así que una carpeta cerrada no cuesta nada. */
 function Nivel({
@@ -127,7 +144,7 @@ function Nivel({
               onClick={() => onAbrir(hijo.ruta)}
             >
               <span className="arbol-flecha" aria-hidden="true" />
-              <span className="arbol-nombre">{hijo.nombre}</span>
+              <NombreArchivo nombre={hijo.nombre} />
               {estado.has(hijo.ruta) && (
                 <span className="arbol-cambio">{estado.get(hijo.ruta)}</span>
               )}

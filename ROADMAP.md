@@ -408,9 +408,44 @@ con el motivo, para no reabrirlo cada semana.
   `/archivo-bytes`; el fuente se puede copiar. También se abre desde la ficha de
   un cambio del inspector (un archivo borrado no ofrece el botón).
   Cubierto en `e2e/escenarios/visor.mjs` y `e2e/escenarios/git-local.mjs`.
-- **Migración de roadmaps y backlogs en Markdown**: aparcada a propósito hasta
-  decidir el formato destino; si llega antes, será un importador explícito a
-  `proposed` con lote reversible y sin adivinar estados.
+- **Migración de Markdown, CLI y MCP — plan aprobado**: se aborda en este
+  orden, un paso cada vez y cerrando cada uno con sus tests antes de abrir el
+  siguiente. Los agentes no tocan la API cruda: usan `eui` o el MCP, que son
+  las dos caras del mismo cliente.
+  - **Paso 1 — configuración y `eui` de lectura.** `GET /health` devuelve
+    también `version` y la raíz que atiende, para que un cliente sepa con
+    quién habla. La raíz elegida hoy solo vive en `localStorage` (`eui.repo`),
+    así que un proceso de fuera no la encuentra: se añade un fichero de
+    configuración (raíz por defecto y puerto) que `--repo` y `--url` mandan
+    por encima. `eui doctor` comprueba versión, core vivo, raíz y permisos; el
+    resto es lectura: `eui repo`, `eui idea list`, `eui idea get <uid>` y
+    `eui schema`, con salida humana y `--json` de una línea para los agentes y
+    códigos de salida 0/1/2 (bien, no encontrado, fallo). Habla HTTP con el
+    mismo contrato del OpenAPI y no abre SQLite. Va en Python dentro de
+    `services/core` para reutilizar `contrato.py` y el empaquetado de
+    PyInstaller que ya existe, sin dependencias nuevas; a confirmar al empezar.
+  - **Paso 2 — migración con plan y lote.** Las pautas para el agente viven en
+    `docs/migracion.md` (qué se extrae, una idea por elemento, qué no se
+    inventa). `eui migrate scan <ruta>` lista los Markdown con lo que reconoce,
+    sin escribir; el agente propone un `plan.json` con esquema publicado
+    (`eui schema migrate`), y `eui migrate check` lo valida —esquema, uids que
+    existan, sin ciclos ni duplicados— y enseña el diff sin tocar nada.
+    `eui migrate apply` lo aplica como lote: todo entra en `proposed`, sin
+    adivinar estados, guardando el lote, el sha256 del fichero de origen y el
+    rango de líneas, así que repetirlo no duplica. `eui migrate undo <lote>`
+    borra solo lo que creó el lote y se niega, listando los conflictos, si algo
+    se movió o editó después.
+  - **Paso 3 — MCP fino.** Servidor MCP por stdio que no reimplementa nada:
+    cada herramienta llama al cliente compartido del CLI (`repo`, `idea.list`,
+    `idea.get`, `migrate.scan`, `migrate.check`, `migrate.apply`) y publica el
+    esquema del plan como recurso. Lectura primero; escritura y migración
+    detrás de un ámbito, porque hoy la API admite peticiones sin `Origin` y
+    cualquier proceso local puede escribir. El README dice a los agentes qué
+    usar (`eui` o el MCP) y deja de presentar los endpoints como vía.
+  - **Paso 4 — CRUD completo y PATH opt-in.** El CLI cubre crear, editar,
+    mover, fases, requisitos y descartar. Instalarlo en el PATH es una casilla
+    del instalador, nunca por defecto, con el binario en los datos del usuario;
+    el MCP se configura por ruta absoluta, sin depender del PATH.
 
 ## No se hace (por ahora)
 

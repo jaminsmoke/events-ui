@@ -14,7 +14,8 @@
 // Uso: `node scripts/dev.mjs` (Tauri) o `node scripts/dev.mjs web` (solo web,
 // en 15174; `ui` es un alias histórico). Ambas montan la UI de `@events-ui/ui`.
 
-import { spawn, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import process from "node:process";
@@ -65,6 +66,25 @@ function matar(child) {
   }
 }
 
+/** Tauri exige que existan los `externalBin` para compilar, aunque en dev el
+ *  sidecar no se arranque (lo levanta este script). Se crean vacíos si faltan;
+ *  `binaries/` está ignorado y el build de release los sustituye de verdad. */
+function asegurarBinariosTauri() {
+  const host = execFileSync("rustc", ["-vV"], { encoding: "utf8" }).match(/^host:\s*(.+)$/m);
+  if (!host) throw new Error("No se pudo averiguar el target triple de rustc.");
+  const triple = host[1].trim();
+  const sufijo = process.platform === "win32" ? ".exe" : "";
+  const directorio = path.join(ROOT, "apps", "desktop", "src-tauri", "binaries");
+  mkdirSync(directorio, { recursive: true });
+  for (const nombre of ["events-core", "eui"]) {
+    const archivo = path.join(directorio, `${nombre}-${triple}${sufijo}`);
+    if (!existsSync(archivo)) {
+      writeFileSync(archivo, "");
+      console.log(`Placeholder de ${nombre} para tauri dev: ${archivo}`);
+    }
+  }
+}
+
 async function main() {
   const modo = process.argv[2] === "web" || process.argv[2] === "ui" ? "web" : "tauri";
 
@@ -101,6 +121,7 @@ async function main() {
     modo === "web"
       ? "corepack pnpm --filter web dev"
       : "corepack pnpm --filter desktop tauri dev";
+  if (modo === "tauri") asegurarBinariosTauri();
   const ui = spawn(comando, { cwd: ROOT, shell: true, stdio: "inherit" });
 
   const apagar = () => {

@@ -955,3 +955,62 @@ button.arbol-fila:hover {
   gap: 7px;
   min-width: 0;
 }
+
+/* Aviso de actualización (solo desktop): banda flotante sobre el marco. */
+.actualizacion {
+  position: fixed;
+  z-index: 80;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: min(720px, calc(100vw - 32px));
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 45%);
+}
+
+.actualizacion-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.actualizacion-notas {
+  max-height: 3.6em;
+  overflow: hidden;
+  color: var(--muted, #8b98a9);
+  font-size: 12px;
+  white-space: pre-line;
+}
+
+.actualizacion-progreso {
+  font-size: 12px;
+  color: var(--muted, #8b98a9);
+}
+
+.actualizacion-acciones {
+  display: flex;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.actualizacion.error {
+  border-color: var(--error, #b4483f);
+}
+
+.ajustes-actualizacion {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.ajustes-actualizacion h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+}

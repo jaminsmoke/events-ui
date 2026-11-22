@@ -9,6 +9,14 @@
     "beforeDevCommand": "corepack pnpm dev",
     "beforeBuildCommand": "corepack pnpm build"
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDI4NkEzN0QwQ0UyNjgwOEMKUldTTWdDYk8wRGRxS0xMUTljUHdIN2tmTmNmVjdYTkxYdXN4RnZiWTRNNXZpY25PZWplcU5lTjkK",
+      "endpoints": [
+        "https://github.com/jaminsmoke/events-ui/releases/latest/download/latest.json"
+      ]
+    }
+  },
   "app": {
     "windows": [
       {

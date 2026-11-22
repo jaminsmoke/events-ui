@@ -1,4 +1,6 @@
 /** Entrada de la UI compartida: los envoltorios (Tauri y web) montan esto y
- *  cada uno inyecta lo suyo (el diálogo nativo, solo en desktop). */
+ *  cada uno inyecta lo suyo (el diálogo nativo y las actualizaciones, solo
+ *  en desktop). */
 export { default } from "./App";
+export type { Actualizacion, EstadoActualizacion } from "./core/actualizacion";
 export type { ElegirCarpeta } from "./core/repo";

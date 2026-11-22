@@ -12,6 +12,11 @@
 # Si la release del tag ya existe, los instaladores se suben con `--clobber`
 # en vez de crear otra; si no existe, se crea con las notas generadas por
 # GitHub a partir de los commits desde el tag anterior.
+#
+# El updater de la app necesita dos cosas más en cada release: los `.sig` de
+# los instaladores (los genera Tauri con `createUpdaterArtifacts`) y un
+# `latest.json` con la firma del NSIS y su URL. Ambos se publican aquí; sin
+# ellos la app no puede aceptar ni encontrar una versión nueva.
 
 name: release
 
@@ -87,18 +92,38 @@ jobs:
       - name: Sidecar (PyInstaller)
         run: corepack pnpm build:sidecar
 
-      - name: Bundles (MSI y NSIS)
-        run: corepack pnpm build
+      # La clave privada vive en secrets. Sin ella Tauri no firma; el paso
+      # falla con un error claro en vez de publicar un updater inservible.
+      # `--config` deja `createUpdaterArtifacts` solo en el release: un
+      # `pnpm build` local no necesita la clave para construir la app.
+      - name: Bundles (MSI y NSIS) firmados
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::error::Falta el secret TAURI_SIGNING_PRIVATE_KEY: sin firma no hay updater."
+            exit 1
+          fi
+          corepack pnpm --filter desktop exec tauri build \
+            --config '{"bundle":{"createUpdaterArtifacts":true}}'
 
-      - name: Instaladores
+      - name: Instaladores y firmas
         id: instaladores
         shell: bash
         run: |
           msi=$(ls apps/desktop/src-tauri/target/release/bundle/msi/*.msi | head -1)
           exe=$(ls apps/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe | head -1)
+          exe_sig="$exe.sig"
+          if [ ! -f "$exe_sig" ]; then
+            echo "::error::El build no generó $exe_sig: revisa la clave de firma."
+            exit 1
+          fi
           echo "msi=$msi" >> "$GITHUB_OUTPUT"
           echo "exe=$exe" >> "$GITHUB_OUTPUT"
-          ls -l "$msi" "$exe"
+          echo "exe_sig=$exe_sig" >> "$GITHUB_OUTPUT"
+          ls -l "$msi" "$exe" "$exe_sig"
 
       # `inputs` solo existe en `workflow_dispatch`: en un push de tag queda
       # vacío y GitHub lo compara como `false`, así que las condiciones miran
@@ -111,9 +136,10 @@ jobs:
           path: |
             ${{ steps.instaladores.outputs.msi }}
             ${{ steps.instaladores.outputs.exe }}
+            ${{ steps.instaladores.outputs.exe_sig }}
           if-no-files-found: error
 
-      - name: Publicar en GitHub Releases
+      - name: Publicar instaladores en GitHub Releases
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.publicar }}
         shell: bash
         env:
@@ -121,10 +147,37 @@ jobs:
         run: |
           msi="${{ steps.instaladores.outputs.msi }}"
           exe="${{ steps.instaladores.outputs.exe }}"
+          exe_sig="${{ steps.instaladores.outputs.exe_sig }}"
+          # El MSI no se usa para actualizar (el updater va por NSIS), pero si
+          # Tauri también lo firmó se adjunta: no estorba y sirve al que baje
+          # el MSI a mano.
+          adjuntos=("$msi" "$exe" "$exe_sig")
+          if [ -f "$msi.sig" ]; then adjuntos+=("$msi.sig"); fi
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "La release $TAG ya existe: se reemplazan los instaladores."
-            gh release upload "$TAG" "$msi" "$exe" --clobber
+            gh release upload "$TAG" "${adjuntos[@]}" --clobber
           else
-            gh release create "$TAG" "$msi" "$exe" \
+            gh release create "$TAG" "${adjuntos[@]}" \
               --verify-tag --title "Events UI $TAG" --generate-notes
           fi
+
+      # El manifiesto se genera después de publicar para llevar las notas que
+      # GitHub haya generado. La URL usa /releases/download/, no /latest/:
+      # la app ya consulta /releases/latest/download/latest.json y este
+      # fichero tiene que apuntar a SU tag, no al que sea último mañana.
+      - name: Manifiesto del updater (latest.json)
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.publicar }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          notes=$(gh release view "$TAG" --json body -q .body)
+          node scripts/latest-json.mjs \
+            --version "${TAG#v}" \
+            --tag "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --artifact "$(basename "${{ steps.instaladores.outputs.exe }}")" \
+            --signature "${{ steps.instaladores.outputs.exe_sig }}" \
+            --notes "$notes" \
+            --output latest.json
+          gh release upload "$TAG" latest.json --clobber

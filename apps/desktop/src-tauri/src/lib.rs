@@ -186,6 +186,9 @@ pub fn run() {
     .plugin(tauri_plugin_dialog::init())
     // Avisos del sistema (F3): la UI los pide con la verbosidad del usuario.
     .plugin(tauri_plugin_notification::init())
+    // Actualizaciones firmadas del release y reinicio tras instalar.
+    .plugin(tauri_plugin_process::init())
+    .plugin(tauri_plugin_updater::Builder::new().build())
     .manage(Core::default())
     .setup(|app| {
       if cfg!(debug_assertions) {

@@ -4,6 +4,7 @@ import { avisaErrores, avisaEventos, cargarAjustes, guardarAjustes } from "./cor
 import type { Ajustes } from "./core/avisos";
 import { folderName, storedRepo } from "./core/repo";
 import type { ElegirCarpeta } from "./core/repo";
+import type { Actualizacion } from "./core/actualizacion";
 import { useRepo } from "./core/useRepo";
 import { useAnimaciones } from "./mapa/animaciones";
 import { buildTree } from "./mapa/arbol";
@@ -39,6 +40,7 @@ import {
 import type { VistaDerecha, VistaPane } from "./pantalla/Actividad";
 import { Ajustes as DialogoAjustes } from "./pantalla/Ajustes";
 import { AvisoError } from "./pantalla/AvisoError";
+import { BannerActualizacion } from "./pantalla/BannerActualizacion";
 import { BarraRepo } from "./pantalla/BarraRepo";
 import { DialogoGit } from "./pantalla/DialogoGit";
 import { Bienvenida } from "./pantalla/Bienvenida";
@@ -74,10 +76,12 @@ export default function App({
   elegirCarpeta,
   avisar,
   puedeProbar,
+  actualizacion,
 }: {
   elegirCarpeta?: ElegirCarpeta;
   avisar?: (titulo: string, cuerpo: string) => void;
   puedeProbar?: boolean;
+  actualizacion?: Actualizacion;
 }) {
   const [repo, setRepo] = useState<string | null>(storedRepo);
   const [selectorAbierto, setSelectorAbierto] = useState(false);
@@ -565,6 +569,7 @@ export default function App({
    *  de Resumen se superpone al graph. */
   return (
     <div className="shell">
+      {actualizacion && <BannerActualizacion actualizacion={actualizacion} />}
       <header className="topbar">
         <h1>Events UI</h1>
         {/* Una sola entrada al selector: en vacío lo lleva el hero de abajo, así
@@ -597,6 +602,7 @@ export default function App({
       {ajustesAbiertos && (
         <DialogoAjustes
           ajustes={ajustes}
+          actualizacion={actualizacion}
           onGuardar={(nuevos) => {
             setAjustes(nuevos);
             guardarAjustes(nuevos);

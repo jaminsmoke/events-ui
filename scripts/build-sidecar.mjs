@@ -6,6 +6,8 @@
 // - `--windowed` solo para el core: el bootloader de onefile crea un hijo de
 //   consola si es un binario de consola y `CREATE_NO_WINDOW` del lanzador no
 //   evita esa ventana. El CLI `eui` sigue siendo consola para imprimir.
+//   Con el core GUI, los `git` del sondeo DEBEN ir por `events_core.proceso`
+//   (CREATE_NO_WINDOW); si no, cada hijo abre una terminal que parpadea.
 // - Se comprueba que arranca y responde a `/health` antes de darlo por bueno:
 //   el binario se ejecuta en frío, con el puerto libre, y se mata al final.
 //

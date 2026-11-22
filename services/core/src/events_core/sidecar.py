@@ -22,6 +22,8 @@ from events_core.main import app  # noqa: F401  (el import es para el análisis 
 def main() -> int:
     # PyInstaller `--windowed` deja `sys.stdout` y `sys.stderr` en None.
     # Uvicorn y `serve` escriben en ellos; se mandan a NUL antes de arrancar.
+    # Los `git` del core van por `events_core.proceso` (CREATE_NO_WINDOW):
+    # sin eso, cada hijo de consola abre una terminal que parpadea.
     if sys.stdout is None:
         sys.stdout = open(os.devnull, "w", encoding="utf-8")  # noqa: SIM115
     if sys.stderr is None:

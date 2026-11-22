@@ -164,9 +164,25 @@ fn vigilar(app: AppHandle) {
       sleep(Duration::from_millis(250));
     }
     if !listo {
-      log::warn!("El core no responde en /health; se vuelve a intentar");
+      log::warn!("El core no responde en /health; se descarta el hijo y se reintenta");
+      descartar_hijo(&app);
+      sleep(espera);
+      espera = (espera * 2).min(Duration::from_secs(10));
+      continue;
     }
+    espera = Duration::from_millis(500);
     sleep(Duration::from_secs(2));
+  }
+}
+
+/// Saca al hijo del estado y lo mata, sin marcar la app como parada.
+/// Sirve cuando el proceso vive pero no responde a `/health`: si no se
+/// descarta, el vigilante lo daría por vivo eternamente y no reintentaría.
+fn descartar_hijo(app: &AppHandle) {
+  let core = app.state::<Core>();
+  if let Some(mut hijo) = core.hijo.lock().unwrap().take() {
+    let _ = hijo.kill();
+    let _ = hijo.wait();
   }
 }
 

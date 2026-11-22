@@ -20,6 +20,8 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from . import proceso
+
 # Tope de archivos por foto. Por encima se anota lo que quepa en orden
 # alfabético: el árbol de una idea no suele acercarse, pero un `vendor/` suelto
 # no puede convertir cada cierre de fase en media base de datos.
@@ -52,7 +54,7 @@ PODA = {
 def _git(carpeta: Path, *args: str) -> subprocess.CompletedProcess[str] | None:
     """Un comando de Git en la carpeta, o `None` si no hay repo o falla."""
     try:
-        salida = subprocess.run(
+        salida = proceso.run(
             ["git", "-C", str(carpeta), *args],
             capture_output=True,
             text=True,

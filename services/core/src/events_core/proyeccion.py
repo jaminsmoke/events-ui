@@ -26,6 +26,7 @@ from contextlib import closing
 from pathlib import Path
 from typing import Any
 
+from . import proceso
 from .db import open_read_only
 from .ideas import InvalidInput, _existe, ensure_repo, repos_root, resolve_repo
 from .ideas.base.rutas import DB_FILENAME, EUI_DIR
@@ -34,7 +35,7 @@ from .ideas.base.rutas import DB_FILENAME, EUI_DIR
 def _git(carpeta: Path, *args: str) -> str | None:
     """Un dato de git en la carpeta, o `None` si no hay repo git o falla."""
     try:
-        salida = subprocess.run(
+        salida = proceso.run(
             ["git", "-C", str(carpeta), *args],
             capture_output=True,
             text=True,
@@ -60,7 +61,7 @@ def _git_cambios(carpeta: Path) -> list[dict[str, str]]:
     código de dos letras mal alineado.
     """
     try:
-        salida = subprocess.run(
+        salida = proceso.run(
             [
                 "git",
                 "-C",
@@ -116,7 +117,7 @@ def _almacen_ignorado(carpeta: Path) -> bool | None:
     binario entra en el próximo commit.
     """
     try:
-        salida = subprocess.run(
+        salida = proceso.run(
             [
                 "git",
                 "-C",
@@ -182,7 +183,7 @@ def historial(carpeta: Path, limite: int = 20) -> list[dict[str, str]]:
     if not es_git or git_root is None:
         return []
     try:
-        salida = subprocess.run(
+        salida = proceso.run(
             [
                 "git",
                 "-C",
@@ -256,7 +257,7 @@ def inicializar_repo(carpeta: Path) -> None:
     if es_git:
         raise InvalidInput(f"Ya pertenece al repositorio {git_root}; no se anida otro")
     try:
-        salida = subprocess.run(
+        salida = proceso.run(
             ["git", "-C", str(carpeta), "init", "-b", "main"],
             capture_output=True,
             text=True,
@@ -318,7 +319,7 @@ def commit(carpeta: Path, mensaje: str) -> None:
         ("commit", "-m", texto),
     ):
         try:
-            salida = subprocess.run(
+            salida = proceso.run(
                 ["git", "-C", str(carpeta), *argumentos],
                 capture_output=True,
                 text=True,

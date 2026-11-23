@@ -264,7 +264,7 @@ export function NodoPuenteDocumentos({
         <span className="git-estado on">Changelog</span>
       </div>
       <div className="git-detalle">
-        <span className="git-ayuda">Ideas archivadas</span>
+        <span className="git-ayuda">Ítems archivados</span>
       </div>
       <button type="button" className="btn puente-abrir" onClick={onAbrir}>
         Abrir mapa de Documentos <span aria-hidden="true">→</span>

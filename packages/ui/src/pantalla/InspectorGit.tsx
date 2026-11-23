@@ -254,8 +254,8 @@ export function CuerpoNodoGit({
 
       <p className="hint">
         {tipo === "puente"
-          ? "El puente cierra la línea de ideas y abre el Mapa de Git cuando hay work tree."
-          : "Cierra el flujo y enseña el estado del work tree; no guarda ideas."}
+          ? "El puente cierra la línea de ítems y abre el Mapa de Git cuando hay work tree."
+          : "Cierra el flujo y enseña el estado del work tree; no guarda ítems."}
       </p>
       {!activo && (
         <p className="hint">Sin repositorio local: se crea desde el puente.</p>

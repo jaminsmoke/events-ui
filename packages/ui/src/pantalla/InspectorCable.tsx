@@ -21,7 +21,7 @@ export function CuerpoCable({
     <div className="panel-cuerpo inspector-cuerpo">
       <p className="inspector-asunto">Cable a {destino}</p>
       <p className="inspector-meta">
-        {cable.presion === 1 ? "1 idea" : `${cable.presion} ideas`} en {origen}
+        {cable.presion === 1 ? "1 ítem" : `${cable.presion} ítems`} en {origen}
       </p>
 
       <p className="pane-rotulo">Compuerta</p>

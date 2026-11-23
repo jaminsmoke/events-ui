@@ -205,7 +205,7 @@ function CuerpoResumen({
           <div className="resumen-cifras">
             <div className="resumen-cifra">
               <strong>{proyeccion.ideas}</strong>
-              <span>ideas</span>
+              <span>ítems</span>
             </div>
             <div className="resumen-cifra">
               <strong>{proyeccion.events}</strong>
@@ -239,8 +239,8 @@ function CuerpoResumen({
               {!confirmando ? (
                 <>
                   <p className="hint">
-                    El almacén entrará en el próximo commit. Si prefieres que las
-                    ideas no viajen en Git, ignóralo en esta raíz.
+                    El almacén entrará en el próximo commit. Si prefieres que los
+                    ítems no viajen en Git, ignóralo en esta raíz.
                   </p>
                   <button
                     type="button"
@@ -258,7 +258,7 @@ function CuerpoResumen({
                 <>
                   <p className="hint">
                     Se añadirá <code>.EUI/</code> al <code>.gitignore</code> de
-                    esta raíz. Las ideas dejarán de versionarse con el código.
+                    esta raíz. Los ítems dejarán de versionarse con el código.
                   </p>
                   <div className="resumen-almacen-acciones">
                     <button
@@ -286,7 +286,7 @@ function CuerpoResumen({
 
           <p className="pane-rotulo">Por estado</p>
           {estados.length === 0 ? (
-            <p className="hint">Sin ideas todavía.</p>
+            <p className="hint">Sin ítems todavía.</p>
           ) : (
             <div className="resumen-estados">
               {estados.map(([estado, n]) => (
@@ -379,7 +379,7 @@ function CuerpoCarril({
         <p className="inspector-asunto">{titulo}</p>
         <p className="inspector-meta">Solo representación</p>
         <p className="hint">
-          Las ideas llegan desde Descartadas, se queman y desaparecen. No se
+          Los ítems llegan desde Descartadas, se queman y desaparecen. No se
           guardan en el almacén.
         </p>
       </div>
@@ -390,7 +390,7 @@ function CuerpoCarril({
     <div className="panel-cuerpo inspector-cuerpo">
       <p className="inspector-asunto">{titulo}</p>
       <p className="inspector-meta">
-        {delCarril.length === 1 ? "1 idea" : `${delCarril.length} ideas`}
+        {delCarril.length === 1 ? "1 ítem" : `${delCarril.length} ítems`}
       </p>
 
       {estados.length > 1 && (
@@ -404,7 +404,7 @@ function CuerpoCarril({
         </dl>
       )}
 
-      <p className="pane-rotulo">Ideas</p>
+      <p className="pane-rotulo">Ítems</p>
       {delCarril.length === 0 ? (
         <p className="hint">Este carril está vacío.</p>
       ) : (
@@ -513,7 +513,7 @@ function CuerpoInspector({
         <p className="inspector-meta">puente al Changelog</p>
         <p className="hint">
           El cable de archivo llega aquí. Abrir el mapa muestra el Changelog:
-          las ideas archivadas con el mismo aspecto de siempre.
+          los ítems archivados con el mismo aspecto de siempre.
         </p>
       </div>
     );
@@ -562,7 +562,7 @@ function CuerpoInspector({
       />
     ) : (
       <div className="panel-cuerpo inspector-cuerpo">
-        <p className="hint">Esa idea ya no está en el mapa.</p>
+        <p className="hint">Ese ítem ya no está en el mapa.</p>
       </div>
     );
   }

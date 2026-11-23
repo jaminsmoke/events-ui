@@ -55,7 +55,7 @@ export const PRUEBAS: Prueba[] = [
     nombre: "Reparto y limpieza",
     descripcion:
       "Crea 10 ítems, mueve 7 a Backlog y descarta 3. Deja seis segundos para ver el reparto. " +
-      "Al terminar, detenerse o fallar, se vacían todas las ideas, fichas y eventos del laboratorio, incluidos los datos anteriores.",
+      "Al terminar, detenerse o fallar, se vacían todos los ítems, fichas y eventos del laboratorio, incluidos los datos anteriores.",
     construir: ({ crear, mover, editar }) => {
       const creadas: string[] = [];
       const pasos: Paso[] = [];
@@ -109,7 +109,7 @@ export const PRUEBAS: Prueba[] = [
     id: "mapa-completo",
     nombre: "Mapa completo por carriles",
     descripcion:
-      "Siembra ideas en todos los carriles con fases en varios estados, requisitos, motivos y dependencias, " +
+      "Siembra ítems en todos los carriles con fases en varios estados, requisitos, motivos y dependencias, " +
       "para ver los seis cables, sus compuertas, los contadores y las fichas. Después vacía el laboratorio.",
     construir: ({ crear, editar }) => {
       type FaseEntrada = NonNullable<IdeaUpdate["fases"]>[number];
@@ -154,7 +154,7 @@ export const PRUEBAS: Prueba[] = [
           `entrada-${i}`,
           {
             title: `Entrada · ${i}`,
-            description: `Idea ${i} recién capturada, todavía sin carril.`,
+            description: `Ítem ${i} recién capturado, todavía sin carril.`,
             content: "",
             kind: "idea",
             status: "draft",
@@ -167,7 +167,7 @@ export const PRUEBAS: Prueba[] = [
           `cola-${i}`,
           {
             title: `Cola · ${i}`,
-            description: `Idea ${i} esperando su turno en la cola.`,
+            description: `Ítem ${i} esperando su turno en la cola.`,
             content: "",
             kind: "idea",
             status: "proposed",
@@ -250,7 +250,7 @@ export const PRUEBAS: Prueba[] = [
         "aprobada-1",
         {
           title: "Aprobada · firmada",
-          description: "Una idea que ya pasó la aprobación; el historial conserva sus fases.",
+          description: "Un ítem que ya pasó la aprobación; el historial conserva sus fases.",
           content: "",
           kind: "idea",
           status: "revision_aprobada",
@@ -393,13 +393,13 @@ export const PRUEBAS: Prueba[] = [
     id: "cable-en-marcha",
     nombre: "Cable en marcha",
     descripcion:
-      "Una idea con la fase «Diseño» completada salta de carril en carril: cada salto abre en guiones el " +
+      "Un ítem con la fase «Diseño» completada salta de carril en carril: cada salto abre en guiones el " +
       "cable de llegada y lo hace correr con la chispa. Encadena cinco saltos para poder mirarlo sin prisa. " +
       "Después vacía el laboratorio.",
     construir: ({ crear, mover, editar }) => {
       let uid: string | null = null;
       const conUid = () => {
-        if (!uid) throw new Error("Falta el uid de la idea creada.");
+        if (!uid) throw new Error("Falta el uid del ítem creado.");
         return uid;
       };
       // Con la fase completada pasan las compuertas de roadmap y verificación.
@@ -423,8 +423,8 @@ export const PRUEBAS: Prueba[] = [
           ejecutar: async () => {
             const idea = await crear({
               title: "Marcha · cable",
-              description: "Una idea que salta de carril para ver el cable en marcha.",
-              content: "Una idea que salta de carril para ver el cable en marcha.",
+              description: "Un ítem que salta de carril para ver el cable en marcha.",
+              content: "Un ítem que salta de carril para ver el cable en marcha.",
               kind: "idea",
               status: "proposed",
             });
@@ -487,12 +487,12 @@ export const PRUEBAS: Prueba[] = [
     id: "fases-aprobacion",
     nombre: "Fases hasta aprobar",
     descripcion:
-      "Una idea con la fase «Diseño» recorre cola, roadmap, verificación, aprobación y archivo: " +
+      "Un ítem con la fase «Diseño» recorre cola, roadmap, verificación, aprobación y archivo: " +
       "se ve la compuerta pedir una fase, después exigirla completada y el pulso verde al llegar al historial.",
     construir: ({ crear, mover, editar }) => {
       let uid: string | null = null;
       const conUid = () => {
-        if (!uid) throw new Error("Falta el uid de la idea creada.");
+        if (!uid) throw new Error("Falta el uid del ítem creado.");
         return uid;
       };
       const fases = (estado: "pendiente" | "completada") => [
@@ -512,8 +512,8 @@ export const PRUEBAS: Prueba[] = [
           ejecutar: async () => {
             const idea = await crear({
               title: "Fases · aprobación",
-              description: "Una idea que recorre el flujo con una fase.",
-              content: "Una idea que recorre el flujo con una fase.",
+              description: "Un ítem que recorre el flujo con una fase.",
+              content: "Un ítem que recorre el flujo con una fase.",
               kind: "idea",
               status: "proposed",
             });
@@ -564,7 +564,7 @@ export const PRUEBAS: Prueba[] = [
     construir: ({ crear, mover, editar }) => {
       let uid: string | null = null;
       const conUid = () => {
-        if (!uid) throw new Error("Falta el uid de la idea creada.");
+        if (!uid) throw new Error("Falta el uid del ítem creado.");
         return uid;
       };
       // Se reenvía la lista entera en cada paso: el PATCH la reemplaza. Cada
@@ -732,12 +732,12 @@ export const PRUEBAS: Prueba[] = [
     id: "fases-motivo",
     nombre: "Fases: el motivo sobrevive",
     descripcion:
-      "Una fase rechazada con motivo vuelve con la idea a la cola: se queda pendiente, pero no " +
+      "Una fase rechazada con motivo vuelve con el ítem a la cola: se queda pendiente, pero no " +
       "pierde el motivo. Abre la fila «Motivo · fases» para verlo antes y después.",
     construir: ({ crear, mover, editar }) => {
       let uid: string | null = null;
       const conUid = () => {
-        if (!uid) throw new Error("Falta el uid de la idea creada.");
+        if (!uid) throw new Error("Falta el uid del ítem creado.");
         return uid;
       };
       const motivo = "No cubre el caso borde";
@@ -815,7 +815,7 @@ export const PRUEBAS: Prueba[] = [
     construir: ({ crear, mover, editar }) => {
       let uid: string | null = null;
       const conUid = () => {
-        if (!uid) throw new Error("Falta el uid de la idea creada.");
+        if (!uid) throw new Error("Falta el uid del ítem creado.");
         return uid;
       };
       const fase = (
@@ -904,7 +904,7 @@ export const PRUEBAS: Prueba[] = [
     construir: ({ crear, mover, editar }) => {
       let uid: string | null = null;
       const conUid = () => {
-        if (!uid) throw new Error("Falta el uid de la idea creada.");
+        if (!uid) throw new Error("Falta el uid del ítem creado.");
         return uid;
       };
       const fase = [
@@ -922,8 +922,8 @@ export const PRUEBAS: Prueba[] = [
           ejecutar: async () => {
             const idea = await crear({
               title: "Vuelta · descarte",
-              description: "Una idea que vuelve y se descarta.",
-              content: "Una idea que vuelve y se descarta.",
+              description: "Un ítem que vuelve y se descarta.",
+              content: "Un ítem que vuelve y se descarta.",
               kind: "idea",
               status: "proposed",
             });

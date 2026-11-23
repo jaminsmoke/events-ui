@@ -572,7 +572,7 @@ export default function App({
     async (uid: string) => {
       const idea = ideas?.find((item) => item.uid === uid);
       if (!idea || !sePuedeEliminar(idea.status)) {
-        throw new Error("Solo se eliminan ideas que ya están en Descartadas");
+        throw new Error("Solo se eliminan ítems que ya están en Descartadas");
       }
       const id = ++quemaSeq.current;
       setQuemas((prev) => [...prev, { id, uid, title: idea.title }]);

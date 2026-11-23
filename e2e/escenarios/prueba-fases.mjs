@@ -115,7 +115,7 @@ export default {
 
     // La ficha aparte enseña estado, nota y fecha de cada fase.
     await actual.getByRole("button", { name: /Fases · 2\/2/ }).click();
-    const ficha = page.getByRole("dialog", { name: "Fases de la idea" });
+    const ficha = page.getByRole("dialog", { name: "Fases del ítem" });
     await ficha.waitFor();
     const texto = await ficha.innerText();
     expect(texto.includes("Diseño") && texto.includes("Prueba"), "la ficha no lista las fases");

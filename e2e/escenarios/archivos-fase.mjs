@@ -114,7 +114,7 @@ export default {
       );
 
       await fila.getByRole("button", { name: /Fases · 1\/1/ }).click();
-      const ficha = page.getByRole("dialog", { name: "Fases de la idea" });
+      const ficha = page.getByRole("dialog", { name: "Fases del ítem" });
       await ficha.waitFor();
       const requisitoUI = ficha.locator(".ficha-requisito").first();
       await esperar(

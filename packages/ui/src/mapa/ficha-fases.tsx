@@ -159,7 +159,7 @@ export function FichaFases({
       <div
         className="modal"
         role="dialog"
-        aria-label="Fases de la idea"
+        aria-label="Fases del ítem"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.key === "Escape" && onCerrar()}
       >

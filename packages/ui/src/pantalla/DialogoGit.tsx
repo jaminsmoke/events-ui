@@ -57,7 +57,7 @@ export function DialogoGit({
           ) : (
             <p className="hint">
               Se eliminará solo la carpeta <code>.git</code> de <span className="mono">{ruta}</span>
-              {rama ? ` (rama ${rama})` : ""}. Tus ideas (`.EUI`) no se tocan, pero se pierde el
+              {rama ? ` (rama ${rama})` : ""}. Tus ítems (`.EUI`) no se tocan, pero se pierde el
               historial y los commits locales no subidos.
             </p>
           )}

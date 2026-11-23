@@ -45,7 +45,7 @@ export default {
       await selector.or(pruebas).first().waitFor();
       if (await selector.isVisible()) await selector.click();
       await pruebas.waitFor();
-      await esperar(() => page.locator(".wire").count().then((n) => n === 10), "los diez cables");
+      await esperar(() => page.locator(".wire").count().then((n) => n === 11), "los once cables");
       const inicial = await geometria(page);
       expect(inicial.cabeceras.length === 8, "ocho nodos de la fila principal");
       await pruebas.click();

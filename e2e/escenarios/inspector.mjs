@@ -24,7 +24,7 @@ export default {
     await selector.or(pruebas).first().waitFor();
     if (await selector.isVisible()) await selector.click();
     await page.getByText("Idea de inspector", { exact: true }).first().waitFor();
-    await esperar(() => page.locator(".wire").count().then((n) => n === 10), "los diez cables");
+    await esperar(() => page.locator(".wire").count().then((n) => n === 11), "los once cables");
 
     // El panel arranca cerrado; su icono lo abre directamente en el Inspector.
     const iconoInspector = page.getByRole("button", { name: "Inspector", exact: true });

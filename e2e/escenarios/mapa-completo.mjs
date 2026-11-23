@@ -36,7 +36,7 @@ export default {
     // (la de Git sale deshabilitada mientras no haya work tree).
     await page.getByRole("button", { name: "Mapas", exact: true }).click();
     await page.locator('.pane[aria-label="Mapas"]').waitFor();
-    await esperar(() => page.locator(".wire").count().then((n) => n === 10), "los diez cables");
+    await esperar(() => page.locator(".wire").count().then((n) => n === 11), "los once cables");
 
     // Git se simula con el lab vacío, antes de sembrar: la prueba se vacía sola
     // seis segundos después de sembrada y estas comprobaciones no caben a la vez.
@@ -156,7 +156,7 @@ export default {
     // pestañas de mapa donde estaban antes de commitear.
     await page.getByRole("button", { name: "Mapas", exact: true }).click();
     await page.getByRole("button", { name: "Mapa de trabajo", exact: true }).click();
-    await esperar(() => page.locator(".wire").count().then((n) => n === 10), "de vuelta a Trabajo");
+    await esperar(() => page.locator(".wire").count().then((n) => n === 11), "de vuelta a Trabajo");
 
     await pruebas.click();
     const dialogo = page.getByRole("dialog", { name: "Pruebas del laboratorio" });

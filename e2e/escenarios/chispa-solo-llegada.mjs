@@ -39,7 +39,7 @@ export default {
     await selector.or(pruebas).first().waitFor();
     if (await selector.isVisible()) await selector.click();
     await page.getByText("Chispa E2E", { exact: true }).waitFor();
-    await esperar(() => page.locator(".wire").count().then((n) => n === 10), "los diez cables");
+    await esperar(() => page.locator(".wire").count().then((n) => n === 11), "los once cables");
     expect((await page.locator(".spark").count()) === 0, "la carga inicial no debe lanzar chispas");
 
     const movida = await api(`/ideas/${uid}?repo=lab`, {

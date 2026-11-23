@@ -968,11 +968,7 @@ def _parser() -> argparse.ArgumentParser:
     conexion(repos)
     repos.set_defaults(func=_repo)
 
-    items = comandos.add_parser(
-        "item",
-        aliases=["idea"],
-        help="Lee y escribe los ítems del repo",
-    )
+    items = comandos.add_parser("item", help="Lee y escribe los ítems del repo")
     acciones_item = items.add_subparsers(dest="accion", required=True)
     listar = acciones_item.add_parser("list", help="Lista los ítems del mapa")
     listar.add_argument("--status")
@@ -1156,14 +1152,8 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-# El alias se retira el 2027-01-31: hasta entonces avisa y hace lo mismo.
-AVISO_ALIAS = "aviso: `eui item` es un alias de `eui item`; caduca el 2027-01-31"
-
-
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    if args.comando == "idea":
-        print(AVISO_ALIAS, file=sys.stderr)
     return int(args.func(args))
 
 

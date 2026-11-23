@@ -45,7 +45,7 @@ def _crear(client, repo, **campos):  # noqa: ANN001, ANN202
 def test_el_listado_del_cli_no_trae_el_cuerpo(http_a_la_app, repo, capsys):  # noqa: ANN001, ANN202
     _crear(http_a_la_app, repo, title="A", content="## Cuerpo")
 
-    assert cli.main(["idea", "list", "--json", "--repo", repo]) == 0
+    assert cli.main(["item", "list", "--json", "--repo", repo]) == 0
 
     filas = json.loads(capsys.readouterr().out)
     assert filas[0]["title"] == "A"
@@ -55,7 +55,7 @@ def test_el_listado_del_cli_no_trae_el_cuerpo(http_a_la_app, repo, capsys):  # n
 def test_el_cli_pide_el_cuerpo_con_incluir(http_a_la_app, repo, capsys):  # noqa: ANN001, ANN202
     _crear(http_a_la_app, repo, title="A", content="## Cuerpo")
 
-    assert cli.main(["idea", "list", "--json", "--incluir", "contenido", "--repo", repo]) == 0
+    assert cli.main(["item", "list", "--json", "--incluir", "contenido", "--repo", repo]) == 0
 
     filas = json.loads(capsys.readouterr().out)
     assert filas[0]["content"] == "## Cuerpo"
@@ -64,7 +64,7 @@ def test_el_cli_pide_el_cuerpo_con_incluir(http_a_la_app, repo, capsys):  # noqa
 def test_item_get_del_cli_sigue_trayendo_el_cuerpo(http_a_la_app, repo, capsys):  # noqa: ANN001, ANN202
     creada = _crear(http_a_la_app, repo, title="A", content="## Cuerpo")
 
-    assert cli.main(["idea", "get", creada["uid"], "--json", "--repo", repo]) == 0
+    assert cli.main(["item", "get", creada["uid"], "--json", "--repo", repo]) == 0
 
     assert json.loads(capsys.readouterr().out)["content"] == "## Cuerpo"
 
@@ -77,7 +77,7 @@ def test_el_item_list_del_mcp_devuelve_el_resumen(http_a_la_app, repo):  # noqa:
             "jsonrpc": "2.0",
             "id": 1,
             "method": "tools/call",
-            "params": {"name": "idea_list", "arguments": {"repo": repo}},
+            "params": {"name": "item_list", "arguments": {"repo": repo}},
         }
     )
 
@@ -94,7 +94,7 @@ def test_el_item_get_del_mcp_sigue_trayendo_el_cuerpo(http_a_la_app, repo):  # n
             "jsonrpc": "2.0",
             "id": 1,
             "method": "tools/call",
-            "params": {"name": "idea_get", "arguments": {"repo": repo, "uid": creada["uid"]}},
+            "params": {"name": "item_get", "arguments": {"repo": repo, "uid": creada["uid"]}},
         }
     )
 
@@ -106,9 +106,9 @@ def test_el_input_schema_de_item_list_no_gana_campos() -> None:
     herramientas = mcp_servidor.manejar({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})[
         "result"
     ]["tools"]
-    idea_list = next(h for h in herramientas if h["name"] == "idea_list")
+    item_list = next(h for h in herramientas if h["name"] == "item_list")
 
-    assert set(idea_list["inputSchema"]["properties"]) == {
+    assert set(item_list["inputSchema"]["properties"]) == {
         "repo",
         "url",
         "port",

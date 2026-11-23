@@ -33,7 +33,7 @@ export default {
       );
 
     const sembrar = async (title) => {
-      const r = await api("/ideas?repo=lab", {
+      const r = await api("/items?repo=lab", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ title, status: "draft" }),

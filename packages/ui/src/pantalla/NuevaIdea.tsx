@@ -1,16 +1,16 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 
-import type { IdeaCreate } from "../core/api";
+import type { WorkItemCreate } from "../core/api";
 
 /** Nuevo ítem: título obligatorio, descripción opcional. El `body` se
- *  compone contra `IdeaCreate` del contrato generado, así que un enum mal
+ *  compone contra `WorkItemCreate` del contrato generado, así que un enum mal
  *  puesto no compila. */
 export function NuevaIdea({
   onCrear,
   onCerrar,
 }: {
-  onCrear: (body: IdeaCreate) => Promise<unknown>;
+  onCrear: (body: WorkItemCreate) => Promise<unknown>;
   onCerrar: () => void;
 }) {
   const [titulo, setTitulo] = useState("");

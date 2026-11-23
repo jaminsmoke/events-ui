@@ -1,4 +1,4 @@
-import type { Idea } from "../core/api";
+import type { WorkItem } from "../core/api";
 import { LANES, laneOf } from "./carriles";
 import type { LaneId } from "./carriles";
 
@@ -28,12 +28,12 @@ export type TreeNode = {
   /** Ideas que hay por debajo: todas las del repo o las del carril. */
   total: number;
   kids: TreeNode[];
-  idea?: Idea;
+  idea?: WorkItem;
   tone?: "root" | LaneId;
 };
 
-export function buildTree(ideas: Idea[]): Tree {
-  const fila = (idea: Idea): TreeNode => ({
+export function buildTree(ideas: WorkItem[]): Tree {
+  const fila = (idea: WorkItem): TreeNode => ({
     key: idea.uid,
     title: idea.title,
     total: 0,

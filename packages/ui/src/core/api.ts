@@ -11,7 +11,7 @@ type Schemas = components["schemas"];
  *  La UI lee el mapa (`MapSnapshot`), así que su ítem es `MapWorkItem` —los
  *  mismos campos que consume la fila: `uid`, `title`, `description`, `status`—
  *  y el resto (`tags`…) llega al editar, por la `WorkItem` del CRUD. */
-export type Idea = Schemas["MapWorkItem"];
+export type WorkItem = Schemas["MapWorkItem"];
 
 /** Espejo de GET /mapa: los ítems del mapa. */
 export type Mapa = Schemas["MapSnapshot"];
@@ -23,8 +23,8 @@ export type Revision = Schemas["Revision"];
 export type RepoListado = Schemas["Repo"];
 
 /** Cuerpo de POST /items y de PATCH /items/{uid}, del contrato generado. */
-export type IdeaCreate = Schemas["WorkItemCreate"];
-export type IdeaUpdate = Schemas["WorkItemUpdate"];
+export type WorkItemCreate = Schemas["WorkItemCreate"];
+export type WorkItemUpdate = Schemas["WorkItemUpdate"];
 
 /** El sobre del evento del log externo (F1): `payload` es JSON libre. */
 export type Evento = Schemas["Evento"];
@@ -64,7 +64,7 @@ export const API_BASE = import.meta.env.VITE_API_URL?.replace(/\/$/, "") ?? "/ap
 
 /** Cliente tipado por `paths` (el OpenAPI generado): ruta, query, path params
  *  y **cuerpo** de POST/PATCH vienen del contrato, así que una llamada con
- *  cuerpo se escribe `api.POST("/ideas", { params: { query: { repo } }, body })`
+ *  cuerpo se escribe `api.POST("/items", { params: { query: { repo } }, body })`
  *  y el `body` se comprueba contra `WorkItemCreate` sin escribir tipos a mano. */
 export const api = createClient<paths>({ baseUrl: API_BASE });
 

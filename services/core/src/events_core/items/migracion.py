@@ -152,7 +152,7 @@ def _anotar_origen(
     """La procedencia: de qué fichero, líneas y hash salió este ítem."""
     origen = item["origen"]
     conn.execute(
-        "INSERT INTO migracion_idea"
+        "INSERT INTO migracion_item"
         " (lote_id, work_item_uid, ref, ruta, desde_linea, hasta_linea, sha256, creada_at, estado)"
         " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
@@ -300,7 +300,7 @@ def deshacer_migracion(repo: str, lote: str) -> dict[str, Any]:
         plan_sha256 = str(fila["plan_sha256"])
         total = int(fila["ideas"])
         filas = conn.execute(
-            "SELECT ref, work_item_uid, creada_at, estado FROM migracion_idea"
+            "SELECT ref, work_item_uid, creada_at, estado FROM migracion_item"
             " WHERE lote_id = ? ORDER BY rowid",
             (lote,),
         ).fetchall()
@@ -413,7 +413,7 @@ def _respuesta(
     conn: sqlite3.Connection, repo: str, lote: str, plan_sha256: str, *, repetido: bool
 ) -> dict[str, Any]:
     filas = conn.execute(
-        "SELECT ref, work_item_uid FROM migracion_idea WHERE lote_id = ? ORDER BY rowid", (lote,)
+        "SELECT ref, work_item_uid FROM migracion_item WHERE lote_id = ? ORDER BY rowid", (lote,)
     ).fetchall()
     return {
         "repo": repo,

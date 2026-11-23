@@ -8,7 +8,7 @@ export default {
     "Seleccionar una idea o un carril abre su ficha en el inspector, y Escape o el fondo sueltan la selección",
   run: async ({ page, UI, api, esperar, expect, resultado }) => {
     const cabeceras = { "content-type": "application/json" };
-    const crear = await api("/ideas?repo=lab", {
+    const crear = await api("/items?repo=lab", {
       method: "POST",
       headers: cabeceras,
       body: JSON.stringify({

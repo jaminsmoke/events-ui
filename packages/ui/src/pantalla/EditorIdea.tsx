@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import type { IdeaUpdate } from "../core/api";
+import type { WorkItemUpdate } from "../core/api";
 
 /** Diálogo de edición de una idea: título, descripción y `tags`.
  *
@@ -19,7 +19,7 @@ export function EditorIdea({
   titulo: string;
   descripcion: string;
   onCargar: () => Promise<{ tags?: string[] | null } | null>; 
-  onGuardar: (cambios: IdeaUpdate) => Promise<void>;
+  onGuardar: (cambios: WorkItemUpdate) => Promise<void>;
   onCerrar: () => void;
 }) {
   const [tituloLocal, setTituloLocal] = useState(titulo);
@@ -74,7 +74,7 @@ export function EditorIdea({
     setTrabajando(true);
     setFallo(null);
     try {
-      const cambios: IdeaUpdate = {
+      const cambios: WorkItemUpdate = {
         title: tituloLocal.trim(),
         description: descripcionLocal.trim(),
       };

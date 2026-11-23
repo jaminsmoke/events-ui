@@ -51,6 +51,7 @@ def repo() -> str:
 
 # Lo que la 0034 renombró, para poder deshacerlo sobre un almacén recién creado
 # y probar la migración con datos de verdad en vez de con un esquema a mano.
+# La 0035 (el lote) va aparte: se deshace sin tocar las tablas de ítems.
 _TABLAS_0034 = (
     ("work_item_data", "idea_data"),
     ("work_item_node", "idea_node"),
@@ -58,13 +59,14 @@ _TABLAS_0034 = (
     ("work_item_requisito", "idea_requisito"),
     ("work_item_foto", "idea_foto"),
     ("work_item_fase_archivo", "idea_fase_archivo"),
+    ("migracion_item", "migracion_idea"),
 )
 _COLUMNAS_0034 = (
     "work_item_fase",
     "work_item_requisito",
     "work_item_foto",
     "work_item_fase_archivo",
-    "migracion_idea",
+    "migracion_item",
 )
 _INDICES_0034 = (
     "work_item_cola_orden",
@@ -87,6 +89,13 @@ def bajar_a_la_0033():
 
     def bajar(db: Path, version: int = 33) -> None:
         with closing(sqlite3.connect(str(db))) as conn:
+            if version > 33:
+                # Solo falta deshacer la 0035: el lote vuelve a `migracion_idea`
+                # y su índice (`migracion_item_uid`) lo sigue en el renombrado.
+                conn.execute("ALTER TABLE migracion_item RENAME TO migracion_idea")
+                conn.execute(f"PRAGMA user_version = {version}")
+                conn.commit()
+                return
             if version <= 32:
                 conn.execute("DROP INDEX work_item_node_estado_fecha")
                 conn.execute("ALTER TABLE work_item_node DROP COLUMN created_at")

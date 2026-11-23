@@ -11,7 +11,7 @@ from typing import Annotated, Literal
 from fastapi import Query
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-# Se repiten los CHECK de `schema/ideas.sql` a propÃ³sito: aquÃ­ sirven para que el
+# Se repiten los CHECK de `schema/items.sql` a propÃ³sito: aquÃ­ sirven para que el
 # contrato OpenAPI publique los enums y la UI no tenga que adivinarlos.
 # Al crear y editar solo se admite el ítem: nota/ADR no estÃ¡n pensados como
 # tipos nuevos. Al leer sÃ­ se conservan los histÃ³ricos (`adr`, `note`): vienen

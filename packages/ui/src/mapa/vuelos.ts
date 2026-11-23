@@ -1,7 +1,7 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 
-import type { Idea } from "../core/api";
+import type { WorkItem } from "../core/api";
 import type { LaneId } from "./carriles";
 import { LANES, laneOf } from "./carriles";
 import type { Vista } from "./camara";
@@ -35,7 +35,7 @@ export function useVuelos({
 }: {
   repo: string | null;
   mapa: string;
-  ideas: Idea[] | null;
+  ideas: WorkItem[] | null;
   cerrados: ReadonlySet<string>;
   vista: Vista;
   mapRef: RefObject<HTMLDivElement | null>;

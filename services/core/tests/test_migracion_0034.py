@@ -67,7 +67,7 @@ def test_la_0034_renombra_tablas_y_columnas_con_los_datos_dentro(
             " VALUES ('lote', 'huella', '2026-11-23T00:00:00Z', 1)"
         )
         conn.execute(
-            "INSERT INTO migracion_idea"
+            "INSERT INTO migracion_item"
             " (lote_id, work_item_uid, ref, ruta, desde_linea, hasta_linea, sha256, creada_at)"
             " VALUES ('lote', ?, 'r', 'doc.md', 1, 2, 'hash', '2026-11-23T00:00:00Z')",
             (uid,),
@@ -86,7 +86,7 @@ def test_la_0034_renombra_tablas_y_columnas_con_los_datos_dentro(
     items.ensure_repo(repo)
 
     with closing(sqlite3.connect(str(db))) as conn:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 34
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 35
         tablas = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         assert _TABLAS_NUEVAS.issubset(tablas)
         assert not (_TABLAS_VIEJAS & tablas)
@@ -94,13 +94,13 @@ def test_la_0034_renombra_tablas_y_columnas_con_los_datos_dentro(
         columnas = {r[1] for r in conn.execute("PRAGMA table_info('work_item_fase')")}
         assert "work_item_uid" in columnas
         assert "idea_uid" not in columnas
-        columnas = {r[1] for r in conn.execute("PRAGMA table_info('migracion_idea')")}
+        columnas = {r[1] for r in conn.execute("PRAGMA table_info('migracion_item')")}
         assert "work_item_uid" in columnas
         assert "idea_uid" not in columnas
 
         assert conn.execute("SELECT count(*) FROM work_item_requisito").fetchone()[0] == 1
         assert conn.execute("SELECT work_item_uid FROM work_item_foto").fetchone()[0] == uid
-        assert conn.execute("SELECT work_item_uid FROM migracion_idea").fetchone()[0] == uid
+        assert conn.execute("SELECT work_item_uid FROM migracion_item").fetchone()[0] == uid
         assert conn.execute("SELECT count(*) FROM work_item_fase_archivo").fetchone()[0] == 1
         assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
 
@@ -111,3 +111,44 @@ def test_la_0034_renombra_tablas_y_columnas_con_los_datos_dentro(
     ficha = items.get_item(repo, uid)
     assert ficha["title"] == "Vieja"
     assert [fase["titulo"] for fase in ficha["fases"]] == ["Preparar"]
+
+
+def test_la_0035_renombra_el_lote_sin_tocar_datos(
+    repo,  # noqa: ANN001
+    bajar_a_la_0033,  # noqa: ANN001
+):  # noqa: ANN202
+    db = items.init_repo(repo)
+    uid = items.create_item(repo, title="A")["uid"]
+
+    with closing(sqlite3.connect(str(db))) as conn:
+        conn.execute(
+            "INSERT INTO migracion_lote (id, plan_sha256, creado_at, ideas)"
+            " VALUES ('lote', 'huella', '2026-11-23T00:00:00Z', 1)"
+        )
+        conn.execute(
+            "INSERT INTO migracion_item"
+            " (lote_id, work_item_uid, ref, ruta, desde_linea, hasta_linea, sha256, creada_at)"
+            " VALUES ('lote', ?, 'r', 'doc.md', 1, 2, 'hash', '2026-11-23T00:00:00Z')",
+            (uid,),
+        )
+        conn.commit()
+
+    bajar_a_la_0033(db, 34)
+
+    # En la 0034 la tabla del lote todavía se llamaba `migracion_idea`.
+    with closing(sqlite3.connect(str(db))) as conn:
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 34
+        tablas = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        assert "migracion_idea" in tablas
+        assert conn.execute("SELECT work_item_uid FROM migracion_idea").fetchone()[0] == uid
+
+    items.ensure_repo(repo)
+
+    with closing(sqlite3.connect(str(db))) as conn:
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 35
+        tablas = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        assert "migracion_item" in tablas
+        assert "migracion_idea" not in tablas
+        assert conn.execute("SELECT work_item_uid FROM migracion_item").fetchone()[0] == uid
+        indices = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='index'")}
+        assert "migracion_item_uid" in indices

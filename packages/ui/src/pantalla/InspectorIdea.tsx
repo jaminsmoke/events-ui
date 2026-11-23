@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 
-import type { Idea, IdeaUpdate } from "../core/api";
+import type { WorkItem, WorkItemUpdate } from "../core/api";
 import type { PuedeIr } from "../core/useProtocolos";
 import { ACCIONES_ESTADO, motivoBloqueo } from "../mapa/acciones";
 import { ETIQUETA_ESTADO, LANES, laneOf, sePuedeEliminar } from "../mapa/carriles";
@@ -19,7 +19,7 @@ export type AccionesIdea = {
   exigeFasesListas?: PuedeIr;
   exigeFasesCompletas?: PuedeIr;
   onMover?: (uid: string, status: Status) => void;
-  onEditar?: (uid: string, cambios: IdeaUpdate) => Promise<void>;
+  onEditar?: (uid: string, cambios: WorkItemUpdate) => Promise<void>;
   onBorrar?: (uid: string) => Promise<void>;
   onPideEditar?: (uid: string, titulo: string, descripcion: string) => void;
 };
@@ -33,9 +33,9 @@ export function CuerpoIdea({
   acciones,
   onSeleccionar,
 }: {
-  idea: Idea;
+  idea: WorkItem;
   /** Todas las ideas del repo: resuelve los títulos de las dependencias. */
-  catalogo: readonly Idea[];
+  catalogo: readonly WorkItem[];
   acciones: AccionesIdea;
   onSeleccionar: (seleccion: Seleccion) => void;
 }) {

@@ -3,7 +3,7 @@
 import { useLayoutEffect, useState } from "react";
 import type { Ref } from "react";
 
-import type { Idea, IdeaUpdate } from "../core/api";
+import type { WorkItem, WorkItemUpdate } from "../core/api";
 import type { PuedeIr } from "../core/useProtocolos";
 import type { TonoPulso } from "./animaciones";
 import type { TreeNode } from "./arbol";
@@ -72,15 +72,15 @@ export function NodeBox({
   destello?: { clave: number };
   onMover?: (uid: string, status: Status) => void;
   onPideEditar?: (uid: string, titulo: string, descripcion: string) => void;
-  onEditar?: (uid: string, cambios: IdeaUpdate) => Promise<void>;
+  onEditar?: (uid: string, cambios: WorkItemUpdate) => Promise<void>;
   onBorrar?: (uid: string) => Promise<void>;
   /** La idea completa (con el parche de sus archivos), vía `useRepo`. */
-  onCargarIdea?: (uid: string) => Promise<Idea | null>;
+  onCargarIdea?: (uid: string) => Promise<WorkItem | null>;
   puedeIr?: PuedeIr;
   exigeFases?: PuedeIr;
   exigeFasesListas?: PuedeIr;
   exigeFasesCompletas?: PuedeIr;
-  catalogo?: readonly Idea[];
+  catalogo?: readonly WorkItem[];
   /** Lo seleccionado en el lienzo y cómo cambiarlo: la cabecera marca el
    *  nodo (Entrada o carril) y las filas marcan su idea. */
   seleccion?: Seleccion | null;

@@ -80,7 +80,7 @@ export default {
     expect(repetido.repetido === true, "repetir el plan no devolvió un lote repetido");
     expect(repetido.lote === aplicado.lote, "repetir el plan devolvió otro lote");
 
-    const antes = await api("/ideas?repo=lab");
+    const antes = await api("/items?repo=lab");
     expect(antes.status === 200, `no se pudo listar: ${antes.status}`);
     expect(antes.data.length === 2, `el lote no dejó dos ideas: ${antes.data.length}`);
     expect(
@@ -97,7 +97,7 @@ export default {
     const deshecho = JSON.parse(cli(["migrate", "undo", aplicado.lote]));
     expect(deshecho.borradas === 2, `undo inesperado: ${JSON.stringify(deshecho)}`);
 
-    const despues = await api("/ideas?repo=lab");
+    const despues = await api("/items?repo=lab");
     expect(despues.data.length === 0, "quedaron ideas tras deshacer el lote");
   },
 };

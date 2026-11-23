@@ -405,33 +405,21 @@ y el detalle por `ON DELETE CASCADE`. El paso `0004` es el ejemplo: reconstruyó
 - **Log con pestañas:** un solo flyout con `Eventos` (timeline del repo, por
   origen y nivel) y `Registro` (operativo de la app, por etiqueta y nivel).
 
-## Legado: `idea` con fecha de caducidad
+## Histórico: por qué queda `idea` en el repositorio
 
 La primera versión llamó «idea» a lo que hoy es un ítem de implementación. El
-almacén ya habla `work_item_*` (migración 0034) y la API publica `/items`; lo
-que queda hasta la caducidad son alias que siguen funcionando:
+renombrado terminó: la API solo publica `/items`, el CLI solo tiene
+`eui item …`, el MCP solo anuncia `item_*`, el almacén habla `work_item_*`
+(0034) y el esquema vive en `schema/items.sql` (0035).
 
-| Alias vivo | Vía principal |
-| --- | --- |
-| `/ideas`, `/ideas/{uid}` (con `Deprecation`) | `/items`, `/items/{uid}` |
-| `eui idea …` (avisa por stderr) | `eui item …` |
-| `idea_create` … (MCP, obsoleto) | `item_create` … |
-| `migracion_idea` y `schema/ideas.sql` (nombres de tabla y fichero) | `migracion_item`, `schema/items.sql` |
-| eventos `idea.*` en logs viejos | `item.*` (el lector acepta los dos) |
-| `Idea`, `IdeaCreate`, `IdeaUpdate` (TS, alias local) | `WorkItem`, `WorkItemCreate`, `WorkItemUpdate` |
+`idea` sigue apareciendo en cuatro sitios, y ninguno es un alias vivo:
 
-El CLI publica `eui item …` como vía principal y `eui idea …` avisa por
-stderr hasta la caducidad. El MCP anuncia `item_*` y mantiene `idea_*` como
-alias obsoleto. La API publica `/items` y contesta por `/ideas` con la
-cabecera `Deprecation`; el OpenAPI nombra `WorkItem*` y la UI conserva sus
-alias locales en `core/api.ts`.
-
-El valor `kind: "idea"` **no** es un alias: es un dato histórico de los ítems
-que ya existen y se queda como está.
-
-**Caducidad: 2027-01-31.** A partir de esa fecha los alias dejan de existir: un
-`.EUI` que aún tenga el esquema viejo se migra al abrirlo (0034) y `grep -r idea`
-ya no encuentra nada en el código.
+- las migraciones `0001`–`0035`, que son historia y no se tocan;
+- `kind: "idea"`, un valor de dato de los ítems que ya existen;
+- la clave `ideas` del plan de migración v1-v3 y de `MapSnapshot`, contrato de
+  esos documentos;
+- los eventos `idea.*` que ya estén escritos en un log: el lector los sigue
+  pintando y filtrando junto a los `item.*`.
 
 ## Licencia
 

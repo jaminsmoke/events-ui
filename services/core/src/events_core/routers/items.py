@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Query
 
 from .. import items, registro
 from ..contrato import (
@@ -26,11 +26,6 @@ from ..contrato import (
 router = APIRouter()
 
 
-def _deprecacion(response: Response) -> None:
-    """`/ideas` responde igual que `/items`, pero anuncia su sucesora."""
-    response.headers["Deprecation"] = "true"
-
-
 @router.get("/repos", response_model=list[Repo], tags=["items"])
 def get_repos() -> list[dict[str, Any]]:
     """Repos investigados que ya tienen `.EUI/EUI_DATABASE.sqlite`."""
@@ -42,14 +37,6 @@ def get_repos() -> list[dict[str, Any]]:
     response_model=list[WorkItemResumen] | list[WorkItem],
     tags=["items"],
     responses=RESPUESTAS_ERROR,
-)
-@router.get(
-    "/ideas",
-    response_model=list[WorkItemResumen] | list[WorkItem],
-    tags=["items"],
-    responses=RESPUESTAS_ERROR,
-    deprecated=True,
-    dependencies=[Depends(_deprecacion)],
 )
 def get_items(
     repo: RepoParam,
@@ -77,54 +64,21 @@ def get_items(
     tags=["items"],
     responses=RESPUESTAS_ERROR,
 )
-@router.post(
-    "/ideas",
-    response_model=WorkItem,
-    status_code=201,
-    tags=["items"],
-    responses=RESPUESTAS_ERROR,
-    deprecated=True,
-    dependencies=[Depends(_deprecacion)],
-)
 def post_item(body: WorkItemCreate, repo: RepoParam) -> dict[str, Any]:
     return items.create_item(repo, **body.model_dump())
 
 
 @router.get("/items/{uid}", response_model=WorkItem, tags=["items"], responses=RESPUESTAS_ERROR)
-@router.get(
-    "/ideas/{uid}",
-    response_model=WorkItem,
-    tags=["items"],
-    responses=RESPUESTAS_ERROR,
-    deprecated=True,
-    dependencies=[Depends(_deprecacion)],
-)
 def get_item(uid: str, repo: RepoParam) -> dict[str, Any]:
     return items.get_item(repo, uid)
 
 
 @router.patch("/items/{uid}", response_model=WorkItem, tags=["items"], responses=RESPUESTAS_ERROR)
-@router.patch(
-    "/ideas/{uid}",
-    response_model=WorkItem,
-    tags=["items"],
-    responses=RESPUESTAS_ERROR,
-    deprecated=True,
-    dependencies=[Depends(_deprecacion)],
-)
 def patch_item(uid: str, body: WorkItemUpdate, repo: RepoParam) -> dict[str, Any]:
     return items.update_item(repo, uid, body.model_dump(exclude_unset=True))
 
 
 @router.delete("/items/{uid}", status_code=204, tags=["items"], responses=RESPUESTAS_ERROR)
-@router.delete(
-    "/ideas/{uid}",
-    status_code=204,
-    tags=["items"],
-    responses=RESPUESTAS_ERROR,
-    deprecated=True,
-    dependencies=[Depends(_deprecacion)],
-)
 def remove_item(uid: str, repo: RepoParam) -> None:
     if not items.delete_item(repo, uid):
         raise KeyError(uid)

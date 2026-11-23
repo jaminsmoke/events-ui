@@ -6,7 +6,7 @@ mecanismo de tiempo real (`PRAGMA data_version`).
 
 Lo de aquí abajo: CRUD de items sobre
 el `EUI_DATABASE` que vive en la raíz del repo abierto. Sin ORM a
-propósito: el SQL está en `schema/ideas.sql` y el de las consultas, a la vista.
+propósito: el SQL está en `schema/items.sql` y el de las consultas, a la vista.
 FastAPI publica el contrato en `/openapi.json` (Swagger en `/docs`), de ahí
 saldrán los tipos TS del cliente.
 """

@@ -10,7 +10,7 @@ export default {
   run: async (ctx) => {
     const { page, api, esperar, expect, resultado } = ctx;
 
-    const creada = await api("/ideas?repo=lab", {
+    const creada = await api("/items?repo=lab", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ title: "Flujo de prueba" }),
@@ -19,14 +19,14 @@ export default {
     await expect(creada.data.status === "draft", "nace en el cajón");
     const uid = creada.data.uid;
 
-    const encola = await api(`/ideas/${uid}?repo=lab`, {
+    const encola = await api(`/items/${uid}?repo=lab`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ status: "proposed" }),
     });
     await expect(encola.data.status === "proposed", "va a la cola");
 
-    const descartada = await api(`/ideas/${uid}?repo=lab`, {
+    const descartada = await api(`/items/${uid}?repo=lab`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ status: "rejected", rejected_description: "ruido" }),

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
-import type { Idea } from "../core/api";
+import type { WorkItem } from "../core/api";
 import type { Status } from "./carriles";
 import { ETIQUETA_FASE, type Fase } from "./fase";
 import { fechaCorta } from "./formato";
@@ -95,7 +95,7 @@ export function FichaFases({
   alGuardar?: (siguientes: readonly Fase[]) => Promise<void>;
   /** La idea completa: el mapa no trae el parche de cada archivo, solo el
    *  recuento. Sin esto, la ficha enseña rutas y estado, que ya vienen. */
-  cargarIdea?: (uid: string) => Promise<Idea | null>;
+  cargarIdea?: (uid: string) => Promise<WorkItem | null>;
   onCerrar: () => void;
 }) {
   const [guardando, setGuardando] = useState(false);

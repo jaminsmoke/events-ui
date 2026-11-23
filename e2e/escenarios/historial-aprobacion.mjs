@@ -3,7 +3,7 @@ export default {
   descripcion: "Aprobar archiva con sus fases y el historial es solo lectura",
   run: async ({ page, UI, api, esperar, expect, resultado }) => {
     const headers = { "content-type": "application/json" };
-    const crear = await api("/ideas?repo=lab", {
+    const crear = await api("/items?repo=lab", {
       method: "POST",
       headers,
       body: JSON.stringify({ title: "Historial E2E", status: "proposed" }),
@@ -11,7 +11,7 @@ export default {
     expect(crear.status === 201, `no se pudo crear: ${crear.status}`);
     const uid = crear.data.uid;
 
-    const plan = await api(`/ideas/${uid}?repo=lab`, {
+    const plan = await api(`/items/${uid}?repo=lab`, {
       method: "PATCH",
       headers,
       body: JSON.stringify({
@@ -21,7 +21,7 @@ export default {
     });
     expect(plan.status === 200, `roadmap: ${JSON.stringify(plan.data)}`);
 
-    const cerrar = await api(`/ideas/${uid}?repo=lab`, {
+    const cerrar = await api(`/items/${uid}?repo=lab`, {
       method: "PATCH",
       headers,
       body: JSON.stringify({
@@ -39,7 +39,7 @@ export default {
     });
     expect(cerrar.status === 200, `verificación: ${JSON.stringify(cerrar.data)}`);
 
-    const aprobar = await api(`/ideas/${uid}?repo=lab`, {
+    const aprobar = await api(`/items/${uid}?repo=lab`, {
       method: "PATCH",
       headers,
       body: JSON.stringify({

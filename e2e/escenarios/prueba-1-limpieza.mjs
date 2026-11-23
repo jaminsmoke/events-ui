@@ -82,7 +82,7 @@ export default {
 
       // Los datos anteriores al lanzamiento también se retiran al detener la prueba.
       for (const status of ["roadmap", "verificacion", "revision_aprobada", "historial"]) {
-        const r = await api("/ideas?repo=lab", { method: "POST", headers: { "content-type": "application/json" },
+        const r = await api("/items?repo=lab", { method: "POST", headers: { "content-type": "application/json" },
           body: JSON.stringify({ title: "Dato anterior", status }) });
         expect(r.status === 201, "sembrar las fichas anteriores");
       }
@@ -91,7 +91,7 @@ export default {
       await page.getByText(/Detenida.*Laboratorio limpio/).waitFor();
       comprobarLimpieza();
 
-      await page.route("**/api/ideas?*", (ruta) => ruta.fulfill({ status: 503, body: "{}" }), { times: 1 });
+      await page.route("**/api/items?*", (ruta) => ruta.fulfill({ status: 503, body: "{}" }), { times: 1 });
       await page.route("**/api/reiniciar?*", (ruta) => ruta.fulfill({ status: 503, body: "{}" }), { times: 1 });
       await boton("Lanzar").click();
       await boton("Reintentar limpieza").click();

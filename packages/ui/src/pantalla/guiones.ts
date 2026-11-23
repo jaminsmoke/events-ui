@@ -4,12 +4,12 @@
  *  el componente `Pruebas` solo los ejecuta y pinta el progreso.
  */
 
-import type { IdeaCreate, IdeaUpdate } from "../core/api";
+import type { WorkItemCreate, WorkItemUpdate } from "../core/api";
 
 export type Acciones = {
-  crear: (body: IdeaCreate) => Promise<{ uid: string } | null>;
-  mover: (uid: string, status: IdeaCreate["status"]) => Promise<void>;
-  editar: (uid: string, cambios: IdeaUpdate) => Promise<void>;
+  crear: (body: WorkItemCreate) => Promise<{ uid: string } | null>;
+  mover: (uid: string, status: WorkItemCreate["status"]) => Promise<void>;
+  editar: (uid: string, cambios: WorkItemUpdate) => Promise<void>;
   /** Commit local escrito desde el panel, como lo haría una persona. */
   commit: (mensaje: string) => Promise<unknown>;
   /** Archivos sin commit ahora mismo, para avisar antes de commitear. */
@@ -112,7 +112,7 @@ export const PRUEBAS: Prueba[] = [
       "Siembra ítems en todos los carriles con fases en varios estados, requisitos, motivos y dependencias, " +
       "para ver los seis cables, sus compuertas, los contadores y las fichas. Después vacía el laboratorio.",
     construir: ({ crear, editar }) => {
-      type FaseEntrada = NonNullable<IdeaUpdate["fases"]>[number];
+      type FaseEntrada = NonNullable<WorkItemUpdate["fases"]>[number];
       const pasos: Paso[] = [];
       const uids: Record<string, string> = {};
       const fase = (
@@ -134,7 +134,7 @@ export const PRUEBAS: Prueba[] = [
       });
       const sembrar = (
         clave: string,
-        body: IdeaCreate,
+        body: WorkItemCreate,
         donde: string,
         completar?: (uid: string) => Promise<void>,
       ) => {

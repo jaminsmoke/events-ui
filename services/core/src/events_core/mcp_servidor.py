@@ -37,7 +37,7 @@ INSTRUCCIONES = (
     "Cliente de Events UI. Lee con doctor, repo_actual, repo_list, item_list, "
     "item_get, migrate_scan, migrate_classify y migrate_check. Las herramientas que escriben solo "
     "aparecen si el servidor arrancó con --permitir-escritura o "
-    "EVENTSUI_MCP_ESCRITURA=1. `idea_*` son alias obsoletos de las `item_*`."
+    "EVENTSUI_MCP_ESCRITURA=1."
 )
 
 _REPO = {
@@ -233,31 +233,8 @@ _ESCRITURA: tuple[dict[str, Any], ...] = (
 )
 
 
-def _alias(herramienta: dict[str, Any]) -> dict[str, Any]:
-    """La misma herramienta con el nombre viejo, marcada como obsoleta."""
-    canonico = herramienta["name"]
-    return {
-        "name": canonico.replace("item_", "idea_", 1),
-        "description": f"Obsoleta: usa `{canonico}`. {herramienta['description']}",
-        "inputSchema": herramienta["inputSchema"],
-        "_meta": {"deprecated": True},
-    }
-
-
-_ALIAS_LECTURA = tuple(_alias(h) for h in _LECTURA if h["name"].startswith("item_"))
-_ALIAS_ESCRITURA = tuple(_alias(h) for h in _ESCRITURA if h["name"].startswith("item_"))
-
-HERRAMIENTAS = {
-    herramienta["name"]: herramienta
-    for herramienta in (*_LECTURA, *_ESCRITURA, *_ALIAS_LECTURA, *_ALIAS_ESCRITURA)
-}
-_CANONICO = {
-    alias["name"]: alias["name"].replace("idea_", "item_", 1)
-    for alias in (*_ALIAS_LECTURA, *_ALIAS_ESCRITURA)
-}
-HERRAMIENTAS_ESCRITURA = frozenset(
-    herramienta["name"] for herramienta in (*_ESCRITURA, *_ALIAS_ESCRITURA)
-)
+HERRAMIENTAS = {herramienta["name"]: herramienta for herramienta in (*_LECTURA, *_ESCRITURA)}
+HERRAMIENTAS_ESCRITURA = frozenset(herramienta["name"] for herramienta in _ESCRITURA)
 
 
 def permite_escritura(flag: bool) -> bool:
@@ -276,8 +253,8 @@ def _error(ident: Any, codigo: int, mensaje: str) -> dict[str, Any]:
 
 def _lista_herramientas(permitir_escritura: bool) -> list[dict[str, Any]]:
     if permitir_escritura:
-        return [*_LECTURA, *_ESCRITURA, *_ALIAS_LECTURA, *_ALIAS_ESCRITURA]
-    return [*_LECTURA, *_ALIAS_LECTURA]
+        return [*_LECTURA, *_ESCRITURA]
+    return [*_LECTURA]
 
 
 # Campos que no son de una herramienta pero sí de otra: el error dice dónde
@@ -379,7 +356,6 @@ def _comunes(argumentos: dict[str, Any], *, con_repo: bool = True) -> list[str]:
 def _orden(nombre: str, a: dict[str, Any]) -> tuple[list[str], str | None]:
     """El argv del CLI para una herramienta; el segundo valor es un temporal."""
     temporal: str | None = None
-    nombre = _CANONICO.get(nombre, nombre)
     if nombre == "doctor":
         argv = ["doctor"]
     elif nombre == "repo_actual":

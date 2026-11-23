@@ -1039,7 +1039,7 @@ def revisar_absorcion(raiz: Path, lote: str, *, parcial: bool = False) -> dict[s
         filas = conn.execute(
             "SELECT mi.work_item_uid, mi.ruta, mi.desde_linea, mi.hasta_linea, mi.sha256,"
             " mi.estado, mi.lote_id, work_item_data.title"
-            " FROM migracion_idea mi"
+            " FROM migracion_item mi"
             " JOIN work_item_data ON work_item_data.uid = mi.work_item_uid"
             " WHERE mi.lote_id = ?"
             " ORDER BY mi.ruta, mi.desde_linea, mi.hasta_linea",
@@ -1062,7 +1062,7 @@ def revisar_absorcion(raiz: Path, lote: str, *, parcial: bool = False) -> dict[s
         todas = conn.execute(
             "SELECT mi.work_item_uid, mi.ruta, mi.desde_linea, mi.hasta_linea, mi.sha256,"
             " mi.estado, mi.lote_id, work_item_data.title"
-            " FROM migracion_idea mi"
+            " FROM migracion_item mi"
             " JOIN work_item_data ON work_item_data.uid = mi.work_item_uid"
             f" WHERE mi.ruta IN ({marcas})"
             " ORDER BY mi.ruta, mi.desde_linea, mi.hasta_linea",
@@ -1554,7 +1554,7 @@ def listar_documentos_absorbidos(raiz: Path) -> list[dict[str, Any]]:
                     continue
                 ruta = archivo["ruta"]
                 fila = conn.execute(
-                    "SELECT COUNT(DISTINCT work_item_uid) FROM migracion_idea WHERE ruta = ?",
+                    "SELECT COUNT(DISTINCT work_item_uid) FROM migracion_item WHERE ruta = ?",
                     (ruta,),
                 ).fetchone()
                 documento = {
@@ -1574,7 +1574,7 @@ def listar_documentos_absorbidos(raiz: Path) -> list[dict[str, Any]]:
 def exportar_documento(raiz: Path, ruta: str) -> str:
     """Genera el Markdown actual de un documento a partir de sus ítems.
 
-    No lee el fichero de origen: usa la procedencia (`migracion_idea`) para
+    No lee el fichero de origen: usa la procedencia (`migracion_item`) para
     saber qué ítems salieron de él y su orden, y el estado actual de cada uno.
     Así la vista sigue disponible aunque el Markdown ya se haya retirado.
     """
@@ -1585,7 +1585,7 @@ def exportar_documento(raiz: Path, ruta: str) -> str:
             "SELECT mi.work_item_uid, mi.desde_linea, mi.estado AS estado_origen,"
             " work_item_data.title, work_item_data.description, work_item_data.content,"
             " work_item_node.estado AS estado_actual"
-            " FROM migracion_idea mi"
+            " FROM migracion_item mi"
             " JOIN work_item_data ON work_item_data.uid = mi.work_item_uid"
             " LEFT JOIN work_item_node ON work_item_node.uid = mi.work_item_uid"
             " WHERE mi.ruta = ?"

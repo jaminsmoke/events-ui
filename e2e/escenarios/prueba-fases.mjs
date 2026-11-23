@@ -6,14 +6,14 @@ export default {
     "Roadmap exige fases, verificación las exige cerradas y la ficha enseña su detalle",
   run: async ({ page, UI, api, esperar, expect }) => {
     const cabeceras = { "content-type": "application/json" };
-    const crear = await api("/ideas?repo=lab", {
+    const crear = await api("/items?repo=lab", {
       method: "POST",
       headers: cabeceras,
       body: JSON.stringify({ title: "Fases E2E", status: "proposed" }),
     });
     expect(crear.status === 201, `no se pudo crear la idea: ${crear.status}`);
     const uid = crear.data.uid;
-    const idea = async () => (await api(`/ideas/${uid}?repo=lab`)).data;
+    const idea = async () => (await api(`/items/${uid}?repo=lab`)).data;
 
     await page.goto(UI, { waitUntil: "domcontentloaded" });
     const selector = page.getByRole("button", { name: "lab", exact: true });

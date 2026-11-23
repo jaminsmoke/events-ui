@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import type { Idea } from "../core/api";
+import type { WorkItem } from "../core/api";
 import { laneOf } from "./carriles";
 import type { LaneId } from "./carriles";
 
@@ -25,7 +25,7 @@ const PRIORIDAD: Record<TonoPulso, number> = { azul: 1, rojo: 2, verde: 3 };
  *  El pulso va al nodo (borde y contador); la chispa recorre solo el cable de
  *  llegada. Una salida no lanza chispa en el cable de entrada del carril que
  *  deja: eso haría creer que también llega algo. */
-export function useAnimaciones(repo: string | null, ideas: Idea[] | null) {
+export function useAnimaciones(repo: string | null, ideas: WorkItem[] | null) {
   const [actividad, setActividad] = useState<{
     repo: string;
     chispas: Animacion[];
@@ -34,7 +34,7 @@ export function useAnimaciones(repo: string | null, ideas: Idea[] | null) {
   } | null>(null);
   const anterior = useRef<{
     repo: string;
-    estados: Map<string, Idea["status"]>;
+    estados: Map<string, WorkItem["status"]>;
     carriles: Map<string, LaneId | null>;
   } | null>(null);
   const secuencia = useRef(0);

@@ -1,15 +1,15 @@
 /** Lo que necesitan las fases fuera del editor: su tipo, sus etiquetas y el
  *  formato con el que viajan en el PATCH. */
 
-import type { Idea, IdeaUpdate } from "../core/api";
+import type { WorkItem, WorkItemUpdate } from "../core/api";
 
 /** Estados de una fase (`work_item_fase`, 0021). */
 export const ESTADOS_FASE = ["pendiente", "completada", "fallida", "rechazada"] as const;
-export type Fase = NonNullable<Idea["fases"]>[number];
+export type Fase = NonNullable<WorkItem["fases"]>[number];
 
 /** Las fases en el formato del PATCH: sin `entered_at` (lo pone el core) ni
  *  `done_at` (lo pone al marcar). Lo comparten la fila y la ficha. */
-export function comoFases(fases: readonly Fase[]): NonNullable<IdeaUpdate["fases"]> {
+export function comoFases(fases: readonly Fase[]): NonNullable<WorkItemUpdate["fases"]> {
   return fases.map(({ orden, titulo, estado, nota, requisitos }) => ({
     orden,
     titulo,

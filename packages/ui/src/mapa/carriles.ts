@@ -1,6 +1,6 @@
-import type { Idea } from "../core/api";
+import type { WorkItem } from "../core/api";
 
-export type Status = Idea["status"];
+export type Status = WorkItem["status"];
 
 /** Los carriles del nivel siguiente.
  *

@@ -1,6 +1,6 @@
 import { Fragment, useState } from "react";
 
-import type { CommitGit, Idea, ProyeccionRepo } from "../core/api";
+import type { CommitGit, WorkItem, ProyeccionRepo } from "../core/api";
 import { folderName } from "../core/repo";
 import type { Paso } from "../core/useProtocolos";
 import type { Cable, Nudo } from "../mapa/cables";
@@ -63,7 +63,7 @@ export function PanelDerecho({
   /** Lo seleccionado en el lienzo; `null`, nada. */
   seleccion: Seleccion | null;
   /** Las ideas del mapa: la ficha de un carril las lista por estado. */
-  ideas: readonly Idea[];
+  ideas: readonly WorkItem[];
   /** Los cables medidos: la ficha de un cable explica su compuerta. */
   cables: readonly Cable[];
   /** Los nudos del mapa: agrupan las compuertas de sus cables. */
@@ -361,7 +361,7 @@ function CuerpoCarril({
 }: {
   titulo: string;
   estados: readonly Status[];
-  ideas: readonly Idea[];
+  ideas: readonly WorkItem[];
   paso: (origen: Status, destino: Status) => Paso | null;
   onSeleccionar: (seleccion: Seleccion) => void;
 }) {
@@ -477,7 +477,7 @@ function CuerpoInspector({
   proyeccion: ProyeccionRepo | null | undefined;
   commits: readonly CommitGit[];
   seleccion: Seleccion | null;
-  ideas: readonly Idea[];
+  ideas: readonly WorkItem[];
   cables: readonly Cable[];
   nudos: readonly Nudo[];
   paso: (origen: Status, destino: Status) => Paso | null;

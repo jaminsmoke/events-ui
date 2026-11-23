@@ -79,7 +79,7 @@ def test_aplicar_crea_el_lote_completo(client, tmp_path) -> None:
         assert lote["ideas"] == 2
         assert lote["plan_sha256"] == datos["plan_sha256"]
         filas = conn.execute(
-            "SELECT ref, ruta, desde_linea, hasta_linea, sha256 FROM migracion_idea ORDER BY rowid"
+            "SELECT ref, ruta, desde_linea, hasta_linea, sha256 FROM migracion_item ORDER BY rowid"
         ).fetchall()
         assert [fila["ref"] for fila in filas] == ["uno", "dos"]
         assert filas[0]["ruta"] == "docs/backlog.md"
@@ -145,7 +145,7 @@ def test_aplicar_destinos_fechas_y_firma(client, tmp_path) -> None:
     with closing(items.connect(items.ensure_repo(str(tmp_path)))) as conn:
         estados = {
             fila["ref"]: fila["estado"]
-            for fila in conn.execute("SELECT ref, estado FROM migracion_idea")
+            for fila in conn.execute("SELECT ref, estado FROM migracion_item")
         }
     assert estados == {
         "prop": "proposed",
@@ -207,7 +207,7 @@ def test_undo_borra_el_lote(client, tmp_path) -> None:
     assert client.get("/items", params={"repo": str(tmp_path)}).json() == []
     with closing(items.connect(items.ensure_repo(str(tmp_path)))) as conn:
         assert conn.execute("SELECT count(*) FROM migracion_lote").fetchone()[0] == 0
-        assert conn.execute("SELECT count(*) FROM migracion_idea").fetchone()[0] == 0
+        assert conn.execute("SELECT count(*) FROM migracion_item").fetchone()[0] == 0
         tipos = {fila["type"] for fila in conn.execute("SELECT type FROM event")}
         assert "migracion.deshacer" in tipos
 

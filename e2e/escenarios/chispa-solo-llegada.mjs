@@ -9,7 +9,7 @@ export default {
     "Mover una idea enciende solo el cable de llegada; borrarla no lanza chispa",
   run: async ({ page, UI, api, esperar, expect }) => {
     const cabeceras = { "content-type": "application/json" };
-    const creada = await api("/ideas?repo=lab", {
+    const creada = await api("/items?repo=lab", {
       method: "POST",
       headers: cabeceras,
       body: JSON.stringify({ title: "Chispa E2E", status: "proposed" }),
@@ -19,7 +19,7 @@ export default {
 
     // La compuerta de roadmap exige al menos una fase; se añade antes de mover.
     // En cola la fase solo puede estar pendiente (0021): se completa en roadmap.
-    const conFase = await api(`/ideas/${uid}?repo=lab`, {
+    const conFase = await api(`/items/${uid}?repo=lab`, {
       method: "PATCH",
       headers: cabeceras,
       body: JSON.stringify({
@@ -44,7 +44,7 @@ export default {
     await esperarCables(page, esperar);
     expect((await page.locator(".spark").count()) === 0, "la carga inicial no debe lanzar chispas");
 
-    const movida = await api(`/ideas/${uid}?repo=lab`, {
+    const movida = await api(`/items/${uid}?repo=lab`, {
       method: "PATCH",
       headers: cabeceras,
       body: JSON.stringify({ status: "roadmap" }),
@@ -64,14 +64,14 @@ export default {
     // Borrar exige estar en Descartadas (62e5934) y desde roadmap no hay
     // vuelta al carril que descarta, así que el borrado se prueba con otra
     // ficha: nace en cola, se descarta y se borra.
-    const otra = await api("/ideas?repo=lab", {
+    const otra = await api("/items?repo=lab", {
       method: "POST",
       headers: cabeceras,
       body: JSON.stringify({ title: "Chispa a borrar", status: "proposed" }),
     });
     expect(otra.status === 201, `no se pudo crear la ficha a borrar: ${otra.status}`);
     const uidBorrar = otra.data.uid;
-    const descartada = await api(`/ideas/${uidBorrar}?repo=lab`, {
+    const descartada = await api(`/items/${uidBorrar}?repo=lab`, {
       method: "PATCH",
       headers: cabeceras,
       body: JSON.stringify({ status: "rejected", rejected_description: "Para borrar" }),
@@ -91,7 +91,7 @@ export default {
       10_000,
     );
 
-    const borrada = await api(`/ideas/${uidBorrar}?repo=lab`, { method: "DELETE" });
+    const borrada = await api(`/items/${uidBorrar}?repo=lab`, { method: "DELETE" });
     expect([200, 204].includes(borrada.status), `no se pudo borrar: ${borrada.status}`);
     await esperar(
       () => page.locator(".row", { hasText: "Chispa a borrar" }).count().then((n) => n === 0),

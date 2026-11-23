@@ -29,7 +29,7 @@ export default {
     };
 
     // 1) El refresco periódico (y un cambio externo) no pisan el borrador.
-    const creada = await api("/ideas?repo=lab", {
+    const creada = await api("/items?repo=lab", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ title: "Titulo de etiquetas", tags: ["base", "q3"] }),
@@ -43,7 +43,7 @@ export default {
     await tags.fill("base, q3, tocado");
 
     // Un cambio por la API fuerza un refresco del mapa con el editor abierto.
-    const externa = await api(`/ideas/${uid}?repo=lab`, {
+    const externa = await api(`/items/${uid}?repo=lab`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ description: "cambio externo" }),
@@ -61,14 +61,14 @@ export default {
       "el editor se cierra tras guardar",
       10_000,
     );
-    const trasGuardar = await api(`/ideas/${uid}?repo=lab`);
+    const trasGuardar = await api(`/items/${uid}?repo=lab`);
     await expect(
       JSON.stringify(trasGuardar.data.tags) === JSON.stringify(["base", "q3", "tocado"]),
       "las tags guardadas son las del borrador",
     );
 
     // 2) Si la lectura falla, cambiar solo el título conserva las etiquetas.
-    const segunda = await api("/ideas?repo=lab", {
+    const segunda = await api("/items?repo=lab", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ title: "Titulo con fallo", tags: ["conservadas"] }),
@@ -77,7 +77,7 @@ export default {
     const uid2 = segunda.data.uid;
 
     let fallarLectura = true;
-    await page.route("**/api/ideas/*", async (route) => {
+    await page.route("**/api/items/*", async (route) => {
       if (route.request().method() === "GET" && fallarLectura) {
         await route.fulfill({
           status: 500,
@@ -107,7 +107,7 @@ export default {
       10_000,
     );
 
-    const conservadas = await api(`/ideas/${uid2}?repo=lab`);
+    const conservadas = await api(`/items/${uid2}?repo=lab`);
     await expect(conservadas.data.title === "Titulo retocado", "el título sí se guardó");
     await expect(
       JSON.stringify(conservadas.data.tags) === JSON.stringify(["conservadas"]),

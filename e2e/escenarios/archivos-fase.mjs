@@ -39,7 +39,7 @@ export default {
       git(lab, "add", "-A");
       git(lab, "commit", "-m", "inicial");
 
-      const crear = await api("/ideas?repo=lab", {
+      const crear = await api("/items?repo=lab", {
         method: "POST",
         headers: cabeceras,
         body: JSON.stringify({ title: "Archivos E2E", status: "proposed" }),
@@ -48,12 +48,12 @@ export default {
       uid = crear.data.uid;
 
       const mover = async (body) =>
-        api(`/ideas/${uid}?repo=lab`, {
+        api(`/items/${uid}?repo=lab`, {
           method: "PATCH",
           headers: cabeceras,
           body: JSON.stringify(body),
         });
-      const idea = async () => (await api(`/ideas/${uid}?repo=lab`)).data;
+      const idea = async () => (await api(`/items/${uid}?repo=lab`)).data;
 
       // Entrar en roadmap toma la foto de partida; lo que se toque después es
       // lo que toca el evento siguiente.
@@ -142,7 +142,7 @@ export default {
       );
       await page.screenshot({ path: resultado("archivos-fase.png") });
     } finally {
-      if (uid) await api(`/ideas/${uid}?repo=lab`, { method: "DELETE" });
+      if (uid) await api(`/items/${uid}?repo=lab`, { method: "DELETE" });
       rmSync(path.join(lab, ".git"), { recursive: true, force: true });
       rmSync(path.join(lab, "nota.txt"), { force: true });
       rmSync(path.join(lab, "nuevo.txt"), { force: true });

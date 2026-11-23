@@ -184,7 +184,7 @@ CREATE TABLE IF NOT EXISTS work_item_requisito (
 -- el texto es `ruta<TAB>tamaño<TAB>mtime_ns` por línea. Sin watcher: solo se
 -- fotografía al entrar en roadmap y al cerrar una fase.
 -- Los lotes de la migración de Markdown (0030). Un plan se aplica entero en
--- una transacción y deja su huella; repetirlo no duplica. `migracion_idea`
+-- una transacción y deja su huella; repetirlo no duplica. `migracion_item`
 -- guarda la procedencia de cada ítem (fichero, líneas y hash) y la firma
 -- `creada_at` que luego compara `undo` con `work_item_data.updated_at`.
 CREATE TABLE IF NOT EXISTS migracion_lote (
@@ -194,7 +194,7 @@ CREATE TABLE IF NOT EXISTS migracion_lote (
     ideas       INTEGER NOT NULL CHECK (ideas > 0)
 );
 
-CREATE TABLE IF NOT EXISTS migracion_idea (
+CREATE TABLE IF NOT EXISTS migracion_item (
     lote_id     TEXT    NOT NULL REFERENCES migracion_lote (id) ON DELETE CASCADE,
     work_item_uid    TEXT    NOT NULL REFERENCES work_item_data (uid) ON DELETE CASCADE,
     ref         TEXT    NOT NULL,
@@ -210,7 +210,7 @@ CREATE TABLE IF NOT EXISTS migracion_idea (
     UNIQUE (lote_id, work_item_uid)
 );
 
-CREATE INDEX IF NOT EXISTS migracion_item_uid ON migracion_idea (work_item_uid);
+CREATE INDEX IF NOT EXISTS migracion_item_uid ON migracion_item (work_item_uid);
 
 CREATE TABLE IF NOT EXISTS work_item_foto (
     work_item_uid TEXT PRIMARY KEY REFERENCES work_item_data (uid) ON DELETE CASCADE,

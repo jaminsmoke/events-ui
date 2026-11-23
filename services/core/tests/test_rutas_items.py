@@ -1,4 +1,4 @@
-"""`/items` es la ruta principal y `/ideas` su alias con `Deprecation`."""
+"""`/items` es la única ruta de ítems: los alias `/ideas` ya no existen."""
 
 from __future__ import annotations
 
@@ -11,35 +11,24 @@ def _crear(client: TestClient, repo: str, **campos: object) -> dict:
     return r.json()
 
 
-def test_items_y_el_alias_items_devuelven_lo_mismo(client: TestClient, repo: str) -> None:
+def test_las_rutas_viejas_responden_404(client: TestClient, repo: str) -> None:
     uid = _crear(client, repo)["uid"]
 
-    principal = client.get(f"/items/{uid}", params={"repo": repo})
-    alias = client.get(f"/ideas/{uid}", params={"repo": repo})
-
-    assert principal.status_code == alias.status_code == 200
-    assert principal.json() == alias.json()
-    assert "Deprecation" not in principal.headers
-    assert alias.headers["Deprecation"] == "true"
-
-
-def test_el_alias_tambien_crea_y_marca_la_cabecera(client: TestClient, repo: str) -> None:
-    r = client.post("/ideas", params={"repo": repo}, json={"title": "B"})
-
-    assert r.status_code == 201
-    assert r.headers["Deprecation"] == "true"
-    assert client.get("/items", params={"repo": repo}).json()[0]["uid"] == r.json()["uid"]
+    assert client.get("/ideas", params={"repo": repo}).status_code == 404
+    assert client.post("/ideas", params={"repo": repo}, json={"title": "B"}).status_code == 404
+    assert client.get(f"/ideas/{uid}", params={"repo": repo}).status_code == 404
+    assert (
+        client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"title": "B"}).status_code == 404
+    )
+    assert client.delete(f"/ideas/{uid}", params={"repo": repo}).status_code == 404
 
 
 def test_listado_y_mapa_por_items(client: TestClient, repo: str) -> None:
     uid = _crear(client, repo)["uid"]
 
     principal = client.get("/items", params={"repo": repo}).json()
-    alias = client.get("/ideas", params={"repo": repo})
 
-    assert principal == alias.json()
     assert principal[0]["uid"] == uid
-    assert alias.headers["Deprecation"] == "true"
     assert client.get("/mapa", params={"repo": repo}).json()["ideas"][0]["uid"] == uid
 
 
@@ -62,17 +51,15 @@ def test_patch_y_delete_por_items(client: TestClient, repo: str) -> None:
     assert [i["uid"] for i in client.get("/items", params={"repo": repo}).json()] == [uid]
 
 
-def test_openapi_publica_items_y_marca_el_alias(client: TestClient) -> None:
+def test_openapi_solo_publica_items(client: TestClient) -> None:
     esquema = client.get("/openapi.json").json()
     rutas = esquema["paths"]
 
     assert "/items" in rutas
     assert "/items/{uid}" in rutas
+    assert "/ideas" not in rutas
+    assert "/ideas/{uid}" not in rutas
     assert "deprecated" not in rutas["/items"]["get"]
-    assert rutas["/ideas"]["get"]["deprecated"] is True
-    assert rutas["/ideas/{uid}"]["patch"]["deprecated"] is True
-    assert rutas["/ideas"]["post"]["deprecated"] is True
-    assert rutas["/ideas/{uid}"]["delete"]["deprecated"] is True
 
     nombres = set(esquema["components"]["schemas"])
     assert {

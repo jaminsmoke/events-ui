@@ -54,7 +54,7 @@ MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migraciones"
 # archivos que cambiaron entre dos fotos del árbol, sin watcher: se fotografía
 # al entrar en roadmap y al cerrar una fase; la 0029 añade los archivos de cada
 # requisito de la fase; la 0030 añade los lotes de la migración de Markdown
-# (`migracion_lote`, `migracion_idea`), para aplicar un plan entero en una
+# (`migracion_lote`, `migracion_item`), para aplicar un plan entero en una
 # transacción, no repetirlo y saber de dónde salió cada item; la 0031 guarda
 # en esa procedencia el carril con el que nació cada item, para deshacer un plan
 # que archiva o descarta; la 0032 pone índice en `work_item_node (estado, posicion)`,

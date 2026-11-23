@@ -293,64 +293,21 @@ def test_stdio_responde_y_sale_con_eof() -> None:
     assert all("isError" not in respuesta for respuesta in respuestas)
 
 
-def test_tools_list_anuncia_los_alias_deprecados() -> None:
+def test_tools_list_no_anuncia_alias() -> None:
     herramientas = mcp_servidor.manejar(_peticion("tools/list"), permitir_escritura=True)["result"][
         "tools"
     ]
-    por_nombre = {herramienta["name"]: herramienta for herramienta in herramientas}
-    canonicos = (
-        "item_list",
-        "item_get",
-        "item_create",
-        "item_edit",
-        "item_move",
-        "item_fases",
-        "item_requisito",
-    )
 
-    for canonico in canonicos:
-        alias = por_nombre[canonico.replace("item_", "idea_", 1)]
-        assert alias["description"].startswith(f"Obsoleta: usa `{canonico}`.")
-        assert alias["_meta"] == {"deprecated": True}
-        assert alias["inputSchema"] == por_nombre[canonico]["inputSchema"]
-        assert "_meta" not in por_nombre[canonico]
+    assert not [h for h in herramientas if h["name"].startswith("idea_")]
+    assert not any("_meta" in h for h in herramientas)
 
 
-def test_alias_item_devuelve_lo_mismo_que_item(monkeypatch) -> None:
-    vistos: list[list[str]] = []
-
-    def falso(argv):
-        vistos.append(argv)
-        print(json.dumps([{"uid": "u1", "status": "proposed", "title": "Hola"}]))
-        return 0
-
-    monkeypatch.setattr(mcp_servidor.cli, "main", falso)
-    argumentos = {"repo": "lab", "status": "proposed"}
-
-    nueva = mcp_servidor.manejar(
-        _peticion("tools/call", {"name": "item_list", "arguments": argumentos})
-    )
-    vieja = mcp_servidor.manejar(
-        _peticion("tools/call", {"name": "idea_list", "arguments": argumentos})
-    )
-
-    assert vieja == nueva
-    assert vistos == [["item", "list", "--status", "proposed", "--json", "--repo", "lab"]] * 2
-
-
-def test_alias_de_escritura_respeta_el_permiso(monkeypatch) -> None:
+def test_un_nombre_viejo_es_herramienta_desconocida(monkeypatch) -> None:
     visto: list[list[str]] = []
     monkeypatch.setattr(mcp_servidor.cli, "main", lambda argv: visto.append(argv) or 0)
 
-    negada = mcp_servidor.manejar(
-        _peticion("tools/call", {"name": "idea_create", "arguments": {"title": "Hola"}})
-    )
-    permitida = mcp_servidor.manejar(
-        _peticion("tools/call", {"name": "idea_create", "arguments": {"title": "Hola"}}),
-        permitir_escritura=True,
-    )
+    r = mcp_servidor.manejar(_peticion("tools/call", {"name": "idea_list", "arguments": {}}))
 
-    assert negada["result"]["isError"] is True
-    assert "escritura desactivada" in negada["result"]["content"][0]["text"]
-    assert permitida["result"].get("isError") is None
-    assert visto == [["item", "create", "--title", "Hola", "--json"]]
+    assert r["error"]["code"] == -32602
+    assert "herramienta desconocida" in r["error"]["message"]
+    assert visto == []

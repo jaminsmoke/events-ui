@@ -126,27 +126,21 @@ El comando deja la copia sin auxiliares, en modo rollback, y comprueba
 versionado por la copia y se comprueba desde un directorio limpio abriéndola:
 debe ver los mismos ítems que la app, sin `-wal` al lado.
 
-Fuentes del modelo: [ítems y protocolos](../services/core/src/events_core/schema/ideas.sql),
+Fuentes del modelo: [ítems y protocolos](../services/core/src/events_core/schema/items.sql),
 [eventos](../services/core/src/events_core/schema/eventos.sql),
 [registro](../services/core/src/events_core/registro.py) y
 [migraciones](../services/core/src/events_core/migraciones/).
 
-## Legado `idea` (caducidad 2027-01-31)
+## Histórico `idea`
 
-La migración 0034 renombró el almacén: las tablas son `work_item_*` y la
-columna que apunta al ítem es `work_item_uid`. Lo que sigue con nombre viejo
-son alias de API y herramientas, más dos nombres de esquema:
+El renombrado terminó: la 0034 dejó las tablas `work_item_*` y la columna
+`work_item_uid`, y la 0035 renombró el lote a `migracion_item`. No quedan
+alias de API ni de herramientas.
 
-| Alias vivo | Nombre nuevo |
-| --- | --- |
-| `/ideas`, `/ideas/{uid}` (con `Deprecation`) | `/items`, `/items/{uid}` |
-| `eui idea …`, `idea_*` (MCP) | `eui item …`, `item_*` |
-| `migracion_idea` (tabla) | `migracion_item` |
-| `schema/ideas.sql` (fichero) | `schema/items.sql` |
-
-`kind: "idea"` no es un alias: es un valor de dato de los ítems que ya existen
-y se queda. A partir del 2027-01-31 no quedan alias: `grep -r idea` no
-encuentra nada.
+`idea` sigue en el repositorio como historia y como dato: las migraciones
+`0001`–`0035`, `kind: "idea"`, la clave `ideas` del plan v1-v3 y de
+`MapSnapshot`, y los eventos `idea.*` que ya estén escritos en un log (el
+lector los pinta y filtra junto a los `item.*`).
 
 ## Comprobación local del 18 de noviembre de 2026
 

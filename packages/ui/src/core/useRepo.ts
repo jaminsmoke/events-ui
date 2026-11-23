@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { api, unwrap } from "./api";
 import { suscribirSondeo } from "./sondeo";
-import type { CommitGit, IdeaCreate, IdeaUpdate, Mapa, ProyeccionRepo, Reinicio } from "./api";
+import type { CommitGit, WorkItemCreate, WorkItemUpdate, Mapa, ProyeccionRepo, Reinicio } from "./api";
 import { STORAGE_KEY } from "./repo";
 
 /** Lo cargado pertenece a *un* repo: si se cambia de carpeta, lo viejo deja de
@@ -79,18 +79,18 @@ export function useRepo(repo: string | null) {
   // `crear` devuelve la idea recién creada (con su `uid`): el lanzador de
   // pruebas lo necesita para mover lo que acaba de crear.
   const crear = useCallback(
-    async (body: IdeaCreate) => {
+    async (body: WorkItemCreate) => {
       if (!repo) return null;
-      return unwrap(api.POST("/ideas", { params: { query: { repo } }, body }));
+      return unwrap(api.POST("/items", { params: { query: { repo } }, body }));
     },
     [repo],
   );
 
   const mover = useCallback(
-    async (uid: string, status: IdeaCreate["status"]) => {
+    async (uid: string, status: WorkItemCreate["status"]) => {
       if (!repo) return;
       await unwrap(
-        api.PATCH("/ideas/{uid}", { params: { path: { uid }, query: { repo } }, body: { status } }),
+        api.PATCH("/items/{uid}", { params: { path: { uid }, query: { repo } }, body: { status } }),
       );
     },
     [repo],
@@ -102,16 +102,16 @@ export function useRepo(repo: string | null) {
     async (uid: string) => {
       if (!repo) return null;
       return unwrap(
-        api.GET("/ideas/{uid}", { params: { path: { uid }, query: { repo } } }),
+        api.GET("/items/{uid}", { params: { path: { uid }, query: { repo } } }),
       );
     },
     [repo],
   );
 
   const editar = useCallback(
-    async (uid: string, cambios: IdeaUpdate) => {
+    async (uid: string, cambios: WorkItemUpdate) => {
       if (!repo) return;
-      await unwrap(api.PATCH("/ideas/{uid}", { params: { path: { uid }, query: { repo } }, body: cambios }));
+      await unwrap(api.PATCH("/items/{uid}", { params: { path: { uid }, query: { repo } }, body: cambios }));
     },
     [repo],
   );
@@ -119,7 +119,7 @@ export function useRepo(repo: string | null) {
   const borrar = useCallback(
     async (uid: string) => {
       if (!repo) return;
-      await unwrap(api.DELETE("/ideas/{uid}", { params: { path: { uid }, query: { repo } } }));
+      await unwrap(api.DELETE("/items/{uid}", { params: { path: { uid }, query: { repo } } }));
     },
     [repo],
   );

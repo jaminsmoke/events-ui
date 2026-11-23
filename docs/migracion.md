@@ -188,13 +188,11 @@ no cambió después. Si la cobertura ya es total, hay que usar absorb sin
 - No tocar `.EUI/` ni commitear. El commit lo decide el usuario después de
   revisar el lote.
 
-## Legado `idea` (caducidad 2027-01-31)
+## Histórico `idea`
 
-El plan no cambia: la ruta (`/ideas` → `/items`) y el nombre de
-`migracion_idea` (`migracion_item`) son de la API y del almacén. `kind: "idea"`
-y la clave `ideas` del plan se quedan: son datos y contrato del plan v1-v3, no
-alias. Desde la 0034 el almacén ya usa `work_item_*`; la API publica `/items`
-y responde por `/ideas` con la cabecera `Deprecation` hasta el 2027-01-31.
+El plan no cambia: `kind: "idea"` y la clave `ideas` se quedan, porque son
+datos y contrato del plan v1-v3, no alias. La API ya solo publica `/items` y el
+lote vive en `migracion_item` (0035).
 
 ## Antes de aplicar
 

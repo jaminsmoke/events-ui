@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 
-import type { Idea, IdeaUpdate } from "../core/api";
+import type { WorkItem, WorkItemUpdate } from "../core/api";
 import type { PuedeIr } from "../core/useProtocolos";
 import { DescartaIdea } from "../pantalla/DescartaIdea";
 import { ACCIONES_ESTADO, motivoBloqueo } from "./acciones";
@@ -68,11 +68,11 @@ export function NodeRow({
   /** Pedir edición: monta el editor en la raíz (App), no aquí —las filas
    *  van portaleadas y los clics del ratón en el portal no llegaban. */
   onPideEditar?: (uid: string, titulo: string, descripcion: string) => void;
-  onEditar?: (uid: string, cambios: IdeaUpdate) => Promise<void>;
+  onEditar?: (uid: string, cambios: WorkItemUpdate) => Promise<void>;
   onBorrar?: (uid: string) => Promise<void>;
   /** La idea completa, para el parche de los archivos de cada fase: el mapa
    *  solo trae ruta y estado. */
-  onCargarIdea?: (uid: string) => Promise<Idea | null>;
+  onCargarIdea?: (uid: string) => Promise<WorkItem | null>;
   /** Los protocolos de flujo (`GET /protocolos`): si está, la fila no ofrece
    *  un traslado que el core rechazaría (las descartadas no vuelven a cola,
    *  p. ej.). Sin él se ofrece todo y el core manda. */
@@ -86,7 +86,7 @@ export function NodeRow({
   exigeFasesCompletas?: PuedeIr;
   /** Todas las ideas del repo: resuelve títulos de las dependencias y
    *  ofrece las que aún no lo son. */
-  catalogo?: readonly Idea[];
+  catalogo?: readonly WorkItem[];
   /** Lo seleccionado en el lienzo y cómo cambiarlo: la fila marca su idea. */
   seleccion?: Seleccion | null;
   onSeleccionar?: (seleccion: Seleccion) => void;

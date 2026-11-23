@@ -696,7 +696,7 @@ button.arbol-fila:hover {
   list-style: none;
 }
 
-.inspector-idea {
+.inspector-item {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -713,17 +713,17 @@ button.arbol-fila:hover {
   cursor: pointer;
 }
 
-.inspector-idea:hover {
+.inspector-item:hover {
   background: #16233a;
 }
 
-.inspector-idea-titulo {
+.inspector-item-titulo {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.inspector-idea-estado {
+.inspector-item-estado {
   flex: none;
   color: var(--muted);
   font-size: 9.5px;

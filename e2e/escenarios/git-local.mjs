@@ -120,7 +120,7 @@ export default {
       await page.locator(".nodo-cambios .node-head").click();
       await page.getByRole("button", { name: "Inspector", exact: true }).click();
       const fichaCambios = page.locator('.resumen[aria-label="Panel derecho"]');
-      await fichaCambios.locator(".inspector-idea", { hasText: "nota.txt" }).click();
+      await fichaCambios.locator(".inspector-item", { hasText: "nota.txt" }).click();
       await fichaCambios.getByRole("button", { name: "Abrir en el visor", exact: true }).click();
       const visor = page.locator(".visor");
       await visor.waitFor();

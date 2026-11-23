@@ -121,13 +121,13 @@ export function NodeBox({
       {abierto && (
         <div className="node-body">
           {node.kids.map((kid) =>
-            node.tone === "eliminadas" && !kid.idea ? (
+            node.tone === "eliminadas" && !kid.item ? (
               <FilaQuema key={kid.key} titulo={kid.title} />
             ) : (
               <NodeRow
                 key={kid.key}
                 node={kid}
-                nodo={node.tone ?? "ideas"}
+                nodo={node.tone ?? "items"}
                 volando={volando}
                 onMover={onMover}
                 onPideEditar={onPideEditar}

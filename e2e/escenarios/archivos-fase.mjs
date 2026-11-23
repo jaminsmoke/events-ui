@@ -7,9 +7,9 @@ function git(carpeta, ...args) {
   return execFileSync("git", ["-C", carpeta, ...args], { encoding: "utf8" });
 }
 
-/** Las fases de la idea como payload del PATCH: lo que llega es lo que queda. */
-function fasesDe(idea) {
-  return idea.fases.map((fase) => ({
+/** Las fases del ítem como payload del PATCH: lo que llega es lo que queda. */
+function fasesDe(item) {
+  return item.fases.map((fase) => ({
     orden: fase.orden,
     titulo: fase.titulo,
     estado: fase.estado,
@@ -44,7 +44,7 @@ export default {
         headers: cabeceras,
         body: JSON.stringify({ title: "Archivos E2E", status: "proposed" }),
       });
-      expect(crear.status === 201, `no se pudo crear la idea: ${crear.status}`);
+      expect(crear.status === 201, `no se pudo crear el ítem: ${crear.status}`);
       uid = crear.data.uid;
 
       const mover = async (body) =>
@@ -53,7 +53,7 @@ export default {
           headers: cabeceras,
           body: JSON.stringify(body),
         });
-      const idea = async () => (await api(`/items/${uid}?repo=lab`)).data;
+      const item = async () => (await api(`/items/${uid}?repo=lab`)).data;
 
       // Entrar en roadmap toma la foto de partida; lo que se toque después es
       // lo que toca el evento siguiente.
@@ -65,11 +65,11 @@ export default {
 
       // Un requisito marcado es un evento: lo que cambió hasta ahí es lo suyo.
       writeFileSync(path.join(lab, "nota.txt"), "uno\ndos\n");
-      const conRequisito = fasesDe(await idea());
+      const conRequisito = fasesDe(await item());
       conRequisito[0].requisitos[0].hecho = true;
       const marcado = await mover({ fases: conRequisito });
       expect(marcado.status === 200, `no se pudo marcar el requisito: ${marcado.status}`);
-      const requisito = (await idea()).fases[0].requisitos[0];
+      const requisito = (await item()).fases[0].requisitos[0];
       expect(
         requisito.archivos.some(
           (archivo) => archivo.ruta === "nota.txt" && archivo.estado === "modificado",
@@ -79,11 +79,11 @@ export default {
 
       // Cerrar la fase es otro evento: se lleva lo que quedó después.
       writeFileSync(path.join(lab, "nuevo.txt"), "hola\n");
-      const aCerrar = fasesDe(await idea());
+      const aCerrar = fasesDe(await item());
       aCerrar[0].estado = "completada";
       const cerrado = await mover({ fases: aCerrar });
       expect(cerrado.status === 200, `no se pudo cerrar la fase: ${cerrado.status}`);
-      const archivos = (await idea()).fases[0].archivos;
+      const archivos = (await item()).fases[0].archivos;
       expect(
         archivos.some((archivo) => archivo.ruta === "nota.txt" && archivo.estado === "modificado"),
         "el archivo del requisito también cuenta en la fase",

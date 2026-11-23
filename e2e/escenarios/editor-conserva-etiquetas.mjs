@@ -1,5 +1,5 @@
 // El editor no pierde las etiquetas al refrescarse el mapa ni cuando la
-// lectura de la idea falla: un cambio externo no pisa el borrador, y un
+// lectura del ítem falla: un cambio externo no pisa el borrador, y un
 // guardado que solo toca el título no borra las etiquetas guardadas.
 
 export default {
@@ -15,7 +15,7 @@ export default {
       if ((await selector.count()) > 0) await selector.click();
       await esperar(
         () => page.evaluate((t) => document.body.innerText.includes(t), titulo),
-        `la idea ${titulo} en el mapa`,
+        `el ítem ${titulo} en el mapa`,
         30_000,
       );
       await page.getByRole("button", { name: new RegExp(titulo) }).click();

@@ -9,7 +9,7 @@ import { ExploradorArbol } from "./ExploradorArbol";
 export type VistaPane = "mapas" | "archivos" | "git";
 
 /** Los tres mapas del lienzo. Documentos ya no vive en el activity. */
-export type MapaLienzo = "ideas" | "git" | "documentos";
+export type MapaLienzo = "items" | "git" | "documentos";
 
 /** Vista del rail derecho: las estadísticas del repo, el inspector de lo que
  *  se selecciona en el lienzo y el archivo abierto. Los Markdown absorbidos
@@ -211,9 +211,9 @@ export function PaneMapas({
           <div className="pane-lista">
             <button
               type="button"
-              className={`pane-item${mapa === "ideas" ? " activo" : ""}`}
-              aria-pressed={mapa === "ideas"}
-              onClick={() => onMapa("ideas")}
+              className={`pane-item${mapa === "items" ? " activo" : ""}`}
+              aria-pressed={mapa === "items"}
+              onClick={() => onMapa("items")}
             >
               Mapa de Trabajo
             </button>

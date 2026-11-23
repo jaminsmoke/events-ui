@@ -18,9 +18,9 @@ import {
   CuerpoCommits,
   CuerpoNodoGit,
 } from "./InspectorGit";
-import { CuerpoIdea } from "./InspectorIdea";
+import { CuerpoItem } from "./InspectorItem";
 import { CuerpoNudo } from "./InspectorNudo";
-import type { AccionesIdea } from "./InspectorIdea";
+import type { AccionesItem } from "./InspectorItem";
 import { VisorArchivo } from "./VisorArchivo";
 /** Panel derecho del marco, con varias vistas que comparten cabecera.
  *
@@ -71,7 +71,7 @@ export function PanelDerecho({
   /** El protocolo del repo: qué salidas hay y qué exige cada unión. */
   paso: (origen: Status, destino: Status) => Paso | null;
   /** Lo que la ficha de idea puede hacer con la idea seleccionada. */
-  acciones: AccionesIdea;
+  acciones: AccionesItem;
   /** Pulsar una idea en la ficha la selecciona en el lienzo. */
   onSeleccionar: (seleccion: Seleccion) => void;
   /** Abrir un archivo de una ficha (cambio) en la vista Archivo. */
@@ -413,11 +413,11 @@ function CuerpoCarril({
             <li key={idea.uid}>
               <button
                 type="button"
-                className="inspector-idea"
-                onClick={() => onSeleccionar({ tipo: "idea", uid: idea.uid })}
+                className="inspector-item"
+                onClick={() => onSeleccionar({ tipo: "item", uid: idea.uid })}
               >
-                <span className="inspector-idea-titulo">{idea.title}</span>
-                <span className="inspector-idea-estado">
+                <span className="inspector-item-titulo">{idea.title}</span>
+                <span className="inspector-item-estado">
                   {ETIQUETA_ESTADO[idea.status] ?? idea.status}
                 </span>
               </button>
@@ -481,7 +481,7 @@ function CuerpoInspector({
   cables: readonly Cable[];
   nudos: readonly Nudo[];
   paso: (origen: Status, destino: Status) => Paso | null;
-  acciones: AccionesIdea;
+  acciones: AccionesItem;
   onSeleccionar: (seleccion: Seleccion) => void;
   onAbrirArchivo: (ruta: string) => void;
 }) {
@@ -551,10 +551,10 @@ function CuerpoInspector({
     );
   }
 
-  if (seleccion && seleccion.tipo === "idea") {
+  if (seleccion && seleccion.tipo === "item") {
     const idea = ideas.find((candidata) => candidata.uid === seleccion.uid);
     return idea ? (
-      <CuerpoIdea
+      <CuerpoItem
         idea={idea}
         catalogo={ideas}
         acciones={acciones}

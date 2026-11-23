@@ -13,7 +13,7 @@ import { DescartaIdea } from "./DescartaIdea";
 
 /** Las acciones de la idea, tal como las ofrece el mapa: la fila y el
  *  inspector usan los mismos callbacks y las mismas reglas de protocolo. */
-export type AccionesIdea = {
+export type AccionesItem = {
   puedeIr?: PuedeIr;
   exigeFases?: PuedeIr;
   exigeFasesListas?: PuedeIr;
@@ -27,7 +27,7 @@ export type AccionesIdea = {
 /** La ficha de una idea en el Inspector: lo que la fila no enseña para no
  *  crecer —descripción, fases con sus archivos y dependencias— y las mismas
  *  acciones, con el bloqueo del protocolo a la vista. */
-export function CuerpoIdea({
+export function CuerpoItem({
   idea,
   catalogo,
   acciones,
@@ -36,7 +36,7 @@ export function CuerpoIdea({
   idea: WorkItem;
   /** Todas las ideas del repo: resuelve los títulos de las dependencias. */
   catalogo: readonly WorkItem[];
-  acciones: AccionesIdea;
+  acciones: AccionesItem;
   onSeleccionar: (seleccion: Seleccion) => void;
 }) {
   const [trabajando, setTrabajando] = useState(false);
@@ -129,12 +129,12 @@ export function CuerpoIdea({
               <li key={dep}>
                 <button
                   type="button"
-                  className="inspector-idea"
+                  className="inspector-item"
                   disabled={!otra}
-                  onClick={() => otra && onSeleccionar({ tipo: "idea", uid: otra.uid })}
+                  onClick={() => otra && onSeleccionar({ tipo: "item", uid: otra.uid })}
                 >
-                  <span className="inspector-idea-titulo">{otra?.title ?? dep}</span>
-                  <span className="inspector-idea-estado">
+                  <span className="inspector-item-titulo">{otra?.title ?? dep}</span>
+                  <span className="inspector-item-estado">
                     {otra ? ETIQUETA_ESTADO[otra.status] ?? otra.status : "—"}
                   </span>
                 </button>

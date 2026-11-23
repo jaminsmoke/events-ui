@@ -1,4 +1,4 @@
-// El flujo completo de una idea por la API, reflejado en la UI: se crea en
+// El flujo completo de un ítem por la API, reflejado en la UI: se crea en
 // el cajón (draft), se manda a Backlog (proposed) y se descarta (rejected).
 // La proyección de la UI dice cola: 1 / descartadas: 1 y los eventos cuentan
 // created + dos status.

@@ -11,9 +11,9 @@ export default {
       headers: cabeceras,
       body: JSON.stringify({ title: "Fases E2E", status: "proposed" }),
     });
-    expect(crear.status === 201, `no se pudo crear la idea: ${crear.status}`);
+    expect(crear.status === 201, `no se pudo crear el ítem: ${crear.status}`);
     const uid = crear.data.uid;
-    const idea = async () => (await api(`/items/${uid}?repo=lab`)).data;
+    const item = async () => (await api(`/items/${uid}?repo=lab`)).data;
 
     await page.goto(UI, { waitUntil: "domcontentloaded" });
     const selector = page.getByRole("button", { name: "lab", exact: true });
@@ -59,7 +59,7 @@ export default {
     const aRoadmap = actual.getByRole("button", { name: "A roadmap", exact: true });
     await esperar(async () => !(await aRoadmap.isDisabled()), "A roadmap habilitado");
     await aRoadmap.click();
-    await esperar(async () => (await idea()).status === "roadmap", "la idea en roadmap");
+    await esperar(async () => (await item()).status === "roadmap", "el ítem en roadmap");
     await esperar(
       () => filaEn("roadmap").count().then((n) => n === 1),
       "la fila en el carril de roadmap",
@@ -87,11 +87,11 @@ export default {
       "los dos requisitos",
     );
     await actual.locator(".requisito input").nth(0).check();
-    await esperar(async () => (await idea()).fases[0].requisitos[0].hecho === true, "el primero hecho");
+    await esperar(async () => (await item()).fases[0].requisitos[0].hecho === true, "el primero hecho");
     await actual.locator(".requisito input").nth(1).check();
-    await esperar(async () => (await idea()).fases[1].requisitos[0].hecho === true, "el segundo hecho");
+    await esperar(async () => (await item()).fases[1].requisitos[0].hecho === true, "el segundo hecho");
     await actual.locator(".fase-estado").nth(0).selectOption("completada");
-    await esperar(async () => (await idea()).fases[0].estado === "completada", "la primera completada");
+    await esperar(async () => (await item()).fases[0].estado === "completada", "la primera completada");
     // El selector refleja el estado antes de tocar el segundo: si no, el PATCH
     // siguiente reenviaría la lista vieja y desharía el primero.
     await esperar(
@@ -100,13 +100,13 @@ export default {
     );
     await actual.locator(".fase-estado").nth(1).selectOption("completada");
     await esperar(
-      async () => (await idea()).fases.every((f) => f.estado === "completada"),
+      async () => (await item()).fases.every((f) => f.estado === "completada"),
       "las dos completadas",
     );
 
     await esperar(async () => !(await aVerificacion.isDisabled()), "A verificación habilitado");
     await aVerificacion.click();
-    await esperar(async () => (await idea()).status === "verificacion", "la idea en verificación");
+    await esperar(async () => (await item()).status === "verificacion", "el ítem en verificación");
     await esperar(
       () => filaEn("verificacion").count().then((n) => n === 1),
       "la fila en el carril de verificación",
@@ -131,7 +131,7 @@ export default {
     // exige además al menos una.
     for (const cuantas of [1, 0]) {
       await actual.locator(".fase .chip-quitar").nth(0).click();
-      await esperar(async () => (await idea()).fases.length === cuantas, `${cuantas} fases`);
+      await esperar(async () => (await item()).fases.length === cuantas, `${cuantas} fases`);
       await esperar(
         () => actual.locator(".fase").count().then((n) => n === cuantas),
         `la fila con ${cuantas} fases`,

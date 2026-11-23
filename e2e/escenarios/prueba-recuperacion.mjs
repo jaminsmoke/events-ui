@@ -12,7 +12,7 @@ export default {
       path.join(tmp, "repos", "lab", ".EUI", "EUI_DATABASE.sqlite"),
       { readOnly: true },
     );
-    const ideas = () => db.prepare("SELECT count(*) AS n FROM work_item_data").get().n;
+    const items = () => db.prepare("SELECT count(*) AS n FROM work_item_data").get().n;
 
     const abrirLab = async () => {
       await page.goto(UI, { waitUntil: "domcontentloaded" });
@@ -52,8 +52,8 @@ export default {
       await marcar(repo, Date.now() - 60_000);
       await page.reload({ waitUntil: "domcontentloaded" });
       await page.getByText(/el laboratorio quedó vacío/).waitFor({ timeout: 20_000 });
-      await esperar(() => Promise.resolve(ideas() === 0), "el vaciado pendiente", 20_000);
-      expect(ideas() === 0, "quedaron ideas de la prueba interrumpida");
+      await esperar(() => Promise.resolve(items() === 0), "el vaciado pendiente", 20_000);
+      expect(items() === 0, "quedaron ítems de la prueba interrumpida");
 
       // Otra ejecución viva: latido fresco. Reabrir no puede tocar su trabajo.
       await sembrar("Dato de otra ejecución");
@@ -62,7 +62,7 @@ export default {
       await page.getByText("Dato de otra ejecución").waitFor({ timeout: 20_000 });
       // Más de un ciclo de sondeo: si la recuperación fuera a limpiar, ya lo habría hecho.
       await new Promise((r) => setTimeout(r, 4_000));
-      expect(ideas() === 1, "se vació el laboratorio de otra ejecución activa");
+      expect(items() === 1, "se vació el laboratorio de otra ejecución activa");
       const marca = await page.evaluate(
         (clave) => localStorage.getItem(clave),
         `eui.prueba:${repo}`,

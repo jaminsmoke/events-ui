@@ -51,7 +51,7 @@ export function useVuelos({
 
   useLayoutEffect(() => {
     // En el Mapa de Git no hay filas que medir.
-    if (mapa !== "ideas") return;
+    if (mapa !== "items") return;
     const map = mapRef.current;
     if (!repo || !map || !ideas) return;
 
@@ -140,7 +140,7 @@ export function useVuelos({
   }, []);
 
   return {
-    vuelos: mapa === "ideas" ? vuelos.filter((vuelo) => vuelo.repo === repo) : [],
+    vuelos: mapa === "items" ? vuelos.filter((vuelo) => vuelo.repo === repo) : [],
     volando,
     aterrizado,
   };

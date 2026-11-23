@@ -25,28 +25,28 @@ export type Tree = { cajon: TreeNode; carriles: TreeNode[] };
 export type TreeNode = {
   key: string;
   title: string;
-  /** Ideas que hay por debajo: todas las del repo o las del carril. */
+  /** Ítems que hay por debajo: todos los del repo o los del carril. */
   total: number;
   kids: TreeNode[];
-  idea?: WorkItem;
+  item?: WorkItem;
   tone?: "root" | LaneId;
 };
 
-export function buildTree(ideas: WorkItem[]): Tree {
-  const fila = (idea: WorkItem): TreeNode => ({
-    key: idea.uid,
-    title: idea.title,
+export function buildTree(items: WorkItem[]): Tree {
+  const fila = (item: WorkItem): TreeNode => ({
+    key: item.uid,
+    title: item.title,
     total: 0,
     kids: [],
-    idea,
+    item,
   });
 
-  // La entrada: solo las ideas que aún no tienen carril (`draft`). Al recibir
-  // una, dejan de verse aquí y aparecen en su carril: el flujo se ve porque
+  // La entrada: solo los ítems que aún no tienen carril (`draft`). Al recibir
+  // uno, dejan de verse aquí y aparecen en su carril: el flujo se ve porque
   // la entrada se va vaciando.
-  const sinCarril = ideas.filter((idea) => idea.status === "draft");
+  const sinCarril = items.filter((item) => item.status === "draft");
   const cajon: TreeNode = {
-    key: "ideas",
+    key: "items",
     title: "Entrada",
     total: sinCarril.length,
     kids: sinCarril.map(fila),
@@ -54,12 +54,12 @@ export function buildTree(ideas: WorkItem[]): Tree {
   };
 
   const carriles: TreeNode[] = LANES.map((lane) => {
-    const items = ideas.filter((idea) => laneOf(idea.status) === lane.id);
+    const delCarril = items.filter((item) => laneOf(item.status) === lane.id);
     return {
       key: `lane-${lane.id}`,
       title: lane.title,
-      total: items.length,
-      kids: items.map(fila),
+      total: delCarril.length,
+      kids: delCarril.map(fila),
       tone: lane.id,
     };
   });

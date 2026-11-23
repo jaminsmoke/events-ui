@@ -24,14 +24,14 @@ export default {
           ref: "login",
           title: "Login",
           status: "proposed",
-          kind: "idea",
+          kind: "work_item",
           origen: { ruta: "docs/backlog.md", desde_linea: 3, hasta_linea: 5, sha256 },
         },
         {
           ref: "panel",
           title: "Panel",
           status: "proposed",
-          kind: "idea",
+          kind: "work_item",
           depende_de: ["login"],
           origen: { ruta: "docs/backlog.md", desde_linea: 7, hasta_linea: 9, sha256 },
         },
@@ -74,8 +74,8 @@ export default {
 
     const aplicado = JSON.parse(cli(["migrate", "apply", planPath]));
     expect(aplicado.repetido === false, `el primer apply no creó lote: ${JSON.stringify(aplicado)}`);
-    // El plan va con el nombre viejo (`ideas`) a propósito: el core lo acepta.
-    expect(aplicado.items === 2, `el lote no trajo dos ideas: ${JSON.stringify(aplicado)}`);
+    // El plan va con la clave vieja (`ideas`) a propósito: el core la acepta como alias.
+    expect(aplicado.items === 2, `el lote no trajo dos ítems: ${JSON.stringify(aplicado)}`);
 
     const repetido = JSON.parse(cli(["migrate", "apply", planPath]));
     expect(repetido.repetido === true, "repetir el plan no devolvió un lote repetido");
@@ -83,22 +83,22 @@ export default {
 
     const antes = await api("/items?repo=lab");
     expect(antes.status === 200, `no se pudo listar: ${antes.status}`);
-    expect(antes.data.length === 2, `el lote no dejó dos ideas: ${antes.data.length}`);
+    expect(antes.data.length === 2, `el lote no dejó dos ítems: ${antes.data.length}`);
     expect(
-      antes.data.every((idea) => idea.status === "proposed"),
-      "alguna idea del lote no está en proposed",
+      antes.data.every((item) => item.status === "proposed"),
+      "algún ítem del lote no está en proposed",
     );
     const uids = Object.fromEntries(aplicado.creadas.map((c) => [c.ref, c.uid]));
-    const dependiente = antes.data.find((idea) => idea.uid === uids.panel);
+    const dependiente = antes.data.find((item) => item.uid === uids.panel);
     expect(
       dependiente?.depende_de.includes(uids.login) === true,
-      "`depende_de` no se resolvió al uid de la otra idea del lote",
+      "`depende_de` no se resolvió al uid del otro ítem del lote",
     );
 
     const deshecho = JSON.parse(cli(["migrate", "undo", aplicado.lote]));
     expect(deshecho.borradas === 2, `undo inesperado: ${JSON.stringify(deshecho)}`);
 
     const despues = await api("/items?repo=lab");
-    expect(despues.data.length === 0, "quedaron ideas tras deshacer el lote");
+    expect(despues.data.length === 0, "quedaron ítems tras deshacer el lote");
   },
 };

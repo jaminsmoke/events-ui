@@ -92,7 +92,7 @@ export default {
       const panel = page.locator('.resumen[aria-label="Panel derecho"]');
       const filtro = panel.getByLabel("Filtrar commits");
       await filtro.waitFor();
-      const filas = panel.locator(".inspector-lista .inspector-idea");
+      const filas = panel.locator(".inspector-lista .inspector-item");
       expect((await filas.count()) === 2, "la ficha del historial debe listar los dos commits");
       expect((await panel.innerText()).includes("2 commits"), "la ficha debe contar el historial");
 

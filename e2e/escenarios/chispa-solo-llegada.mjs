@@ -1,4 +1,4 @@
-// Regresión de la gramática de cables: al mover una idea solo se enciende el
+// Regresión de la gramática de cables: al mover un ítem solo se enciende el
 // cable de llegada. El carril que la deja pulsa, pero su cable de entrada no
 // recibe una chispa; al borrar tampoco hay chispa, solo pulso rojo.
 import { esperarCables } from "../cables.mjs";
@@ -6,7 +6,7 @@ import { esperarCables } from "../cables.mjs";
 export default {
   nombre: "chispa-solo-llegada",
   descripcion:
-    "Mover una idea enciende solo el cable de llegada; borrarla no lanza chispa",
+    "Mover un ítem enciende solo el cable de llegada; borrarlo no lanza chispa",
   run: async ({ page, UI, api, esperar, expect }) => {
     const cabeceras = { "content-type": "application/json" };
     const creada = await api("/items?repo=lab", {
@@ -14,7 +14,7 @@ export default {
       headers: cabeceras,
       body: JSON.stringify({ title: "Chispa E2E", status: "proposed" }),
     });
-    expect(creada.status === 201, `no se pudo crear la idea: ${creada.status}`);
+    expect(creada.status === 201, `no se pudo crear el ítem: ${creada.status}`);
     const uid = creada.data.uid;
 
     // La compuerta de roadmap exige al menos una fase; se añade antes de mover.

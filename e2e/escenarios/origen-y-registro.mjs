@@ -8,7 +8,7 @@ import path from "node:path";
 
 export default {
   nombre: "origen-y-registro",
-  descripcion: "Origen idea/externo en el log + purga del registro operativo",
+  descripcion: "Origen item/externo en el log + purga del registro operativo",
 
   run: async (ctx) => {
     const { api, expect } = ctx;

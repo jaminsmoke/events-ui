@@ -15,7 +15,7 @@ export type Acciones = {
   /** Archivos sin commit ahora mismo, para avisar antes de commitear. */
   cambios: number;
   /** Cambiar de mapa: la prueba se ve donde ocurre, no donde se lanzó. */
-  abrirMapa: (mapa: "ideas" | "git" | "documentos") => void;
+  abrirMapa: (mapa: "items" | "git" | "documentos") => void;
 };
 
 export type Paso = { texto: string; ejecutar: () => Promise<void> };

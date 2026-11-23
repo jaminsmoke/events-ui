@@ -117,7 +117,7 @@ export default {
       ),
       "el historial debe enseñar el asunto con el que commitea la prueba",
     );
-    // Al terminar se vacía sola: hay que dejarla acabar antes de sembrar ideas.
+    // Al terminar se vacía sola: hay que dejarla acabar antes de sembrar ítems.
     await pruebas.click();
     await page.getByText(/Completada.*Laboratorio limpio/).waitFor({ timeout: 90_000 });
     await dialogoPruebas.getByRole("button", { name: "Cerrar", exact: true }).click();
@@ -214,7 +214,7 @@ export default {
       "la dependencia aprobada debe verse en verde",
     );
     // El nudo de revisión rechazada y sus tres retornos están siempre, aunque
-    // no haya ninguna idea rechazada en ese momento.
+    // no haya ningún ítem rechazado en ese momento.
     expect((await page.locator(".rama-rechazo").count()) === 1, "falta el nudo de rechazo");
     expect(
       (await page.locator(".wire.rama").count()) === 3,
@@ -247,7 +247,7 @@ export default {
         );
       });
     const tablero = await page.locator(".board").boundingBox();
-    const transform = () => page.locator(".mapa-ideas").evaluate((el) => el.style.transform);
+    const transform = () => page.locator(".mapa-items").evaluate((el) => el.style.transform);
     const vistaAntes = await transform();
     // Desde el fondo del tablero, lejos de nodos y mandos: ahí sí arrastra.
     const desde = { x: tablero.x + tablero.width / 2, y: tablero.y + tablero.height - 14 };

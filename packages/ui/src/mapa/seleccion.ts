@@ -2,12 +2,12 @@
  *
  *  La selección es una clave, no una copia: el Inspector resuelve con ella el
  *  elemento en los datos que ya tiene el mapa. Los elementos que todavía no
- *  tienen ficha propia (carril, idea, cambios, cable) se seleccionan ya en
+ *  tienen ficha propia (carril, ítem, cambios, cable) se seleccionan ya en
  *  esta fase; sus campos llegan en los pasos siguientes del roadmap. */
 export type Seleccion =
   | { tipo: "cajon" }
   | { tipo: "carril"; clave: string }
-  | { tipo: "idea"; uid: string }
+  | { tipo: "item"; uid: string }
   | { tipo: "puente" }
   | { tipo: "puente_documentos" }
   | { tipo: "git" }
@@ -22,7 +22,7 @@ export type Seleccion =
 export const ETIQUETA_SELECCION: Record<Seleccion["tipo"], string> = {
   cajon: "Entrada",
   carril: "Carril",
-  idea: "Idea",
+  item: "Ítem",
   puente: "Entregar a Git",
   puente_documentos: "Mapa de Documentos",
   git: "Nodo de Git",
@@ -46,8 +46,8 @@ export function claveSeleccion(seleccion: Seleccion): string {
       return seleccion.tipo;
     case "carril":
       return `carril:${seleccion.clave}`;
-    case "idea":
-      return `idea:${seleccion.uid}`;
+    case "item":
+      return `item:${seleccion.uid}`;
     case "cambio":
       return `cambio:${seleccion.ruta}`;
     case "commit":

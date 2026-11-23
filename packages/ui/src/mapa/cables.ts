@@ -255,7 +255,7 @@ export function useCables({
 
   useLayoutEffect(() => {
     // En el Mapa de Git no hay cables que medir: el cajón no existe.
-    if (mapa !== "ideas") return;
+    if (mapa !== "items") return;
     const map = mapRef.current;
     const cajon = cajonRef.current;
     if (!map || !cajon || !tree) return;
@@ -720,17 +720,17 @@ export function useCables({
    *  único que sí cambia al moverse —si el esquema se sale de la ventana—, en
    *  vez de volver a medir los nueve nodos y repintar los cables por píxel. */
   useLayoutEffect(() => {
-    if (mapa !== "ideas") return;
+    if (mapa !== "items") return;
     const map = mapRef.current;
     if (!map) return;
     setRecortado(recortadoDe(map, boardRef.current, insetDerecha));
   }, [vista, mapa, mapRef, boardRef, insetDerecha]);
 
-  const enIdeas = mapa === "ideas";
+  const enItems = mapa === "items";
   return {
-    cables: enIdeas ? cables : [],
-    nudos: enIdeas ? nudos : [],
-    rama: enIdeas ? rama : null,
-    recortado: enIdeas ? recortado : false,
+    cables: enItems ? cables : [],
+    nudos: enItems ? nudos : [],
+    rama: enItems ? rama : null,
+    recortado: enItems ? recortado : false,
   };
 }

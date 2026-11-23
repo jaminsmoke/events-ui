@@ -92,17 +92,17 @@ export function NodeRow({
   onSeleccionar?: (seleccion: Seleccion) => void;
 }) {
   const tiene = node.kids.length > 0;
-  const uid = node.idea?.uid;
-  const estado = node.idea?.status;
+  const uid = node.item?.uid;
+  const estado = node.item?.status;
   // Una sola expansión por fila: detalles, botones e hijos. Al llegar a
   // roadmap o verificación la ficha se abre sola; en entrada, cola y
   // descartadas se queda plegada. Al cambiar de carril la fila se vuelve a
   // montar, así que este estado inicial ya fija lo que toca en el carril
   // nuevo; en el resto de casos manda la rama (con hijos, abierta).
   const [expandido, setExpandido] = useState(() => seAbreSola(estado) ?? tiene);
-  const descripcion = node.idea?.description ?? "";
-  const deps = node.idea?.depende_de ?? [];
-  const fases = node.idea?.fases ?? [];
+  const descripcion = node.item?.description ?? "";
+  const deps = node.item?.depende_de ?? [];
+  const fases = node.item?.fases ?? [];
   // Copia optimista compartida por la fila y la ficha: el mapa tarda en
   // refrescar y dos cambios seguidos no pueden reenviar la lista vieja (el
   // PATCH la reemplaza entera). Vale solo mientras la prop sea la misma;
@@ -151,7 +151,7 @@ export function NodeRow({
     <div
       className={`row${node.tone ? ` lane-${node.tone}` : ""}${
         uid && volando(uid, nodo) ? " volando" : ""
-      }${uid && mismoElemento(seleccion, { tipo: "idea", uid }) ? " seleccionada" : ""}`}
+      }${uid && mismoElemento(seleccion, { tipo: "item", uid }) ? " seleccionada" : ""}`}
       data-uid={uid}
       data-nodo={nodo}
     >
@@ -161,12 +161,12 @@ export function NodeRow({
         onClick={() => {
           setEditando(false);
           setExpandido((v) => !v);
-          if (uid) onSeleccionar?.({ tipo: "idea", uid });
+          if (uid) onSeleccionar?.({ tipo: "item", uid });
         }}
         aria-expanded={expandido}
-        aria-label={expandido && node.idea ? node.title : undefined}
+        aria-label={expandido && node.item ? node.title : undefined}
       >
-        {node.idea && <span className="dot" />}
+        {node.item && <span className="dot" />}
         {/* Abierta, el título encabeza la ficha; la barra solo lleva los
          * contadores y la flecha, con el hueco para alinearlos a la derecha. */}
         <span className="row-title">{expandido ? "" : node.title}</span>
@@ -178,21 +178,21 @@ export function NodeRow({
         )}
         <Arrow open={expandido} />
       </button>
-      {expandido && node.idea && (
+      {expandido && node.item && (
         <div className="fila-detalle">
           <div className="fila-cabecera">
             <div className="fila-texto">
               <p className="fila-titulo">{node.title}</p>
-              <p className="fila-descripcion">{node.idea.description || "Sin descripción"}</p>
+              <p className="fila-descripcion">{node.item.description || "Sin descripción"}</p>
             </div>
             <div className="fila-meta">
               <span className="fila-estado">
-                {ETIQUETA_ESTADO[node.idea.status] ?? node.idea.status}
+                {ETIQUETA_ESTADO[node.item.status] ?? node.item.status}
               </span>
-              {node.idea.rejected_at && (
+              {node.item.rejected_at && (
                 <span className="fila-rechazo">
-                  Rechazada el {fechaCorta(node.idea.rejected_at)}
-                  {node.idea.rejected_description ? ` — ${node.idea.rejected_description}` : ""}
+                  Rechazada el {fechaCorta(node.item.rejected_at)}
+                  {node.item.rejected_description ? ` — ${node.item.rejected_description}` : ""}
                 </span>
               )}
             </div>
@@ -394,7 +394,7 @@ export function NodeRow({
         </div>
       </div>
 
-      {node.idea && descartando && onEditar &&
+      {node.item && descartando && onEditar &&
         createPortal(
           <DescartaIdea
             titulo={node.title}
@@ -407,10 +407,10 @@ export function NodeRow({
         )}
 
 
-      {node.idea && fichaFases && (
+      {node.item && fichaFases && (
         <FichaFases
           uid={uid}
-          estado={node.idea.status}
+          estado={node.item.status}
           titulo={node.title}
           fases={vistaFases}
           alGuardar={onEditar && editando && !enHistorial ? guardarFases : undefined}

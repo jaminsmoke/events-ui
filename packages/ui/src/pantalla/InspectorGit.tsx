@@ -137,10 +137,10 @@ export function CuerpoCambios({
             <li key={`${cambio.estado}:${cambio.ruta}`}>
               <button
                 type="button"
-                className="inspector-idea"
+                className="inspector-item"
                 onClick={() => onSeleccionar({ tipo: "cambio", ruta: cambio.ruta })}
               >
-                <span className="inspector-idea-titulo inspector-mono" title={cambio.ruta}>
+                <span className="inspector-item-titulo inspector-mono" title={cambio.ruta}>
                   {cambio.ruta}
                 </span>
                 <span className="cambio-estado" title={palabraCambio(cambio.estado)}>
@@ -321,11 +321,11 @@ export function CuerpoCommits({
               <li key={commit.hash}>
                 <button
                   type="button"
-                  className="inspector-idea"
+                  className="inspector-item"
                   onClick={() => onSeleccionar({ tipo: "commit", hash: commit.hash })}
                 >
-                  <span className="inspector-idea-titulo">{commit.asunto}</span>
-                  <span className="inspector-mono inspector-idea-estado">
+                  <span className="inspector-item-titulo">{commit.asunto}</span>
+                  <span className="inspector-mono inspector-item-estado">
                     {indice === 0 ? "HEAD" : commit.hash}
                   </span>
                 </button>

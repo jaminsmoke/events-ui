@@ -1,11 +1,11 @@
 /** El inspector derecho: la selección del lienzo abre la ficha del carril y
- *  de la idea, y Escape o el fondo sueltan la selección. */
+ *  del ítem, y Escape o el fondo sueltan la selección. */
 import { esperarCables } from "../cables.mjs";
 
 export default {
   nombre: "inspector",
   descripcion:
-    "Seleccionar una idea o un carril abre su ficha en el inspector, y Escape o el fondo sueltan la selección",
+    "Seleccionar un ítem o un carril abre su ficha en el inspector, y Escape o el fondo sueltan la selección",
   run: async ({ page, UI, api, esperar, expect, resultado }) => {
     const cabeceras = { "content-type": "application/json" };
     const crear = await api("/items?repo=lab", {
@@ -17,7 +17,7 @@ export default {
         status: "proposed",
       }),
     });
-    expect(crear.status === 201, `no se pudo crear la idea: ${crear.status}`);
+    expect(crear.status === 201, `no se pudo crear el ítem: ${crear.status}`);
     const uid = crear.data.uid;
 
     await page.goto(UI, { waitUntil: "domcontentloaded" });
@@ -44,26 +44,26 @@ export default {
     // El panel se superpone al lienzo y la cámara se reencuadra: se espera.
     await page.waitForTimeout(900);
 
-    // Una idea: su cabecera la selecciona y la ficha trae descripción y acciones.
+    // Un ítem: su cabecera lo selecciona y la ficha trae descripción y acciones.
     const fila = page.locator(`.row[data-uid="${uid}"]`);
     await fila.locator(".row-head").click();
     await esperar(
       () => fila.evaluate((el) => el.classList.contains("seleccionada")),
-      "la fila de la idea seleccionada",
+      "la fila del ítem seleccionado",
     );
     await esperar(
       () => panel.locator(".inspector-asunto").innerText().then((t) => t === "Idea de inspector"),
-      "la ficha de la idea en el inspector",
+      "la ficha del ítem en el inspector",
     );
     // Los rótulos del panel se pintan en mayúsculas por CSS y `innerText` los
     // devuelve ya transformados: se compara sin caja.
     const ficha = (await panel.innerText()).toLowerCase();
     expect(
       ficha.includes("descripción que vive en el panel."),
-      "la ficha de la idea debe traer la descripción",
+      "la ficha del ítem debe traer la descripción",
     );
-    expect(ficha.includes("acciones"), "la ficha de la idea debe ofrecer acciones");
-    expect(ficha.includes("dependencias"), "la ficha de la idea debe enseñar dependencias");
+    expect(ficha.includes("acciones"), "la ficha del ítem debe ofrecer acciones");
+    expect(ficha.includes("dependencias"), "la ficha del ítem debe enseñar dependencias");
 
     // Escape suelta lo seleccionado sin cerrar la vista del panel.
     await page.keyboard.press("Escape");
@@ -76,7 +76,7 @@ export default {
       "el panel debe volver al aviso sin selección",
     );
 
-    // El carril: su cabecera lo marca y la ficha lista ideas y salidas.
+    // El carril: su cabecera lo marca y la ficha lista ítems y salidas.
     const carril = page.locator(".node.lane-cola");
     await carril.locator(".node-head").click();
     await esperar(
@@ -93,13 +93,13 @@ export default {
     const fichaCarril = (await panel.innerText()).toLowerCase();
     expect(fichaCarril.includes("backlog"), "la ficha del carril debe nombrarlo");
     expect(fichaCarril.includes("→ roadmap"), "la ficha debe enseñar la salida a roadmap");
-    expect(fichaCarril.includes("idea de inspector"), "la ficha debe listar sus ideas");
+    expect(fichaCarril.includes("idea de inspector"), "la ficha debe listar sus ítems");
 
-    // Pulsar la idea dentro de la propia ficha también la selecciona.
-    await panel.locator(".inspector-idea", { hasText: "Idea de inspector" }).click();
+    // Pulsar el ítem dentro de la propia ficha también lo selecciona.
+    await panel.locator(".inspector-item", { hasText: "Idea de inspector" }).click();
     await esperar(
       () => panel.locator(".inspector-asunto").innerText().then((t) => t === "Idea de inspector"),
-      "la idea elegida desde la ficha del carril",
+      "el ítem elegido desde la ficha del carril",
     );
     await page.screenshot({ path: resultado("inspector.png") });
 

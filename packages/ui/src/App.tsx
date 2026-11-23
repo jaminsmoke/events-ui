@@ -95,7 +95,7 @@ export default function App({
   const [pruebasAbiertas, setPruebasAbiertas] = useState(false);
   // Tres mapas enlazados: trabajo, Git y Documentos (Changelog). El puente
   // de Git solo abre con work tree; el de Documentos siempre.
-  const [mapa, setMapa] = useState<MapaLienzo>("ideas");
+  const [mapa, setMapa] = useState<MapaLienzo>("items");
   // Crear o eliminar el repo local: no se hace al pulsar, hay confirmación.
   const [dialogoGit, setDialogoGit] = useState<null | "crear" | "eliminar">(null);
   const [avisoRecuperacion, setAvisoRecuperacion] = useState<string | null>(null);
@@ -424,7 +424,7 @@ export default function App({
     (path: string) => {
       olvidar();
       setRepo(path);
-      setMapa("ideas");
+      setMapa("items");
       setSeleccion(null);
       setArchivoAbierto(null);
       setSelectorAbierto(false);
@@ -435,7 +435,7 @@ export default function App({
   const irGit = useCallback(() => {
     if (gitActivo) setMapa("git");
   }, [gitActivo]);
-  const irIdeas = useCallback(() => setMapa("ideas"), []);
+  const irItems = useCallback(() => setMapa("items"), []);
   const irDocumentos = useCallback(() => setMapa("documentos"), []);
   const irMapa = useCallback(
     (m: MapaLienzo) => {
@@ -446,8 +446,8 @@ export default function App({
         case "documentos":
           irDocumentos();
           return;
-        case "ideas":
-          irIdeas();
+        case "items":
+          irItems();
           return;
         default: {
           const _agotado: never = m;
@@ -455,7 +455,7 @@ export default function App({
         }
       }
     },
-    [irGit, irDocumentos, irIdeas],
+    [irGit, irDocumentos, irItems],
   );
 
   // Paradas del teclado, en el orden en que se lee el lienzo: la Entrada, los
@@ -477,7 +477,7 @@ export default function App({
         { tipo: "carril", clave: "lane-historial" },
         ...(ideas ?? [])
           .filter((idea) => idea.status === "historial")
-          .map((idea) => ({ tipo: "idea" as const, uid: idea.uid })),
+          .map((idea) => ({ tipo: "item" as const, uid: idea.uid })),
       ];
     }
     return [
@@ -488,7 +488,7 @@ export default function App({
       })),
       ...(ideas ?? [])
         .filter((idea) => idea.status !== "historial")
-        .map((idea) => ({ tipo: "idea" as const, uid: idea.uid })),
+        .map((idea) => ({ tipo: "item" as const, uid: idea.uid })),
       ...nudos.map((nudo) => ({ tipo: "nudo" as const, id: nudo.id })),
       ...cables.map((cable) => ({ tipo: "cable" as const, id: cable.id })),
       { tipo: "puente" },
@@ -811,7 +811,7 @@ export default function App({
                 ref={mapRef}
                 style={{ transform: `translate(${vista.x}px, ${vista.y}px) scale(${vista.k})` }}
               >
-                {mapa === "ideas" && (
+                {mapa === "items" && (
                 <div className="vuelos">
                   {vuelos.map((vuelo) => (
                     <VueloFila key={vuelo.id} vuelo={vuelo} onDone={aterrizado} />
@@ -825,7 +825,7 @@ export default function App({
                   ))}
                 </div>
                 )}
-                {mapa === "ideas" && (
+                {mapa === "items" && (
                 <svg className="cables" aria-hidden="true">
                   {cables.map((cable) => {
                     const t = cable.presion / maximo;
@@ -984,7 +984,7 @@ export default function App({
                   })}
                 </svg>
                 )}
-                {mapa === "ideas" && (
+                {mapa === "items" && (
                 <div className="linea">
                   <NodeBox
                     node={tree.cajon}

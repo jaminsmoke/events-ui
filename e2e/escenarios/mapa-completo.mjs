@@ -11,14 +11,14 @@ function git(carpeta, ...args) {
 }
 
 const tablasOperativas = [
-  "idea_data",
-  "idea_node",
+  "work_item_data",
+  "work_item_node",
   "rejected_node",
   "roadmap_node",
   "verificacion_node",
   "revision_node",
-  "idea_fase",
-  "idea_requisito",
+  "work_item_fase",
+  "work_item_requisito",
   "event",
 ];
 

@@ -81,7 +81,7 @@ def create_item(
         deps = _validar_dependencias(conn, uid, list(depende_de))
         _comprobar_dependencias(conn, uid, status, deps)
         datos = conn.execute(
-            "INSERT INTO idea_data"
+            "INSERT INTO work_item_data"
             " (uid, title, description, content, kind, tags, depende_de,"
             " created_at, updated_at)"
             " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -102,7 +102,7 @@ def create_item(
         # La fecha y el `id` se copian al nodo (0033): son el filtro y el orden
         # del listado, y ninguno cambia nunca, a diferencia de `entered_at`.
         conn.execute(
-            "INSERT INTO idea_node (uid, estado, posicion, created_at, id, entered_at)"
+            "INSERT INTO work_item_node (uid, estado, posicion, created_at, id, entered_at)"
             " VALUES (?, 'draft', NULL, ?, ?, ?)",
             (uid, ts, datos.lastrowid, ts),
         )
@@ -152,7 +152,7 @@ def update_item(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
     with closing(connect(ensure_repo(repo))) as conn:
         # La ficha activa (y el destino, si cambia el estado) decide qué
         # campos de ficha tienen sentido; se comprueba antes de escribir.
-        if conn.execute("SELECT 1 FROM idea_data WHERE uid = ?", (uid,)).fetchone() is None:
+        if conn.execute("SELECT 1 FROM work_item_data WHERE uid = ?", (uid,)).fetchone() is None:
             raise KeyError(uid)
         actual = _estado(conn, uid)
         # Las fases se leen una vez: el mismo dato decide la validación, las
@@ -234,7 +234,7 @@ def update_item(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
             )
             anotacion = _planificar_anotacion(conn, repo, uid, plan_archivos)
             cursor = conn.execute(
-                f"UPDATE idea_data SET {assignments} WHERE uid = :uid",
+                f"UPDATE work_item_data SET {assignments} WHERE uid = :uid",
                 {**clean, "uid": uid},
             )
             if cursor.rowcount == 0:
@@ -246,7 +246,8 @@ def update_item(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
                 # aprobado es la compuerta, no un sitio donde esperar.
                 if nuevo_estado == "revision_aprobada":
                     conn.execute(
-                        "UPDATE idea_node SET estado = 'historial', posicion = NULL WHERE uid = ?",
+                        "UPDATE work_item_node SET estado = 'historial',"
+                        " posicion = NULL WHERE uid = ?",
                         (uid,),
                     )
             else:
@@ -259,9 +260,9 @@ def update_item(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
             item = _row(
                 conn,
                 conn.execute(
-                    f"SELECT {_COLUMNAS} FROM idea_data"
-                    " JOIN idea_node ON idea_node.uid = idea_data.uid"
-                    " WHERE idea_data.uid = ?",
+                    f"SELECT {_COLUMNAS} FROM work_item_data"
+                    " JOIN work_item_node ON work_item_node.uid = work_item_data.uid"
+                    " WHERE work_item_data.uid = ?",
                     (uid,),
                 ).fetchone(),
             )
@@ -290,9 +291,9 @@ def delete_item(repo: str, uid: str) -> bool:
     """
     with closing(connect(ensure_repo(repo))) as conn:
         fila = conn.execute(
-            "SELECT idea_data.title, idea_node.estado"
-            " FROM idea_data JOIN idea_node ON idea_node.uid = idea_data.uid"
-            " WHERE idea_data.uid = ?",
+            "SELECT work_item_data.title, work_item_node.estado"
+            " FROM work_item_data JOIN work_item_node ON work_item_node.uid = work_item_data.uid"
+            " WHERE work_item_data.uid = ?",
             (uid,),
         ).fetchone()
         if fila is None:
@@ -318,7 +319,7 @@ def delete_item(repo: str, uid: str) -> bool:
             )
         # El nodo y el detalle se borran con el ítem (ON DELETE CASCADE).
         try:
-            cursor = conn.execute("DELETE FROM idea_data WHERE uid = ?", (uid,))
+            cursor = conn.execute("DELETE FROM work_item_data WHERE uid = ?", (uid,))
         except sqlite3.IntegrityError as exc:
             # Otra ficha pudo enlazarla entre la comprobación y el borrado.
             raise InvalidInput(
@@ -328,11 +329,11 @@ def delete_item(repo: str, uid: str) -> bool:
             # `depende_de` es una lista JSON, sin FK que la limpie: se retira
             # el uid de las listas ajenas para que nadie quede bloqueado por
             # un ítem que ya no existe.
-            for fila in conn.execute("SELECT uid, depende_de FROM idea_data").fetchall():
+            for fila in conn.execute("SELECT uid, depende_de FROM work_item_data").fetchall():
                 deps = _tags_json(fila[1])
                 if uid in deps:
                     conn.execute(
-                        "UPDATE idea_data SET depende_de = ? WHERE uid = ?",
+                        "UPDATE work_item_data SET depende_de = ? WHERE uid = ?",
                         (json.dumps([otra for otra in deps if otra != uid]), fila[0]),
                     )
             _emitir(conn, "item.deleted", {"uid": uid, "title": titulo})
@@ -358,13 +359,13 @@ def reiniciar(repo: str) -> dict[str, Any]:
 
     with closing(connect(db_file)) as conn:
         conn.execute("BEGIN IMMEDIATE")
-        n_items = contar(conn, "idea_data")
+        n_items = contar(conn, "work_item_data")
         n_eventos = contar(conn, "event")
         # Borrar los ítems arrastra nodo y detalle por CASCADE; los eventos no
         # cuelgan de nada, se borran aparte.
         if n_eventos:
             conn.execute("DELETE FROM event")
-        conn.execute("DELETE FROM idea_data")
+        conn.execute("DELETE FROM work_item_data")
         conn.commit()
     return {
         "repo": repo,

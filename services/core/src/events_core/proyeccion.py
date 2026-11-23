@@ -343,16 +343,16 @@ def repo_estado_actual(repo: str) -> dict[str, Any]:
             return 0
 
     with closing(open_read_only(db_file)) as conn:
-        # La tabla vive como `idea_data` desde la 0020; antes era `idea_entry`
+        # La tabla vive como `work_item_data` desde la 0020; antes era `idea_entry`
         # (0006) y, más atrás, `items`.
-        tabla_item = "idea_data" if _existe(conn, "idea_data") else "ideas"
+        tabla_item = "work_item_data" if _existe(conn, "work_item_data") else "ideas"
         items = conteo(conn, f"SELECT count(*) FROM {tabla_item}")
         eventos = conteo(conn, "SELECT count(*) FROM event")
         por_estado: dict[str, int] = {}
         try:
             # El estado es una columna del nodo (0020): un GROUP BY y una
             # traducción de nombre. La entrada (`draft`) no cuenta, como antes.
-            for estado, n in conn.execute("SELECT estado, count(*) FROM idea_node GROUP BY 1"):
+            for estado, n in conn.execute("SELECT estado, count(*) FROM work_item_node GROUP BY 1"):
                 clave = {"rejected": "descartadas", "proposed": "cola"}.get(
                     str(estado), str(estado)
                 )

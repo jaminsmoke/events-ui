@@ -69,7 +69,7 @@ def aplicar_migracion(repo: str, plan: dict[str, Any], *, plan_sha256: str) -> d
                 uid = uids[item["ref"]]
                 enlaces = _validar_dependencias(conn, uid, enlaces)
                 conn.execute(
-                    "UPDATE idea_data SET depende_de = ? WHERE uid = ?",
+                    "UPDATE work_item_data SET depende_de = ? WHERE uid = ?",
                     (json.dumps(enlaces), uid),
                 )
 
@@ -105,7 +105,7 @@ def _insertar_item(conn: sqlite3.Connection, item: dict[str, Any], uid: str, ts:
     """
     estado = str(item.get("status") or "proposed")
     datos = conn.execute(
-        "INSERT INTO idea_data"
+        "INSERT INTO work_item_data"
         " (uid, title, description, content, kind, tags, depende_de, created_at, updated_at)"
         " VALUES (?, ?, ?, ?, 'idea', ?, '[]', ?, ?)",
         (
@@ -122,7 +122,7 @@ def _insertar_item(conn: sqlite3.Connection, item: dict[str, Any], uid: str, ts:
     # lo lleva al carril pedido en la misma transacción. La fecha y el `id` van
     # copiados al nodo (0033), que es lo que ordena el listado.
     conn.execute(
-        "INSERT INTO idea_node (uid, estado, posicion, created_at, id, entered_at)"
+        "INSERT INTO work_item_node (uid, estado, posicion, created_at, id, entered_at)"
         " VALUES (?, 'draft', NULL, ?, ?, ?)",
         (uid, ts, datos.lastrowid, ts),
     )
@@ -135,7 +135,7 @@ def _insertar_item(conn: sqlite3.Connection, item: dict[str, Any], uid: str, ts:
     _escribir_estado(conn, uid, estado, detalle)
     if estado in ("historial", "rejected"):
         fecha = fecha_iso(item.get("fecha"), ts)
-        conn.execute("UPDATE idea_node SET entered_at = ? WHERE uid = ?", (fecha, uid))
+        conn.execute("UPDATE work_item_node SET entered_at = ? WHERE uid = ?", (fecha, uid))
         if estado == "historial":
             conn.execute(
                 "INSERT INTO revision_node (uid, approved_by, nota) VALUES (?, 'sistema', ?)",
@@ -153,7 +153,7 @@ def _anotar_origen(
     origen = item["origen"]
     conn.execute(
         "INSERT INTO migracion_idea"
-        " (lote_id, idea_uid, ref, ruta, desde_linea, hasta_linea, sha256, creada_at, estado)"
+        " (lote_id, work_item_uid, ref, ruta, desde_linea, hasta_linea, sha256, creada_at, estado)"
         " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             lote,
@@ -300,22 +300,24 @@ def deshacer_migracion(repo: str, lote: str) -> dict[str, Any]:
         plan_sha256 = str(fila["plan_sha256"])
         total = int(fila["ideas"])
         filas = conn.execute(
-            "SELECT ref, idea_uid, creada_at, estado FROM migracion_idea"
+            "SELECT ref, work_item_uid, creada_at, estado FROM migracion_idea"
             " WHERE lote_id = ? ORDER BY rowid",
             (lote,),
         ).fetchall()
-        uids = [str(fila["idea_uid"]) for fila in filas]
+        uids = [str(fila["work_item_uid"]) for fila in filas]
 
         conn.execute("BEGIN IMMEDIATE")
         try:
             titulos: dict[str, str] = {}
             conflictos: list[str] = []
             for fila in filas:
-                uid = str(fila["idea_uid"])
+                uid = str(fila["work_item_uid"])
                 item = conn.execute(
-                    "SELECT idea_data.title, idea_data.updated_at, idea_node.estado"
-                    " FROM idea_data JOIN idea_node ON idea_node.uid = idea_data.uid"
-                    " WHERE idea_data.uid = ?",
+                    "SELECT work_item_data.title, work_item_data.updated_at,"
+                    " work_item_node.estado"
+                    " FROM work_item_data"
+                    " JOIN work_item_node ON work_item_node.uid = work_item_data.uid"
+                    " WHERE work_item_data.uid = ?",
                     (uid,),
                 ).fetchone()
                 if item is None:
@@ -335,8 +337,8 @@ def deshacer_migracion(repo: str, lote: str) -> dict[str, Any]:
             if uids:
                 marcas = ",".join("?" for _ in uids)
                 ajenas = conn.execute(
-                    "SELECT rejected_node.uid, idea_data.title FROM rejected_node"
-                    " JOIN idea_data ON idea_data.uid = rejected_node.uid"
+                    "SELECT rejected_node.uid, work_item_data.title FROM rejected_node"
+                    " JOIN work_item_data ON work_item_data.uid = rejected_node.uid"
                     f" WHERE rejected_node.superseded_by_uid IN ({marcas})"
                     f" AND rejected_node.uid NOT IN ({marcas})",
                     (*uids, *uids),
@@ -363,17 +365,19 @@ def deshacer_migracion(repo: str, lote: str) -> dict[str, Any]:
                     (*uids, *uids),
                 )
             for uid, titulo in titulos.items():
-                conn.execute("DELETE FROM idea_data WHERE uid = ?", (uid,))
+                conn.execute("DELETE FROM work_item_data WHERE uid = ?", (uid,))
                 _emitir(conn, "item.deleted", {"uid": uid, "title": titulo})
 
             # Las listas `depende_de` de las supervivientes no pueden seguir
             # apuntando a uids que ya no existen (igual que `delete_item`).
-            for superviviente in conn.execute("SELECT uid, depende_de FROM idea_data").fetchall():
+            for superviviente in conn.execute(
+                "SELECT uid, depende_de FROM work_item_data"
+            ).fetchall():
                 deps = _tags_json(superviviente["depende_de"])
                 quedan = [dep for dep in deps if dep not in titulos]
                 if quedan != deps:
                     conn.execute(
-                        "UPDATE idea_data SET depende_de = ? WHERE uid = ?",
+                        "UPDATE work_item_data SET depende_de = ? WHERE uid = ?",
                         (json.dumps(quedan), superviviente["uid"]),
                     )
 
@@ -409,7 +413,7 @@ def _respuesta(
     conn: sqlite3.Connection, repo: str, lote: str, plan_sha256: str, *, repetido: bool
 ) -> dict[str, Any]:
     filas = conn.execute(
-        "SELECT ref, idea_uid FROM migracion_idea WHERE lote_id = ? ORDER BY rowid", (lote,)
+        "SELECT ref, work_item_uid FROM migracion_idea WHERE lote_id = ? ORDER BY rowid", (lote,)
     ).fetchall()
     return {
         "repo": repo,

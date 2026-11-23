@@ -112,7 +112,7 @@ def _comprobar_migrado(client, repo, esperados=_ESPERADOS):  # noqa: ANN001, ANN
         assert "idea_completada" not in tablas
         # La completada histórica se archiva, pero conserva su firma.
         assert conn.execute(
-            "SELECT uid, entered_at FROM idea_node WHERE estado = 'historial'"
+            "SELECT uid, entered_at FROM work_item_node WHERE estado = 'historial'"
         ).fetchall() == [("hecha", "2026-01-02T00:00:00Z")]
         assert (
             conn.execute("SELECT count(*) FROM revision_node WHERE uid = 'hecha'").fetchone()[0]

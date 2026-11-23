@@ -133,23 +133,20 @@ Fuentes del modelo: [ítems y protocolos](../services/core/src/events_core/schem
 
 ## Legado `idea` (caducidad 2027-01-31)
 
-El almacén, el OpenAPI y las herramientas siguen publicando `idea_*` hasta la
-migración 0034; este documento usa ya `work_item*`. La correspondencia:
+La migración 0034 renombró el almacén: las tablas son `work_item_*` y la
+columna que apunta al ítem es `work_item_uid`. Lo que sigue con nombre viejo
+son alias de API y herramientas, más dos nombres de esquema:
 
-| Hoy en el almacén | Nombre nuevo |
+| Alias vivo | Nombre nuevo |
 | --- | --- |
-| `idea_data` | `work_item_data` |
-| `idea_node` | `work_item_node` |
-| `idea_fase` | `work_item_fase` |
-| `idea_requisito` | `work_item_requisito` |
-| `idea_foto` | `work_item_foto` |
-| `idea_fase_archivo` | `work_item_fase_archivo` |
-| `migracion_idea`, `idea_uid` | `migracion_item`, `work_item_uid` |
-| `schema/ideas.sql` | `schema/items.sql` |
+| `/ideas`, `/ideas/{uid}` (con `Deprecation`) | `/items`, `/items/{uid}` |
+| `eui idea …`, `idea_*` (MCP) | `eui item …`, `item_*` |
+| `migracion_idea` (tabla) | `migracion_item` |
+| `schema/ideas.sql` (fichero) | `schema/items.sql` |
 
 `kind: "idea"` no es un alias: es un valor de dato de los ítems que ya existen
-y se queda. A partir del 2027-01-31 no quedan alias: un `.EUI` viejo se migra al
-abrirlo (0034) y `grep -r idea` no encuentra nada.
+y se queda. A partir del 2027-01-31 no quedan alias: `grep -r idea` no
+encuentra nada.
 
 ## Comprobación local del 18 de noviembre de 2026
 

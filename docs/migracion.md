@@ -190,12 +190,11 @@ no cambió después. Si la cobertura ya es total, hay que usar absorb sin
 
 ## Legado `idea` (caducidad 2027-01-31)
 
-El plan no cambia: los nombres de tabla (`migracion_idea` → `migracion_item`,
-`idea_data` → `work_item_data`) y de ruta (`/ideas` → `/items`) son del almacén
-y de la API. `kind: "idea"` y la clave `ideas` del plan se quedan: son datos y
-contrato del plan v1-v3, no alias. Hasta el 2027-01-31 el almacén sigue con
-los nombres viejos; la API ya publica `/items` y responde por `/ideas` con la
-cabecera `Deprecation`.
+El plan no cambia: la ruta (`/ideas` → `/items`) y el nombre de
+`migracion_idea` (`migracion_item`) son de la API y del almacén. `kind: "idea"`
+y la clave `ideas` del plan se quedan: son datos y contrato del plan v1-v3, no
+alias. Desde la 0034 el almacén ya usa `work_item_*`; la API publica `/items`
+y responde por `/ideas` con la cabecera `Deprecation` hasta el 2027-01-31.
 
 ## Antes de aplicar
 

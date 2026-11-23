@@ -1037,10 +1037,10 @@ def revisar_absorcion(raiz: Path, lote: str, *, parcial: bool = False) -> dict[s
             raise KeyError(lote)
 
         filas = conn.execute(
-            "SELECT mi.idea_uid, mi.ruta, mi.desde_linea, mi.hasta_linea, mi.sha256,"
-            " mi.estado, mi.lote_id, idea_data.title"
+            "SELECT mi.work_item_uid, mi.ruta, mi.desde_linea, mi.hasta_linea, mi.sha256,"
+            " mi.estado, mi.lote_id, work_item_data.title"
             " FROM migracion_idea mi"
-            " JOIN idea_data ON idea_data.uid = mi.idea_uid"
+            " JOIN work_item_data ON work_item_data.uid = mi.work_item_uid"
             " WHERE mi.lote_id = ?"
             " ORDER BY mi.ruta, mi.desde_linea, mi.hasta_linea",
             (lote,),
@@ -1060,10 +1060,10 @@ def revisar_absorcion(raiz: Path, lote: str, *, parcial: bool = False) -> dict[s
 
         marcas = ",".join("?" for _ in por_ruta)
         todas = conn.execute(
-            "SELECT mi.idea_uid, mi.ruta, mi.desde_linea, mi.hasta_linea, mi.sha256,"
-            " mi.estado, mi.lote_id, idea_data.title"
+            "SELECT mi.work_item_uid, mi.ruta, mi.desde_linea, mi.hasta_linea, mi.sha256,"
+            " mi.estado, mi.lote_id, work_item_data.title"
             " FROM migracion_idea mi"
-            " JOIN idea_data ON idea_data.uid = mi.idea_uid"
+            " JOIN work_item_data ON work_item_data.uid = mi.work_item_uid"
             f" WHERE mi.ruta IN ({marcas})"
             " ORDER BY mi.ruta, mi.desde_linea, mi.hasta_linea",
             tuple(por_ruta),
@@ -1095,7 +1095,7 @@ def revisar_absorcion(raiz: Path, lote: str, *, parcial: bool = False) -> dict[s
         ok = bool(archivos) and not errores and not huecos
     resumen = {
         "archivos": len(archivos),
-        "ideas_lote": len({str(fila["idea_uid"]) for fila in filas}),
+        "ideas_lote": len({str(fila["work_item_uid"]) for fila in filas}),
         "ideas_fichero": sum(archivo["ideas_fichero"] for archivo in archivos),
         "bloques": sum(archivo["bloques"] for archivo in archivos),
         "cubiertos": sum(archivo["cubiertos"] for archivo in archivos),
@@ -1165,8 +1165,8 @@ def _informe_archivo(
     errores: list[str] = []
     avisos: list[str] = []
     relativa = Path(ruta)
-    ideas_lote = len({str(fila["idea_uid"]) for fila in filas_lote})
-    ideas_fichero = len({str(fila["idea_uid"]) for fila in filas_todas})
+    ideas_lote = len({str(fila["work_item_uid"]) for fila in filas_lote})
+    ideas_fichero = len({str(fila["work_item_uid"]) for fila in filas_todas})
     lotes = sorted({str(fila["lote_id"]) for fila in filas_todas})
     carriles: dict[str, int] = {}
     for fila in filas_lote:
@@ -1269,10 +1269,10 @@ def _marcadores_del_lote(ruta: str, filas_lote: list[dict[str, Any]]) -> list[di
     marcadores: list[dict[str, Any]] = []
 
     def _clave_rango(item: dict[str, Any]) -> tuple[int, int, str]:
-        return (int(item["desde_linea"]), int(item["hasta_linea"]), str(item["idea_uid"]))
+        return (int(item["desde_linea"]), int(item["hasta_linea"]), str(item["work_item_uid"]))
 
     for fila in sorted(filas_lote, key=_clave_rango):
-        uid = str(fila["idea_uid"])
+        uid = str(fila["work_item_uid"])
         titulo = str(fila["title"]).strip() or uid
         desde = int(fila["desde_linea"])
         hasta = int(fila["hasta_linea"])
@@ -1332,7 +1332,7 @@ def _fusionar(intervalos: list[tuple[int, int]]) -> list[tuple[int, int]]:
 
 def _solapamientos(filas: list[dict[str, Any]]) -> list[dict[str, Any]]:
     intervalos = sorted(
-        (int(fila["desde_linea"]), int(fila["hasta_linea"]), str(fila["idea_uid"]))
+        (int(fila["desde_linea"]), int(fila["hasta_linea"]), str(fila["work_item_uid"]))
         for fila in filas
     )
     encontrados: list[dict[str, Any]] = []
@@ -1554,7 +1554,7 @@ def listar_documentos_absorbidos(raiz: Path) -> list[dict[str, Any]]:
                     continue
                 ruta = archivo["ruta"]
                 fila = conn.execute(
-                    "SELECT COUNT(DISTINCT idea_uid) FROM migracion_idea WHERE ruta = ?",
+                    "SELECT COUNT(DISTINCT work_item_uid) FROM migracion_idea WHERE ruta = ?",
                     (ruta,),
                 ).fetchone()
                 documento = {
@@ -1582,14 +1582,14 @@ def exportar_documento(raiz: Path, ruta: str) -> str:
     _ruta_en_repo(raiz, ruta)
     with closing(open_read_only(db_file_for(str(raiz)))) as conn:
         filas = conn.execute(
-            "SELECT mi.idea_uid, mi.desde_linea, mi.estado AS estado_origen,"
-            " idea_data.title, idea_data.description, idea_data.content,"
-            " idea_node.estado AS estado_actual"
+            "SELECT mi.work_item_uid, mi.desde_linea, mi.estado AS estado_origen,"
+            " work_item_data.title, work_item_data.description, work_item_data.content,"
+            " work_item_node.estado AS estado_actual"
             " FROM migracion_idea mi"
-            " JOIN idea_data ON idea_data.uid = mi.idea_uid"
-            " LEFT JOIN idea_node ON idea_node.uid = mi.idea_uid"
+            " JOIN work_item_data ON work_item_data.uid = mi.work_item_uid"
+            " LEFT JOIN work_item_node ON work_item_node.uid = mi.work_item_uid"
             " WHERE mi.ruta = ?"
-            " ORDER BY mi.desde_linea, mi.idea_uid",
+            " ORDER BY mi.desde_linea, mi.work_item_uid",
             (ruta,),
         ).fetchall()
         if not filas:
@@ -1598,7 +1598,7 @@ def exportar_documento(raiz: Path, ruta: str) -> str:
         items: list[dict[str, Any]] = []
         vistos: set[str] = set()
         for fila in filas:
-            uid = str(fila["idea_uid"])
+            uid = str(fila["work_item_uid"])
             if uid in vistos:
                 continue
             vistos.add(uid)
@@ -1616,24 +1616,24 @@ def exportar_documento(raiz: Path, ruta: str) -> str:
         uids = list(vistos)
         marcas = ",".join("?" for _ in uids)
         fases = conn.execute(
-            f"SELECT idea_uid, orden, titulo, estado FROM idea_fase"
-            f" WHERE idea_uid IN ({marcas}) ORDER BY idea_uid, orden",
+            f"SELECT work_item_uid, orden, titulo, estado FROM work_item_fase"
+            f" WHERE work_item_uid IN ({marcas}) ORDER BY work_item_uid, orden",
             tuple(uids),
         ).fetchall()
         requisitos = conn.execute(
-            f"SELECT idea_uid, fase_orden, orden, titulo, hecho FROM idea_requisito"
-            f" WHERE idea_uid IN ({marcas}) ORDER BY idea_uid, fase_orden, orden",
+            f"SELECT work_item_uid, fase_orden, orden, titulo, hecho FROM work_item_requisito"
+            f" WHERE work_item_uid IN ({marcas}) ORDER BY work_item_uid, fase_orden, orden",
             tuple(uids),
         ).fetchall()
 
     fases_por_uid: dict[str, list[dict[str, Any]]] = {}
     for fila in fases:
-        fases_por_uid.setdefault(str(fila["idea_uid"]), []).append(dict(fila))
+        fases_por_uid.setdefault(str(fila["work_item_uid"]), []).append(dict(fila))
     requisitos_por_fase: dict[tuple[str, int], list[dict[str, Any]]] = {}
     for fila in requisitos:
-        requisitos_por_fase.setdefault((str(fila["idea_uid"]), int(fila["fase_orden"])), []).append(
-            dict(fila)
-        )
+        requisitos_por_fase.setdefault(
+            (str(fila["work_item_uid"]), int(fila["fase_orden"])), []
+        ).append(dict(fila))
 
     lineas = [
         f"# {Path(ruta).stem}",

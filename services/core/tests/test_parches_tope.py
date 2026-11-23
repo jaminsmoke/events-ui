@@ -28,7 +28,7 @@ def _item(client, carpeta: Path) -> str:  # noqa: ANN001
 def _bytes(conn: sqlite3.Connection) -> int:
     return int(
         conn.execute(
-            "SELECT COALESCE(SUM(LENGTH(CAST(contenido AS BLOB))), 0) FROM idea_fase_archivo"
+            "SELECT COALESCE(SUM(LENGTH(CAST(contenido AS BLOB))), 0) FROM work_item_fase_archivo"
         ).fetchone()[0]
     )
 
@@ -37,13 +37,13 @@ def _sembrar(conn: sqlite3.Connection, uid: str, fases: dict[int, tuple[str, str
     """Una fase cerrada con un archivo y su parche, por cada entrada del mapa."""
     for orden, (entered_at, contenido) in fases.items():
         conn.execute(
-            "INSERT INTO idea_fase (idea_uid, orden, titulo, estado, nota, entered_at)"
+            "INSERT INTO work_item_fase (work_item_uid, orden, titulo, estado, nota, entered_at)"
             " VALUES (?, ?, ?, 'completada', '', ?)",
             (uid, orden, f"Fase {orden}", entered_at),
         )
         conn.execute(
-            "INSERT INTO idea_fase_archivo"
-            " (idea_uid, fase_orden, requisito_orden, ruta, estado, desde, contenido)"
+            "INSERT INTO work_item_fase_archivo"
+            " (work_item_uid, fase_orden, requisito_orden, ruta, estado, desde, contenido)"
             " VALUES (?, ?, 0, ?, 'modificado', NULL, ?)",
             (uid, orden, f"f{orden}.txt", contenido),
         )
@@ -54,7 +54,7 @@ def _contenidos(conn: sqlite3.Connection) -> list[int]:
     return [
         int(fila[0])
         for fila in conn.execute(
-            "SELECT fase_orden FROM idea_fase_archivo"
+            "SELECT fase_orden FROM work_item_fase_archivo"
             " WHERE contenido IS NOT NULL ORDER BY fase_orden"
         )
     ]

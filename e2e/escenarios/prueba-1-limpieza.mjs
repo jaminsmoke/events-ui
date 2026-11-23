@@ -4,8 +4,8 @@ import path from "node:path";
 import { esperarCables } from "../cables.mjs";
 
 const tablasOperativas = [
-  "idea_data", "idea_node", "rejected_node", "roadmap_node", "verificacion_node",
-  "revision_node", "idea_fase", "idea_requisito", "event",
+  "work_item_data", "work_item_node", "rejected_node", "roadmap_node", "verificacion_node",
+  "revision_node", "work_item_fase", "work_item_requisito", "event",
 ];
 
 async function geometria(page) {

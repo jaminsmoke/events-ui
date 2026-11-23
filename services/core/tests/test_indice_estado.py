@@ -1,4 +1,4 @@
-"""El índice de `idea_node.estado` (0032): el filtro del mapa sin escanear.
+"""El índice de `work_item_node.estado` (0032): el filtro del mapa sin escanear.
 
 `list_items` filtra por estado y el esquema solo tenía los índices únicos de la
 cola y del roadmap. El índice nuevo cubre el filtro y, con `posicion` detrás,
@@ -17,12 +17,12 @@ from events_core.items.base import migraciones
 
 
 def _indices_estado(db: Path) -> dict[str, list[str]]:
-    """Las columnas del índice `idea_node_estado`, si está."""
+    """Las columnas del índice `work_item_node_estado`, si está."""
     with closing(sqlite3.connect(db)) as conn:
         nombres = [
             str(fila[1])
-            for fila in conn.execute("PRAGMA index_list('idea_node')").fetchall()
-            if fila[1] == "idea_node_estado"
+            for fila in conn.execute("PRAGMA index_list('work_item_node')").fetchall()
+            if fila[1] == "work_item_node_estado"
         ]
         return {
             nombre: [
@@ -36,24 +36,24 @@ def test_el_esquema_fresco_trae_el_indice_de_estado(repo):  # noqa: ANN001, ANN2
     db = items.init_repo(repo)
 
     # Un solo índice compuesto: `estado` filtra y `posicion` ordena la cola.
-    assert _indices_estado(db) == {"idea_node_estado": ["estado", "posicion"]}
+    assert _indices_estado(db) == {"work_item_node_estado": ["estado", "posicion"]}
 
 
-def test_un_almacen_v31_sube_con_el_indice_y_sin_tocar_datos(repo):  # noqa: ANN001, ANN202
+def test_un_almacen_v31_sube_con_el_indice_y_sin_tocar_datos(
+    repo,  # noqa: ANN001
+    bajar_a_la_0033,  # noqa: ANN001
+):  # noqa: ANN202
     db = items.init_repo(repo)
     uid = items.create_item(repo, title="A")["uid"]
-    # La versión anterior: sin el índice y firmando 31.
-    with closing(sqlite3.connect(db)) as conn:
-        conn.execute("DROP INDEX idea_node_estado")
-        conn.execute("PRAGMA user_version = 31")
-        conn.commit()
+    # La versión anterior: sin el índice, sin la fecha en el nodo y firmando 31.
+    bajar_a_la_0033(db, 31)
 
     items.ensure_repo(repo)
 
     with closing(sqlite3.connect(db)) as conn:
         assert conn.execute("PRAGMA user_version").fetchone()[0] == items.SCHEMA_VERSION
-        assert conn.execute("SELECT count(*) FROM idea_node").fetchone()[0] == 1
-    assert _indices_estado(db) == {"idea_node_estado": ["estado", "posicion"]}
+        assert conn.execute("SELECT count(*) FROM work_item_node").fetchone()[0] == 1
+    assert _indices_estado(db) == {"work_item_node_estado": ["estado", "posicion"]}
     assert items.get_item(repo, uid)["uid"] == uid
 
 
@@ -95,8 +95,8 @@ def test_el_listado_por_estado_usa_el_indice(repo):  # noqa: ANN001, ANN202
             )
         )
 
-    assert "idea_node_estado" in plan
-    assert "SCAN idea_node" not in plan
+    assert "work_item_node_estado" in plan
+    assert "SCAN work_item_node" not in plan
 
 
 def test_un_almacen_v12_sube_al_dia_sin_tocar_datos(repo):  # noqa: ANN001, ANN202
@@ -116,8 +116,8 @@ def test_un_almacen_v12_sube_al_dia_sin_tocar_datos(repo):  # noqa: ANN001, ANN2
 
     with closing(sqlite3.connect(db)) as conn:
         assert conn.execute("PRAGMA user_version").fetchone()[0] == items.SCHEMA_VERSION
-        filas = dict(conn.execute("SELECT uid, estado FROM idea_node").fetchall())
+        filas = dict(conn.execute("SELECT uid, estado FROM work_item_node").fetchall())
     # `draft` y `proposed` compartían carril en el modelo viejo (0006), así que
     # las dos items llegan a la cola; lo que importa es que no se pierde ninguna.
     assert filas == {"vieja": "proposed", "hija": "proposed"}
-    assert _indices_estado(db) == {"idea_node_estado": ["estado", "posicion"]}
+    assert _indices_estado(db) == {"work_item_node_estado": ["estado", "posicion"]}

@@ -238,7 +238,8 @@ def test_undo_se_niega_si_la_item_se_edito(client, tmp_path) -> None:
     uid = {creada["ref"]: creada["uid"] for creada in datos["creadas"]}["dos"]
     with closing(items.connect(items.ensure_repo(str(tmp_path)))) as conn:
         conn.execute(
-            "UPDATE idea_data SET updated_at = '2020-01-01T00:00:00+00:00' WHERE uid = ?", (uid,)
+            "UPDATE work_item_data SET updated_at = '2020-01-01T00:00:00+00:00' WHERE uid = ?",
+            (uid,),
         )
         conn.commit()
 

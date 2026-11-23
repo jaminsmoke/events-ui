@@ -16,7 +16,7 @@ AVANCE = ("roadmap", "verificacion", "revision_aprobada", "historial")
 
 def _depende_de(conn: sqlite3.Connection, uid: str) -> list[str]:
     """Los uids que bloquean a este ítem (`depende_de`, 0018)."""
-    fila = conn.execute("SELECT depende_de FROM idea_data WHERE uid = ?", (uid,)).fetchone()
+    fila = conn.execute("SELECT depende_de FROM work_item_data WHERE uid = ?", (uid,)).fetchone()
     return _tags_json(fila[0]) if fila else []
 
 
@@ -37,7 +37,9 @@ def _validar_dependencias(conn: sqlite3.Connection, uid: str, deps: list[str]) -
         marcas = ",".join("?" for _ in limpias)
         existentes = {
             str(fila[0])
-            for fila in conn.execute(f"SELECT uid FROM idea_data WHERE uid IN ({marcas})", limpias)
+            for fila in conn.execute(
+                f"SELECT uid FROM work_item_data WHERE uid IN ({marcas})", limpias
+            )
         }
         faltan = [dep for dep in limpias if dep not in existentes]
         if faltan:
@@ -64,7 +66,7 @@ def _sin_aprobar(conn: sqlite3.Connection, deps: list[str]) -> list[str]:
     """
     pendientes: list[str] = []
     for dep in deps:
-        fila = conn.execute("SELECT title FROM idea_data WHERE uid = ?", (dep,)).fetchone()
+        fila = conn.execute("SELECT title FROM work_item_data WHERE uid = ?", (dep,)).fetchone()
         if _estado(conn, dep) not in ("revision_aprobada", "historial"):
             pendientes.append(str(fila[0]) if fila else dep)
     return pendientes

@@ -25,7 +25,7 @@ _GITIGNORE_VIEJO = {f"{LEGACY_DB_FILENAME}-wal", f"{LEGACY_DB_FILENAME}-shm"}
 
 # Columnas que la API puede modificar. Lista blanca: los nombres de columna de un
 # UPDATE no pueden venir del cliente. `status` no está: un cambio de estado no
-# es un UPDATE de el ítem, es mover la fila de `idea_node` y escribir el detalle
+# es un UPDATE de el ítem, es mover la fila de `work_item_node` y escribir el detalle
 # del nodo (`roadmap_node`, `verificacion_node`, `revision_node` o
 # `rejected_node`). Los campos del descarte tampoco: los gestiona la transición
 # del propio `status`.

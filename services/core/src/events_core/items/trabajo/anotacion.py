@@ -36,15 +36,17 @@ PRESUPUESTO_MS = 2_000
 
 def _foto_texto(conn: sqlite3.Connection, uid: str) -> str | None:
     """La última foto del árbol de el ítem, si ya se tomó alguna (0028)."""
-    fila = conn.execute("SELECT archivos FROM idea_foto WHERE idea_uid = ?", (uid,)).fetchone()
+    fila = conn.execute(
+        "SELECT archivos FROM work_item_foto WHERE work_item_uid = ?", (uid,)
+    ).fetchone()
     return str(fila[0]) if fila else None
 
 
 def _foto_guardar(conn: sqlite3.Connection, uid: str, estado: dict[str, tuple[int, int]]) -> None:
     """Reemplaza la foto de el ítem: es el estado actual, no un historial."""
     conn.execute(
-        "INSERT INTO idea_foto (idea_uid, ts, archivos) VALUES (?, ?, ?)"
-        " ON CONFLICT (idea_uid) DO UPDATE SET ts = excluded.ts, archivos = excluded.archivos",
+        "INSERT INTO work_item_foto (work_item_uid, ts, archivos) VALUES (?, ?, ?)"
+        " ON CONFLICT (work_item_uid) DO UPDATE SET ts = excluded.ts, archivos = excluded.archivos",
         (uid, now_iso(), archivos.serializar(estado)),
     )
 
@@ -65,18 +67,18 @@ def _escribir_archivos(
     """
     if requisito == 0:
         conn.execute(
-            "DELETE FROM idea_fase_archivo"
-            " WHERE idea_uid = ? AND fase_orden = ? AND requisito_orden = 0",
+            "DELETE FROM work_item_fase_archivo"
+            " WHERE work_item_uid = ? AND fase_orden = ? AND requisito_orden = 0",
             (uid, orden),
         )
     conn.executemany(
-        "INSERT INTO idea_fase_archivo"
-        " (idea_uid, fase_orden, requisito_orden, ruta, estado, desde, contenido)"
+        "INSERT INTO work_item_fase_archivo"
+        " (work_item_uid, fase_orden, requisito_orden, ruta, estado, desde, contenido)"
         " VALUES (?, ?, ?, ?, ?, ?, ?)"
-        " ON CONFLICT (idea_uid, fase_orden, requisito_orden, ruta) DO UPDATE SET"
+        " ON CONFLICT (work_item_uid, fase_orden, requisito_orden, ruta) DO UPDATE SET"
         "   estado = excluded.estado,"
         "   desde = excluded.desde,"
-        "   contenido = COALESCE(excluded.contenido, idea_fase_archivo.contenido)",
+        "   contenido = COALESCE(excluded.contenido, work_item_fase_archivo.contenido)",
         [
             (
                 uid,
@@ -103,33 +105,34 @@ def _podar_parches(conn: sqlite3.Connection) -> int:
     """
     total = int(
         conn.execute(
-            "SELECT COALESCE(SUM(LENGTH(CAST(contenido AS BLOB))), 0) FROM idea_fase_archivo"
+            "SELECT COALESCE(SUM(LENGTH(CAST(contenido AS BLOB))), 0) FROM work_item_fase_archivo"
         ).fetchone()[0]
     )
     if total <= LIMITE_PARQUES:
         return 0
     grupos = conn.execute(
-        "SELECT a.idea_uid, a.fase_orden FROM idea_fase_archivo a"
-        " LEFT JOIN idea_fase f ON f.idea_uid = a.idea_uid AND f.orden = a.fase_orden"
+        "SELECT a.work_item_uid, a.fase_orden FROM work_item_fase_archivo a"
+        " LEFT JOIN work_item_fase f"
+        " ON f.work_item_uid = a.work_item_uid AND f.orden = a.fase_orden"
         " WHERE a.contenido IS NOT NULL"
-        " GROUP BY a.idea_uid, a.fase_orden"
-        " ORDER BY COALESCE(f.entered_at, '') ASC, a.idea_uid, a.fase_orden"
+        " GROUP BY a.work_item_uid, a.fase_orden"
+        " ORDER BY COALESCE(f.entered_at, '') ASC, a.work_item_uid, a.fase_orden"
     ).fetchall()
     podadas = 0
-    for idea_uid, fase_orden in grupos:
+    for work_item_uid, fase_orden in grupos:
         if total <= LIMITE_PARQUES:
             break
         pesa = int(
             conn.execute(
                 "SELECT COALESCE(SUM(LENGTH(CAST(contenido AS BLOB))), 0)"
-                " FROM idea_fase_archivo WHERE idea_uid = ? AND fase_orden = ?",
-                (idea_uid, fase_orden),
+                " FROM work_item_fase_archivo WHERE work_item_uid = ? AND fase_orden = ?",
+                (work_item_uid, fase_orden),
             ).fetchone()[0]
         )
         conn.execute(
-            "UPDATE idea_fase_archivo SET contenido = NULL"
-            " WHERE idea_uid = ? AND fase_orden = ? AND contenido IS NOT NULL",
-            (idea_uid, fase_orden),
+            "UPDATE work_item_fase_archivo SET contenido = NULL"
+            " WHERE work_item_uid = ? AND fase_orden = ? AND contenido IS NOT NULL",
+            (work_item_uid, fase_orden),
         )
         total -= pesa
         podadas += 1
@@ -307,20 +310,21 @@ def _aplicar_anotacion(
     if plan.vigentes:
         marcas = ",".join("?" for _ in plan.vigentes)
         conn.execute(
-            f"DELETE FROM idea_fase_archivo WHERE idea_uid = ? AND fase_orden NOT IN ({marcas})",
+            f"DELETE FROM work_item_fase_archivo WHERE work_item_uid = ?"
+            f" AND fase_orden NOT IN ({marcas})",
             (uid, *plan.vigentes),
         )
     else:
-        conn.execute("DELETE FROM idea_fase_archivo WHERE idea_uid = ?", (uid,))
+        conn.execute("DELETE FROM work_item_fase_archivo WHERE work_item_uid = ?", (uid,))
     for orden in (*plan.nuevas, *plan.reabiertas):
         conn.execute(
-            "DELETE FROM idea_fase_archivo WHERE idea_uid = ? AND fase_orden = ?",
+            "DELETE FROM work_item_fase_archivo WHERE work_item_uid = ? AND fase_orden = ?",
             (uid, orden),
         )
     for orden, orden_requisito in plan.requisitos_fuera:
         conn.execute(
-            "DELETE FROM idea_fase_archivo"
-            " WHERE idea_uid = ? AND fase_orden = ? AND requisito_orden = ?",
+            "DELETE FROM work_item_fase_archivo"
+            " WHERE work_item_uid = ? AND fase_orden = ? AND requisito_orden = ?",
             (uid, orden, orden_requisito),
         )
     if anotacion is None:

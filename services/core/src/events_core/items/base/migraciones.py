@@ -39,15 +39,15 @@ MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migraciones"
 # `tags` a lista JSON de cadenas, la 0018 añadió `depende_de` (los ítems que
 # tienen que estar aprobadas para que esta avance de carril) y la 0019 retiró
 # `connections`: la dependencia vive en la entrada y la jerarquía del mapa es
-# el propio flujo. La 0020 separa el ítem (`idea_data`) de su sitio
-# (`idea_node`, una fila por item): el estado y la posición dejan de deducirse
+# el propio flujo. La 0020 separa el ítem (`work_item_data`) de su sitio
+# (`work_item_node`, una fila por item): el estado y la posición dejan de deducirse
 # de las fichas y las fichas pasan a ser detalle de la estancia. La 0021
-# descompone el ítem en fases (`idea_fase`) y hace que el protocolo pueda
+# descompone el ítem en fases (`work_item_fase`) y hace que el protocolo pueda
 # exigirlas para cruzar una unión (`exige_fases`). La 0022 añade el otro
 # requisito del protocolo: no salir de un carril con fases abiertas
 # (`exige_fases_listas`) y la 0023 exige todas completadas para aprobar
 # (`exige_fases_completas`); la 0024 reutiliza `exige_fases` para que aprobar
-# exija al menos una; la 0025 añade los requisitos de cada fase (`idea_requisito`);
+# exija al menos una; la 0025 añade los requisitos de cada fase (`work_item_requisito`);
 # la 0026 añade el historial: aprobar archiva y deja la firma en `revision_node`;
 # la 0027 permite que una revisión rechazada vuelva a roadmap o se descarte
 # desde verificación, sin un carril nuevo; la 0028 anota en cada fase los
@@ -57,7 +57,7 @@ MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migraciones"
 # (`migracion_lote`, `migracion_idea`), para aplicar un plan entero en una
 # transacción, no repetirlo y saber de dónde salió cada item; la 0031 guarda
 # en esa procedencia el carril con el que nació cada item, para deshacer un plan
-# que archiva o descarta; la 0032 pone índice en `idea_node (estado, posicion)`,
+# que archiva o descarta; la 0032 pone índice en `work_item_node (estado, posicion)`,
 # que es el filtro del mapa y el orden de la cola; la 0033 copia `created_at` al
 # nodo e indexa `(estado, created_at, uid)` para que el listado por estado no
 # tenga que ordenar en un B-tree temporal.
@@ -237,7 +237,7 @@ def _copiar_items_historicos(conn: sqlite3.Connection) -> None:
         try:
             conn.execute(
                 """
-                INSERT OR IGNORE INTO idea_data
+                INSERT OR IGNORE INTO work_item_data
                     (id, uid, title, description, content, kind, tags, created_at, updated_at)
                 SELECT id, uid, title, description, content, kind,
                        CASE WHEN json_valid(tags) AND json_type(tags) = 'array'
@@ -249,7 +249,7 @@ def _copiar_items_historicos(conn: sqlite3.Connection) -> None:
             # Una fila histórica que no entra (p. ej. un `kind` que el
             # esquema actual ya no admite) no puede perderse en silencio.
             faltan = conn.execute(
-                "SELECT uid FROM ideas WHERE uid NOT IN (SELECT uid FROM idea_data)"
+                "SELECT uid FROM ideas WHERE uid NOT IN (SELECT uid FROM work_item_data)"
             ).fetchall()
             if faltan:
                 raise RuntimeError(
@@ -264,7 +264,7 @@ def _copiar_items_historicos(conn: sqlite3.Connection) -> None:
             # del listado.
             conn.execute(
                 """
-                INSERT OR IGNORE INTO idea_node
+                INSERT OR IGNORE INTO work_item_node
                     (uid, estado, posicion, created_at, id, entered_at)
                 SELECT uid,
                        CASE
@@ -276,14 +276,14 @@ def _copiar_items_historicos(conn: sqlite3.Connection) -> None:
                            ELSE 'draft'
                        END,
                        CASE WHEN status = 'proposed'
-                            THEN (SELECT COALESCE(MAX(posicion), 0) FROM idea_node)
+                            THEN (SELECT COALESCE(MAX(posicion), 0) FROM work_item_node)
                                  + ROW_NUMBER() OVER (ORDER BY created_at, id)
                             ELSE NULL END,
                        created_at,
                        id,
                        updated_at
                 FROM ideas
-                WHERE uid IN (SELECT uid FROM idea_data)
+                WHERE uid IN (SELECT uid FROM work_item_data)
                 """
             )
             conn.execute(
@@ -403,11 +403,11 @@ def _aplicar_paso(conn: sqlite3.Connection, numero: int, script: Path) -> None:
 def _contar_items(db_file: Path) -> int | None:
     """Filas de la entrada en un fichero, o `None` si no se puede leer.
 
-    La tabla se llama `idea_data` desde la 0020 (`idea_entry` antes); un
+    La tabla se llama `work_item_data` desde la 0020 (`idea_entry` antes); un
     almacén de la 0004 aún lleva `items`, así que se mira en los dos sitios
     (lo viejo se migra solo).
     """
-    for tabla in ("idea_data", "ideas"):
+    for tabla in ("work_item_data", "ideas"):
         try:
             with closing(sqlite3.connect(uri_lectura(db_file), uri=True)) as conn:
                 fila = conn.execute(

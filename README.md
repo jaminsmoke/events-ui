@@ -408,26 +408,23 @@ y el detalle por `ON DELETE CASCADE`. El paso `0004` es el ejemplo: reconstruyó
 ## Legado: `idea` con fecha de caducidad
 
 La primera versión llamó «idea» a lo que hoy es un ítem de implementación. El
-código lleva ya el vocabulario nuevo en la documentación impulsada por la API y
-el modelo, pero hasta que aterrice la migración 0034 el almacén y el OpenAPI
-siguen publicando los nombres de la izquierda:
+almacén ya habla `work_item_*` (migración 0034) y la API publica `/items`; lo
+que queda hasta la caducidad son alias que siguen funcionando:
 
-| En el código, hasta la caducidad | Nombre nuevo |
+| Alias vivo | Vía principal |
 | --- | --- |
-| `/ideas`, `/ideas/{uid}` (alias con `Deprecation`) | `/items`, `/items/{uid}` |
-| `eui idea …` (alias con aviso) | `eui item …` |
-| `idea_create` … (MCP, alias obsoleto) | `item_create` … |
-| `idea_data`, `idea_node`, `idea_fase`, `idea_requisito`, `idea_foto`, `idea_fase_archivo` | `work_item_data`, `work_item_node`, `work_item_fase`, `work_item_requisito`, `work_item_foto`, `work_item_fase_archivo` |
-| `migracion_idea`, columna `idea_uid` | `migracion_item`, `work_item_uid` |
-| eventos `idea.*` | `item.*` |
+| `/ideas`, `/ideas/{uid}` (con `Deprecation`) | `/items`, `/items/{uid}` |
+| `eui idea …` (avisa por stderr) | `eui item …` |
+| `idea_create` … (MCP, obsoleto) | `item_create` … |
+| `migracion_idea` y `schema/ideas.sql` (nombres de tabla y fichero) | `migracion_item`, `schema/items.sql` |
+| eventos `idea.*` en logs viejos | `item.*` (el lector acepta los dos) |
 | `Idea`, `IdeaCreate`, `IdeaUpdate` (TS, alias local) | `WorkItem`, `WorkItemCreate`, `WorkItemUpdate` |
-| `schema/ideas.sql` | `schema/items.sql` |
 
-El CLI ya publica `eui item …` como vía principal; `eui idea …` sigue
-funcionando como alias que avisa por stderr hasta la caducidad. El MCP anuncia
-ya `item_*` y mantiene `idea_*` como alias obsoleto. La API publica ya
-`/items` y contesta por `/ideas` con la cabecera `Deprecation`; el OpenAPI
-nombra `WorkItem*` y la UI conserva sus alias locales en `core/api.ts`.
+El CLI publica `eui item …` como vía principal y `eui idea …` avisa por
+stderr hasta la caducidad. El MCP anuncia `item_*` y mantiene `idea_*` como
+alias obsoleto. La API publica `/items` y contesta por `/ideas` con la
+cabecera `Deprecation`; el OpenAPI nombra `WorkItem*` y la UI conserva sus
+alias locales en `core/api.ts`.
 
 El valor `kind: "idea"` **no** es un alias: es un dato histórico de los ítems
 que ya existen y se queda como está.

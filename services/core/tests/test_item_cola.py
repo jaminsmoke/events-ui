@@ -109,7 +109,7 @@ def _comprobar_historico(client, repo):  # noqa: ANN001, ANN202
         }
         assert conn.execute("PRAGMA user_version").fetchone()[0] == items.SCHEMA_VERSION
         assert "ideas" not in tablas
-        assert conn.execute("SELECT count(*) FROM idea_data").fetchone()[0] == 4
+        assert conn.execute("SELECT count(*) FROM work_item_data").fetchone()[0] == 4
         assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
     finally:
         conn.close()
@@ -154,8 +154,8 @@ def test_fresco_sin_lane_log(client, repo):  # noqa: ANN001, ANN202
     conn = sqlite3.connect(str(db))
     tablas = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert conn.execute("PRAGMA user_version").fetchone()[0] == items.SCHEMA_VERSION
-    assert "idea_data" in tablas
-    assert "idea_node" in tablas
+    assert "work_item_data" in tablas
+    assert "work_item_node" in tablas
     assert "roadmap_node" in tablas
     assert "verificacion_node" in tablas
     assert "revision_node" in tablas
@@ -178,7 +178,8 @@ def test_proposed_entra_en_cola_y_no_vuelve_al_cajon(client, repo):  # noqa: ANN
 
     conn = sqlite3.connect(str(items.db_file_for(repo)))
     assert (
-        conn.execute("SELECT count(*) FROM idea_node WHERE estado = 'proposed'").fetchone()[0] == 1
+        conn.execute("SELECT count(*) FROM work_item_node WHERE estado = 'proposed'").fetchone()[0]
+        == 1
     )
     conn.close()
 
@@ -188,7 +189,8 @@ def test_proposed_entra_en_cola_y_no_vuelve_al_cajon(client, repo):  # noqa: ANN
     assert "protocolo" in r.json()["detail"]
     conn = sqlite3.connect(str(items.db_file_for(repo)))
     assert (
-        conn.execute("SELECT count(*) FROM idea_node WHERE estado = 'proposed'").fetchone()[0] == 1
+        conn.execute("SELECT count(*) FROM work_item_node WHERE estado = 'proposed'").fetchone()[0]
+        == 1
     )
     conn.close()
 
@@ -209,7 +211,7 @@ def test_cola_ordenada_por_posicion(client, repo):  # noqa: ANN001, ANN202
     posiciones = [
         r_[0]
         for r_ in conn.execute(
-            "SELECT posicion FROM idea_node WHERE estado = 'proposed' ORDER BY posicion"
+            "SELECT posicion FROM work_item_node WHERE estado = 'proposed' ORDER BY posicion"
         )
     ]
     assert posiciones == [1, 2, 3]
@@ -228,7 +230,8 @@ def test_rejected_sale_de_cola(client, repo):  # noqa: ANN001, ANN202
     assert r.json()["rejected_description"] == "ruido"
     conn = sqlite3.connect(str(items.db_file_for(repo)))
     assert (
-        conn.execute("SELECT count(*) FROM idea_node WHERE estado = 'proposed'").fetchone()[0] == 0
+        conn.execute("SELECT count(*) FROM work_item_node WHERE estado = 'proposed'").fetchone()[0]
+        == 0
     )
     assert conn.execute("SELECT count(*) FROM rejected_node").fetchone()[0] == 1
 
@@ -243,7 +246,8 @@ def test_revision_aprobada_es_terminal(client, repo):  # noqa: ANN001, ANN202
     assert [i["uid"] for i in r.json()] == [uid]
     conn = sqlite3.connect(str(items.db_file_for(repo)))
     assert (
-        conn.execute("SELECT count(*) FROM idea_node WHERE estado = 'proposed'").fetchone()[0] == 0
+        conn.execute("SELECT count(*) FROM work_item_node WHERE estado = 'proposed'").fetchone()[0]
+        == 0
     )
     assert conn.execute("SELECT count(*) FROM revision_node").fetchone()[0] == 1
     conn.close()
@@ -286,13 +290,13 @@ def test_reiniciar_vacia_todo(client, repo):  # noqa: ANN001, ANN202
             "eventos_eliminados": 7,
         }
         for tabla in (
-            "idea_data",
-            "idea_node",
+            "work_item_data",
+            "work_item_node",
             "roadmap_node",
             "verificacion_node",
             "revision_node",
             "rejected_node",
-            "idea_fase",
+            "work_item_fase",
             "event",
         ):
             assert conn.execute(f"SELECT count(*) FROM {tabla}").fetchone()[0] == 0
@@ -357,7 +361,7 @@ def test_migracion_0009_solo_estado_final(client, repo):  # noqa: ANN001, ANN202
     cola = [
         r[0]
         for r in conn.execute(
-            "SELECT uid FROM idea_node WHERE estado = 'proposed' ORDER BY posicion"
+            "SELECT uid FROM work_item_node WHERE estado = 'proposed' ORDER BY posicion"
         )
     ]
     assert cola == ["b", "d"]
@@ -401,7 +405,7 @@ def test_historico_ya_marcado_se_recupera(client, repo):  # noqa: ANN001, ANN202
     items.aplicar_esquema(conn)  # lo que hacía el código anterior
     conn.commit()
     assert conn.execute("PRAGMA user_version").fetchone()[0] == items.SCHEMA_VERSION
-    assert conn.execute("SELECT count(*) FROM idea_data").fetchone()[0] == 0
+    assert conn.execute("SELECT count(*) FROM work_item_data").fetchone()[0] == 0
     assert conn.execute("SELECT count(*) FROM ideas").fetchone()[0] == 4
     conn.close()
 

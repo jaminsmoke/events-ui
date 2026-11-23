@@ -14,7 +14,7 @@ def _requisitos(conn: sqlite3.Connection, uid: str) -> dict[int, list[dict[str, 
     por_fase: dict[int, list[dict[str, Any]]] = {}
     for fila in conn.execute(
         "SELECT fase_orden, orden, titulo, hecho, done_at"
-        " FROM idea_requisito WHERE idea_uid = ? ORDER BY fase_orden, orden",
+        " FROM work_item_requisito WHERE work_item_uid = ? ORDER BY fase_orden, orden",
         (uid,),
     ):
         por_fase.setdefault(int(fila["fase_orden"]), []).append(
@@ -39,7 +39,7 @@ def _archivos(conn: sqlite3.Connection, uid: str) -> dict[int, list[dict[str, An
     por_fase: dict[int, list[dict[str, Any]]] = {}
     for fila in conn.execute(
         "SELECT fase_orden, requisito_orden, ruta, estado, desde, contenido"
-        " FROM idea_fase_archivo WHERE idea_uid = ?"
+        " FROM work_item_fase_archivo WHERE work_item_uid = ?"
         " ORDER BY fase_orden, requisito_orden, ruta",
         (uid,),
     ):
@@ -82,10 +82,10 @@ def _con_archivos(
 
 
 def _fases(conn: sqlite3.Connection, uid: str) -> list[dict[str, Any]]:
-    """Las fases de un ítem, en orden (`idea_fase`, 0021), con sus requisitos."""
+    """Las fases de un ítem, en orden (`work_item_fase`, 0021), con sus requisitos."""
     filas = conn.execute(
         "SELECT orden, titulo, estado, nota, entered_at"
-        " FROM idea_fase WHERE idea_uid = ? ORDER BY orden",
+        " FROM work_item_fase WHERE work_item_uid = ? ORDER BY orden",
         (uid,),
     ).fetchall()
     requisitos = _requisitos(conn, uid)
@@ -108,11 +108,12 @@ def _fases_en_lote(conn: sqlite3.Connection, uids: list[str]) -> dict[str, list[
     marcas = ",".join("?" for _ in uids)
     requisitos: dict[tuple[str, int], list[dict[str, Any]]] = {}
     for fila in conn.execute(
-        "SELECT idea_uid, fase_orden, orden, titulo, hecho, done_at"
-        f" FROM idea_requisito WHERE idea_uid IN ({marcas}) ORDER BY idea_uid, fase_orden, orden",
+        "SELECT work_item_uid, fase_orden, orden, titulo, hecho, done_at"
+        f" FROM work_item_requisito WHERE work_item_uid IN ({marcas})"
+        " ORDER BY work_item_uid, fase_orden, orden",
         uids,
     ):
-        requisitos.setdefault((str(fila["idea_uid"]), int(fila["fase_orden"])), []).append(
+        requisitos.setdefault((str(fila["work_item_uid"]), int(fila["fase_orden"])), []).append(
             {
                 "orden": fila["orden"],
                 "titulo": fila["titulo"],
@@ -124,12 +125,13 @@ def _fases_en_lote(conn: sqlite3.Connection, uids: list[str]) -> dict[str, list[
     # recuento y la ruta, no el parche (eso es la ficha, un ítem a la vez).
     anotados: dict[tuple[str, int], list[dict[str, Any]]] = {}
     for fila in conn.execute(
-        "SELECT idea_uid, fase_orden, requisito_orden, ruta, estado, desde"
-        " FROM idea_fase_archivo"
-        f" WHERE idea_uid IN ({marcas}) ORDER BY idea_uid, fase_orden, requisito_orden, ruta",
+        "SELECT work_item_uid, fase_orden, requisito_orden, ruta, estado, desde"
+        " FROM work_item_fase_archivo"
+        f" WHERE work_item_uid IN ({marcas})"
+        " ORDER BY work_item_uid, fase_orden, requisito_orden, ruta",
         uids,
     ):
-        anotados.setdefault((str(fila["idea_uid"]), int(fila["fase_orden"])), []).append(
+        anotados.setdefault((str(fila["work_item_uid"]), int(fila["fase_orden"])), []).append(
             {
                 "requisito_orden": int(fila["requisito_orden"]),
                 "ruta": fila["ruta"],
@@ -139,11 +141,11 @@ def _fases_en_lote(conn: sqlite3.Connection, uids: list[str]) -> dict[str, list[
             }
         )
     for fila in conn.execute(
-        "SELECT idea_uid, orden, titulo, estado, nota, entered_at"
-        f" FROM idea_fase WHERE idea_uid IN ({marcas}) ORDER BY idea_uid, orden",
+        "SELECT work_item_uid, orden, titulo, estado, nota, entered_at"
+        f" FROM work_item_fase WHERE work_item_uid IN ({marcas}) ORDER BY work_item_uid, orden",
         uids,
     ):
-        uid = str(fila["idea_uid"])
+        uid = str(fila["work_item_uid"])
         por_uid[uid].append(
             _con_archivos(
                 {
@@ -274,28 +276,29 @@ def _escribir_fases(conn: sqlite3.Connection, uid: str, fases: list[dict[str, An
     El borrado se lleva los requisitos por la cascada; después se insertan los
     que traiga cada fase, en el mismo orden. Todo o nada.
     """
-    conn.execute("DELETE FROM idea_fase WHERE idea_uid = ?", (uid,))
+    conn.execute("DELETE FROM work_item_fase WHERE work_item_uid = ?", (uid,))
     conn.executemany(
-        "INSERT INTO idea_fase (idea_uid, orden, titulo, estado, nota, entered_at)"
+        "INSERT INTO work_item_fase (work_item_uid, orden, titulo, estado, nota, entered_at)"
         " VALUES (?, ?, ?, ?, ?, ?)",
         [
             (uid, fase["orden"], fase["titulo"], fase["estado"], fase["nota"], fase["entered_at"])
             for fase in fases
         ],
     )
-    # Los archivos anotados no cuelgan de `idea_fase` (la tabla se reemplaza
+    # Los archivos anotados no cuelgan de `work_item_fase` (la tabla se reemplaza
     # entera): se poda a mano lo que ya no tiene fase, para no dejar huérfanos.
     ordenes = [int(fase["orden"]) for fase in fases]
     if ordenes:
         marcas = ",".join("?" for _ in ordenes)
         conn.execute(
-            f"DELETE FROM idea_fase_archivo WHERE idea_uid = ? AND fase_orden NOT IN ({marcas})",
+            f"DELETE FROM work_item_fase_archivo WHERE work_item_uid = ?"
+            f" AND fase_orden NOT IN ({marcas})",
             (uid, *ordenes),
         )
     else:
-        conn.execute("DELETE FROM idea_fase_archivo WHERE idea_uid = ?", (uid,))
+        conn.execute("DELETE FROM work_item_fase_archivo WHERE work_item_uid = ?", (uid,))
     conn.executemany(
-        "INSERT INTO idea_requisito (idea_uid, fase_orden, orden, titulo, hecho, done_at)"
+        "INSERT INTO work_item_requisito (work_item_uid, fase_orden, orden, titulo, hecho, done_at)"
         " VALUES (?, ?, ?, ?, ?, ?)",
         [
             (

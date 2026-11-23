@@ -3,7 +3,7 @@
 
 import type { Idea, IdeaUpdate } from "../core/api";
 
-/** Estados de una fase (`idea_fase`, 0021). */
+/** Estados de una fase (`work_item_fase`, 0021). */
 export const ESTADOS_FASE = ["pendiente", "completada", "fallida", "rechazada"] as const;
 export type Fase = NonNullable<Idea["fases"]>[number];
 

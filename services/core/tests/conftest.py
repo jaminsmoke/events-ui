@@ -47,3 +47,72 @@ def repo() -> str:
     nombre = f"lab-{uuid.uuid4().hex[:8]}"
     (REPOS / nombre).mkdir(exist_ok=True)
     return nombre
+
+
+# Lo que la 0034 renombró, para poder deshacerlo sobre un almacén recién creado
+# y probar la migración con datos de verdad en vez de con un esquema a mano.
+_TABLAS_0034 = (
+    ("work_item_data", "idea_data"),
+    ("work_item_node", "idea_node"),
+    ("work_item_fase", "idea_fase"),
+    ("work_item_requisito", "idea_requisito"),
+    ("work_item_foto", "idea_foto"),
+    ("work_item_fase_archivo", "idea_fase_archivo"),
+)
+_COLUMNAS_0034 = (
+    "work_item_fase",
+    "work_item_requisito",
+    "work_item_foto",
+    "work_item_fase_archivo",
+    "migracion_idea",
+)
+_INDICES_0034 = (
+    "work_item_cola_orden",
+    "work_item_roadmap_unico",
+    "work_item_node_estado",
+    "work_item_node_estado_fecha",
+    "migracion_item_uid",
+)
+
+
+@pytest.fixture()
+def bajar_a_la_0033():
+    """Baja un almacén recién creado a la 0033 (o a la 0032) deshaciendo la 0034.
+
+    Devuelve la función `bajar(db, version)`; el llamador sigue abriendo el
+    almacén con `ensure_repo` para que corran las migraciones de verdad.
+    """
+    import sqlite3
+    from contextlib import closing
+
+    def bajar(db: Path, version: int = 33) -> None:
+        with closing(sqlite3.connect(str(db))) as conn:
+            if version <= 32:
+                conn.execute("DROP INDEX work_item_node_estado_fecha")
+                conn.execute("ALTER TABLE work_item_node DROP COLUMN created_at")
+                conn.execute("ALTER TABLE work_item_node DROP COLUMN id")
+            for indice in _INDICES_0034:
+                conn.execute(f"DROP INDEX IF EXISTS {indice}")
+            for tabla in _COLUMNAS_0034:
+                conn.execute(f"ALTER TABLE {tabla} RENAME COLUMN work_item_uid TO idea_uid")
+            for nuevo, viejo in _TABLAS_0034:
+                conn.execute(f"ALTER TABLE {nuevo} RENAME TO {viejo}")
+            conn.executescript(
+                """
+                CREATE UNIQUE INDEX idea_cola_orden
+                    ON idea_node (posicion) WHERE estado = 'proposed';
+                CREATE UNIQUE INDEX idea_roadmap_unico
+                    ON idea_node (estado) WHERE estado = 'roadmap';
+                CREATE INDEX migracion_idea_uid ON migracion_idea (idea_uid);
+                """
+            )
+            if version >= 32:
+                conn.execute("CREATE INDEX idea_node_estado ON idea_node (estado, posicion)")
+            if version > 32:
+                conn.execute(
+                    "CREATE INDEX idea_node_estado_fecha ON idea_node (estado, created_at, id)"
+                )
+            conn.execute(f"PRAGMA user_version = {version}")
+            conn.commit()
+
+    return bajar

@@ -78,7 +78,7 @@ def _rechazo(conn: sqlite3.Connection, uid: str) -> sqlite3.Row | None:
 
 def _estado(conn: sqlite3.Connection, uid: str) -> str:
     """El estado que manda: el de la fila de nodo de el ítem."""
-    fila = conn.execute("SELECT estado FROM idea_node WHERE uid = ?", (uid,)).fetchone()
+    fila = conn.execute("SELECT estado FROM work_item_node WHERE uid = ?", (uid,)).fetchone()
     return str(fila[0]) if fila else "draft"
 
 
@@ -93,7 +93,7 @@ def _escribir_estado(
 ) -> None:
     """Mueve el nodo de un ítem y escribe el detalle de la estancia.
 
-    Un cambio de estado es un UPDATE de `idea_node` (estado, posición y
+    Un cambio de estado es un UPDATE de `work_item_node` (estado, posición y
     `entered_at`) más la fila de detalle que toque. La entrada (`draft`) es un
     nodo más: llegar a ella también deja fila, no es una ausencia. Mover a
     donde ya está no escribe nada; re-descartar con detalle nuevo sí actualiza
@@ -106,7 +106,7 @@ def _escribir_estado(
         return
     if estado == "roadmap":
         activo = conn.execute(
-            "SELECT count(*) FROM idea_node WHERE estado = 'roadmap' AND uid <> ?", (uid,)
+            "SELECT count(*) FROM work_item_node WHERE estado = 'roadmap' AND uid <> ?", (uid,)
         ).fetchone()[0]
         if activo:
             raise InvalidInput("roadmap solo admite un item activo: ya hay uno en curso")
@@ -115,10 +115,10 @@ def _escribir_estado(
     posicion = None
     if estado == "proposed":
         posicion = conn.execute(
-            "SELECT coalesce(max(posicion), 0) + 1 FROM idea_node WHERE estado = 'proposed'"
+            "SELECT coalesce(max(posicion), 0) + 1 FROM work_item_node WHERE estado = 'proposed'"
         ).fetchone()[0]
     conn.execute(
-        "UPDATE idea_node SET estado = ?, posicion = ?, entered_at = ? WHERE uid = ?",
+        "UPDATE work_item_node SET estado = ?, posicion = ?, entered_at = ? WHERE uid = ?",
         (_grupo(estado), posicion, ts, uid),
     )
     if estado in ("draft", "proposed"):
@@ -127,17 +127,18 @@ def _escribir_estado(
         # porque el trabajo ya no está activo. Los títulos y las notas se
         # quedan; solo se sueltan el estado y las fechas.
         conn.execute(
-            "UPDATE idea_fase SET estado = 'pendiente', entered_at = ?"
-            " WHERE idea_uid = ? AND estado <> 'pendiente'",
+            "UPDATE work_item_fase SET estado = 'pendiente', entered_at = ?"
+            " WHERE work_item_uid = ? AND estado <> 'pendiente'",
             (ts, uid),
         )
         conn.execute(
-            "UPDATE idea_requisito SET hecho = 0, done_at = NULL WHERE idea_uid = ? AND hecho = 1",
+            "UPDATE work_item_requisito SET hecho = 0, done_at = NULL"
+            " WHERE work_item_uid = ? AND hecho = 1",
             (uid,),
         )
         # El trabajo se rehace desde cero: lo que anotaron los cierres ya no
         # describe estas fases (el próximo cierre vuelve a medir).
-        conn.execute("DELETE FROM idea_fase_archivo WHERE idea_uid = ?", (uid,))
+        conn.execute("DELETE FROM work_item_fase_archivo WHERE work_item_uid = ?", (uid,))
     conn.execute("DELETE FROM roadmap_node WHERE uid = ?", (uid,))
     conn.execute("DELETE FROM verificacion_node WHERE uid = ?", (uid,))
     conn.execute("DELETE FROM revision_node WHERE uid = ?", (uid,))
@@ -154,18 +155,18 @@ def _escribir_estado(
         )
     elif estado == "verificacion":
         # Los intentos son del ítem, no de la estancia: el detalle se retira al
-        # volver a la cola, así que el contador vive en `idea_data` (0014) y
+        # volver a la cola, así que el contador vive en `work_item_data` (0014) y
         # cada entrada en verificación suma una vuelta.
         intentos = (
             int(
                 conn.execute(
-                    "SELECT verificacion_intentos FROM idea_data WHERE uid = ?", (uid,)
+                    "SELECT verificacion_intentos FROM work_item_data WHERE uid = ?", (uid,)
                 ).fetchone()[0]
             )
             + 1
         )
         conn.execute(
-            "UPDATE idea_data SET verificacion_intentos = ? WHERE uid = ?", (intentos, uid)
+            "UPDATE work_item_data SET verificacion_intentos = ? WHERE uid = ?", (intentos, uid)
         )
         conn.execute(
             "INSERT INTO verificacion_node"

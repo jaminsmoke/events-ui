@@ -89,7 +89,7 @@ def test_sqlite_rechaza_tags_que_no_son_lista(repo):  # noqa: ANN001, ANN202
         pytest.raises(sqlite3.IntegrityError),
     ):
         conn.execute(
-            "INSERT INTO idea_data (uid, title, tags, created_at, updated_at)"
+            "INSERT INTO work_item_data (uid, title, tags, created_at, updated_at)"
             " VALUES ('x', 'X', '{}', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')"
         )
 
@@ -103,7 +103,7 @@ def test_la_migracion_sanea_las_etiquetas(repo):  # noqa: ANN001, ANN202
 
     with closing(sqlite3.connect(db)) as conn:
         assert conn.execute("PRAGMA user_version").fetchone()[0] == items.SCHEMA_VERSION
-        filas = dict(conn.execute("SELECT uid, tags FROM idea_data").fetchall())
+        filas = dict(conn.execute("SELECT uid, tags FROM work_item_data").fetchall())
     assert filas == {"vieja": "[]", "mixta": '[1, "dos"]', "buena": '["tres"]'}
 
 
@@ -113,7 +113,7 @@ def test_el_listado_aguanta_una_fila_con_tags_no_lista(client, repo):  # noqa: A
     uid = items.create_item(repo, title="Vieja")["uid"]
     with closing(sqlite3.connect(items.db_file_for(repo))) as conn:
         conn.execute("PRAGMA ignore_check_constraints = ON")
-        conn.execute("UPDATE idea_data SET tags = '{}' WHERE uid = ?", (uid,))
+        conn.execute("UPDATE work_item_data SET tags = '{}' WHERE uid = ?", (uid,))
         conn.commit()
 
     r = client.get("/items", params={"repo": repo})
@@ -123,7 +123,7 @@ def test_el_listado_aguanta_una_fila_con_tags_no_lista(client, repo):  # noqa: A
     # De una lista se leen solo las cadenas; el número no rompe el listado.
     with closing(sqlite3.connect(items.db_file_for(repo))) as conn:
         conn.execute("PRAGMA ignore_check_constraints = ON")
-        conn.execute("UPDATE idea_data SET tags = '[1, \"dos\"]' WHERE uid = ?", (uid,))
+        conn.execute("UPDATE work_item_data SET tags = '[1, \"dos\"]' WHERE uid = ?", (uid,))
         conn.commit()
     r = client.get("/items", params={"repo": repo})
     assert r.status_code == 200, r.json()

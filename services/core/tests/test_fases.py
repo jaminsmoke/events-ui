@@ -221,8 +221,8 @@ def test_borrar_la_item_se_lleva_sus_fases(client, repo):  # noqa: ANN001, ANN20
     )
     assert client.delete(f"/items/{uid}", params={"repo": repo}).status_code == 204
     with sqlite3.connect(str(items.db_file_for(repo))) as conn:
-        assert conn.execute("SELECT count(*) FROM idea_fase").fetchone()[0] == 0
-        assert conn.execute("SELECT count(*) FROM idea_requisito").fetchone()[0] == 0
+        assert conn.execute("SELECT count(*) FROM work_item_fase").fetchone()[0] == 0
+        assert conn.execute("SELECT count(*) FROM work_item_requisito").fetchone()[0] == 0
 
 
 def test_salir_de_roadmap_exige_fases_cerradas(client, repo):  # noqa: ANN001, ANN202

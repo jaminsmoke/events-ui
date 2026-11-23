@@ -90,14 +90,15 @@ def _tags_json(texto: str | None) -> list[str]:
 
 # Columnas con las que se lee un ítem: su composición y su nodo. Listar, leer
 # una ficha y devolver el resultado de un PATCH usan siempre esta forma.
-_COLUMNAS = "idea_data.*, idea_node.estado, idea_node.entered_at"
+_COLUMNAS = "work_item_data.*, work_item_node.estado, work_item_node.entered_at"
 
 # Lo mismo sin el cuerpo ni la estancia: el listado pinta una fila y el
 # Markdown se pide a propósito (`?incluir=contenido` o la ficha).
 _COLUMNAS_RESUMEN = (
-    "idea_data.uid, idea_data.title, idea_data.description, idea_data.kind,"
-    " idea_data.tags, idea_data.depende_de, idea_data.created_at, idea_data.updated_at,"
-    " idea_node.estado"
+    "work_item_data.uid, work_item_data.title, work_item_data.description,"
+    " work_item_data.kind, work_item_data.tags, work_item_data.depende_de,"
+    " work_item_data.created_at, work_item_data.updated_at,"
+    " work_item_node.estado"
 )
 
 

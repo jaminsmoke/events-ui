@@ -113,7 +113,7 @@ def test_aprobar_exige_todos_los_requisitos(client, repo):  # noqa: ANN001, ANN2
     # que la API no deja escribir pero un almacén antiguo podría traer.
     conn = sqlite3.connect(str(items.db_file_for(repo)))
     try:
-        conn.execute("UPDATE idea_requisito SET hecho = 0 WHERE idea_uid = ?", (uid,))
+        conn.execute("UPDATE work_item_requisito SET hecho = 0 WHERE work_item_uid = ?", (uid,))
         conn.commit()
     finally:
         conn.close()

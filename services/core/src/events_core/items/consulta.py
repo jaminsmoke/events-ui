@@ -40,7 +40,7 @@ def _fila(
 ) -> dict[str, Any]:
     """Arma el dict de un ítem con su nodo y el detalle ya resueltos.
 
-    `row` trae el ítem y su nodo (`idea_data.*` + `estado`, `entered_at`).
+    `row` trae el ítem y su nodo (`work_item_data.*` + `estado`, `entered_at`).
     Quien lista muchas items no lee cada detalle por fila (eso era un N+1),
     sino que los trae en lote con `_en_lote` y ensambla aquí.
     """
@@ -167,27 +167,27 @@ def _sql_listado(filtro: str | None, kind: str | None = None, columnas: str = _C
     El filtro se compone en vez de escribir `(:estado IS NULL OR ...)`: esa
     forma deja la condición fuera del alcance del índice y SQLite recorre la
     tabla entera aunque el índice esté. Con la igualdad suelta, el filtro por
-    estado entra por `idea_node_estado`.
+    estado entra por `work_item_node_estado`.
     """
     condiciones = []
     if kind is not None:
-        condiciones.append("idea_data.kind = :kind")
+        condiciones.append("work_item_data.kind = :kind")
     if filtro is not None:
-        condiciones.append("idea_node.estado = :estado")
+        condiciones.append("work_item_node.estado = :estado")
     where = f" WHERE {' AND '.join(condiciones)}" if condiciones else ""
     # En cola, el orden es la posición; roadmap y verificación, la entrada
     # en el nodo; el resto, por fecha de creación.
     if filtro == "proposed":
-        orden = "idea_node.posicion ASC, idea_data.created_at ASC"
+        orden = "work_item_node.posicion ASC, work_item_data.created_at ASC"
     elif filtro in ("roadmap", "verificacion"):
-        orden = "idea_node.entered_at ASC, idea_data.created_at ASC"
+        orden = "work_item_node.entered_at ASC, work_item_data.created_at ASC"
     else:
         # La fecha y el `id` están copiados en el nodo (0033) para que el índice
         # los ordene sin B-tree temporal; el `id` desempata como antes.
-        orden = "idea_node.created_at DESC, idea_node.id DESC"
+        orden = "work_item_node.created_at DESC, work_item_node.id DESC"
     return (
-        f"SELECT {columnas} FROM idea_data"
-        " JOIN idea_node ON idea_node.uid = idea_data.uid"
+        f"SELECT {columnas} FROM work_item_data"
+        " JOIN work_item_node ON work_item_node.uid = work_item_data.uid"
         f"{where}"  # compuesto, no `IS NULL OR`: ver el docstring
         f" ORDER BY {orden}"
         " LIMIT :limit OFFSET :offset"
@@ -235,9 +235,9 @@ def list_items(
 def get_item(repo: str, uid: str) -> dict[str, Any]:
     with closing(connect(ensure_repo(repo))) as conn:
         row = conn.execute(
-            f"SELECT {_COLUMNAS} FROM idea_data"
-            " JOIN idea_node ON idea_node.uid = idea_data.uid"
-            " WHERE idea_data.uid = ?",
+            f"SELECT {_COLUMNAS} FROM work_item_data"
+            " JOIN work_item_node ON work_item_node.uid = work_item_data.uid"
+            " WHERE work_item_data.uid = ?",
             (uid,),
         ).fetchone()
         if row is None:
@@ -274,28 +274,28 @@ def map_snapshot(repo: str) -> dict[str, Any]:
     with closing(open_read_only(ensure_repo(repo))) as conn:
         conn.execute("BEGIN")
         rows = conn.execute(
-            "SELECT idea_data.uid, idea_data.title, idea_data.description,"
-            " idea_data.depende_de, idea_data.created_at, idea_data.id,"
-            " idea_node.estado, idea_node.entered_at,"
+            "SELECT work_item_data.uid, work_item_data.title, work_item_data.description,"
+            " work_item_data.depende_de, work_item_data.created_at, work_item_data.id,"
+            " work_item_node.estado, work_item_node.entered_at,"
             " rejected_node.rejected_description"
-            " FROM idea_data"
-            " JOIN idea_node ON idea_node.uid = idea_data.uid"
-            " LEFT JOIN rejected_node ON rejected_node.uid = idea_data.uid"
+            " FROM work_item_data"
+            " JOIN work_item_node ON work_item_node.uid = work_item_data.uid"
+            " LEFT JOIN rejected_node ON rejected_node.uid = work_item_data.uid"
             # El mapa se pinta en el orden en que llega, así que cada carril
             # tiene que salir como lo lista `/items`: la cola por posición
             # (volver de verificación estrena posición, al final) y roadmap y
             # verificación por entrada en el nodo. El resto, por creación.
             " ORDER BY"
-            " CASE idea_node.estado"
+            " CASE work_item_node.estado"
             " WHEN 'proposed' THEN 0"
             " WHEN 'roadmap' THEN 1"
             " WHEN 'verificacion' THEN 2"
             " WHEN 'revision_aprobada' THEN 3"
             " WHEN 'rejected' THEN 4"
             " ELSE 5 END,"
-            " idea_node.posicion ASC,"
-            " idea_node.entered_at ASC,"
-            " idea_data.created_at DESC, idea_data.id DESC"
+            " work_item_node.posicion ASC,"
+            " work_item_node.entered_at ASC,"
+            " work_item_data.created_at DESC, work_item_data.id DESC"
         ).fetchall()
         fases = _fases_en_lote(conn, [str(row[0]) for row in rows])
         items = [
@@ -336,8 +336,8 @@ def revision(repo: str) -> dict[str, Any]:
     db_file = ensure_repo(repo)
     with _VIGILANTES_LOCK:
         conn = vigilante(db_file, compartida=True)
-        # La tabla vive como `idea_data` desde la 0020; antes, `idea_entry`.
-        tabla_item = "idea_data" if _existe(conn, "idea_data") else "ideas"
+        # La tabla vive como `work_item_data` desde la 0020; antes, `idea_entry`.
+        tabla_item = "work_item_data" if _existe(conn, "work_item_data") else "ideas"
         return {
             "instance": _REVISION_INSTANCE,
             "data_version": data_version(conn),

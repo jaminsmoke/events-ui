@@ -49,7 +49,7 @@ def create_item(
     title: str,
     description: str = "",
     content: str = "",
-    kind: str = "idea",
+    kind: str = "work_item",
     status: str = "draft",
     tags: Iterable[str] = (),
     depende_de: Iterable[str] = (),

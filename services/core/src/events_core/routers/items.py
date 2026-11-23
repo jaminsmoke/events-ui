@@ -9,7 +9,7 @@ from fastapi import APIRouter, Query
 from .. import items, registro
 from ..contrato import (
     RESPUESTAS_ERROR,
-    Kind,
+    KindLeido,
     MapSnapshot,
     Protocolo,
     Reinicio,
@@ -41,7 +41,7 @@ def get_repos() -> list[dict[str, Any]]:
 def get_items(
     repo: RepoParam,
     status: Status | None = None,
-    kind: Kind | None = None,
+    kind: KindLeido | None = None,
     # La fila del listado es un resumen; el cuerpo se pide a propósito.
     incluir: Literal["contenido"] | None = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,

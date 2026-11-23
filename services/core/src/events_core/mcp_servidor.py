@@ -89,7 +89,7 @@ _LECTURA: tuple[dict[str, Any], ...] = (
             {
                 **_COMUNES,
                 "status": {"type": "string"},
-                "kind": {"type": "string", "enum": ["idea", "adr", "note"]},
+                "kind": {"type": "string", "enum": ["work_item", "idea", "adr", "note"]},
                 "limit": {"type": "integer", "minimum": 1, "maximum": 500},
                 "offset": {"type": "integer", "minimum": 0},
             }
@@ -134,7 +134,7 @@ _ESCRITURA: tuple[dict[str, Any], ...] = (
                 "title": {"type": "string"},
                 "description": {"type": "string"},
                 "content": {"type": "string"},
-                "kind": {"type": "string", "enum": ["idea"]},
+                "kind": {"type": "string", "enum": ["work_item"]},
                 "status": {"type": "string", "enum": list(cli.ESTADOS)},
                 "tags": {"type": "array", "items": {"type": "string"}},
                 "depende_de": {"type": "array", "items": {"type": "string"}},

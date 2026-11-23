@@ -9,15 +9,16 @@ from __future__ import annotations
 from typing import Annotated, Literal
 
 from fastapi import Query
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 # Se repiten los CHECK de `schema/items.sql` a propÃ³sito: aquÃ­ sirven para que el
 # contrato OpenAPI publique los enums y la UI no tenga que adivinarlos.
-# Al crear y editar solo se admite el ítem: nota/ADR no estÃ¡n pensados como
-# tipos nuevos. Al leer sÃ­ se conservan los histÃ³ricos (`adr`, `note`): vienen
-# de almacenes anteriores y no pueden tumbar el listado ni la ficha.
-Kind = Literal["idea"]
-KindLeido = Literal["idea", "adr", "note"]
+# Al crear y editar solo se admite `work_item`: nota/ADR no están pensados
+# como tipos nuevos. Al leer sí se conservan los históricos (`adr`, `note`) y el
+# `idea` que la 0036 convirtió en el almacén: vienen de antes y no pueden tumbar
+# el listado ni la ficha.
+Kind = Literal["work_item"]
+KindLeido = Literal["work_item", "idea", "adr", "note"]
 Status = Literal[
     "draft",
     "proposed",
@@ -101,7 +102,7 @@ class WorkItemCreate(BaseModel):
     title: str = Field(min_length=1)
     description: str = ""
     content: str = ""
-    kind: Kind = "idea"
+    kind: Kind = "work_item"
     status: Status = "draft"
     tags: list[str] = Field(default_factory=list)
     # Uids de ítems que tienen que estar aprobados para que este avance.
@@ -143,7 +144,7 @@ class WorkItemUpdate(BaseModel):
 class WorkItem(WorkItemCreate):
     uid: str
     # El tipo histórico se devuelve tal cual; el contrato no lo crea.
-    kind: KindLeido = "idea"
+    kind: KindLeido = "work_item"
     created_at: str
     updated_at: str
     # Las fichas de roadmap, verificación y revisión aprobada (0013): sin
@@ -180,7 +181,7 @@ class WorkItemResumen(BaseModel):
     title: str
     description: str = ""
     # El tipo histórico se lee tal cual; el contrato no lo crea.
-    kind: KindLeido = "idea"
+    kind: KindLeido = "work_item"
     status: Status
     tags: list[str] = Field(default_factory=list)
     depende_de: list[str] = Field(default_factory=list)
@@ -462,7 +463,7 @@ class PlanIdea(BaseModel):
     title: str = Field(min_length=1)
     description: str = ""
     content: str = ""
-    kind: Literal["idea"] = "idea"
+    kind: Literal["work_item", "idea"] = "work_item"
     status: Literal["proposed", "draft", "historial", "rejected"] = "proposed"
     # Solo para historial/rejected; sin ella se usa la fecha de importación.
     fecha: str | None = None
@@ -472,6 +473,12 @@ class PlanIdea(BaseModel):
     depende_de: list[str] = Field(default_factory=list)
     fases: list[PlanFase] = Field(default_factory=list)
     origen: PlanOrigen
+
+    @field_validator("kind", mode="after")
+    @classmethod
+    def _tipo_del_almacen(cls, valor: str) -> str:
+        """Los planes v1-v3 escriben `idea`; el almacén guarda `work_item`."""
+        return "work_item"
 
 
 class PlanRango(BaseModel):

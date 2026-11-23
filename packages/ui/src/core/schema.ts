@@ -1072,10 +1072,10 @@ export interface components {
             content: string;
             /**
              * Kind
-             * @default idea
-             * @constant
+             * @default work_item
+             * @enum {string}
              */
-            kind: "idea";
+            kind: "work_item" | "idea";
             /**
              * Status
              * @default proposed
@@ -1346,10 +1346,10 @@ export interface components {
             content: string;
             /**
              * Kind
-             * @default idea
+             * @default work_item
              * @enum {string}
              */
-            kind: "idea" | "adr" | "note";
+            kind: "work_item" | "idea" | "adr" | "note";
             /**
              * Status
              * @default draft
@@ -1444,10 +1444,10 @@ export interface components {
             content: string;
             /**
              * Kind
-             * @default idea
+             * @default work_item
              * @constant
              */
-            kind: "idea";
+            kind: "work_item";
             /**
              * Status
              * @default draft
@@ -1481,10 +1481,10 @@ export interface components {
             description: string;
             /**
              * Kind
-             * @default idea
+             * @default work_item
              * @enum {string}
              */
-            kind: "idea" | "adr" | "note";
+            kind: "work_item" | "idea" | "adr" | "note";
             /**
              * Status
              * @enum {string}
@@ -1536,7 +1536,7 @@ export interface components {
             /** Content */
             content?: string | null;
             /** Kind */
-            kind?: "idea" | null;
+            kind?: "work_item" | null;
             /** Status */
             status?: ("draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "historial" | "rejected" | "superseded") | null;
             /** Tags */
@@ -1619,7 +1619,7 @@ export interface operations {
                 /** @description Carpeta del repo: ruta absoluta o nombre en el lab */
                 repo: string;
                 status?: ("draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "historial" | "rejected" | "superseded") | null;
-                kind?: "idea" | null;
+                kind?: ("work_item" | "idea" | "adr" | "note") | null;
                 incluir?: "contenido" | null;
                 limit?: number;
                 offset?: number;

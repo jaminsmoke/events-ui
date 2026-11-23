@@ -134,13 +134,14 @@ Fuentes del modelo: [ítems y protocolos](../services/core/src/events_core/schem
 ## Histórico `idea`
 
 El renombrado terminó: la 0034 dejó las tablas `work_item_*` y la columna
-`work_item_uid`, y la 0035 renombró el lote a `migracion_item`. No quedan
-alias de API ni de herramientas.
+`work_item_uid`, la 0035 renombró el lote a `migracion_item` y la 0036 pasó el
+`kind` del dato a `work_item`. No quedan alias de API ni de herramientas.
 
-`idea` sigue en el repositorio como historia y como dato: las migraciones
-`0001`–`0035`, `kind: "idea"`, la clave `ideas` del plan v1-v3 y de
-`MapSnapshot`, y los eventos `idea.*` que ya estén escritos en un log (el
-lector los pinta y filtra junto a los `item.*`).
+`idea` sigue en el repositorio como historia y como lectura: las migraciones
+`0001`–`0036`, los tipos históricos `adr`/`note` (y el `idea` de los almacenes
+anteriores), la clave `ideas` del plan v1-v3 y de `MapSnapshot`, y los eventos
+`idea.*` que ya estén escritos en un log (el lector los pinta y filtra junto a
+los `item.*`).
 
 ## Comprobación local del 18 de noviembre de 2026
 

@@ -107,7 +107,7 @@ def _insertar_item(conn: sqlite3.Connection, item: dict[str, Any], uid: str, ts:
     datos = conn.execute(
         "INSERT INTO work_item_data"
         " (uid, title, description, content, kind, tags, depende_de, created_at, updated_at)"
-        " VALUES (?, ?, ?, ?, 'idea', ?, '[]', ?, ?)",
+        " VALUES (?, ?, ?, ?, 'work_item', ?, '[]', ?, ?)",
         (
             uid,
             item["title"],

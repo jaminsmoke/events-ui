@@ -182,7 +182,7 @@ ESQUEMA_PLAN: dict[str, Any] = {
                 "title": {"type": "string", "minLength": 1},
                 "description": {"type": "string", "default": ""},
                 "content": {"type": "string", "default": ""},
-                "kind": {"const": "idea"},
+                "kind": {"enum": ["work_item", "idea"], "default": "work_item"},
                 "status": {
                     "enum": ["proposed", "draft", "historial", "rejected"],
                     "default": "proposed",

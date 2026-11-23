@@ -239,7 +239,8 @@ def _copiar_items_historicos(conn: sqlite3.Connection) -> None:
                 """
                 INSERT OR IGNORE INTO work_item_data
                     (id, uid, title, description, content, kind, tags, created_at, updated_at)
-                SELECT id, uid, title, description, content, kind,
+                SELECT id, uid, title, description, content,
+                       CASE kind WHEN 'idea' THEN 'work_item' ELSE kind END,
                        CASE WHEN json_valid(tags) AND json_type(tags) = 'array'
                             THEN tags ELSE '[]' END,
                        created_at, updated_at

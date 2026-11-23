@@ -77,23 +77,63 @@ _INDICES_0034 = (
 )
 
 
+def _deshacer_0036(conn) -> None:  # noqa: ANN001
+    """Deja `work_item_data` como en la 0035: `kind` vuelve a admitir `idea`."""
+    conn.execute("PRAGMA foreign_keys = OFF")
+    conn.executescript(
+        """
+        CREATE TABLE work_item_data_v35 (
+            id          INTEGER PRIMARY KEY,
+            uid         TEXT    NOT NULL UNIQUE,
+            title       TEXT    NOT NULL,
+            description TEXT    NOT NULL DEFAULT '',
+            content     TEXT    NOT NULL DEFAULT '',
+            kind        TEXT    NOT NULL DEFAULT 'idea'
+                        CHECK (kind IN ('idea', 'adr', 'note')),
+            tags        TEXT    NOT NULL DEFAULT '[]'
+                        CHECK (json_valid(tags) AND json_type(tags) = 'array'),
+            verificacion_intentos INTEGER NOT NULL DEFAULT 0
+                        CHECK (verificacion_intentos >= 0),
+            depende_de  TEXT    NOT NULL DEFAULT '[]'
+                        CHECK (json_valid(depende_de) AND json_type(depende_de) = 'array'),
+            created_at  TEXT    NOT NULL,
+            updated_at  TEXT    NOT NULL
+        );
+        INSERT INTO work_item_data_v35
+        SELECT id, uid, title, description, content,
+               CASE kind WHEN 'work_item' THEN 'idea' ELSE kind END,
+               tags, verificacion_intentos, depende_de, created_at, updated_at
+        FROM work_item_data;
+        DROP TABLE work_item_data;
+        ALTER TABLE work_item_data_v35 RENAME TO work_item_data;
+        """
+    )
+    conn.execute("PRAGMA foreign_keys = ON")
+
+
 @pytest.fixture()
 def bajar_a_la_0033():
-    """Baja un almacén recién creado a la 0033 (o a la 0032) deshaciendo la 0034.
+    """Baja un almacén recién creado a la 0033, 0034 o 0035.
 
-    Devuelve la función `bajar(db, version)`; el llamador sigue abriendo el
-    almacén con `ensure_repo` para que corran las migraciones de verdad.
+    Deshace la 0036 (el `kind`), la 0035 (el lote) y la 0034 (las tablas), en
+    ese orden. Devuelve la función `bajar(db, version)`; el llamador sigue
+    abriendo el almacén con `ensure_repo` para que corran las migraciones.
     """
     import sqlite3
     from contextlib import closing
 
     def bajar(db: Path, version: int = 33) -> None:
         with closing(sqlite3.connect(str(db))) as conn:
-            if version > 33:
-                # Solo falta deshacer la 0035: el lote vuelve a `migracion_idea`
-                # y su índice (`migracion_item_uid`) lo sigue en el renombrado.
+            _deshacer_0036(conn)
+            if version == 35:
+                conn.execute("PRAGMA user_version = 35")
+                conn.commit()
+                return
+            if version == 34:
+                # La 0035: el lote vuelve a `migracion_idea` y su índice
+                # (`migracion_item_uid`) lo sigue en el renombrado.
                 conn.execute("ALTER TABLE migracion_item RENAME TO migracion_idea")
-                conn.execute(f"PRAGMA user_version = {version}")
+                conn.execute("PRAGMA user_version = 34")
                 conn.commit()
                 return
             if version <= 32:

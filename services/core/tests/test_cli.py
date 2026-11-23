@@ -189,7 +189,7 @@ def test_item_create_manda_el_cuerpo(tmp_path, capsys, monkeypatch) -> None:
         "title": "Login",
         "description": "",
         "content": "",
-        "kind": "idea",
+        "kind": "work_item",
         "status": "draft",
         "tags": ["ui"],
         "depende_de": ["u0"],

@@ -61,7 +61,8 @@ carpeta solo admite el almacén, su `.gitignore` y las copias de absorción en
 - `description`: una o tres frases con lo que pide el elemento.
 - `content`: el cuerpo completo del elemento en Markdown, desde su título hasta
   el siguiente del mismo nivel.
-- `kind`: siempre `idea`. `adr` y `note` son históricos y no se crean.
+- `kind`: siempre `work_item`. `adr` y `note` son históricos y no se crean;
+  un plan v1-v3 con `idea` se guarda como `work_item`.
 - `tags`: las etiquetas que ya estén escritas (frontmatter, `labels`,
   `[tags]`), en minúsculas, sin repetir y sin inventar.
 - `status`: decide el carril, sin adivinar. Pendiente explícito → `proposed`;
@@ -107,7 +108,8 @@ de documentos. Las v1/v2 siguen válidas sin `documentos`.
   `[{desde, hasta}]`. Solo `mapa` y `parcial` alimentan el mapa.
 - `ref` identifica el ítem dentro del plan (`item-1`, `backlog-login`…) y es lo
   que usa `depende_de`; no es un uid y no puede repetirse.
-- `kind` siempre `idea`; `status` puede ser `proposed`, `draft`, `historial`
+- `kind` siempre `work_item` (el `idea` de un plan v1-v3 se normaliza);
+  `status` puede ser `proposed`, `draft`, `historial`
   o `rejected`; fases solo para `proposed`, en `pendiente` y con requisitos sin
   marcar. `rejected` exige `motivo`.
 - `fecha` (ISO 8601) solo con `historial` o `rejected`; sin ella se usa la de
@@ -190,9 +192,10 @@ no cambió después. Si la cobertura ya es total, hay que usar absorb sin
 
 ## Histórico `idea`
 
-El plan no cambia: `kind: "idea"` y la clave `ideas` se quedan, porque son
-datos y contrato del plan v1-v3, no alias. La API ya solo publica `/items` y el
-lote vive en `migracion_item` (0035).
+El plan no cambia: `kind` (un plan v1-v3 escribe `idea` y se guarda como
+`work_item`) y la clave `ideas` se quedan, porque son datos y contrato de esos
+documentos. La API ya solo publica `/items` y el lote vive en `migracion_item`
+(0035).
 
 ## Antes de aplicar
 

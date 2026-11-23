@@ -993,7 +993,7 @@ def _parser() -> argparse.ArgumentParser:
     crear.add_argument("--title", required=True)
     crear.add_argument("--description", default="")
     crear.add_argument("--content", default="")
-    crear.add_argument("--kind", choices=["idea"], default="idea")
+    crear.add_argument("--kind", choices=["work_item"], default="work_item")
     crear.add_argument("--status", choices=ESTADOS, default="draft")
     crear.add_argument("--tag", action="append", default=[], help="Etiqueta (repetible)")
     crear.add_argument("--dep", action="append", default=[], help="uid del que depende")

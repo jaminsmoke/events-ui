@@ -29,7 +29,7 @@ export function NuevaIdea({
         title,
         description: descripcion.trim(),
         content: "",
-        kind: "idea",
+        kind: "work_item",
         status: "draft",
         tags: [],
       });

@@ -410,12 +410,13 @@ y el detalle por `ON DELETE CASCADE`. El paso `0004` es el ejemplo: reconstruyó
 La primera versión llamó «idea» a lo que hoy es un ítem de implementación. El
 renombrado terminó: la API solo publica `/items`, el CLI solo tiene
 `eui item …`, el MCP solo anuncia `item_*`, el almacén habla `work_item_*`
-(0034) y el esquema vive en `schema/items.sql` (0035).
+(0034), el lote vive en `migracion_item` (0035) y el tipo del dato se llama
+`work_item` (0036).
 
 `idea` sigue apareciendo en cuatro sitios, y ninguno es un alias vivo:
 
-- las migraciones `0001`–`0035`, que son historia y no se tocan;
-- `kind: "idea"`, un valor de dato de los ítems que ya existen;
+- las migraciones `0001`–`0036`, que son historia y no se tocan;
+- `kind: "adr"` y `"note"`, tipos históricos que se leen pero no se crean;
 - la clave `ideas` del plan de migración v1-v3 y de `MapSnapshot`, contrato de
   esos documentos;
 - los eventos `idea.*` que ya estén escritos en un log: el lector los sigue

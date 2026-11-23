@@ -68,7 +68,7 @@ export const PRUEBAS: Prueba[] = [
               title: titulo,
               description: `Elemento ${i} del reparto.`,
               content: `Elemento ${i} del reparto.`,
-              kind: "idea",
+              kind: "work_item",
               status: "draft",
             });
             if (!idea) throw new Error("El core no devolvió el ítem creado.");
@@ -156,7 +156,7 @@ export const PRUEBAS: Prueba[] = [
             title: `Entrada · ${i}`,
             description: `Ítem ${i} recién capturado, todavía sin carril.`,
             content: "",
-            kind: "idea",
+            kind: "work_item",
             status: "draft",
           },
           "la entrada",
@@ -169,7 +169,7 @@ export const PRUEBAS: Prueba[] = [
             title: `Cola · ${i}`,
             description: `Ítem ${i} esperando su turno en la cola.`,
             content: "",
-            kind: "idea",
+            kind: "work_item",
             status: "proposed",
           },
           "Backlog",
@@ -181,7 +181,7 @@ export const PRUEBAS: Prueba[] = [
           title: "Roadmap · en curso con fases",
           description: "Una fase completada, otra fallida con motivo y una pendiente.",
           content: "",
-          kind: "idea",
+          kind: "work_item",
           status: "roadmap",
         },
         "roadmap",
@@ -210,7 +210,7 @@ export const PRUEBAS: Prueba[] = [
           title: "Verificación · lista para aprobar",
           description: "Dos fases completadas con todos sus requisitos.",
           content: "",
-          kind: "idea",
+          kind: "work_item",
           status: "verificacion",
         },
         "verificación",
@@ -233,7 +233,7 @@ export const PRUEBAS: Prueba[] = [
           description:
             "Una fase completada y otra rechazada, que no cuenta para aprobar; el título largo enseña cómo envuelve la ficha.",
           content: "",
-          kind: "idea",
+          kind: "work_item",
           status: "verificacion",
         },
         "verificación",
@@ -252,7 +252,7 @@ export const PRUEBAS: Prueba[] = [
           title: "Aprobada · firmada",
           description: "Un ítem que ya pasó la aprobación; el historial conserva sus fases.",
           content: "",
-          kind: "idea",
+          kind: "work_item",
           status: "revision_aprobada",
         },
         "revisión aprobada",
@@ -268,7 +268,7 @@ export const PRUEBAS: Prueba[] = [
           title: "Aprobada · con dos fases",
           description: "Otra aprobada para ver el carril con más de una ficha.",
           content: "",
-          kind: "idea",
+          kind: "work_item",
           status: "revision_aprobada",
         },
         "revisión aprobada",
@@ -287,7 +287,7 @@ export const PRUEBAS: Prueba[] = [
           title: "Changelog · cerrada",
           description: "Un ítem terminado que conserva su fase y su requisito.",
           content: "",
-          kind: "idea",
+          kind: "work_item",
           status: "historial",
         },
         "el historial",
@@ -303,7 +303,7 @@ export const PRUEBAS: Prueba[] = [
           title: "Changelog · con dos fases",
           description: "El Changelog también conserva varias fases completadas.",
           content: "",
-          kind: "idea",
+          kind: "work_item",
           status: "historial",
         },
         "el historial",
@@ -322,7 +322,7 @@ export const PRUEBAS: Prueba[] = [
           title: "Changelog · otra cerrada",
           description: "Una tercera ficha para ver el carril con varios ítems.",
           content: "",
-          kind: "idea",
+          kind: "work_item",
           status: "historial",
         },
         "el historial",
@@ -357,7 +357,7 @@ export const PRUEBAS: Prueba[] = [
             title: descarte.titulo,
             description: "Descarte con motivo para ver la ficha del carril.",
             content: "",
-            kind: "idea",
+            kind: "work_item",
             status: descarte.estado ?? "rejected",
           },
           "Descartadas",
@@ -425,7 +425,7 @@ export const PRUEBAS: Prueba[] = [
               title: "Marcha · cable",
               description: "Un ítem que salta de carril para ver el cable en marcha.",
               content: "Un ítem que salta de carril para ver el cable en marcha.",
-              kind: "idea",
+              kind: "work_item",
               status: "proposed",
             });
             if (!idea) throw new Error("El core no devolvió el ítem creado.");
@@ -514,7 +514,7 @@ export const PRUEBAS: Prueba[] = [
               title: "Fases · aprobación",
               description: "Un ítem que recorre el flujo con una fase.",
               content: "Un ítem que recorre el flujo con una fase.",
-              kind: "idea",
+              kind: "work_item",
               status: "proposed",
             });
             if (!idea) throw new Error("El core no devolvió el ítem creado.");
@@ -596,7 +596,7 @@ export const PRUEBAS: Prueba[] = [
               title: "Fases · taller",
               description: "Cuatro fases para ver todos sus estados.",
               content: "Cuatro fases para ver todos sus estados.",
-              kind: "idea",
+              kind: "work_item",
               status: "proposed",
             });
             if (!idea) throw new Error("El core no devolvió el ítem creado.");
@@ -756,7 +756,7 @@ export const PRUEBAS: Prueba[] = [
               title: "Motivo · fases",
               description: "Una fase fallida que vuelve con su motivo.",
               content: "Una fase fallida que vuelve con su motivo.",
-              kind: "idea",
+              kind: "work_item",
               status: "proposed",
             });
             if (!idea) throw new Error("El core no devolvió el ítem creado.");
@@ -841,7 +841,7 @@ export const PRUEBAS: Prueba[] = [
               title: "Requisitos · fases",
               description: "Una fase que solo se cierra con sus requisitos.",
               content: "Una fase que solo se cierra con sus requisitos.",
-              kind: "idea",
+              kind: "work_item",
               status: "proposed",
             });
             if (!idea) throw new Error("El core no devolvió el ítem creado.");
@@ -924,7 +924,7 @@ export const PRUEBAS: Prueba[] = [
               title: "Vuelta · descarte",
               description: "Un ítem que vuelve y se descarta.",
               content: "Un ítem que vuelve y se descarta.",
-              kind: "idea",
+              kind: "work_item",
               status: "proposed",
             });
             if (!idea) throw new Error("El core no devolvió el ítem creado.");

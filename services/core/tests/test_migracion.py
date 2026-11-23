@@ -140,7 +140,8 @@ def test_esquema_del_plan_cierra_lo_que_no_se_negocia() -> None:
         "historial",
         "rejected",
     }
-    assert item["properties"]["kind"]["const"] == "idea"
+    assert item["properties"]["kind"]["enum"] == ["work_item", "idea"]
+    assert item["properties"]["kind"]["default"] == "work_item"
     assert origen["required"] == ["ruta", "desde_linea", "hasta_linea", "sha256"]
     assert origen["properties"]["sha256"]["pattern"] == "^[0-9a-f]{64}$"
     assert esquema["$defs"]["fase"]["properties"]["estado"]["enum"] == ["pendiente"]

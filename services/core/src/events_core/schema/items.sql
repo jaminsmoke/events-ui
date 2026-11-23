@@ -33,10 +33,11 @@ CREATE TABLE IF NOT EXISTS work_item_data (
     -- Cuerpo completo en markdown.
     content     TEXT    NOT NULL DEFAULT '',
 
-    -- Al crear solo se escribe el ítem; los históricos (`adr` y `note`) se
-    -- conservan al leer, como los dejó la migración 0004.
-    kind        TEXT    NOT NULL DEFAULT 'idea'
-                CHECK (kind IN ('idea', 'adr', 'note')),
+    -- Al crear solo se escribe el ítem (`work_item`); los históricos (`adr` y
+    -- `note`) se conservan al leer, como los dejó la migración 0004. La 0036
+    -- convirtió el `idea` de los almacenes anteriores.
+    kind        TEXT    NOT NULL DEFAULT 'work_item'
+                CHECK (kind IN ('work_item', 'adr', 'note')),
 
     -- Tags en texto JSON; lista de cadenas. El 0004 solo pedía JSON válido y
     -- `{}` también lo es: pasaba el CHECK y el listado no sabía leerlo, así

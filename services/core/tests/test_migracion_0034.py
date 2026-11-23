@@ -86,7 +86,7 @@ def test_la_0034_renombra_tablas_y_columnas_con_los_datos_dentro(
     items.ensure_repo(repo)
 
     with closing(sqlite3.connect(str(db))) as conn:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 35
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 36
         tablas = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         assert _TABLAS_NUEVAS.issubset(tablas)
         assert not (_TABLAS_VIEJAS & tablas)
@@ -145,7 +145,7 @@ def test_la_0035_renombra_el_lote_sin_tocar_datos(
     items.ensure_repo(repo)
 
     with closing(sqlite3.connect(str(db))) as conn:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 35
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 36
         tablas = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         assert "migracion_item" in tablas
         assert "migracion_idea" not in tablas

@@ -7,7 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from events_core import mcp_servidor
+from events_core import mcp_servidor, migracion
 
 
 def _peticion(metodo: str, params: dict | None = None, ident: int = 1) -> dict:
@@ -311,3 +311,149 @@ def test_un_nombre_viejo_es_herramienta_desconocida(monkeypatch) -> None:
     assert r["error"]["code"] == -32602
     assert "herramienta desconocida" in r["error"]["message"]
     assert visto == []
+
+
+def _herramienta(nombre: str) -> dict:
+    herramientas = mcp_servidor.manejar(_peticion("tools/list"), permitir_escritura=True)["result"][
+        "tools"
+    ]
+    return next(herramienta for herramienta in herramientas if herramienta["name"] == nombre)
+
+
+def test_tools_list_anota_lectura_y_escritura() -> None:
+    """Las pistas dicen qué lee y qué borra, y cuadran con HERRAMIENTAS_ESCRITURA."""
+    lectura = mcp_servidor.manejar(_peticion("tools/list"))["result"]["tools"]
+    todas = mcp_servidor.manejar(_peticion("tools/list"), permitir_escritura=True)["result"][
+        "tools"
+    ]
+
+    for herramienta in lectura:
+        anotaciones = herramienta["annotations"]
+        assert anotaciones["readOnlyHint"] is True, herramienta["name"]
+        assert anotaciones["destructiveHint"] is False, herramienta["name"]
+        assert anotaciones["title"], herramienta["name"]
+        assert herramienta["name"] not in mcp_servidor.HERRAMIENTAS_ESCRITURA
+
+    escritura = [
+        herramienta
+        for herramienta in todas
+        if herramienta["name"] in mcp_servidor.HERRAMIENTAS_ESCRITURA
+    ]
+    assert len(escritura) == len(mcp_servidor.HERRAMIENTAS_ESCRITURA)
+    for herramienta in escritura:
+        assert herramienta["annotations"]["readOnlyHint"] is False, herramienta["name"]
+
+    assert {h["name"] for h in todas if h["annotations"]["destructiveHint"]} == {"migrate_undo"}
+    assert {h["name"] for h in todas if h["annotations"]["idempotentHint"]} == {"migrate_apply"}
+
+
+def test_item_list_devuelve_structured_content_envuelto(monkeypatch) -> None:
+    """El protocolo pide un objeto: la lista viaja en `items` y el texto la repite."""
+    filas = [
+        {
+            "uid": "u1",
+            "title": "Hola",
+            "status": "proposed",
+            "created_at": "2026-01-01T00:00:00+00:00",
+            "updated_at": "2026-01-01T00:00:00+00:00",
+        }
+    ]
+
+    def falso(_argv):  # noqa: ANN001, ANN202
+        print(json.dumps(filas))
+        return 0
+
+    monkeypatch.setattr(mcp_servidor.cli, "main", falso)
+
+    resultado = mcp_servidor.manejar(
+        _peticion("tools/call", {"name": "item_list", "arguments": {"limit": 5}})
+    )["result"]
+
+    assert resultado["structuredContent"] == {"items": filas}
+    assert json.loads(resultado["content"][0]["text"]) == filas
+
+    esquema = _herramienta("item_list")["outputSchema"]
+    assert migracion.validar_esquema(resultado["structuredContent"], esquema) == []
+
+    # La envoltura ya está validada; la unión de filas no la entiende
+    # `validar_esquema`, así que cada fila se prueba contra sus ramas, con los
+    # `$ref` del propio esquema: uno roto revienta aquí.
+    ramas = [
+        {"$defs": esquema["$defs"], **rama} for rama in esquema["properties"]["items"]["anyOf"]
+    ]
+    for fila in filas:
+        assert any(not migracion.validar_esquema([fila], rama) for rama in ramas), fila
+
+    sin_uid = {clave: valor for clave, valor in filas[0].items() if clave != "uid"}
+    assert all(migracion.validar_esquema([sin_uid], rama) for rama in ramas), (
+        "una fila sin uid tiene que fallar en las dos ramas"
+    )
+
+
+def test_item_get_devuelve_structured_content_y_su_esquema(monkeypatch) -> None:
+    item = {
+        "uid": "u1",
+        "title": "Hola",
+        "status": "proposed",
+        "created_at": "2026-01-01T00:00:00+00:00",
+        "updated_at": "2026-01-01T00:00:00+00:00",
+        "fases": [
+            {
+                "orden": 1,
+                "titulo": "Preparar",
+                "entered_at": "2026-01-01T00:00:00+00:00",
+            }
+        ],
+    }
+
+    def falso(_argv):  # noqa: ANN001, ANN202
+        print(json.dumps(item))
+        return 0
+
+    monkeypatch.setattr(mcp_servidor.cli, "main", falso)
+
+    resultado = mcp_servidor.manejar(
+        _peticion("tools/call", {"name": "item_get", "arguments": {"uid": "u1"}})
+    )["result"]
+
+    assert resultado["structuredContent"] == item
+    esquema = _herramienta("item_get")["outputSchema"]
+    assert migracion.validar_esquema(resultado["structuredContent"], esquema) == []
+
+    # Un campo que no cuadra tiene que salir: el `estado` de la fase no existe.
+    roto = {**item, "fases": [{**item["fases"][0], "estado": "inventado"}]}
+    assert migracion.validar_esquema(roto, esquema) != []
+
+
+def test_doctor_devuelve_structured_content_sin_output_schema(monkeypatch) -> None:
+    """`doctor` arma su JSON a mano: estructura sí, esquema no (ficha 19c47c02)."""
+    informe = {"ok": True, "url": "http://127.0.0.1:1", "version": "0.0.0", "comprobaciones": []}
+
+    def falso(_argv):  # noqa: ANN001, ANN202
+        print(json.dumps(informe))
+        return 0
+
+    monkeypatch.setattr(mcp_servidor.cli, "main", falso)
+
+    resultado = mcp_servidor.manejar(_peticion("tools/call", {"name": "doctor", "arguments": {}}))[
+        "result"
+    ]
+
+    assert resultado["structuredContent"] == informe
+    assert "outputSchema" not in _herramienta("doctor")
+
+
+def test_un_fallo_no_lleva_structured_content(monkeypatch) -> None:
+    def falso(_argv):  # noqa: ANN001, ANN202
+        print("error: no existe el ítem u1", file=sys.stderr)
+        return 1
+
+    monkeypatch.setattr(mcp_servidor.cli, "main", falso)
+
+    resultado = mcp_servidor.manejar(
+        _peticion("tools/call", {"name": "item_get", "arguments": {"uid": "u1"}})
+    )["result"]
+
+    assert resultado["isError"] is True
+    assert "structuredContent" not in resultado
+    assert "no existe el ítem" in resultado["content"][0]["text"]

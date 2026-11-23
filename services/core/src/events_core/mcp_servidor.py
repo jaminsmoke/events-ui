@@ -24,7 +24,10 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from typing import Any
 
+from pydantic import TypeAdapter
+
 from . import __version__, cli, migracion
+from .contrato import MigracionAplicada, MigracionDeshecha, Repo, WorkItem, WorkItemResumen
 
 # Versiones del protocolo que este servidor entiende. Si el cliente pide otra,
 # se responde con la última: el cliente decide si sigue o se desconecta.
@@ -236,6 +239,44 @@ _ESCRITURA: tuple[dict[str, Any], ...] = (
 HERRAMIENTAS = {herramienta["name"]: herramienta for herramienta in (*_LECTURA, *_ESCRITURA)}
 HERRAMIENTAS_ESCRITURA = frozenset(herramienta["name"] for herramienta in _ESCRITURA)
 
+# Título corto de cada herramienta: es lo que enseña el cliente en su lista, así
+# que dice qué hace y no repite el nombre técnico.
+_TITULOS = {
+    "doctor": "Diagnóstico",
+    "repo_actual": "Repo actual",
+    "repo_list": "Repos del laboratorio",
+    "item_list": "Listar ítems",
+    "item_get": "Leer un ítem",
+    "migrate_scan": "Escanear documentos",
+    "migrate_classify": "Clasificar documentos",
+    "migrate_check": "Validar un plan",
+    "item_create": "Crear un ítem",
+    "item_edit": "Editar un ítem",
+    "item_move": "Mover un ítem",
+    "item_fases": "Fases de un ítem",
+    "item_requisito": "Marcar un requisito",
+    "migrate_apply": "Aplicar un plan",
+    "migrate_undo": "Deshacer un lote",
+}
+
+# El protocolo asume `destructiveHint: true` cuando no se dice nada, así que las
+# dos listas van explícitas: solo `migrate_undo` borra, y solo `migrate_apply`
+# se puede repetir sin efecto nuevo (la huella del plan devuelve el mismo lote).
+_DESTRUCTIVAS = frozenset({"migrate_undo"})
+_IDEMPOTENTES = frozenset({"migrate_apply"})
+
+
+def _anotaciones(nombre: str) -> dict[str, Any]:
+    """Las pistas de `tools/list`: qué lee, qué borra y qué se puede repetir."""
+    return {
+        "title": _TITULOS.get(nombre, nombre),
+        "readOnlyHint": nombre not in HERRAMIENTAS_ESCRITURA,
+        "destructiveHint": nombre in _DESTRUCTIVAS,
+        "idempotentHint": nombre in _IDEMPOTENTES,
+        # Todo es local: el repo y el core en loopback, nunca un servicio fuera.
+        "openWorldHint": False,
+    }
+
 
 def permite_escritura(flag: bool) -> bool:
     """El ámbito lo abre el flag o el entorno; nunca por defecto."""
@@ -251,10 +292,58 @@ def _error(ident: Any, codigo: int, mensaje: str) -> dict[str, Any]:
     return {"jsonrpc": "2.0", "id": ident, "error": {"code": codigo, "message": mensaje}}
 
 
+# `structuredContent` es siempre un objeto, así que las dos salidas que son
+# listas van dentro de su clave; el texto de respaldo sigue siendo la lista.
+_ENVUELTAS = {"item_list": "items", "repo_list": "repos"}
+
+
+def _envoltura(clave: str, tipo: Any) -> dict[str, Any]:
+    """El esquema de una lista, envuelto en el objeto que espera el protocolo."""
+    esquema = TypeAdapter(tipo).json_schema()
+    # Los `$ref` apuntan a la raíz del documento: `$defs` sube con la envoltura.
+    defs = esquema.pop("$defs", None)
+    salida: dict[str, Any] = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [clave],
+        "properties": {clave: esquema},
+    }
+    if defs:
+        salida["$defs"] = defs
+    return salida
+
+
+# Las herramientas cuyo `--json` es un modelo del contrato: el esquema sale del
+# modelo, así que no puede quedarse atrás. `doctor`, `repo_actual`,
+# `migrate_scan`, `migrate_classify` y `migrate_check` arman su JSON a mano y se
+# quedan sin `outputSchema` (ficha `19c47c02`).
+_SALIDAS: dict[str, dict[str, Any]] = {
+    "repo_list": _envoltura("repos", list[Repo]),
+    "item_list": _envoltura("items", list[WorkItemResumen] | list[WorkItem]),
+    "item_get": TypeAdapter(WorkItem).json_schema(),
+    "item_create": TypeAdapter(WorkItem).json_schema(),
+    "item_edit": TypeAdapter(WorkItem).json_schema(),
+    "item_move": TypeAdapter(WorkItem).json_schema(),
+    "item_fases": TypeAdapter(WorkItem).json_schema(),
+    "item_requisito": TypeAdapter(WorkItem).json_schema(),
+    "migrate_apply": TypeAdapter(MigracionAplicada).json_schema(),
+    "migrate_undo": TypeAdapter(MigracionDeshecha).json_schema(),
+}
+
+
+def _herramienta_publica(herramienta: dict[str, Any]) -> dict[str, Any]:
+    """Lo que ve el cliente: la herramienta, sus pistas y su salida si la hay."""
+    nombre = herramienta["name"]
+    publica = {**herramienta, "annotations": _anotaciones(nombre)}
+    if nombre in _SALIDAS:
+        publica["outputSchema"] = _SALIDAS[nombre]
+    return publica
+
+
 def _lista_herramientas(permitir_escritura: bool) -> list[dict[str, Any]]:
-    if permitir_escritura:
-        return [*_LECTURA, *_ESCRITURA]
-    return [*_LECTURA]
+    """Las herramientas a la vista, con sus anotaciones y su salida."""
+    disponibles = [*_LECTURA, *_ESCRITURA] if permitir_escritura else [*_LECTURA]
+    return [_herramienta_publica(herramienta) for herramienta in disponibles]
 
 
 # Campos que no son de una herramienta pero sí de otra: el error dice dónde
@@ -520,9 +609,26 @@ def _ejecutar(nombre: str, a: dict[str, Any], permitir: bool) -> dict[str, Any]:
 
     texto = salida.strip() or error.strip() or f"exit {codigo}"
     resultado: dict[str, Any] = {"content": [{"type": "text", "text": texto}]}
-    if codigo != 0:
+    if codigo == 0:
+        estructura = _estructura(nombre, texto)
+        if estructura is not None:
+            resultado["structuredContent"] = estructura
+    else:
+        # Un fallo no lleva estructura: el texto y `isError` ya lo dicen todo.
         resultado["isError"] = True
     return resultado
+
+
+def _estructura(nombre: str, texto: str) -> dict[str, Any] | None:
+    """El `--json` del CLI como `structuredContent`, o `None` si no lo es."""
+    try:
+        datos = json.loads(texto)
+    except (TypeError, ValueError):
+        return None
+    clave = _ENVUELTAS.get(nombre)
+    if clave is not None:
+        return {clave: datos} if isinstance(datos, list) else None
+    return datos if isinstance(datos, dict) else None
 
 
 def manejar(mensaje: Any, *, permitir_escritura: bool = False) -> dict[str, Any] | None:

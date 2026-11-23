@@ -604,7 +604,7 @@ export interface paths {
          * @description Aplica el plan entero o nada.
          *
          *     El contrato comprueba la forma (destinos de la v2, fases pendientes, un
-         *     origen con hash por idea); `revisar` vuelve a mirar el disco (origen dentro
+         *     origen con hash por item); `revisar` vuelve a mirar el disco (origen dentro
          *     del repo, `sha256` al día, ciclos y duplicados) y el core escribe el lote
          *     en una transacción. La huella canónica del plan hace idempotente el envío.
          */
@@ -627,7 +627,7 @@ export interface paths {
         post?: never;
         /**
          * Delete Lote
-         * @description Deshace un lote: borra solo sus ideas si nadie las tocó después.
+         * @description Deshace un lote: borra solo sus items si nadie las tocó después.
          *
          *     Un 409 enumera todos los conflictos (carril distinto de `proposed`,
          *     `updated_at` posterior a `creada_at`, o una ficha ajena que la usa como
@@ -997,7 +997,7 @@ export interface components {
         };
         /**
          * MigracionCreada
-         * @description Una idea creada por el lote: su `ref` del plan y el `uid` que recibió.
+         * @description Una item creada por el lote: su `ref` del plan y el `uid` que recibió.
          */
         MigracionCreada: {
             /** Ref */
@@ -1009,7 +1009,7 @@ export interface components {
          * MigracionDeshecha
          * @description Respuesta de `DELETE /migracion/lotes/{lote}`.
          *
-         *     `ausentes` son las ideas que ya no estaban (el usuario las borró a mano);
+         *     `ausentes` son los ítems que ya no estaban (el usuario las borró a mano);
          *     el resto se borró y el lote desaparece.
          */
         MigracionDeshecha: {
@@ -1105,7 +1105,7 @@ export interface components {
         };
         /**
          * PlanIdea
-         * @description Una idea propuesta: `ref` es local al plan, no un uid del almacén.
+         * @description Un ítem propuesto: `ref` es local al plan, no un uid del almacén.
          */
         PlanIdea: {
             /** Ref */
@@ -1152,7 +1152,7 @@ export interface components {
          *
          *     La versión 2 añade destinos, fechas y motivo; la 3 el manifiesto
          *     `documentos` (allowlist del mapa). La 1 se conserva para los planes que
-         *     solo crean ideas en `proposed`.
+         *     solo crean items en `proposed`.
          */
         PlanMigracion: {
             /**
@@ -1167,7 +1167,7 @@ export interface components {
         };
         /**
          * PlanOrigen
-         * @description De dónde sale una idea del plan: el Markdown del scan.
+         * @description De dónde sale un ítem del plan: el Markdown del scan.
          */
         PlanOrigen: {
             /** Ruta */
@@ -1700,7 +1700,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
-            /** @description No existe el repo o la idea */
+            /** @description No existe el repo o el ítem */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -1754,7 +1754,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
-            /** @description No existe el repo o la idea */
+            /** @description No existe el repo o el ítem */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -1809,7 +1809,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
-            /** @description No existe el repo o la idea */
+            /** @description No existe el repo o el ítem */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -1863,7 +1863,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
-            /** @description No existe el repo o la idea */
+            /** @description No existe el repo o el ítem */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -1915,7 +1915,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
-            /** @description No existe el repo o la idea */
+            /** @description No existe el repo o el ítem */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -1965,7 +1965,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
-            /** @description No existe el repo o la idea */
+            /** @description No existe el repo o el ítem */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2021,7 +2021,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
-            /** @description No existe el repo o la idea */
+            /** @description No existe el repo o el ítem */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2073,7 +2073,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
-            /** @description No existe el repo o la idea */
+            /** @description No existe el repo o el ítem */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2123,7 +2123,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
-            /** @description No existe el repo o la idea */
+            /** @description No existe el repo o el ítem */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2179,7 +2179,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
-            /** @description No existe el repo o la idea */
+            /** @description No existe el repo o el ítem */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2229,7 +2229,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
-            /** @description No existe el repo o la idea */
+            /** @description No existe el repo o el ítem */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2279,7 +2279,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
-            /** @description No existe el repo o la idea */
+            /** @description No existe el repo o el ítem */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2329,7 +2329,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
-            /** @description No existe el repo o la idea */
+            /** @description No existe el repo o el ítem */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2379,7 +2379,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
-            /** @description No existe el repo o la idea */
+            /** @description No existe el repo o el ítem */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2407,7 +2407,7 @@ export interface operations {
                 /** @description Cursor: solo eventos con id mayor */
                 desde?: number;
                 limite?: number;
-                /** @description Solo este origen: `idea`, `externo`, … */
+                /** @description Solo este origen: `item`, `externo`, … */
                 origen?: string | null;
             };
             header?: never;
@@ -2434,7 +2434,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
-            /** @description No existe el repo o la idea */
+            /** @description No existe el repo o el ítem */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2484,7 +2484,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
-            /** @description No existe el repo o la idea */
+            /** @description No existe el repo o el ítem */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2538,7 +2538,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
-            /** @description No existe el repo o la idea */
+            /** @description No existe el repo o el ítem */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2641,7 +2641,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
-            /** @description No existe el repo o la idea */
+            /** @description No existe el repo o el ítem */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2691,7 +2691,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
-            /** @description No existe el repo o la idea */
+            /** @description No existe el repo o el ítem */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2741,7 +2741,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
-            /** @description No existe el repo o la idea */
+            /** @description No existe el repo o el ítem */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2793,7 +2793,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
-            /** @description No existe el repo o la idea */
+            /** @description No existe el repo o el ítem */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2847,7 +2847,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
-            /** @description No existe el repo o la idea */
+            /** @description No existe el repo o el ítem */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2897,7 +2897,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
-            /** @description No existe el repo o la idea */
+            /** @description No existe el repo o el ítem */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2949,7 +2949,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
-            /** @description No existe el repo o la idea */
+            /** @description No existe el repo o el ítem */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3001,7 +3001,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
-            /** @description No existe el repo o la idea */
+            /** @description No existe el repo o el ítem */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3062,7 +3062,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
-            /** @description No existe el repo o la idea */
+            /** @description No existe el repo o el ítem */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3151,7 +3151,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
-            /** @description No existe el repo o la idea */
+            /** @description No existe el repo o el ítem */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3201,7 +3201,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
-            /** @description No existe el repo o la idea */
+            /** @description No existe el repo o el ítem */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3304,7 +3304,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
-            /** @description No existe el repo o la idea */
+            /** @description No existe el repo o el ítem */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3356,7 +3356,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
-            /** @description No existe el repo o la idea */
+            /** @description No existe el repo o el ítem */
             404: {
                 headers: {
                     [name: string]: unknown;

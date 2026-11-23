@@ -6,7 +6,7 @@ from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Query, Response
 
-from .. import ideas, registro
+from .. import items, registro
 from ..contrato import (
     RESPUESTAS_ERROR,
     Kind,
@@ -34,7 +34,7 @@ def _deprecacion(response: Response) -> None:
 @router.get("/repos", response_model=list[Repo], tags=["items"])
 def get_repos() -> list[dict[str, Any]]:
     """Repos investigados que ya tienen `.EUI/EUI_DATABASE.sqlite`."""
-    return ideas.list_repos()
+    return items.list_repos()
 
 
 @router.get(
@@ -60,7 +60,7 @@ def get_items(
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[dict[str, Any]]:
-    return ideas.list_ideas(
+    return items.list_items(
         repo,
         status=status,
         kind=kind,
@@ -87,7 +87,7 @@ def get_items(
     dependencies=[Depends(_deprecacion)],
 )
 def post_item(body: WorkItemCreate, repo: RepoParam) -> dict[str, Any]:
-    return ideas.create_idea(repo, **body.model_dump())
+    return items.create_item(repo, **body.model_dump())
 
 
 @router.get("/items/{uid}", response_model=WorkItem, tags=["items"], responses=RESPUESTAS_ERROR)
@@ -100,7 +100,7 @@ def post_item(body: WorkItemCreate, repo: RepoParam) -> dict[str, Any]:
     dependencies=[Depends(_deprecacion)],
 )
 def get_item(uid: str, repo: RepoParam) -> dict[str, Any]:
-    return ideas.get_idea(repo, uid)
+    return items.get_item(repo, uid)
 
 
 @router.patch("/items/{uid}", response_model=WorkItem, tags=["items"], responses=RESPUESTAS_ERROR)
@@ -113,7 +113,7 @@ def get_item(uid: str, repo: RepoParam) -> dict[str, Any]:
     dependencies=[Depends(_deprecacion)],
 )
 def patch_item(uid: str, body: WorkItemUpdate, repo: RepoParam) -> dict[str, Any]:
-    return ideas.update_idea(repo, uid, body.model_dump(exclude_unset=True))
+    return items.update_item(repo, uid, body.model_dump(exclude_unset=True))
 
 
 @router.delete("/items/{uid}", status_code=204, tags=["items"], responses=RESPUESTAS_ERROR)
@@ -126,7 +126,7 @@ def patch_item(uid: str, body: WorkItemUpdate, repo: RepoParam) -> dict[str, Any
     dependencies=[Depends(_deprecacion)],
 )
 def remove_item(uid: str, repo: RepoParam) -> None:
-    if not ideas.delete_idea(repo, uid):
+    if not items.delete_item(repo, uid):
         raise KeyError(uid)
 
 
@@ -135,7 +135,7 @@ def post_reiniciar(repo: RepoParam) -> dict[str, Any]:
     """Reinicio de laboratorio: el almacén queda vacío (ítems, cola, fichas
     y eventos). Solo lo llama el lanzador de pruebas del desktop
     (`puedeProbar`): no es parte del CRUD de producto."""
-    resultado = ideas.reiniciar(repo)
+    resultado = items.reiniciar(repo)
     registro.escribir(
         "info",
         f"Reinicio de laboratorio en {repo}: {resultado['ideas_eliminadas']} ítems, "
@@ -154,16 +154,16 @@ def get_protocolos(repo: RepoParam) -> list[dict[str, Any]]:
     La UI las lee para no ofrecer flujos prohibidos; la que impone de verdad
     es el PATCH, que responde 400 cuando la unión no está listada. Es
     configuración del almacén: el reinicio de laboratorio no la toca."""
-    return ideas.listar_protocolos(repo)
+    return items.listar_protocolos(repo)
 
 
 @router.get("/mapa", response_model=MapSnapshot, tags=["items"], responses=RESPUESTAS_ERROR)
 def get_map(repo: RepoParam) -> dict[str, Any]:
     """Los ítems del mapa tal como estaban en una misma lectura de SQLite."""
-    return ideas.map_snapshot(repo)
+    return items.map_snapshot(repo)
 
 
 @router.get("/revision", response_model=Revision, tags=["items"], responses=RESPUESTAS_ERROR)
 def get_revision(repo: RepoParam) -> dict[str, Any]:
     """Sondeo de cambio: la UI lo pide cada par de segundos, sin traerse el mapa."""
-    return ideas.revision(repo)
+    return items.revision(repo)

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from events_core import ideas
+from events_core import items
 
 
 def _almacen_v16(db: Path) -> None:
@@ -74,18 +74,18 @@ def _almacen_v16(db: Path) -> None:
 
 
 def test_la_api_solo_acepta_cadenas(client, repo):  # noqa: ANN001, ANN202
-    rechazo = client.post("/ideas", params={"repo": repo}, json={"title": "Uno", "tags": [1]})
+    rechazo = client.post("/items", params={"repo": repo}, json={"title": "Uno", "tags": [1]})
     assert rechazo.status_code == 422
 
-    creada = client.post("/ideas", params={"repo": repo}, json={"title": "Dos", "tags": ["a"]})
+    creada = client.post("/items", params={"repo": repo}, json={"title": "Dos", "tags": ["a"]})
     assert creada.status_code == 201
     assert creada.json()["tags"] == ["a"]
 
 
 def test_sqlite_rechaza_tags_que_no_son_lista(repo):  # noqa: ANN001, ANN202
-    ideas.init_repo(repo)
+    items.init_repo(repo)
     with (
-        closing(sqlite3.connect(ideas.db_file_for(repo))) as conn,
+        closing(sqlite3.connect(items.db_file_for(repo))) as conn,
         pytest.raises(sqlite3.IntegrityError),
     ):
         conn.execute(
@@ -95,36 +95,36 @@ def test_sqlite_rechaza_tags_que_no_son_lista(repo):  # noqa: ANN001, ANN202
 
 
 def test_la_migracion_sanea_las_etiquetas(repo):  # noqa: ANN001, ANN202
-    db = ideas.db_file_for(repo)
+    db = items.db_file_for(repo)
     db.parent.mkdir(parents=True, exist_ok=True)
     _almacen_v16(db)
 
-    ideas.ensure_repo(repo)
+    items.ensure_repo(repo)
 
     with closing(sqlite3.connect(db)) as conn:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == ideas.SCHEMA_VERSION
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == items.SCHEMA_VERSION
         filas = dict(conn.execute("SELECT uid, tags FROM idea_data").fetchall())
     assert filas == {"vieja": "[]", "mixta": '[1, "dos"]', "buena": '["tres"]'}
 
 
 def test_el_listado_aguanta_una_fila_con_tags_no_lista(client, repo):  # noqa: ANN001, ANN202
     """Una fila escrita con los CHECK relajados se lee como lista vacía, no 500."""
-    ideas.init_repo(repo)
-    uid = ideas.create_idea(repo, title="Vieja")["uid"]
-    with closing(sqlite3.connect(ideas.db_file_for(repo))) as conn:
+    items.init_repo(repo)
+    uid = items.create_item(repo, title="Vieja")["uid"]
+    with closing(sqlite3.connect(items.db_file_for(repo))) as conn:
         conn.execute("PRAGMA ignore_check_constraints = ON")
         conn.execute("UPDATE idea_data SET tags = '{}' WHERE uid = ?", (uid,))
         conn.commit()
 
-    r = client.get("/ideas", params={"repo": repo})
+    r = client.get("/items", params={"repo": repo})
     assert r.status_code == 200, r.json()
     assert r.json()[0]["tags"] == []
 
     # De una lista se leen solo las cadenas; el número no rompe el listado.
-    with closing(sqlite3.connect(ideas.db_file_for(repo))) as conn:
+    with closing(sqlite3.connect(items.db_file_for(repo))) as conn:
         conn.execute("PRAGMA ignore_check_constraints = ON")
         conn.execute("UPDATE idea_data SET tags = '[1, \"dos\"]' WHERE uid = ?", (uid,))
         conn.commit()
-    r = client.get("/ideas", params={"repo": repo})
+    r = client.get("/items", params={"repo": repo})
     assert r.status_code == 200, r.json()
     assert r.json()[0]["tags"] == ["dos"]

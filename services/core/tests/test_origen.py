@@ -1,9 +1,10 @@
 """`event.origen` (0010): de qué tabla viene cada fila del log.
 
-`idea` es lo que emite el core (`_emitir`), `externo` lo escribe el
-productor y las tablas futuras traerán la suya. La migración rellena los
-eventos de ideas ya escritos por su `type` y crea la tabla en los
-almacenes sembrados que aún no la tenían (Lab1, por ejemplo).
+`item` es lo que emite el core (`_emitir`), `externo` lo escribe el
+productor y las tablas futuras traerán la suya. El log es append-only: lo
+escrito antes de la 0034 sigue en `idea`, y el filtro `item` lo lee igual.
+La migración rellena los eventos de ítems ya escritos por su `type` y crea
+la tabla en los almacenes sembrados que aún no la tenían (Lab1, por ejemplo).
 """
 
 from __future__ import annotations
@@ -11,7 +12,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-from events_core import ideas
+from events_core import items
 
 EVENTOS_VIEJO = (
     "CREATE TABLE event ("
@@ -24,27 +25,27 @@ EVENTOS_VIEJO = (
 def _sembrar_event(repo) -> None:
     """La tabla del log tal como la deja el esquema final (la app no la crea:
     el productor sí)."""
-    ideas.ensure_repo(repo)
-    db = ideas.db_file_for(repo)
+    items.ensure_repo(repo)
+    db = items.db_file_for(repo)
     conn = sqlite3.connect(str(db))
-    esquema = (Path(ideas.SCHEMA_DIR) / "eventos.sql").read_text(encoding="utf-8")
+    esquema = (Path(items.SCHEMA_DIR) / "eventos.sql").read_text(encoding="utf-8")
     conn.executescript(esquema)
     conn.commit()
     conn.close()
 
 
-def test_emitir_escribe_origen_idea(client, repo):  # noqa: ANN001, ANN202
+def test_emitir_escribe_origen_item(client, repo):  # noqa: ANN001, ANN202
     _sembrar_event(repo)
-    uid = client.post("/ideas", params={"repo": repo}, json={"title": "A"}).json()["uid"]
+    uid = client.post("/items", params={"repo": repo}, json={"title": "A"}).json()["uid"]
     r = client.get("/eventos", params={"repo": repo})
-    assert [e["type"] for e in r.json()] == ["idea.created"]
-    assert all(e["origen"] == "idea" for e in r.json())
+    assert [e["type"] for e in r.json()] == ["item.created"]
+    assert all(e["origen"] == "item" for e in r.json())
     assert r.json()[0]["payload"]["uid"] == uid
 
 
 def test_externo_y_filtro(client, repo):  # noqa: ANN001, ANN202
     _sembrar_event(repo)
-    conn = sqlite3.connect(str(ideas.db_file_for(repo)))
+    conn = sqlite3.connect(str(items.db_file_for(repo)))
     conn.execute(
         "INSERT INTO event (ts, type, payload, origen) VALUES ('2026-11-18T00:00:00Z',"
         " 'sistema.reinicio', '{}', 'externo')"
@@ -62,13 +63,16 @@ def test_externo_y_filtro(client, repo):  # noqa: ANN001, ANN202
     externos = client.get("/eventos", params={"repo": repo, "origen": "externo"}).json()
     assert [e["type"] for e in externos] == ["sistema.reinicio"]
 
-    de_ideas = client.get("/eventos", params={"repo": repo, "origen": "idea"}).json()
-    assert [e["type"] for e in de_ideas] == ["idea.created"]
+    # El filtro nuevo también trae lo que se escribió como `idea`.
+    de_items = client.get("/eventos", params={"repo": repo, "origen": "item"}).json()
+    assert [e["type"] for e in de_items] == ["idea.created"]
+    legado = client.get("/eventos", params={"repo": repo, "origen": "idea"}).json()
+    assert [e["type"] for e in legado] == ["idea.created"]
 
 
 def test_migracion_0010_rellena_origen(client, repo):  # noqa: ANN001, ANN202
     """Un almacén v9 con eventos sin columna migra sin perder ninguno."""
-    db = ideas.db_file_for(repo)
+    db = items.db_file_for(repo)
     db.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(db))
     conn.execute(
@@ -106,10 +110,10 @@ def test_migracion_0010_rellena_origen(client, repo):  # noqa: ANN001, ANN202
     conn.commit()
     conn.close()
 
-    ideas.ensure_repo(repo)
+    items.ensure_repo(repo)
 
     conn = sqlite3.connect(str(db))
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == ideas.SCHEMA_VERSION
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == items.SCHEMA_VERSION
     columnas = [r[1] for r in conn.execute("PRAGMA table_info(event)")]
     assert "origen" in columnas
     filas = conn.execute("SELECT type, origen FROM event ORDER BY id").fetchall()
@@ -121,7 +125,7 @@ def test_migracion_0010_rellena_origen(client, repo):  # noqa: ANN001, ANN202
 def test_migracion_0010_sin_tabla_event_crea_acceso(client, repo):  # noqa: ANN001, ANN202
     """Un sembrado al que el productor nunca llegó (como Lab1) tampoco rompe:
     la migración le crea la tabla con la columna ya puesta."""
-    db = ideas.db_file_for(repo)
+    db = items.db_file_for(repo)
     db.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(db))
     conn.execute(
@@ -150,10 +154,10 @@ def test_migracion_0010_sin_tabla_event_crea_acceso(client, repo):  # noqa: ANN0
     conn.commit()
     conn.close()
 
-    ideas.ensure_repo(repo)
+    items.ensure_repo(repo)
 
     conn = sqlite3.connect(str(db))
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == ideas.SCHEMA_VERSION
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == items.SCHEMA_VERSION
     assert conn.execute("SELECT count(*) FROM event").fetchone()[0] == 0
     columnas = [r[1] for r in conn.execute("PRAGMA table_info(event)")]
     assert "origen" in columnas

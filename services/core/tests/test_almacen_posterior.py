@@ -13,7 +13,7 @@ import sqlite3
 from contextlib import closing
 from pathlib import Path
 
-from events_core import ideas
+from events_core import items
 
 
 def _firmar(db: Path, version: int) -> None:
@@ -28,8 +28,8 @@ def _version(db: Path) -> int:
 
 
 def test_un_almacen_posterior_da_409_con_el_motivo(client, repo):  # noqa: ANN001, ANN202
-    db = ideas.init_repo(repo)
-    posterior = ideas.SCHEMA_VERSION + 1
+    db = items.init_repo(repo)
+    posterior = items.SCHEMA_VERSION + 1
     _firmar(db, posterior)
 
     r = client.get("/revision", params={"repo": repo})
@@ -38,7 +38,7 @@ def test_un_almacen_posterior_da_409_con_el_motivo(client, repo):  # noqa: ANN00
     detalle = r.json()["detail"]
     assert "versión más nueva" in detalle
     assert str(posterior) in detalle
-    assert str(ideas.SCHEMA_VERSION) in detalle
+    assert str(items.SCHEMA_VERSION) in detalle
     # Ni una escritura: la versión sigue donde la dejó el core nuevo.
     assert _version(db) == posterior
     # Y no es cosa de una ruta: el mapa tampoco lo abre a ciegas.
@@ -47,12 +47,12 @@ def test_un_almacen_posterior_da_409_con_el_motivo(client, repo):  # noqa: ANN00
 
 def test_health_tambien_nombra_el_almacen_posterior(client, repo, monkeypatch):  # noqa: ANN001, ANN202
     """`/health` abre en solo lectura: no migra, pero no dice «ok» de lo que no entiende."""
-    db = ideas.init_repo(repo)
+    db = items.init_repo(repo)
     monkeypatch.setenv("EVENTSUI_DB", str(db))
 
     assert client.get("/health").json()["status"] == "ok"
 
-    posterior = ideas.SCHEMA_VERSION + 1
+    posterior = items.SCHEMA_VERSION + 1
     _firmar(db, posterior)
     r = client.get("/health")
 
@@ -62,7 +62,7 @@ def test_health_tambien_nombra_el_almacen_posterior(client, repo, monkeypatch): 
 
 
 def test_el_almacen_al_dia_sigue_abriendo(client, repo):  # noqa: ANN001, ANN202
-    db = ideas.init_repo(repo)
+    db = items.init_repo(repo)
 
     assert client.get("/revision", params={"repo": repo}).status_code == 200
-    assert _version(db) == ideas.SCHEMA_VERSION
+    assert _version(db) == items.SCHEMA_VERSION

@@ -10,7 +10,7 @@ from __future__ import annotations
 import sqlite3
 from contextlib import closing
 
-from events_core import ideas
+from events_core import items
 
 
 def _esquema_v8(conn: sqlite3.Connection) -> None:
@@ -96,18 +96,18 @@ def _comprobar_historico(client, repo):  # noqa: ANN001, ANN202
     assert ideas_mapa["aceptada"]["status"] == "historial"
     assert ideas_mapa["rechazada"]["status"] == "rejected"
     assert "connections" not in r.json()
-    ficha = client.get("/ideas/vieja", params={"repo": repo}).json()
+    ficha = client.get("/items/vieja", params={"repo": repo}).json()
     assert ficha["title"] == "Vieja"
     assert ficha["description"] == "Desc"
     assert ficha["content"] == "Cuerpo"
     assert ficha["tags"] == ["old"]
 
-    conn = sqlite3.connect(str(ideas.db_file_for(repo)))
+    conn = sqlite3.connect(str(items.db_file_for(repo)))
     try:
         tablas = {
             row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == ideas.SCHEMA_VERSION
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == items.SCHEMA_VERSION
         assert "ideas" not in tablas
         assert conn.execute("SELECT count(*) FROM idea_data").fetchone()[0] == 4
         assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
@@ -118,7 +118,7 @@ def _comprobar_historico(client, repo):  # noqa: ANN001, ANN202
 def test_tipos_historicos_se_leen_sin_romper(client, repo):  # noqa: ANN001, ANN202
     """Un almacén con `kind = 'adr'` y `'note'` se lee entero: el listado y la
     ficha conservan el tipo en vez de devolver 500."""
-    db = ideas.db_file_for(repo)
+    db = items.db_file_for(repo)
     db.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(db))
     _esquema_v8(conn)
@@ -132,12 +132,12 @@ def test_tipos_historicos_se_leen_sin_romper(client, repo):  # noqa: ANN001, ANN
     conn.commit()
     conn.close()
 
-    lista = client.get("/ideas", params={"repo": repo})
+    lista = client.get("/items", params={"repo": repo})
     assert lista.status_code == 200, lista.json()
     assert {i["uid"]: i["kind"] for i in lista.json()} == {"adr-1": "adr", "nota-1": "note"}
 
     for uid, kind in (("adr-1", "adr"), ("nota-1", "note")):
-        ficha = client.get(f"/ideas/{uid}", params={"repo": repo})
+        ficha = client.get(f"/items/{uid}", params={"repo": repo})
         assert ficha.status_code == 200, ficha.json()
         assert ficha.json()["kind"] == kind
 
@@ -150,10 +150,10 @@ def test_tipos_historicos_se_leen_sin_romper(client, repo):  # noqa: ANN001, ANN
 
 
 def test_fresco_sin_lane_log(client, repo):  # noqa: ANN001, ANN202
-    db = ideas.ensure_repo(repo)
+    db = items.ensure_repo(repo)
     conn = sqlite3.connect(str(db))
     tablas = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == ideas.SCHEMA_VERSION
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == items.SCHEMA_VERSION
     assert "idea_data" in tablas
     assert "idea_node" in tablas
     assert "roadmap_node" in tablas
@@ -166,27 +166,27 @@ def test_fresco_sin_lane_log(client, repo):  # noqa: ANN001, ANN202
 
 
 def test_draft_no_tiene_fila(client, repo):  # noqa: ANN001, ANN202
-    r = client.post("/ideas", params={"repo": repo}, json={"title": "A"})
+    r = client.post("/items", params={"repo": repo}, json={"title": "A"})
     assert r.status_code == 201
     assert r.json()["status"] == "draft"
 
 
 def test_proposed_entra_en_cola_y_no_vuelve_al_cajon(client, repo):  # noqa: ANN001, ANN202
-    uid = client.post("/ideas", params={"repo": repo}, json={"title": "A"}).json()["uid"]
-    r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": "proposed"})
+    uid = client.post("/items", params={"repo": repo}, json={"title": "A"}).json()["uid"]
+    r = client.patch(f"/items/{uid}", params={"repo": repo}, json={"status": "proposed"})
     assert r.json()["status"] == "proposed"
 
-    conn = sqlite3.connect(str(ideas.db_file_for(repo)))
+    conn = sqlite3.connect(str(items.db_file_for(repo)))
     assert (
         conn.execute("SELECT count(*) FROM idea_node WHERE estado = 'proposed'").fetchone()[0] == 1
     )
     conn.close()
 
     # El protocolo prohíbe volver al cajón: la cola no se deshace a mano.
-    r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": "draft"})
+    r = client.patch(f"/items/{uid}", params={"repo": repo}, json={"status": "draft"})
     assert r.status_code == 400
     assert "protocolo" in r.json()["detail"]
-    conn = sqlite3.connect(str(ideas.db_file_for(repo)))
+    conn = sqlite3.connect(str(items.db_file_for(repo)))
     assert (
         conn.execute("SELECT count(*) FROM idea_node WHERE estado = 'proposed'").fetchone()[0] == 1
     )
@@ -196,16 +196,16 @@ def test_proposed_entra_en_cola_y_no_vuelve_al_cajon(client, repo):  # noqa: ANN
 def test_cola_ordenada_por_posicion(client, repo):  # noqa: ANN001, ANN202
     uids = [
         client.post(
-            "/ideas",
+            "/items",
             params={"repo": repo},
             json={"title": f"Idea {i}", "status": "proposed"},
         ).json()["uid"]
         for i in (1, 2, 3)
     ]
-    r = client.get("/ideas", params={"repo": repo, "status": "proposed"})
+    r = client.get("/items", params={"repo": repo, "status": "proposed"})
     assert [i["uid"] for i in r.json()] == uids
 
-    conn = sqlite3.connect(str(ideas.db_file_for(repo)))
+    conn = sqlite3.connect(str(items.db_file_for(repo)))
     posiciones = [
         r_[0]
         for r_ in conn.execute(
@@ -217,16 +217,16 @@ def test_cola_ordenada_por_posicion(client, repo):  # noqa: ANN001, ANN202
 
 def test_rejected_sale_de_cola(client, repo):  # noqa: ANN001, ANN202
     uid = client.post(
-        "/ideas", params={"repo": repo}, json={"title": "A", "status": "proposed"}
+        "/items", params={"repo": repo}, json={"title": "A", "status": "proposed"}
     ).json()["uid"]
     r = client.patch(
-        f"/ideas/{uid}",
+        f"/items/{uid}",
         params={"repo": repo},
         json={"status": "rejected", "rejected_description": "ruido"},
     )
     assert r.json()["status"] == "rejected"
     assert r.json()["rejected_description"] == "ruido"
-    conn = sqlite3.connect(str(ideas.db_file_for(repo)))
+    conn = sqlite3.connect(str(items.db_file_for(repo)))
     assert (
         conn.execute("SELECT count(*) FROM idea_node WHERE estado = 'proposed'").fetchone()[0] == 0
     )
@@ -237,23 +237,23 @@ def test_revision_aprobada_es_terminal(client, repo):  # noqa: ANN001, ANN202
     # La ficha final (0013) solo la siembra el harness (status al crear);
     # por API no se puede llegar a ella fuera de verificación ni salir.
     uid = client.post(
-        "/ideas", params={"repo": repo}, json={"title": "A", "status": "revision_aprobada"}
+        "/items", params={"repo": repo}, json={"title": "A", "status": "revision_aprobada"}
     ).json()["uid"]
-    r = client.get("/ideas", params={"repo": repo, "status": "revision_aprobada"})
+    r = client.get("/items", params={"repo": repo, "status": "revision_aprobada"})
     assert [i["uid"] for i in r.json()] == [uid]
-    conn = sqlite3.connect(str(ideas.db_file_for(repo)))
+    conn = sqlite3.connect(str(items.db_file_for(repo)))
     assert (
         conn.execute("SELECT count(*) FROM idea_node WHERE estado = 'proposed'").fetchone()[0] == 0
     )
     assert conn.execute("SELECT count(*) FROM revision_node").fetchone()[0] == 1
     conn.close()
 
-    uid2 = client.post("/ideas", params={"repo": repo}, json={"title": "B"}).json()["uid"]
-    r = client.patch(f"/ideas/{uid2}", params={"repo": repo}, json={"status": "revision_aprobada"})
+    uid2 = client.post("/items", params={"repo": repo}, json={"title": "B"}).json()["uid"]
+    r = client.patch(f"/items/{uid2}", params={"repo": repo}, json={"status": "revision_aprobada"})
     assert r.status_code == 400
     assert "protocolo" in r.json()["detail"]
 
-    r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": "proposed"})
+    r = client.patch(f"/items/{uid}", params={"repo": repo}, json={"status": "proposed"})
     assert r.status_code == 400
     assert "protocolo" in r.json()["detail"]
 
@@ -269,11 +269,11 @@ def test_reiniciar_vacia_todo(client, repo):  # noqa: ANN001, ANN202
         "rejected",
     ]
     [
-        client.post("/ideas", params={"repo": repo}, json={"title": s, "status": s}).json()["uid"]
+        client.post("/items", params={"repo": repo}, json={"title": s, "status": s}).json()["uid"]
         for s in estados
     ]
-    db = ideas.db_file_for(repo)
-    with closing(ideas.connect(db)) as conn:
+    db = items.db_file_for(repo)
+    with closing(items.connect(db)) as conn:
         conn.execute("DELETE FROM protocolo_flujo WHERE destino = 'rejected'")
         conn.commit()
         protocolos = conn.execute("SELECT * FROM protocolo_flujo ORDER BY 1, 2").fetchall()
@@ -297,21 +297,21 @@ def test_reiniciar_vacia_todo(client, repo):  # noqa: ANN001, ANN202
         ):
             assert conn.execute(f"SELECT count(*) FROM {tabla}").fetchone()[0] == 0
         assert conn.execute("SELECT * FROM protocolo_flujo ORDER BY 1, 2").fetchall() == protocolos
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == ideas.SCHEMA_VERSION
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == items.SCHEMA_VERSION
 
 
 def test_reinicio_limitado_al_laboratorio(client, tmp_path):  # noqa: ANN001, ANN202
     repo = str(tmp_path.resolve())
-    idea = client.post("/ideas", params={"repo": repo}, json={"title": "Conservar"}).json()
+    item = client.post("/items", params={"repo": repo}, json={"title": "Conservar"}).json()
     assert not client.get("/proyecciones/repo", params={"repo": repo}).json()["laboratorio"]
     assert client.post("/reiniciar", params={"repo": repo}).status_code == 400
-    assert client.get(f"/ideas/{idea['uid']}", params={"repo": repo}).status_code == 200
+    assert client.get(f"/items/{item['uid']}", params={"repo": repo}).status_code == 200
 
 
 def test_migracion_0009_solo_estado_final(client, repo):  # noqa: ANN001, ANN202
     """Un v8 con historial (cola→descartadas, cola→completada→cola,
     cola→descartadas→completada) migra a su último estado."""
-    db = ideas.db_file_for(repo)
+    db = items.db_file_for(repo)
     db.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(db))
     _esquema_v8(conn)
@@ -344,11 +344,11 @@ def test_migracion_0009_solo_estado_final(client, repo):  # noqa: ANN001, ANN202
     conn.commit()
     conn.close()
 
-    ideas.ensure_repo(repo)  # <- migra aquí
+    items.ensure_repo(repo)  # <- migra aquí
 
     conn = sqlite3.connect(str(db))
     conn.execute("PRAGMA foreign_keys = ON")
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == ideas.SCHEMA_VERSION
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == items.SCHEMA_VERSION
     tablas = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert "idea_lane_log" not in tablas
     assert "idea_completada" not in tablas
@@ -375,13 +375,13 @@ def test_migracion_0009_solo_estado_final(client, repo):  # noqa: ANN001, ANN202
     }
 
 
-def test_historico_sin_version_conserva_ideas_y_conexiones(client, repo):  # noqa: ANN001, ANN202
-    """Un fichero anterior a `user_version` trae `ideas`, no `idea_entry`.
+def test_historico_sin_version_conserva_items_y_conexiones(client, repo):  # noqa: ANN001, ANN202
+    """Un fichero anterior a `user_version` trae `items`, no `idea_entry`.
 
     Abrirlo no puede marcar al día dejando la fila en la tabla vieja: el mapa
     tiene que conservar el UID, los campos, el estado y la conexión.
     """
-    db = ideas.db_file_for(repo)
+    db = items.db_file_for(repo)
     db.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(db))
     _esquema_inicial(conn)
@@ -394,13 +394,13 @@ def test_historico_sin_version_conserva_ideas_y_conexiones(client, repo):  # noq
 def test_historico_ya_marcado_se_recupera(client, repo):  # noqa: ANN001, ANN202
     """El fichero ya abierto una vez: al día y con la fila en `ideas` y cero en
     `idea_entry`."""
-    db = ideas.db_file_for(repo)
+    db = items.db_file_for(repo)
     db.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(db))
     _esquema_inicial(conn)
-    ideas.aplicar_esquema(conn)  # lo que hacía el código anterior
+    items.aplicar_esquema(conn)  # lo que hacía el código anterior
     conn.commit()
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == ideas.SCHEMA_VERSION
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == items.SCHEMA_VERSION
     assert conn.execute("SELECT count(*) FROM idea_data").fetchone()[0] == 0
     assert conn.execute("SELECT count(*) FROM ideas").fetchone()[0] == 4
     conn.close()

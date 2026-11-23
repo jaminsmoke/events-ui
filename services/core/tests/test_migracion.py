@@ -8,7 +8,7 @@ import json
 import pytest
 
 from events_core import cli, config, migracion
-from events_core.ideas.base.comun import InvalidInput
+from events_core.items.base.comun import InvalidInput
 
 
 def test_escanear_reconoce_el_markdown(tmp_path) -> None:
@@ -126,21 +126,21 @@ def test_cli_migrate_ruta_invalida(tmp_path, capsys) -> None:
 
 def test_esquema_del_plan_cierra_lo_que_no_se_negocia() -> None:
     esquema = migracion.ESQUEMA_PLAN
-    idea = esquema["$defs"]["idea"]
+    item = esquema["$defs"]["idea"]
     origen = esquema["$defs"]["origen"]
     documento = esquema["$defs"]["documento"]
 
     assert esquema["$id"] == "urn:events-ui:plan-migracion:1"
     assert set(esquema["required"]) == {"version", "ideas"}
     assert esquema["properties"]["version"]["enum"] == [1, 2, 3]
-    assert idea["required"] == ["ref", "title", "origen"]
-    assert set(idea["properties"]["status"]["enum"]) == {
+    assert item["required"] == ["ref", "title", "origen"]
+    assert set(item["properties"]["status"]["enum"]) == {
         "proposed",
         "draft",
         "historial",
         "rejected",
     }
-    assert idea["properties"]["kind"]["const"] == "idea"
+    assert item["properties"]["kind"]["const"] == "idea"
     assert origen["required"] == ["ruta", "desde_linea", "hasta_linea", "sha256"]
     assert origen["properties"]["sha256"]["pattern"] == "^[0-9a-f]{64}$"
     assert esquema["$defs"]["fase"]["properties"]["estado"]["enum"] == ["pendiente"]
@@ -246,11 +246,11 @@ def test_historial_no_lleva_fases_y_fecha_solo_en_archivo(tmp_path) -> None:
 
 
 def _plan_valido(tmp_path, **cambios):
-    """Un plan mínimo correcto: un Markdown, una idea y su origen con hash."""
+    """Un plan mínimo correcto: un Markdown, un ítem y su origen con hash."""
     archivo = tmp_path / "docs" / "backlog.md"
     archivo.parent.mkdir(parents=True, exist_ok=True)
     archivo.write_text("# Backlog\n\n## Idea uno\n\n- [ ] hacer algo\n", encoding="utf-8")
-    idea = {
+    item = {
         "ref": "idea-1",
         "title": "Idea uno",
         "description": "Hacer algo.",
@@ -265,8 +265,8 @@ def _plan_valido(tmp_path, **cambios):
             "sha256": hashlib.sha256(archivo.read_bytes()).hexdigest(),
         },
     }
-    idea.update(cambios)
-    return {"version": 1, "ideas": [idea]}
+    item.update(cambios)
+    return {"version": 1, "ideas": [item]}
 
 
 def test_validar_esquema_rechaza_lo_que_no_toca(tmp_path) -> None:
@@ -297,7 +297,7 @@ def test_check_plan_correcto(tmp_path) -> None:
     assert informe["ok"] is True
     assert informe["errores"] == []
     assert informe["repo"] == str(tmp_path.resolve())
-    assert [idea["ref"] for idea in informe["crear"]] == ["idea-1"]
+    assert [item["ref"] for item in informe["crear"]] == ["idea-1"]
     assert informe["resumen"] == {"ideas": 1, "archivos": 1, "refs": 1}
 
 
@@ -314,7 +314,7 @@ def test_check_ref_repetida(tmp_path) -> None:
 def test_check_dependencia_inexistente(tmp_path) -> None:
     informe = migracion.revisar(tmp_path, _plan_valido(tmp_path, depende_de=["nadie"]))
 
-    assert any("no existe la idea" in error for error in informe["errores"])
+    assert any("no existe el ítem" in error for error in informe["errores"])
 
 
 def test_check_dependencia_circular(tmp_path) -> None:
@@ -484,7 +484,7 @@ def test_cli_migrate_undo(tmp_path, capsys, monkeypatch) -> None:
 
     assert cli.main(["migrate", "undo", "lote-1"]) == 0
     salida = capsys.readouterr().out
-    assert "2 ideas borradas" in salida
+    assert "2 items borradas" in salida
     assert "1 ya no estaban" in salida
     assert "/migracion/lotes/lote-1" in visto["url"]
 
@@ -596,7 +596,7 @@ def test_plan_v2_no_admite_documentos(tmp_path) -> None:
     assert any("documentos" in error and "version 3" in error for error in errores)
 
 
-def test_check_rechaza_idea_en_referencia(tmp_path) -> None:
+def test_check_rechaza_item_en_referencia(tmp_path) -> None:
     plan = _plan_v3(tmp_path)
     plan["documentos"][0]["clase"] = "referencia"
     plan["documentos"][0]["destino"] = "referencia"
@@ -610,7 +610,7 @@ def test_check_exige_bloques_clasificados(tmp_path) -> None:
     plan = _plan_v3(tmp_path)
     archivo = tmp_path / "docs" / "backlog.md"
     archivo.write_text(
-        "# Backlog\n\n## Idea uno\n\n- [ ] hacer algo\n\n- [ ] otra sin idea\n",
+        "# Backlog\n\n## Idea uno\n\n- [ ] hacer algo\n\n- [ ] otra sin item\n",
         encoding="utf-8",
     )
     plan["ideas"][0]["origen"]["sha256"] = hashlib.sha256(archivo.read_bytes()).hexdigest()
@@ -620,7 +620,7 @@ def test_check_exige_bloques_clasificados(tmp_path) -> None:
     assert any("bloques sin clasificar" in error for error in errores)
 
 
-def test_parcial_exige_rangos_y_cubre_ideas(tmp_path) -> None:
+def test_parcial_exige_rangos_y_cubre_items(tmp_path) -> None:
     plan = _plan_v3(tmp_path)
     plan["documentos"][0]["clase"] = "parcial"
     plan["documentos"][0]["destino"] = "mapa"

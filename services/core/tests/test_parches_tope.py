@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from events_core.ideas.trabajo import anotacion
+from events_core.items.trabajo import anotacion
 
 GIT = shutil.which("git")
 
@@ -18,9 +18,9 @@ def _ruta_db(carpeta: Path) -> Path:
     return carpeta / ".EUI" / "EUI_DATABASE.sqlite"
 
 
-def _idea(client, carpeta: Path) -> str:  # noqa: ANN001
-    """Una idea nueva: el core crea el almacén y su esquema."""
-    r = client.post("/ideas", params={"repo": str(carpeta)}, json={"title": "A"})
+def _item(client, carpeta: Path) -> str:  # noqa: ANN001
+    """Una item nueva: el core crea el almacén y su esquema."""
+    r = client.post("/items", params={"repo": str(carpeta)}, json={"title": "A"})
     assert r.status_code == 201, r.json()
     return r.json()["uid"]
 
@@ -63,7 +63,7 @@ def _contenidos(conn: sqlite3.Connection) -> list[int]:
 def test_suelta_los_parches_de_las_fases_mas_viejas(client, tmp_path, monkeypatch):  # noqa: ANN001, ANN202
     carpeta = tmp_path / "tope"
     carpeta.mkdir()
-    uid = _idea(client, carpeta)
+    uid = _item(client, carpeta)
     with sqlite3.connect(_ruta_db(carpeta)) as conn:
         _sembrar(
             conn,
@@ -84,7 +84,7 @@ def test_suelta_los_parches_de_las_fases_mas_viejas(client, tmp_path, monkeypatc
 def test_si_cabe_no_toca_nada(client, tmp_path, monkeypatch):  # noqa: ANN001, ANN202
     carpeta = tmp_path / "cabe"
     carpeta.mkdir()
-    uid = _idea(client, carpeta)
+    uid = _item(client, carpeta)
     with sqlite3.connect(_ruta_db(carpeta)) as conn:
         _sembrar(conn, uid, {1: ("2026-01-01T00:00:00+00:00", "a" * 4000)})
         monkeypatch.setattr(anotacion, "LIMITE_PARQUES", 8000)
@@ -100,7 +100,7 @@ def _git(carpeta: Path, *args: str) -> None:
 
 def _payload(client, carpeta: Path, uid: str):  # noqa: ANN001, ANN202
     """Las fases como payload del PATCH, para retocarlas."""
-    ficha = client.get(f"/ideas/{uid}", params={"repo": str(carpeta)}).json()
+    ficha = client.get(f"/items/{uid}", params={"repo": str(carpeta)}).json()
     return [
         {
             "orden": fase["orden"],
@@ -120,7 +120,7 @@ def _payload(client, carpeta: Path, uid: str):  # noqa: ANN001, ANN202
 
 
 def _guardar(client, carpeta: Path, uid: str, fases):  # noqa: ANN001, ANN202
-    r = client.patch(f"/ideas/{uid}", params={"repo": str(carpeta)}, json={"fases": fases})
+    r = client.patch(f"/items/{uid}", params={"repo": str(carpeta)}, json={"fases": fases})
     assert r.status_code == 200, r.json()
     return r.json()
 
@@ -137,12 +137,12 @@ def test_el_cierre_poda_lo_viejo_y_conserva_lo_nuevo(client, tmp_path, monkeypat
     _git(carpeta, "commit", "-m", "inicial")
 
     r = client.post(
-        "/ideas", params={"repo": str(carpeta)}, json={"title": "A", "status": "proposed"}
+        "/items", params={"repo": str(carpeta)}, json={"title": "A", "status": "proposed"}
     )
     assert r.status_code == 201, r.json()
     uid = r.json()["uid"]
     r = client.patch(
-        f"/ideas/{uid}",
+        f"/items/{uid}",
         params={"repo": str(carpeta)},
         json={
             "status": "roadmap",
@@ -171,7 +171,7 @@ def test_el_cierre_poda_lo_viejo_y_conserva_lo_nuevo(client, tmp_path, monkeypat
     fases[1]["requisitos"][0]["hecho"] = True
     _guardar(client, carpeta, uid, fases)
 
-    idea = client.get(f"/ideas/{uid}", params={"repo": str(carpeta)}).json()
-    por_orden = {fase["orden"]: fase for fase in idea["fases"]}
+    item = client.get(f"/items/{uid}", params={"repo": str(carpeta)}).json()
+    por_orden = {fase["orden"]: fase for fase in item["fases"]}
     assert all(archivo["contenido"] is None for archivo in por_orden[1]["archivos"])
     assert any(archivo["contenido"] for archivo in por_orden[2]["archivos"])

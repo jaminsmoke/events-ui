@@ -16,7 +16,7 @@ def _documento(tmp_path, texto: str):
     return archivo
 
 
-def _plan(archivo, ideas: list[tuple[str, str, int]]) -> dict:
+def _plan(archivo, items: list[tuple[str, str, int]]) -> dict:
     sha = hashlib.sha256(archivo.read_bytes()).hexdigest()
     return {
         "version": 1,
@@ -31,16 +31,16 @@ def _plan(archivo, ideas: list[tuple[str, str, int]]) -> dict:
                     "sha256": sha,
                 },
             }
-            for ref, title, linea in ideas
+            for ref, title, linea in items
         ],
     }
 
 
-def _aplicar(client, archivo, ideas: list[tuple[str, str, int]]) -> dict:
+def _aplicar(client, archivo, items: list[tuple[str, str, int]]) -> dict:
     respuesta = client.post(
         "/migracion/aplicar",
         params={"repo": str(archivo.parent)},
-        json=_plan(archivo, ideas),
+        json=_plan(archivo, items),
     )
     assert respuesta.status_code == 200, respuesta.text
     return respuesta.json()
@@ -181,7 +181,7 @@ def test_undo_restaura_el_documento_absorbido(client, tmp_path) -> None:
     assert respuesta.status_code == 200, respuesta.text
     assert archivo.read_text(encoding="utf-8") == texto
     assert not (tmp_path / ".EUI" / "migracion" / lote["lote"]).exists()
-    assert client.get("/ideas", params={"repo": str(tmp_path)}).json() == []
+    assert client.get("/items", params={"repo": str(tmp_path)}).json() == []
 
 
 def test_exportacion_ordena_y_agrupa_por_estado(client, tmp_path) -> None:
@@ -354,7 +354,7 @@ def test_absorb_parcial_confirmar_reescribe_y_undo_restaura(client, tmp_path) ->
     texto = "# ROADMAP\n\n- **Uno.** Hecho.\n- **Dos.** Pendiente.\n"
     archivo = _documento(tmp_path, texto)
     lote = _aplicar(client, archivo, [("uno", "Uno", 3)])
-    uid = client.get("/ideas", params={"repo": str(tmp_path)}).json()[0]["uid"]
+    uid = client.get("/items", params={"repo": str(tmp_path)}).json()[0]["uid"]
 
     informe = migracion.confirmar_absorcion(tmp_path, lote["lote"], parcial=True)
 

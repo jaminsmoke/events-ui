@@ -6,7 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-from .. import ideas
+from .. import items
 from .. import migracion as escaneo
 from ..contrato import (
     RESPUESTAS_ERROR,
@@ -17,7 +17,7 @@ from ..contrato import (
     PlanMigracion,
     RepoParam,
 )
-from ..ideas.base.rutas import resolve_repo
+from ..items.base.rutas import resolve_repo
 
 router = APIRouter()
 
@@ -63,7 +63,7 @@ def post_aplicar(body: PlanMigracion, repo: RepoParam) -> dict[str, Any]:
     """Aplica el plan entero o nada.
 
     El contrato comprueba la forma (destinos de la v2, fases pendientes, un
-    origen con hash por idea); `revisar` vuelve a mirar el disco (origen dentro
+    origen con hash por item); `revisar` vuelve a mirar el disco (origen dentro
     del repo, `sha256` al día, ciclos y duplicados) y el core escribe el lote
     en una transacción. La huella canónica del plan hace idempotente el envío.
     """
@@ -72,8 +72,8 @@ def post_aplicar(body: PlanMigracion, repo: RepoParam) -> dict[str, Any]:
     plan = body.model_dump(exclude_none=True)
     informe = escaneo.revisar(resolve_repo(repo), plan)
     if not informe["ok"]:
-        raise ideas.InvalidInput("; ".join(informe["errores"]))
-    return ideas.aplicar_migracion(repo, plan, plan_sha256=escaneo.huella_plan(plan))
+        raise items.InvalidInput("; ".join(informe["errores"]))
+    return items.aplicar_migracion(repo, plan, plan_sha256=escaneo.huella_plan(plan))
 
 
 @router.delete(
@@ -86,13 +86,13 @@ def post_aplicar(body: PlanMigracion, repo: RepoParam) -> dict[str, Any]:
     },
 )
 def delete_lote(lote: str, repo: RepoParam) -> dict[str, Any]:
-    """Deshace un lote: borra solo sus ideas si nadie las tocó después.
+    """Deshace un lote: borra solo sus items si nadie las tocó después.
 
     Un 409 enumera todos los conflictos (carril distinto de `proposed`,
     `updated_at` posterior a `creada_at`, o una ficha ajena que la usa como
     sustituta) y no borra nada; un 404 es un lote que no existe.
     """
     try:
-        return ideas.deshacer_migracion(repo, lote)
-    except ideas.MigracionEnConflicto as exc:
+        return items.deshacer_migracion(repo, lote)
+    except items.MigracionEnConflicto as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc

@@ -26,18 +26,27 @@ function campo(evento: Evento, nombre: string): string | undefined {
   return typeof valor === "string" && valor ? valor : undefined;
 }
 
-export const RENDERIZADORES: Record<string, Renderizador> = {
-  // El ciclo de vida de una idea: el título sale del payload sin tener que
-  // abrir el mapa. Sin título no hay resumen: cae al fallback genérico.
-  "idea.created": (e) => (campo(e, "title") ? `Nuevo ítem: ${campo(e, "title")}` : ""),
-  "idea.updated": (e) => (campo(e, "title") ? `Ítem actualizado: ${campo(e, "title")}` : ""),
-  "idea.deleted": (e) => (campo(e, "title") ? `Ítem borrado: ${campo(e, "title")}` : ""),
-  "idea.status": (e) => {
+// El ciclo de vida de un ítem: el título sale del payload sin tener que abrir
+// el mapa. Sin título no hay resumen: cae al fallback genérico.
+const CICLO: Record<string, Renderizador> = {
+  created: (e) => (campo(e, "title") ? `Nuevo ítem: ${campo(e, "title")}` : ""),
+  updated: (e) => (campo(e, "title") ? `Ítem actualizado: ${campo(e, "title")}` : ""),
+  deleted: (e) => (campo(e, "title") ? `Ítem borrado: ${campo(e, "title")}` : ""),
+  status: (e) => {
     const titulo = campo(e, "title");
     const estado = campo(e, "status");
     return titulo && estado ? `${titulo}: ${estado}` : "";
   },
 };
+
+export const RENDERIZADORES: Record<string, Renderizador> = Object.fromEntries(
+  Object.entries(CICLO).flatMap(([tipo, renderer]) => [
+    [`item.${tipo}`, renderer],
+    // El log es append-only: lo escrito como `idea.*` antes de la 0034 sigue
+    // pintándose igual.
+    [`idea.${tipo}`, renderer],
+  ]),
+);
 
 export function resumenEvento(evento: Evento): string {
   const renderizador = RENDERIZADORES[evento.type];

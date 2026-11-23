@@ -9,7 +9,7 @@ from ..base.comun import InvalidInput, now_iso
 
 UPDATABLE = ("title", "description", "content", "kind", "tags", "depende_de")
 
-# Campos del descarte que el PATCH acepta junto al `status` (ver `update_idea`).
+# Campos del descarte que el PATCH acepta junto al `status` (ver `update_item`).
 
 REJECT_FIELDS = ("rejected_description", "rejected_by", "superseded_by_uid")
 
@@ -35,7 +35,7 @@ CAMPOS_FICHA = {
     "revision_aprobada": {"approved_by", "revision_nota"},
 }
 
-# Estados de una fase (0021). La fase pertenece a la idea, no a la estancia:
+# Estados de una fase (0021). La fase pertenece a el ítem, no a la estancia:
 # sobrevive al paso por verificación y a la vuelta a la cola.
 # Estados que cierran una fase: es cuando se anotan sus archivos (0028).
 
@@ -45,14 +45,14 @@ FASE_ESTADOS = ("pendiente", "completada", "fallida", "rechazada")
 
 
 def _roadmap(conn: sqlite3.Connection, uid: str) -> sqlite3.Row | None:
-    """El detalle de la estancia en roadmap, si la idea está ahí."""
+    """El detalle de la estancia en roadmap, si el ítem está ahí."""
     return conn.execute(
         "SELECT resultado, referencia FROM roadmap_node WHERE uid = ?", (uid,)
     ).fetchone()
 
 
 def _verificacion(conn: sqlite3.Connection, uid: str) -> sqlite3.Row | None:
-    """El detalle de la estancia en verificación, si la idea está ahí."""
+    """El detalle de la estancia en verificación, si el ítem está ahí."""
     return conn.execute(
         "SELECT intentos, ultimo_resultado, comentario, roadmap_completed_at"
         " FROM verificacion_node WHERE uid = ?",
@@ -61,14 +61,14 @@ def _verificacion(conn: sqlite3.Connection, uid: str) -> sqlite3.Row | None:
 
 
 def _revision(conn: sqlite3.Connection, uid: str) -> sqlite3.Row | None:
-    """El detalle de la revisión aprobada, si la idea está ahí."""
+    """El detalle de la revisión aprobada, si el ítem está ahí."""
     return conn.execute(
         "SELECT approved_by, nota FROM revision_node WHERE uid = ?", (uid,)
     ).fetchone()
 
 
 def _rechazo(conn: sqlite3.Connection, uid: str) -> sqlite3.Row | None:
-    """El detalle del descarte, si la idea está ahí."""
+    """El detalle del descarte, si el ítem está ahí."""
     return conn.execute(
         "SELECT rejected_description, rejected_by, superseded_by_uid"
         " FROM rejected_node WHERE uid = ?",
@@ -77,7 +77,7 @@ def _rechazo(conn: sqlite3.Connection, uid: str) -> sqlite3.Row | None:
 
 
 def _estado(conn: sqlite3.Connection, uid: str) -> str:
-    """El estado que manda: el de la fila de nodo de la idea."""
+    """El estado que manda: el de la fila de nodo de el ítem."""
     fila = conn.execute("SELECT estado FROM idea_node WHERE uid = ?", (uid,)).fetchone()
     return str(fila[0]) if fila else "draft"
 
@@ -91,7 +91,7 @@ def _grupo(estado: str) -> str:
 def _escribir_estado(
     conn: sqlite3.Connection, uid: str, estado: str, detalle: dict[str, Any]
 ) -> None:
-    """Mueve el nodo de una idea y escribe el detalle de la estancia.
+    """Mueve el nodo de un ítem y escribe el detalle de la estancia.
 
     Un cambio de estado es un UPDATE de `idea_node` (estado, posición y
     `entered_at`) más la fila de detalle que toque. La entrada (`draft`) es un
@@ -189,7 +189,7 @@ def _escribir_estado(
 
 
 def _escribir_rechazo(conn: sqlite3.Connection, uid: str, detalle: dict[str, Any]) -> None:
-    """El detalle del descarte, con upsert: re-descartar la misma idea no duplica."""
+    """El detalle del descarte, con upsert: re-descartar la misma item no duplica."""
     conn.execute(
         "INSERT INTO rejected_node"
         " (uid, rejected_description, rejected_by, superseded_by_uid)"
@@ -227,7 +227,7 @@ def _validar_campos_ficha(detalle: dict[str, Any], estado: str) -> None:
 def _actualizar_ficha_activa(
     conn: sqlite3.Connection, uid: str, estado: str, detalle: dict[str, Any]
 ) -> None:
-    """Edita solo los campos dados de la ficha en la que ya vive la idea.
+    """Edita solo los campos dados de la ficha en la que ya vive el ítem.
 
     Es el PATCH sin `status` (o reafirmándolo): antes esos campos se
     descartaban y el 200 devolvía el valor viejo.

@@ -26,8 +26,8 @@ export default {
       externos.data.length === 1 && externos.data[0].type === "sistema.reinicio",
       "el filtro de origen externo dice uno",
     );
-    const deIdeas = await api("/eventos?origen=idea&repo=lab");
-    await expect(deIdeas.data.length === 0, "de ideas no hay ninguna en este lab fresco");
+    const deItems = await api("/eventos?origen=item&repo=lab");
+    await expect(deItems.data.length === 0, "de ítems no hay ninguno en este lab fresco");
 
     const antes = await api("/log?limite=200");
     await expect(antes.data.length > 0, "el registro ya tiene entradas");

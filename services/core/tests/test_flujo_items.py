@@ -9,11 +9,11 @@ from __future__ import annotations
 
 import sqlite3
 
-from events_core import ideas
+from events_core import items
 
 
 def _crear(client, repo, **kw):  # noqa: ANN001, ANN202
-    return client.post("/ideas", params={"repo": repo}, json={"title": "A", **kw}).json()["uid"]
+    return client.post("/items", params={"repo": repo}, json={"title": "A", **kw}).json()["uid"]
 
 
 def _paso(client, repo, uid, status, **detalle):  # noqa: ANN001, ANN202
@@ -32,7 +32,7 @@ def _paso(client, repo, uid, status, **detalle):  # noqa: ANN001, ANN202
                 "requisitos": [{"titulo": "Comprobar", "hecho": True}],
             }
         ]
-    r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": status, **detalle})
+    r = client.patch(f"/items/{uid}", params={"repo": repo}, json={"status": status, **detalle})
     assert r.status_code == 200, r.json()
     return r.json()
 
@@ -71,7 +71,7 @@ def test_flujo_completo_con_campos_y_regreso_a_cola(client, repo):  # noqa: ANN0
 
     # El regreso va al final de la cola, no conserva la posición vieja.
     _paso(client, repo, uid, "proposed")
-    r = client.get("/ideas", params={"repo": repo, "status": "proposed"})
+    r = client.get("/items", params={"repo": repo, "status": "proposed"})
     assert [i["uid"] for i in r.json()] == [segunda, uid]
 
     _paso(client, repo, uid, "roadmap")
@@ -84,7 +84,7 @@ def test_flujo_completo_con_campos_y_regreso_a_cola(client, repo):  # noqa: ANN0
         approved_by="agente",
         revision_nota="Correcta",
     )
-    # Aprobar archiva: la idea queda en historial, con su firma y sus fases.
+    # Aprobar archiva: el ítem queda en historial, con su firma y sus fases.
     assert aprobada["status"] == "historial"
     assert aprobada["revision_approved_at"] is not None
     assert aprobada["revision_approved_by"] == "agente"
@@ -92,7 +92,7 @@ def test_flujo_completo_con_campos_y_regreso_a_cola(client, repo):  # noqa: ANN0
     assert aprobada["fases"][0]["estado"] == "completada"
     assert aprobada["fases"][0]["requisitos"][0]["hecho"] is True
 
-    conn = sqlite3.connect(str(ideas.db_file_for(repo)))
+    conn = sqlite3.connect(str(items.db_file_for(repo)))
     for tabla in ("roadmap_node", "verificacion_node"):
         conteo = conn.execute(f"SELECT count(*) FROM {tabla} WHERE uid = ?", (uid,)).fetchone()[0]
         assert conteo == 0
@@ -111,17 +111,17 @@ def test_aprobar_exige_todos_los_requisitos(client, repo):  # noqa: ANN001, ANN2
 
     # Se simula una fase marcada completada con un requisito pendiente, algo
     # que la API no deja escribir pero un almacén antiguo podría traer.
-    conn = sqlite3.connect(str(ideas.db_file_for(repo)))
+    conn = sqlite3.connect(str(items.db_file_for(repo)))
     try:
         conn.execute("UPDATE idea_requisito SET hecho = 0 WHERE idea_uid = ?", (uid,))
         conn.commit()
     finally:
         conn.close()
 
-    r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": "revision_aprobada"})
+    r = client.patch(f"/items/{uid}", params={"repo": repo}, json={"status": "revision_aprobada"})
     assert r.status_code == 400
     assert "requisitos sin completar" in r.json()["detail"]
-    assert client.get(f"/ideas/{uid}", params={"repo": repo}).json()["status"] == "verificacion"
+    assert client.get(f"/items/{uid}", params={"repo": repo}).json()["status"] == "verificacion"
 
 
 def test_intentos_cuentan_las_vueltas(client, repo):  # noqa: ANN001, ANN202
@@ -147,14 +147,14 @@ def test_editar_ficha_activa_sin_cambiar_estado(client, repo):  # noqa: ANN001, 
     _paso(client, repo, uid, "roadmap", roadmap_resultado="Hecho", roadmap_referencia="commit abc")
 
     r = client.patch(
-        f"/ideas/{uid}",
+        f"/items/{uid}",
         params={"repo": repo},
         json={"roadmap_resultado": "Hecho dos"},
     )
     assert r.status_code == 200, r.json()
     assert r.json()["roadmap_resultado"] == "Hecho dos"
 
-    r = client.get(f"/ideas/{uid}", params={"repo": repo})
+    r = client.get(f"/items/{uid}", params={"repo": repo})
     assert r.json()["roadmap_resultado"] == "Hecho dos"
     assert r.json()["roadmap_referencia"] == "commit abc"
 
@@ -164,7 +164,7 @@ def test_campos_de_otra_ficha_se_rechazan(client, repo):  # noqa: ANN001, ANN202
     _paso(client, repo, uid, "roadmap", roadmap_resultado="Hecho")
 
     r = client.patch(
-        f"/ideas/{uid}",
+        f"/items/{uid}",
         params={"repo": repo},
         json={"verificacion_resultado": "Todavía no"},
     )
@@ -172,13 +172,13 @@ def test_campos_de_otra_ficha_se_rechazan(client, repo):  # noqa: ANN001, ANN202
     assert "verificacion_resultado" in r.json()["detail"]
     assert "roadmap" in r.json()["detail"]
 
-    r = client.get(f"/ideas/{uid}", params={"repo": repo})
+    r = client.get(f"/items/{uid}", params={"repo": repo})
     assert r.json()["roadmap_resultado"] == "Hecho"
     assert r.json()["verificacion_ultimo_resultado"] == ""
 
 
 def test_el_mapa_ordena_la_cola_por_posicion(client, repo):  # noqa: ANN001, ANN202
-    """El mapa pinta la cola como la lista `/ideas`: quien vuelve de
+    """El mapa pinta la cola como la lista `/items`: quien vuelve de
     verificación estrena posición y aparece al final en los dos sitios."""
     primera = _crear(client, repo, status="proposed")
     segunda = _crear(client, repo, status="proposed")
@@ -190,7 +190,7 @@ def test_el_mapa_ordena_la_cola_por_posicion(client, repo):  # noqa: ANN001, ANN
     _paso(client, repo, segunda, "proposed")
 
     esperado = [primera, tercera, segunda]
-    r = client.get("/ideas", params={"repo": repo, "status": "proposed"})
+    r = client.get("/items", params={"repo": repo, "status": "proposed"})
     assert [i["uid"] for i in r.json()] == esperado
 
     mapa = client.get("/mapa", params={"repo": repo}).json()["ideas"]
@@ -200,21 +200,21 @@ def test_el_mapa_ordena_la_cola_por_posicion(client, repo):  # noqa: ANN001, ANN
 def test_transiciones_no_listadas_se_rechazan(client, repo):  # noqa: ANN001, ANN202
     uid = _crear(client, repo)
     for destino in ("roadmap", "verificacion", "revision_aprobada"):
-        r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": destino})
+        r = client.patch(f"/items/{uid}", params={"repo": repo}, json={"status": destino})
         assert r.status_code == 400
         assert "protocolo" in r.json()["detail"]
 
     _paso(client, repo, uid, "proposed")
-    r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": "verificacion"})
+    r = client.patch(f"/items/{uid}", params={"repo": repo}, json={"status": "verificacion"})
     assert r.status_code == 400
 
     _paso(client, repo, uid, "roadmap")
-    r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": "proposed"})
+    r = client.patch(f"/items/{uid}", params={"repo": repo}, json={"status": "proposed"})
     assert r.status_code == 400
 
     _paso(client, repo, uid, "verificacion")
     for destino in ("draft", "historial"):
-        r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": destino})
+        r = client.patch(f"/items/{uid}", params={"repo": repo}, json={"status": destino})
         assert r.status_code == 400
         assert "protocolo" in r.json()["detail"]
 
@@ -227,7 +227,7 @@ def test_verificacion_puede_volver_a_roadmap_o_descartarse(client, repo):  # noq
 
     # Rechazo con rehacer: vuelve a roadmap sin reemplazar las fases que ya
     # tenía; el PATCH de retorno solo cambia el carril.
-    r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": "roadmap"})
+    r = client.patch(f"/items/{uid}", params={"repo": repo}, json={"status": "roadmap"})
     assert r.status_code == 200, r.json()
     vuelve = r.json()
     assert vuelve["status"] == "roadmap"
@@ -251,7 +251,7 @@ def test_borrar_la_sustituta_conserva_el_vinculo(client, repo):  # noqa: ANN001,
     sustituta = _crear(client, repo, title="Nueva")
     vieja = _crear(client, repo, title="Vieja", status="proposed")
     r = client.patch(
-        f"/ideas/{vieja}",
+        f"/items/{vieja}",
         params={"repo": repo},
         json={"status": "rejected", "superseded_by_uid": sustituta},
     )
@@ -262,46 +262,46 @@ def test_borrar_la_sustituta_conserva_el_vinculo(client, repo):  # noqa: ANN001,
     # el borrado definitivo; el vínculo sigue bloqueando.
     assert (
         client.patch(
-            f"/ideas/{sustituta}",
+            f"/items/{sustituta}",
             params={"repo": repo},
             json={"status": "rejected", "rejected_description": "sustituta de prueba"},
         ).status_code
         == 200
     )
-    r = client.delete(f"/ideas/{sustituta}", params={"repo": repo})
+    r = client.delete(f"/items/{sustituta}", params={"repo": repo})
     assert r.status_code == 400
     assert sustituta in r.json()["detail"]
     assert vieja in r.json()["detail"]
 
     # Las dos siguen ahí y el vínculo intacto.
-    assert client.get(f"/ideas/{sustituta}", params={"repo": repo}).status_code == 200
-    vieja_leida = client.get(f"/ideas/{vieja}", params={"repo": repo}).json()
+    assert client.get(f"/items/{sustituta}", params={"repo": repo}).status_code == 200
+    vieja_leida = client.get(f"/items/{vieja}", params={"repo": repo}).json()
     assert vieja_leida["status"] == "rejected"
     assert vieja_leida["superseded_by_uid"] == sustituta
 
     # Sin la ficha que la referencia, el borrado pasa.
-    assert client.delete(f"/ideas/{vieja}", params={"repo": repo}).status_code == 204
-    assert client.delete(f"/ideas/{sustituta}", params={"repo": repo}).status_code == 204
+    assert client.delete(f"/items/{vieja}", params={"repo": repo}).status_code == 204
+    assert client.delete(f"/items/{sustituta}", params={"repo": repo}).status_code == 204
 
 
 def test_borrar_exige_descartadas(client, repo):  # noqa: ANN001, ANN202
     """El DELETE no salta Descartadas: primero se descarta, luego se elimina."""
     uid = _crear(client, repo, status="proposed")
-    r = client.delete(f"/ideas/{uid}", params={"repo": repo})
+    r = client.delete(f"/items/{uid}", params={"repo": repo})
     assert r.status_code == 400
     assert "descártala" in r.json()["detail"]
-    assert client.get(f"/ideas/{uid}", params={"repo": repo}).status_code == 200
+    assert client.get(f"/items/{uid}", params={"repo": repo}).status_code == 200
 
     assert (
         client.patch(
-            f"/ideas/{uid}",
+            f"/items/{uid}",
             params={"repo": repo},
             json={"status": "rejected", "rejected_description": "fuera"},
         ).status_code
         == 200
     )
-    assert client.delete(f"/ideas/{uid}", params={"repo": repo}).status_code == 204
-    assert client.get(f"/ideas/{uid}", params={"repo": repo}).status_code == 404
+    assert client.delete(f"/items/{uid}", params={"repo": repo}).status_code == 204
+    assert client.get(f"/items/{uid}", params={"repo": repo}).status_code == 404
 
 
 def test_roadmap_solo_un_activo(client, repo):  # noqa: ANN001, ANN202
@@ -310,7 +310,7 @@ def test_roadmap_solo_un_activo(client, repo):  # noqa: ANN001, ANN202
     _paso(client, repo, primera, "roadmap")
 
     r = client.patch(
-        f"/ideas/{segunda}",
+        f"/items/{segunda}",
         params={"repo": repo},
         json={
             "status": "roadmap",
@@ -319,7 +319,7 @@ def test_roadmap_solo_un_activo(client, repo):  # noqa: ANN001, ANN202
     )
     assert r.status_code == 400
     assert "solo admite un item activo" in r.json()["detail"]
-    r = client.get("/ideas", params={"repo": repo, "status": "proposed"})
+    r = client.get("/items", params={"repo": repo, "status": "proposed"})
     assert [i["uid"] for i in r.json()] == [segunda]
 
 
@@ -335,25 +335,25 @@ def test_filtros_por_estado_nuevo(client, repo):  # noqa: ANN001, ANN202
         "rejected": _crear(client, repo, status="rejected"),
     }
     for estado, uid in esperados.items():
-        r = client.get("/ideas", params={"repo": repo, "status": estado})
+        r = client.get("/items", params={"repo": repo, "status": estado})
         assert [i["uid"] for i in r.json()] == [uid]
 
 
 def test_dependencia_bloquea_hasta_la_revision_aprobada(client, repo):  # noqa: ANN001, ANN202
-    """Un ítem no entra en roadmap mientras otra idea de la que depende no esté
+    """Un ítem no entra en roadmap mientras otra item de la que depende no esté
     aprobada; al aprobarse, el mismo movimiento pasa."""
     base = _crear(client, repo, title="Base")
     dependiente = _crear(client, repo, title="Dependiente", status="proposed")
 
-    r = client.patch(f"/ideas/{dependiente}", params={"repo": repo}, json={"depende_de": [base]})
+    r = client.patch(f"/items/{dependiente}", params={"repo": repo}, json={"depende_de": [base]})
     assert r.status_code == 200, r.json()
     assert r.json()["depende_de"] == [base]
 
-    r = client.patch(f"/ideas/{dependiente}", params={"repo": repo}, json={"status": "roadmap"})
+    r = client.patch(f"/items/{dependiente}", params={"repo": repo}, json={"status": "roadmap"})
     assert r.status_code == 400
     assert "Base" in r.json()["detail"]
     assert "revisión aprobada" in r.json()["detail"]
-    assert client.get(f"/ideas/{dependiente}", params={"repo": repo}).json()["status"] == (
+    assert client.get(f"/items/{dependiente}", params={"repo": repo}).json()["status"] == (
         "proposed"
     )
 
@@ -370,10 +370,10 @@ def test_dependencia_bloquea_hasta_la_revision_aprobada(client, repo):  # noqa: 
 def test_dependencia_descartada_no_libera(client, repo):  # noqa: ANN001, ANN202
     base = _crear(client, repo, title="Base", status="proposed")
     dependiente = _crear(client, repo, title="Dependiente", status="proposed")
-    client.patch(f"/ideas/{dependiente}", params={"repo": repo}, json={"depende_de": [base]})
+    client.patch(f"/items/{dependiente}", params={"repo": repo}, json={"depende_de": [base]})
 
     _paso(client, repo, base, "rejected", rejected_description="no va")
-    r = client.patch(f"/ideas/{dependiente}", params={"repo": repo}, json={"status": "roadmap"})
+    r = client.patch(f"/items/{dependiente}", params={"repo": repo}, json={"status": "roadmap"})
     assert r.status_code == 400
     assert "Base" in r.json()["detail"]
 
@@ -382,29 +382,29 @@ def test_dependencias_validan_uid_y_ciclos(client, repo):  # noqa: ANN001, ANN20
     a = _crear(client, repo, title="A")
     b = _crear(client, repo, title="B")
 
-    r = client.patch(f"/ideas/{a}", params={"repo": repo}, json={"depende_de": ["no-existe"]})
+    r = client.patch(f"/items/{a}", params={"repo": repo}, json={"depende_de": ["no-existe"]})
     assert r.status_code == 400
     assert "no existen" in r.json()["detail"]
 
-    r = client.patch(f"/ideas/{a}", params={"repo": repo}, json={"depende_de": [a]})
+    r = client.patch(f"/items/{a}", params={"repo": repo}, json={"depende_de": [a]})
     assert r.status_code == 400
     assert "sí misma" in r.json()["detail"]
 
     assert (
-        client.patch(f"/ideas/{a}", params={"repo": repo}, json={"depende_de": [b]}).status_code
+        client.patch(f"/items/{a}", params={"repo": repo}, json={"depende_de": [b]}).status_code
         == 200
     )
-    r = client.patch(f"/ideas/{b}", params={"repo": repo}, json={"depende_de": [a]})
+    r = client.patch(f"/items/{b}", params={"repo": repo}, json={"depende_de": [a]})
     assert r.status_code == 400
     assert "ciclo" in r.json()["detail"]
 
     # Crear con dependencias: se guardan y el avance se frena igual.
     nueva = client.post(
-        "/ideas", params={"repo": repo}, json={"title": "C", "depende_de": [a]}
+        "/items", params={"repo": repo}, json={"title": "C", "depende_de": [a]}
     ).json()
     assert nueva["depende_de"] == [a]
     r = client.post(
-        "/ideas",
+        "/items",
         params={"repo": repo},
         json={"title": "D", "status": "roadmap", "depende_de": [a]},
     )
@@ -412,18 +412,18 @@ def test_dependencias_validan_uid_y_ciclos(client, repo):  # noqa: ANN001, ANN20
     assert "sin revisión aprobada" in r.json()["detail"]
 
 
-def test_borrar_una_idea_la_quita_de_las_dependencias(client, repo):  # noqa: ANN001, ANN202
+def test_borrar_una_item_la_quita_de_las_dependencias(client, repo):  # noqa: ANN001, ANN202
     a = _crear(client, repo, title="A")
     b = _crear(client, repo, title="B")
-    client.patch(f"/ideas/{b}", params={"repo": repo}, json={"depende_de": [a]})
+    client.patch(f"/items/{b}", params={"repo": repo}, json={"depende_de": [a]})
 
     assert (
         client.patch(
-            f"/ideas/{a}",
+            f"/items/{a}",
             params={"repo": repo},
             json={"status": "rejected", "rejected_description": "ya no"},
         ).status_code
         == 200
     )
-    assert client.delete(f"/ideas/{a}", params={"repo": repo}).status_code == 204
-    assert client.get(f"/ideas/{b}", params={"repo": repo}).json()["depende_de"] == []
+    assert client.delete(f"/items/{a}", params={"repo": repo}).status_code == 204
+    assert client.get(f"/items/{b}", params={"repo": repo}).json()["depende_de"] == []

@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import os
 
-from events_core import ideas
-from events_core.ideas.base import migraciones
+from events_core import items
+from events_core.items.base import migraciones
 
 
 def _vigilar_conexiones(monkeypatch) -> list[object]:  # noqa: ANN001, ANN202
@@ -28,25 +28,25 @@ def _vigilar_conexiones(monkeypatch) -> list[object]:  # noqa: ANN001, ANN202
 
 
 def test_el_almacen_ya_comprobado_no_se_abre_otra_vez(repo, monkeypatch):  # noqa: ANN001, ANN202
-    ideas.init_repo(repo)
+    items.init_repo(repo)
     llamadas = _vigilar_conexiones(monkeypatch)
 
-    ideas.ensure_repo(repo)  # la primera lectura comprueba la versión
-    ideas.ensure_repo(repo)  # la segunda ya lo sabe
-    ideas.ensure_repo(repo)
+    items.ensure_repo(repo)  # la primera lectura comprueba la versión
+    items.ensure_repo(repo)  # la segunda ya lo sabe
+    items.ensure_repo(repo)
     assert len(llamadas) == 1
 
 
 def test_un_fichero_que_cambia_se_vuelve_a_comprobar(repo, monkeypatch):  # noqa: ANN001, ANN202
-    db = ideas.init_repo(repo)
-    ideas.ensure_repo(repo)  # queda al día y recordado
+    db = items.init_repo(repo)
+    items.ensure_repo(repo)  # queda al día y recordado
     llamadas = _vigilar_conexiones(monkeypatch)
 
-    ideas.ensure_repo(repo)
+    items.ensure_repo(repo)
     assert llamadas == []
 
     # El fichero cambia por detrás (aquí, la fecha): la huella ya no coincide.
     os.utime(db, ns=(0, 0))
 
-    ideas.ensure_repo(repo)
+    items.ensure_repo(repo)
     assert len(llamadas) == 1

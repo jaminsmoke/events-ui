@@ -132,7 +132,7 @@ def test_tools_call_reutiliza_el_cli(monkeypatch) -> None:
 
 def test_tools_call_devuelve_el_error_del_cli(monkeypatch) -> None:
     def falso(argv):
-        print("error: no existe la idea u1", file=sys.stderr)
+        print("error: no existe el ítem u1", file=sys.stderr)
         return 1
 
     monkeypatch.setattr(mcp_servidor.cli, "main", falso)
@@ -142,7 +142,7 @@ def test_tools_call_devuelve_el_error_del_cli(monkeypatch) -> None:
     )
 
     assert respuesta["result"]["isError"] is True
-    assert "no existe la idea" in respuesta["result"]["content"][0]["text"]
+    assert "no existe el ítem" in respuesta["result"]["content"][0]["text"]
 
 
 def test_campo_desconocido_es_error_de_protocolo(monkeypatch) -> None:
@@ -316,7 +316,7 @@ def test_tools_list_anuncia_los_alias_deprecados() -> None:
         assert "_meta" not in por_nombre[canonico]
 
 
-def test_alias_idea_devuelve_lo_mismo_que_item(monkeypatch) -> None:
+def test_alias_item_devuelve_lo_mismo_que_item(monkeypatch) -> None:
     vistos: list[list[str]] = []
 
     def falso(argv):

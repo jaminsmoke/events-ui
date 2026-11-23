@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from events_core.ideas.base.comun import InvalidInput, escribir_atomico
-from events_core.ideas.base.esquema import ensure_repo
-from events_core.ideas.base.eui_fs import (
+from events_core.items.base.comun import InvalidInput, escribir_atomico
+from events_core.items.base.esquema import ensure_repo
+from events_core.items.base.eui_fs import (
     es_permitida_en_eui,
     inventariar_ajenos,
     purgar_eui,
@@ -75,7 +75,7 @@ def test_ensure_repo_purga_ajenos(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     monkeypatch.setenv("EVENTSUI_REPOS_ROOT", str(tmp_path))
     repo = tmp_path / "lab"
     repo.mkdir()
-    from events_core.ideas.base.esquema import init_repo
+    from events_core.items.base.esquema import init_repo
 
     init_repo(str(repo))
     eui = repo / ".EUI"

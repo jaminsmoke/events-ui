@@ -10,7 +10,7 @@ from ..modelo.estados import FASE_ESTADOS
 
 
 def _requisitos(conn: sqlite3.Connection, uid: str) -> dict[int, list[dict[str, Any]]]:
-    """Los requisitos de la idea, agrupados por el orden de su fase (0025)."""
+    """Los requisitos de el ítem, agrupados por el orden de su fase (0025)."""
     por_fase: dict[int, list[dict[str, Any]]] = {}
     for fila in conn.execute(
         "SELECT fase_orden, orden, titulo, hecho, done_at"
@@ -82,7 +82,7 @@ def _con_archivos(
 
 
 def _fases(conn: sqlite3.Connection, uid: str) -> list[dict[str, Any]]:
-    """Las fases de una idea, en orden (`idea_fase`, 0021), con sus requisitos."""
+    """Las fases de un ítem, en orden (`idea_fase`, 0021), con sus requisitos."""
     filas = conn.execute(
         "SELECT orden, titulo, estado, nota, entered_at"
         " FROM idea_fase WHERE idea_uid = ? ORDER BY orden",
@@ -101,7 +101,7 @@ def _fases(conn: sqlite3.Connection, uid: str) -> list[dict[str, Any]]:
 
 
 def _fases_en_lote(conn: sqlite3.Connection, uids: list[str]) -> dict[str, list[dict[str, Any]]]:
-    """Las fases de muchas ideas, en una consulta (listado y mapa)."""
+    """Las fases de muchas items, en una consulta (listado y mapa)."""
     por_uid: dict[str, list[dict[str, Any]]] = {uid: [] for uid in uids}
     if not uids:
         return por_uid
@@ -121,7 +121,7 @@ def _fases_en_lote(conn: sqlite3.Connection, uids: list[str]) -> dict[str, list[
             }
         )
     # Los archivos viajan sin contenido: el mapa y el listado enseñan el
-    # recuento y la ruta, no el parche (eso es la ficha, una idea a la vez).
+    # recuento y la ruta, no el parche (eso es la ficha, un ítem a la vez).
     anotados: dict[tuple[str, int], list[dict[str, Any]]] = {}
     for fila in conn.execute(
         "SELECT idea_uid, fase_orden, requisito_orden, ruta, estado, desde"
@@ -269,7 +269,7 @@ def _normalizar_fases(fases: Any, existentes: list[dict[str, Any]]) -> list[dict
 
 
 def _escribir_fases(conn: sqlite3.Connection, uid: str, fases: list[dict[str, Any]]) -> None:
-    """Reemplaza las fases de la idea (borra e inserta, en su transacción).
+    """Reemplaza las fases de el ítem (borra e inserta, en su transacción).
 
     El borrado se lleva los requisitos por la cascada; después se insertan los
     que traiga cada fase, en el mismo orden. Todo o nada.

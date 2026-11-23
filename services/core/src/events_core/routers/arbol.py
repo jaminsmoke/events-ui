@@ -6,7 +6,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, Response
 
-from .. import arbol, ideas
+from .. import arbol, items
 from ..contrato import RESPUESTAS_ERROR, Archivo, ErrorDetail, NivelArbol, RepoParam
 
 router = APIRouter()
@@ -26,7 +26,7 @@ def get_arbol(
     que uno pequeño: nunca se recorre el árbol entero. Sin `rutas` se devuelve
     solo la raíz, que es lo que el pane enseña plegado.
     """
-    carpeta = ideas.resolve_repo(repo)
+    carpeta = items.resolve_repo(repo)
     return arbol.niveles(carpeta, list(rutas or []))
 
 
@@ -52,7 +52,7 @@ def get_archivo(
     enseñar el aviso sin intentar pintar bytes. La ruta no sale de la raíz.
     """
     try:
-        return arbol.leer_archivo(ideas.resolve_repo(repo), ruta)
+        return arbol.leer_archivo(items.resolve_repo(repo), ruta)
     except arbol.ArchivoBinario as exc:
         raise HTTPException(
             status_code=415, detail=f"El archivo no es texto legible: {exc}"
@@ -81,7 +81,7 @@ def get_archivo_bytes(
     tipo viaja en `Content-Type` y `nosniff` evita que el navegador lo adivine.
     """
     try:
-        datos, tipo = arbol.leer_imagen(ideas.resolve_repo(repo), ruta)
+        datos, tipo = arbol.leer_imagen(items.resolve_repo(repo), ruta)
     except arbol.ArchivoNoImagen as exc:
         raise HTTPException(status_code=415, detail=f"No es una imagen: {exc}") from exc
     except arbol.ArchivoDemasiadoGrande as exc:

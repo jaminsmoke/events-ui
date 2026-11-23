@@ -1,7 +1,7 @@
 """Los archivos que toca cada fase, anotados por evento y sin watcher.
 
 La app va por eventos y esto también: no hay vigilancia permanente. Se toma una
-foto del árbol cuando la idea entra en roadmap (ahí empieza el trabajo) y cada
+foto del árbol cuando el ítem entra en roadmap (ahí empieza el trabajo) y cada
 vez que una fase se cierra; lo que cambió entre una foto y la siguiente es lo
 que tocó esa fase.
 
@@ -23,7 +23,7 @@ from typing import Any
 from . import proceso
 
 # Tope de archivos por foto. Por encima se anota lo que quepa en orden
-# alfabético: el árbol de una idea no suele acercarse, pero un `vendor/` suelto
+# alfabético: el árbol de un ítem no suele acercarse, pero un `vendor/` suelto
 # no puede convertir cada cierre de fase en media base de datos.
 LIMITE_ARCHIVOS = 5000
 # Espacio para el contenido: por archivo y por fase, contado en bytes —lo que
@@ -31,7 +31,7 @@ LIMITE_ARCHIVOS = 5000
 # queda sin contenido (`None`), nunca con medio parche.
 LIMITE_CONTENIDO = 64 * 1024
 LIMITE_TOTAL = 512 * 1024
-# Carpetas que nunca cuentan como trabajo de la idea: dependencias, cachés y la
+# Carpetas que nunca cuentan como trabajo de el ítem: dependencias, cachés y la
 # propia base. Con Git lo resuelve `ls-files`; esto es para cuando no lo hay.
 PODA = {
     ".git",
@@ -98,7 +98,7 @@ def _nombres(carpeta: Path) -> list[str]:
         else None
     )
     if salida is not None:
-        # `.EUI` viaja con el repo, pero la base se escribe sola en cada idea:
+        # `.EUI` viaja con el repo, pero la base se escribe sola en cada item:
         # contarla haría que toda fase tocara «un archivo».
         nombres = [
             ruta
@@ -145,7 +145,7 @@ def cambios(
     """Qué archivos cambiaron entre dos fotos, en orden de ruta.
 
     `nuevo` es lo que no estaba, `borrado` lo que ya no está y `modificado` lo
-    que cambió de tamaño o de fecha. Una idea que no tocó nada da lista vacía:
+    que cambió de tamaño o de fecha. Una item que no tocó nada da lista vacía:
     no se inventa un cambio por el simple paso del tiempo.
 
     Mover un archivo sin Git deja un borrado y un nuevo con la misma huella

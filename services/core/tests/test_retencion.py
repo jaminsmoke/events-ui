@@ -6,7 +6,7 @@ import sqlite3
 from contextlib import closing
 from datetime import UTC, datetime, timedelta
 
-from events_core import eventos, ideas, registro
+from events_core import eventos, items, registro
 
 
 def _instantes(dias: int) -> tuple[str, str]:
@@ -23,9 +23,9 @@ def _instantes(dias: int) -> tuple[str, str]:
 
 
 def test_evento_del_mismo_dia_anterior_al_corte(repo) -> None:
-    ideas.init_repo(repo)
+    items.init_repo(repo)
     antes, despues = _instantes(5)
-    db_file = ideas.db_file_for(repo)
+    db_file = items.db_file_for(repo)
     with closing(sqlite3.connect(db_file)) as conn:
         conn.executemany(
             "INSERT INTO event (ts, type, payload, origen) VALUES (?, 'prueba', ?, 'test')",

@@ -1,4 +1,4 @@
-"""Dependencias entre ideas: grafo, compuertas y avance bloqueado."""
+"""Dependencias entre items: grafo, compuertas y avance bloqueado."""
 
 from __future__ import annotations
 
@@ -9,13 +9,13 @@ from .estados import _estado
 
 # Estados a los que un ítem no puede entrar con una dependencia sin aprobar.
 # Volver a cola, quedarse en la entrada o descartarse sí se permite: si no,
-# una idea bloqueada no tendría salida. El historial también es avance, pero
-# una idea solo llega archivada desde la aprobación, que ya lo comprobó.
+# un ítem bloqueada no tendría salida. El historial también es avance, pero
+# un ítem solo llega archivada desde la aprobación, que ya lo comprobó.
 AVANCE = ("roadmap", "verificacion", "revision_aprobada", "historial")
 
 
 def _depende_de(conn: sqlite3.Connection, uid: str) -> list[str]:
-    """Los uids que bloquean a esta idea (`depende_de`, 0018)."""
+    """Los uids que bloquean a este ítem (`depende_de`, 0018)."""
     fila = conn.execute("SELECT depende_de FROM idea_data WHERE uid = ?", (uid,)).fetchone()
     return _tags_json(fila[0]) if fila else []
 
@@ -32,7 +32,7 @@ def _validar_dependencias(conn: sqlite3.Connection, uid: str, deps: list[str]) -
         if dep not in limpias:
             limpias.append(dep)
     if uid in limpias:
-        raise InvalidInput("una idea no puede depender de sí misma")
+        raise InvalidInput("un ítem no puede depender de sí misma")
     if limpias:
         marcas = ",".join("?" for _ in limpias)
         existentes = {
@@ -41,14 +41,14 @@ def _validar_dependencias(conn: sqlite3.Connection, uid: str, deps: list[str]) -
         }
         faltan = [dep for dep in limpias if dep not in existentes]
         if faltan:
-            raise InvalidInput(f"depende_de apunta a ideas que no existen: {', '.join(faltan)}")
+            raise InvalidInput(f"depende_de apunta a items que no existen: {', '.join(faltan)}")
 
     pila = list(limpias)
     visto: set[str] = set()
     while pila:
         actual = pila.pop()
         if actual == uid:
-            raise InvalidInput("depende_de forma un ciclo: una idea no puede bloquearse a sí misma")
+            raise InvalidInput("depende_de forma un ciclo: un ítem no puede bloquearse a sí misma")
         if actual in visto:
             continue
         visto.add(actual)
@@ -59,7 +59,7 @@ def _validar_dependencias(conn: sqlite3.Connection, uid: str, deps: list[str]) -
 def _sin_aprobar(conn: sqlite3.Connection, deps: list[str]) -> list[str]:
     """Títulos de las dependencias que aún no están aprobadas.
 
-    El historial cuenta como aprobado: archivar una idea no puede desbloquear
+    El historial cuenta como aprobado: archivar un ítem no puede desbloquear
     ni volver a bloquear a las que dependen de ella.
     """
     pendientes: list[str] = []

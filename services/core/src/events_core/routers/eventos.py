@@ -23,7 +23,7 @@ def get_eventos(
     repo: RepoParam,
     desde: Annotated[int, Query(ge=0, description="Cursor: solo eventos con id mayor")] = 0,
     limite: Annotated[int, Query(ge=1, le=1000)] = eventos.LIMITE_POR_DEFECTO,
-    origen: str | None = Query(default=None, description="Solo este origen: `idea`, `externo`, …"),
+    origen: str | None = Query(default=None, description="Solo este origen: `item`, `externo`, …"),
 ) -> list[dict[str, Any]]:
     """Tail por cursor: backfill histórico con `id > desde`."""
     return eventos.tail(repo, desde, limite, origen)

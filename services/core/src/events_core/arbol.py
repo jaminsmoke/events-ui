@@ -20,7 +20,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from .ideas import InvalidInput
+from .items import InvalidInput
 
 # Tope por nivel: una carpeta con miles de entradas no puede hinchar la
 # respuesta ni congelar el pane. Lo que no cabe se avisa (`recortado`).

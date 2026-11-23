@@ -27,7 +27,7 @@ from .trabajo.fases import _escribir_fases, _normalizar_fases
 
 
 def aplicar_migracion(repo: str, plan: dict[str, Any], *, plan_sha256: str) -> dict[str, Any]:
-    """Crea todas las ideas del plan o ninguna.
+    """Crea todos los ítems del plan o ninguna.
 
     El plan ya viene validado por `events_core.migracion.revisar` (esquema,
     refs, ciclos y orígenes), pero aquí se vuelve a comprobar lo que toca a la
@@ -42,31 +42,31 @@ def aplicar_migracion(repo: str, plan: dict[str, Any], *, plan_sha256: str) -> d
 
         lote = uuid.uuid4().hex
         ts = now_iso()
-        ideas = plan["ideas"]
-        # Los uids se reparten antes de insertar: las dependencias entre ideas
+        items = plan["ideas"]
+        # Los uids se reparten antes de insertar: las dependencias entre items
         # del mismo lote se resuelven sin depender del orden de escritura.
-        uids = {idea["ref"]: uuid.uuid4().hex for idea in ideas}
+        uids = {item["ref"]: uuid.uuid4().hex for item in items}
 
         conn.execute("BEGIN IMMEDIATE")
         try:
             conn.execute(
                 "INSERT INTO migracion_lote (id, plan_sha256, creado_at, ideas)"
                 " VALUES (?, ?, ?, ?)",
-                (lote, plan_sha256, ts, len(ideas)),
+                (lote, plan_sha256, ts, len(items)),
             )
-            for idea in ideas:
-                uid = uids[idea["ref"]]
-                _insertar_idea(conn, idea, uid, ts)
-                _anotar_origen(conn, lote, idea, uid, ts)
-                _emitir(conn, "idea.created", {"uid": uid, "title": idea["title"]})
+            for item in items:
+                uid = uids[item["ref"]]
+                _insertar_item(conn, item, uid, ts)
+                _anotar_origen(conn, lote, item, uid, ts)
+                _emitir(conn, "item.created", {"uid": uid, "title": item["title"]})
 
-            # Segunda pasada: todas las ideas ya existen, así que `depende_de`
+            # Segunda pasada: todos los ítems ya existen, así que `depende_de`
             # se puede resolver y validar (existencia y ciclos) como siempre.
-            for idea in ideas:
-                enlaces = [uids[ref] for ref in idea.get("depende_de") or []]
+            for item in items:
+                enlaces = [uids[ref] for ref in item.get("depende_de") or []]
                 if not enlaces:
                     continue
-                uid = uids[idea["ref"]]
+                uid = uids[item["ref"]]
                 enlaces = _validar_dependencias(conn, uid, enlaces)
                 conn.execute(
                     "UPDATE idea_data SET depende_de = ? WHERE uid = ?",
@@ -76,7 +76,7 @@ def aplicar_migracion(repo: str, plan: dict[str, Any], *, plan_sha256: str) -> d
             _emitir(
                 conn,
                 "migracion.aplicada",
-                {"lote": lote, "plan_sha256": plan_sha256, "ideas": len(ideas)},
+                {"lote": lote, "plan_sha256": plan_sha256, "ideas": len(items)},
             )
             conn.commit()
         except sqlite3.IntegrityError:
@@ -94,8 +94,8 @@ def aplicar_migracion(repo: str, plan: dict[str, Any], *, plan_sha256: str) -> d
         return _respuesta(conn, repo, lote, plan_sha256, repetido=False)
 
 
-def _insertar_idea(conn: sqlite3.Connection, idea: dict[str, Any], uid: str, ts: str) -> None:
-    """La idea nace en su carril, con sus fases pendientes y sin dependencias.
+def _insertar_item(conn: sqlite3.Connection, item: dict[str, Any], uid: str, ts: str) -> None:
+    """La item nace en su carril, con sus fases pendientes y sin dependencias.
 
     `historial` y `rejected` no llevan fases; `rejected` guarda el motivo y la
     autoría del sistema. La fecha del plan se convierte en la entrada del nodo:
@@ -103,22 +103,22 @@ def _insertar_idea(conn: sqlite3.Connection, idea: dict[str, Any], uid: str, ts:
     la de importación. La firma del historial también es del sistema, para no
     confundir un archivo con una aprobación humana.
     """
-    estado = str(idea.get("status") or "proposed")
+    estado = str(item.get("status") or "proposed")
     datos = conn.execute(
         "INSERT INTO idea_data"
         " (uid, title, description, content, kind, tags, depende_de, created_at, updated_at)"
         " VALUES (?, ?, ?, ?, 'idea', ?, '[]', ?, ?)",
         (
             uid,
-            idea["title"],
-            idea.get("description") or "",
-            idea.get("content") or "",
-            json.dumps(list(idea.get("tags") or [])),
+            item["title"],
+            item.get("description") or "",
+            item.get("content") or "",
+            json.dumps(list(item.get("tags") or [])),
             ts,
             ts,
         ),
     )
-    # Igual que `create_idea`: el nodo nace en la entrada y `_escribir_estado`
+    # Igual que `create_item`: el nodo nace en la entrada y `_escribir_estado`
     # lo lleva al carril pedido en la misma transacción. La fecha y el `id` van
     # copiados al nodo (0033), que es lo que ordena el listado.
     conn.execute(
@@ -129,28 +129,28 @@ def _insertar_idea(conn: sqlite3.Connection, idea: dict[str, Any], uid: str, ts:
     detalle: dict[str, Any] = {}
     if estado == "rejected":
         detalle = {
-            "rejected_description": idea.get("motivo") or "",
+            "rejected_description": item.get("motivo") or "",
             "rejected_by": "sistema",
         }
     _escribir_estado(conn, uid, estado, detalle)
     if estado in ("historial", "rejected"):
-        fecha = fecha_iso(idea.get("fecha"), ts)
+        fecha = fecha_iso(item.get("fecha"), ts)
         conn.execute("UPDATE idea_node SET entered_at = ? WHERE uid = ?", (fecha, uid))
         if estado == "historial":
             conn.execute(
                 "INSERT INTO revision_node (uid, approved_by, nota) VALUES (?, 'sistema', ?)",
-                (uid, f"Importado de {idea['origen']['ruta']}"),
+                (uid, f"Importado de {item['origen']['ruta']}"),
             )
-    fases = idea.get("fases") or []
+    fases = item.get("fases") or []
     if fases:
         _escribir_fases(conn, uid, _normalizar_fases(fases, []))
 
 
 def _anotar_origen(
-    conn: sqlite3.Connection, lote: str, idea: dict[str, Any], uid: str, ts: str
+    conn: sqlite3.Connection, lote: str, item: dict[str, Any], uid: str, ts: str
 ) -> None:
-    """La procedencia: de qué fichero, líneas y hash salió esta idea."""
-    origen = idea["origen"]
+    """La procedencia: de qué fichero, líneas y hash salió este ítem."""
+    origen = item["origen"]
     conn.execute(
         "INSERT INTO migracion_idea"
         " (lote_id, idea_uid, ref, ruta, desde_linea, hasta_linea, sha256, creada_at, estado)"
@@ -158,13 +158,13 @@ def _anotar_origen(
         (
             lote,
             uid,
-            idea["ref"],
+            item["ref"],
             origen["ruta"],
             origen["desde_linea"],
             origen["hasta_linea"],
             origen["sha256"],
             ts,
-            idea.get("status") or "proposed",
+            item.get("status") or "proposed",
         ),
     )
 
@@ -284,9 +284,9 @@ def _limpiar_absorcion(repo: str, lote: str) -> None:
 
 
 def deshacer_migracion(repo: str, lote: str) -> dict[str, Any]:
-    """Borra solo las ideas que creó el lote, si nadie las tocó después.
+    """Borra solo los ítems que creó el lote, si nadie las tocó después.
 
-    Se niega entero (409) si alguna idea cambió de carril, se editó después de
+    Se niega entero (409) si algun ítem cambió de carril, se editó después de
     crearse o una ficha ajena la usa como sustituta: borrar media migración deja
     el repo peor que no deshacerla. Las que el usuario ya borró a mano no son un
     conflicto: se cuentan como ausentes y el resto se deshace igual.
@@ -312,24 +312,24 @@ def deshacer_migracion(repo: str, lote: str) -> dict[str, Any]:
             conflictos: list[str] = []
             for fila in filas:
                 uid = str(fila["idea_uid"])
-                idea = conn.execute(
+                item = conn.execute(
                     "SELECT idea_data.title, idea_data.updated_at, idea_node.estado"
                     " FROM idea_data JOIN idea_node ON idea_node.uid = idea_data.uid"
                     " WHERE idea_data.uid = ?",
                     (uid,),
                 ).fetchone()
-                if idea is None:
+                if item is None:
                     continue
-                titulos[uid] = str(idea["title"])
-                estado = str(idea["estado"])
+                titulos[uid] = str(item["title"])
+                estado = str(item["estado"])
                 esperado = str(fila["estado"] or "proposed")
                 if estado != esperado:
                     conflictos.append(
-                        f"{fila['ref']} ({idea['title']}): está en {estado}, no en {esperado}"
+                        f"{fila['ref']} ({item['title']}): está en {estado}, no en {esperado}"
                     )
-                elif str(idea["updated_at"]) != str(fila["creada_at"]):
+                elif str(item["updated_at"]) != str(fila["creada_at"]):
                     conflictos.append(
-                        f"{fila['ref']} ({idea['title']}): se editó después de crearse"
+                        f"{fila['ref']} ({item['title']}): se editó después de crearse"
                     )
 
             if uids:
@@ -342,13 +342,12 @@ def deshacer_migracion(repo: str, lote: str) -> dict[str, Any]:
                     (*uids, *uids),
                 ).fetchall()
                 conflictos.extend(
-                    f"{fila[0]} ({fila[1]}): usa como sustituta una idea del lote"
-                    for fila in ajenas
+                    f"{fila[0]} ({fila[1]}): usa como sustituta un ítem del lote" for fila in ajenas
                 )
             if conflictos:
                 raise MigracionEnConflicto(lote, conflictos)
 
-            # El documento vuelve antes de borrar las ideas: si el borrado
+            # El documento vuelve antes de borrar los ítems: si el borrado
             # falla, el usuario conserva el Markdown y puede reintentar. El
             # manifiesto queda en `restaurado` para que el reintento no vuelva
             # a chocar con el estado del origen.
@@ -365,10 +364,10 @@ def deshacer_migracion(repo: str, lote: str) -> dict[str, Any]:
                 )
             for uid, titulo in titulos.items():
                 conn.execute("DELETE FROM idea_data WHERE uid = ?", (uid,))
-                _emitir(conn, "idea.deleted", {"uid": uid, "title": titulo})
+                _emitir(conn, "item.deleted", {"uid": uid, "title": titulo})
 
             # Las listas `depende_de` de las supervivientes no pueden seguir
-            # apuntando a uids que ya no existen (igual que `delete_idea`).
+            # apuntando a uids que ya no existen (igual que `delete_item`).
             for superviviente in conn.execute("SELECT uid, depende_de FROM idea_data").fetchall():
                 deps = _tags_json(superviviente["depende_de"])
                 quedan = [dep for dep in deps if dep not in titulos]

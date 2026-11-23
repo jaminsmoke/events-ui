@@ -11,12 +11,12 @@ import asyncio
 import json
 import sqlite3
 
-from events_core import eventos, ideas
+from events_core import eventos, items
 
 
 def _sembrar_rafaga(repo, cuantos: int) -> None:  # noqa: ANN001, ANN202
     """Una sola transacción con `cuantos` eventos, como un lote del productor."""
-    conn = sqlite3.connect(str(ideas.db_file_for(repo)))
+    conn = sqlite3.connect(str(items.db_file_for(repo)))
     conn.executemany(
         "INSERT INTO event (ts, type, payload) VALUES ('2026-11-18T00:00:00Z', 'testigo', ?)",
         [(json.dumps({"n": i}),) for i in range(cuantos)],
@@ -42,20 +42,20 @@ def _recolecta(repo: str, desconectado, max_esperas: int = 0) -> list[str]:  # n
 
 
 def test_backfill_sale_sin_esperar(client, repo):  # noqa: ANN001, ANN202
-    client.post("/ideas", params={"repo": repo}, json={"title": "A"})
+    client.post("/items", params={"repo": repo}, json={"title": "A"})
     frames = _recolecta(repo, None)
-    assert any("idea.created" in f for f in frames)
+    assert any("item.created" in f for f in frames)
 
 
 def test_desconexion_corta_el_vivo(client, repo):  # noqa: ANN001, ANN202
-    client.post("/ideas", params={"repo": repo}, json={"title": "A"})
+    client.post("/items", params={"repo": repo}, json={"title": "A"})
 
     def desconectado() -> bool:
         return True
 
     # Backfill sí; y en vivo corta a la primera pregunta, sin sondear pings.
     frames = _recolecta(repo, desconectado, max_esperas=240)
-    assert any("idea.created" in f for f in frames)
+    assert any("item.created" in f for f in frames)
     assert not any("ping" in f for f in frames)
 
 
@@ -76,8 +76,8 @@ def test_rafaga_mayor_que_la_pagina_llega_entera(client, repo):  # noqa: ANN001,
 def test_un_vaciado_reinicia_el_cursor_en_vivo(client, repo):  # noqa: ANN001, ANN202
     """Con el cliente conectado, vaciar el log vuelve a empezar los IDs: se
     reinicia el cursor en vez de esperar números que ya no existen."""
-    client.post("/ideas", params={"repo": repo}, json={"title": "A"})
-    client.post("/ideas", params={"repo": repo}, json={"title": "B"})
+    client.post("/items", params={"repo": repo}, json={"title": "A"})
+    client.post("/items", params={"repo": repo}, json={"title": "B"})
     assert [e["id"] for e in client.get("/eventos", params={"repo": repo}).json()] == [1, 2]
 
     hecho: list[bool] = []
@@ -85,7 +85,7 @@ def test_un_vaciado_reinicia_el_cursor_en_vivo(client, repo):  # noqa: ANN001, A
     def vaciar_en_vivo() -> bool:
         if not hecho:
             client.post("/reiniciar", params={"repo": repo})
-            client.post("/ideas", params={"repo": repo}, json={"title": "C"})
+            client.post("/items", params={"repo": repo}, json={"title": "C"})
             hecho.append(True)
         return False
 
@@ -95,10 +95,10 @@ def test_un_vaciado_reinicia_el_cursor_en_vivo(client, repo):  # noqa: ANN001, A
 
 def test_reconexion_con_cursor_viejo_tras_vaciar(client, repo):  # noqa: ANN001, ANN202
     """Reconectar con `Last-Event-ID` 2 tras un vaciado no omite el alta."""
-    client.post("/ideas", params={"repo": repo}, json={"title": "A"})
-    client.post("/ideas", params={"repo": repo}, json={"title": "B"})
+    client.post("/items", params={"repo": repo}, json={"title": "A"})
+    client.post("/items", params={"repo": repo}, json={"title": "B"})
     client.post("/reiniciar", params={"repo": repo})
-    client.post("/ideas", params={"repo": repo}, json={"title": "C"})
+    client.post("/items", params={"repo": repo}, json={"title": "C"})
 
     async def _desde_2() -> list[str]:
         return [
@@ -108,22 +108,22 @@ def test_reconexion_con_cursor_viejo_tras_vaciar(client, repo):  # noqa: ANN001,
     assert _ids(asyncio.run(_desde_2())) == [1]
 
 
-def test_primer_idea_created_se_consulta(client, repo):  # noqa: ANN001, ANN202
+def test_primer_item_created_se_consulta(client, repo):  # noqa: ANN001, ANN202
     """Un almacén recién creado ya tiene su log: el primer alta se lee."""
-    uid = client.post("/ideas", params={"repo": repo}, json={"title": "A"}).json()["uid"]
+    uid = client.post("/items", params={"repo": repo}, json={"title": "A"}).json()["uid"]
     r = client.get("/eventos", params={"repo": repo})
     assert r.status_code == 200, r.json()
-    assert [(e["type"], e["payload"]["uid"]) for e in r.json()] == [("idea.created", uid)]
+    assert [(e["type"], e["payload"]["uid"]) for e in r.json()] == [("item.created", uid)]
 
 
 def test_stream_route_responde(client, repo):  # noqa: ANN001, ANN202
     """El endpoint HTTP entrega frames por el canal SSE."""
-    client.post("/ideas", params={"repo": repo}, json={"title": "A"})
+    client.post("/items", params={"repo": repo}, json={"title": "A"})
     with client.stream("GET", "/eventos/stream?repo=" + repo, headers={"Last-Event-ID": "0"}) as r:
         assert r.status_code == 200
         texto = ""
         for linea in r.iter_lines():
             texto += linea
-            if "idea.created" in texto:
+            if "item.created" in texto:
                 break
-        assert "idea.created" in texto
+        assert "item.created" in texto

@@ -24,8 +24,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .ideas.base.comun import InvalidInput
-from .ideas.base.rutas import resolve_repo
+from .items.base.comun import InvalidInput
+from .items.base.rutas import resolve_repo
 from .registro import raiz_datos_usuario
 
 CONFIG_ENV_VAR = "EVENTSUI_CONFIG"

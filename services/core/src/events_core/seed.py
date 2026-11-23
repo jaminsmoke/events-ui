@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import sys
 
-from . import ideas
+from . import items
 
 
 def main(argv: list[str]) -> int:
@@ -22,7 +22,7 @@ def main(argv: list[str]) -> int:
 
     repo = argv[0]
     try:
-        db_file = ideas.init_repo(repo)
+        db_file = items.init_repo(repo)
     except (ValueError, OSError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

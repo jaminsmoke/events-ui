@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 from contextlib import closing
 
-from events_core import ideas
+from events_core import items
 
 
 def _plan(tmp_path):
@@ -63,8 +63,8 @@ def test_aplicar_crea_el_lote_completo(client, tmp_path) -> None:
     assert datos["ideas"] == 2
     uids = {creada["ref"]: creada["uid"] for creada in datos["creadas"]}
 
-    primera = client.get(f"/ideas/{uids['uno']}", params={"repo": str(tmp_path)}).json()
-    segunda = client.get(f"/ideas/{uids['dos']}", params={"repo": str(tmp_path)}).json()
+    primera = client.get(f"/items/{uids['uno']}", params={"repo": str(tmp_path)}).json()
+    segunda = client.get(f"/items/{uids['dos']}", params={"repo": str(tmp_path)}).json()
     assert primera["status"] == "proposed"
     assert primera["title"] == "Uno"
     assert primera["description"] == "Primera."
@@ -74,7 +74,7 @@ def test_aplicar_crea_el_lote_completo(client, tmp_path) -> None:
     assert primera["fases"][0]["requisitos"][0]["hecho"] is False
     assert segunda["depende_de"] == [uids["uno"]]
 
-    with closing(ideas.connect(ideas.ensure_repo(str(tmp_path)))) as conn:
+    with closing(items.connect(items.ensure_repo(str(tmp_path)))) as conn:
         lote = conn.execute("SELECT ideas, plan_sha256 FROM migracion_lote").fetchone()
         assert lote["ideas"] == 2
         assert lote["plan_sha256"] == datos["plan_sha256"]
@@ -85,7 +85,7 @@ def test_aplicar_crea_el_lote_completo(client, tmp_path) -> None:
         assert filas[0]["ruta"] == "docs/backlog.md"
         assert (filas[0]["desde_linea"], filas[0]["hasta_linea"]) == (3, 5)
         tipos = {fila["type"] for fila in conn.execute("SELECT type FROM event")}
-        assert {"idea.created", "migracion.aplicada"} <= tipos
+        assert {"item.created", "migracion.aplicada"} <= tipos
 
 
 def test_aplicar_destinos_fechas_y_firma(client, tmp_path) -> None:
@@ -94,7 +94,7 @@ def test_aplicar_destinos_fechas_y_firma(client, tmp_path) -> None:
     archivo.write_text("# Backlog\n\n## Uno\n\n- [ ] a\n", encoding="utf-8")
     sha = hashlib.sha256(archivo.read_bytes()).hexdigest()
 
-    def idea(ref, title, status, **extra):
+    def item(ref, title, status, **extra):
         return {
             "ref": ref,
             "title": title,
@@ -114,10 +114,10 @@ def test_aplicar_destinos_fechas_y_firma(client, tmp_path) -> None:
     plan = {
         "version": 2,
         "ideas": [
-            idea("prop", "Prop", "proposed"),
-            idea("draft", "Draft", "draft"),
-            idea("hist", "Hist", "historial", fecha="2025-03-04T10:00:00+02:00"),
-            idea("rech", "Rech", "rejected", motivo="duplicada", fecha="2025-03-05"),
+            item("prop", "Prop", "proposed"),
+            item("draft", "Draft", "draft"),
+            item("hist", "Hist", "historial", fecha="2025-03-04T10:00:00+02:00"),
+            item("rech", "Rech", "rejected", motivo="duplicada", fecha="2025-03-05"),
         ],
     }
 
@@ -126,23 +126,23 @@ def test_aplicar_destinos_fechas_y_firma(client, tmp_path) -> None:
     datos = respuesta.json()
     uids = {creada["ref"]: creada["uid"] for creada in datos["creadas"]}
 
-    historial = client.get(f"/ideas/{uids['hist']}", params={"repo": str(tmp_path)}).json()
+    historial = client.get(f"/items/{uids['hist']}", params={"repo": str(tmp_path)}).json()
     assert historial["status"] == "historial"
     assert historial["revision_approved_by"] == "sistema"
     assert historial["revision_nota"] == "Importado de docs/backlog.md"
     assert historial["revision_approved_at"] == "2025-03-04T08:00:00+00:00"
     assert historial["fases"] == []
 
-    rechazada = client.get(f"/ideas/{uids['rech']}", params={"repo": str(tmp_path)}).json()
+    rechazada = client.get(f"/items/{uids['rech']}", params={"repo": str(tmp_path)}).json()
     assert rechazada["status"] == "rejected"
     assert rechazada["rejected_by"] == "sistema"
     assert rechazada["rejected_description"] == "duplicada"
     assert rechazada["rejected_at"] == "2025-03-05T00:00:00+00:00"
 
-    borrador = client.get(f"/ideas/{uids['draft']}", params={"repo": str(tmp_path)}).json()
+    borrador = client.get(f"/items/{uids['draft']}", params={"repo": str(tmp_path)}).json()
     assert borrador["status"] == "draft"
 
-    with closing(ideas.connect(ideas.ensure_repo(str(tmp_path)))) as conn:
+    with closing(items.connect(items.ensure_repo(str(tmp_path)))) as conn:
         estados = {
             fila["ref"]: fila["estado"]
             for fila in conn.execute("SELECT ref, estado FROM migracion_idea")
@@ -157,7 +157,7 @@ def test_aplicar_destinos_fechas_y_firma(client, tmp_path) -> None:
     deshecho = client.delete(f"/migracion/lotes/{datos['lote']}", params={"repo": str(tmp_path)})
     assert deshecho.status_code == 200, deshecho.text
     assert deshecho.json()["borradas"] == 4
-    assert client.get("/ideas", params={"repo": str(tmp_path)}).json() == []
+    assert client.get("/items", params={"repo": str(tmp_path)}).json() == []
 
 
 def test_repetir_el_plan_no_duplica(client, tmp_path) -> None:
@@ -169,7 +169,7 @@ def test_repetir_el_plan_no_duplica(client, tmp_path) -> None:
     assert segundo["repetido"] is True
     assert segundo["lote"] == primero["lote"]
     assert segundo["creadas"] == primero["creadas"]
-    assert len(client.get("/ideas", params={"repo": str(tmp_path)}).json()) == 2
+    assert len(client.get("/items", params={"repo": str(tmp_path)}).json()) == 2
 
 
 def test_un_origen_cambiado_no_aplica_nada(client, tmp_path) -> None:
@@ -180,7 +180,7 @@ def test_un_origen_cambiado_no_aplica_nada(client, tmp_path) -> None:
 
     assert respuesta.status_code == 400
     assert "cambió" in respuesta.json()["detail"]
-    assert client.get("/ideas", params={"repo": str(tmp_path)}).json() == []
+    assert client.get("/items", params={"repo": str(tmp_path)}).json() == []
 
 
 def test_el_contrato_rechaza_otro_estado(client, tmp_path) -> None:
@@ -190,7 +190,7 @@ def test_el_contrato_rechaza_otro_estado(client, tmp_path) -> None:
     respuesta = client.post("/migracion/aplicar", params={"repo": str(tmp_path)}, json=plan)
 
     assert respuesta.status_code == 422
-    assert client.get("/ideas", params={"repo": str(tmp_path)}).json() == []
+    assert client.get("/items", params={"repo": str(tmp_path)}).json() == []
 
 
 def test_undo_borra_el_lote(client, tmp_path) -> None:
@@ -204,22 +204,22 @@ def test_undo_borra_el_lote(client, tmp_path) -> None:
     deshecho = respuesta.json()
     assert deshecho["borradas"] == 2
     assert deshecho["ausentes"] == 0
-    assert client.get("/ideas", params={"repo": str(tmp_path)}).json() == []
-    with closing(ideas.connect(ideas.ensure_repo(str(tmp_path)))) as conn:
+    assert client.get("/items", params={"repo": str(tmp_path)}).json() == []
+    with closing(items.connect(items.ensure_repo(str(tmp_path)))) as conn:
         assert conn.execute("SELECT count(*) FROM migracion_lote").fetchone()[0] == 0
         assert conn.execute("SELECT count(*) FROM migracion_idea").fetchone()[0] == 0
         tipos = {fila["type"] for fila in conn.execute("SELECT type FROM event")}
         assert "migracion.deshacer" in tipos
 
 
-def test_undo_se_niega_si_la_idea_cambio_de_carril(client, tmp_path) -> None:
+def test_undo_se_niega_si_la_item_cambio_de_carril(client, tmp_path) -> None:
     datos = client.post(
         "/migracion/aplicar", params={"repo": str(tmp_path)}, json=_plan(tmp_path)
     ).json()
     uid = {creada["ref"]: creada["uid"] for creada in datos["creadas"]}["uno"]
     assert (
         client.patch(
-            f"/ideas/{uid}", params={"repo": str(tmp_path)}, json={"status": "roadmap"}
+            f"/items/{uid}", params={"repo": str(tmp_path)}, json={"status": "roadmap"}
         ).status_code
         == 200
     )
@@ -228,15 +228,15 @@ def test_undo_se_niega_si_la_idea_cambio_de_carril(client, tmp_path) -> None:
 
     assert respuesta.status_code == 409
     assert "roadmap" in respuesta.json()["detail"]
-    assert len(client.get("/ideas", params={"repo": str(tmp_path)}).json()) == 2
+    assert len(client.get("/items", params={"repo": str(tmp_path)}).json()) == 2
 
 
-def test_undo_se_niega_si_la_idea_se_edito(client, tmp_path) -> None:
+def test_undo_se_niega_si_la_item_se_edito(client, tmp_path) -> None:
     datos = client.post(
         "/migracion/aplicar", params={"repo": str(tmp_path)}, json=_plan(tmp_path)
     ).json()
     uid = {creada["ref"]: creada["uid"] for creada in datos["creadas"]}["dos"]
-    with closing(ideas.connect(ideas.ensure_repo(str(tmp_path)))) as conn:
+    with closing(items.connect(items.ensure_repo(str(tmp_path)))) as conn:
         conn.execute(
             "UPDATE idea_data SET updated_at = '2020-01-01T00:00:00+00:00' WHERE uid = ?", (uid,)
         )
@@ -246,30 +246,30 @@ def test_undo_se_niega_si_la_idea_se_edito(client, tmp_path) -> None:
 
     assert respuesta.status_code == 409
     assert "se editó" in respuesta.json()["detail"]
-    assert len(client.get("/ideas", params={"repo": str(tmp_path)}).json()) == 2
+    assert len(client.get("/items", params={"repo": str(tmp_path)}).json()) == 2
 
 
-def test_undo_salta_las_ideas_que_ya_no_estaban(client, tmp_path) -> None:
+def test_undo_salta_las_items_que_ya_no_estaban(client, tmp_path) -> None:
     datos = client.post(
         "/migracion/aplicar", params={"repo": str(tmp_path)}, json=_plan(tmp_path)
     ).json()
     uid = {creada["ref"]: creada["uid"] for creada in datos["creadas"]}["dos"]
     assert (
         client.patch(
-            f"/ideas/{uid}",
+            f"/items/{uid}",
             params={"repo": str(tmp_path)},
             json={"status": "rejected", "rejected_description": "fuera del lote"},
         ).status_code
         == 200
     )
-    assert client.delete(f"/ideas/{uid}", params={"repo": str(tmp_path)}).status_code == 204
+    assert client.delete(f"/items/{uid}", params={"repo": str(tmp_path)}).status_code == 204
 
     respuesta = client.delete(f"/migracion/lotes/{datos['lote']}", params={"repo": str(tmp_path)})
 
     assert respuesta.status_code == 200
     assert respuesta.json()["borradas"] == 1
     assert respuesta.json()["ausentes"] == 1
-    assert client.get("/ideas", params={"repo": str(tmp_path)}).json() == []
+    assert client.get("/items", params={"repo": str(tmp_path)}).json() == []
 
 
 def test_undo_lote_inexistente(client, tmp_path) -> None:
@@ -282,13 +282,13 @@ def test_fallo_al_deshacer_no_borra_nada(client, tmp_path, monkeypatch) -> None:
     datos = client.post(
         "/migracion/aplicar", params={"repo": str(tmp_path)}, json=_plan(tmp_path)
     ).json()
-    from events_core.ideas import migracion as lote
+    from events_core.items import migracion as lote
 
     llamadas = {"n": 0}
     original = lote._emitir
 
     def falla(conn, tipo, payload):
-        if tipo == "idea.deleted":
+        if tipo == "item.deleted":
             llamadas["n"] += 1
             if llamadas["n"] == 2:
                 raise RuntimeError("fallo simulado")
@@ -299,13 +299,13 @@ def test_fallo_al_deshacer_no_borra_nada(client, tmp_path, monkeypatch) -> None:
     respuesta = client.delete(f"/migracion/lotes/{datos['lote']}", params={"repo": str(tmp_path)})
 
     assert respuesta.status_code == 500
-    assert len(client.get("/ideas", params={"repo": str(tmp_path)}).json()) == 2
-    with closing(ideas.connect(ideas.ensure_repo(str(tmp_path)))) as conn:
+    assert len(client.get("/items", params={"repo": str(tmp_path)}).json()) == 2
+    with closing(items.connect(items.ensure_repo(str(tmp_path)))) as conn:
         assert conn.execute("SELECT count(*) FROM migracion_lote").fetchone()[0] == 1
 
 
 def test_fallo_a_mitad_deshace_el_lote(client, tmp_path, monkeypatch) -> None:
-    from events_core.ideas import migracion as lote
+    from events_core.items import migracion as lote
 
     llamadas = {"n": 0}
     original = lote._emitir
@@ -323,6 +323,6 @@ def test_fallo_a_mitad_deshace_el_lote(client, tmp_path, monkeypatch) -> None:
     )
 
     assert respuesta.status_code == 500
-    assert client.get("/ideas", params={"repo": str(tmp_path)}).json() == []
-    with closing(ideas.connect(ideas.ensure_repo(str(tmp_path)))) as conn:
+    assert client.get("/items", params={"repo": str(tmp_path)}).json() == []
+    with closing(items.connect(items.ensure_repo(str(tmp_path)))) as conn:
         assert conn.execute("SELECT count(*) FROM migracion_lote").fetchone()[0] == 0

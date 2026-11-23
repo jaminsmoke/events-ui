@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from .db import barridos_retencion, data_version, open_read_only, vigilante
-from .ideas import connect, ensure_repo
+from .items import connect, ensure_repo
 
 # Conteo por página del tail: bastante para el backfill sin traer el log entero.
 LIMITE_POR_DEFECTO = 200
@@ -32,6 +32,8 @@ LIMITE_POR_DEFECTO = 200
 # (`nivel` ya viene en `EntradaLog`). El `payload` puede imponerlo (nivel
 # explícito manda); sin él, todos los tipos son `info` menos este aviso.
 NIVELES_POR_TIPO = {
+    "item.deleted": "aviso",
+    # El log es append-only: lo escrito antes de la 0034 sigue en `idea.*`.
     "idea.deleted": "aviso",
 }
 NIVELES = ("info", "aviso", "error")
@@ -78,17 +80,20 @@ def tail(
 
     Sin fichero de eventos no hay eventos —no se crea nada— y se devuelve
     vacío; el llamador lo distingue de «no hay novedades» porque es la
-    primera llamada. `origen`, si viene, filtra: `idea`, `externo` o la
+    primera llamada. `origen`, si viene, filtra: `item`, `externo` o la
     tabla futura que lo sea. `FileNotFoundError` del repo sale tal cual.
     """
     db_file = ensure_repo(repo)
+    # El log viejo escribió `origen='idea'`: para el filtro es el mismo grupo.
+    legado = {"item": "idea", "idea": "item"}.get(origen, origen)
     try:
         with closing(open_read_only(db_file)) as conn:
             rows = conn.execute(
                 "SELECT id, ts, type, payload, origen, dedupe_key FROM event"
-                " WHERE id > :desde AND (:origen IS NULL OR origen = :origen)"
+                " WHERE id > :desde AND (:origen IS NULL"
+                " OR origen IN (:origen, :legado))"
                 " ORDER BY id LIMIT :limite",
-                {"desde": desde, "limite": limite, "origen": origen},
+                {"desde": desde, "limite": limite, "origen": origen, "legado": legado},
             ).fetchall()
     except (FileNotFoundError, sqlite3.Error):
         return []

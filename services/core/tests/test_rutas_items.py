@@ -11,7 +11,7 @@ def _crear(client: TestClient, repo: str, **campos: object) -> dict:
     return r.json()
 
 
-def test_items_y_el_alias_ideas_devuelven_lo_mismo(client: TestClient, repo: str) -> None:
+def test_items_y_el_alias_items_devuelven_lo_mismo(client: TestClient, repo: str) -> None:
     uid = _crear(client, repo)["uid"]
 
     principal = client.get(f"/items/{uid}", params={"repo": repo})

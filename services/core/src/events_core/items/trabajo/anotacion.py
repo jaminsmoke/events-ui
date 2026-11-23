@@ -35,13 +35,13 @@ PRESUPUESTO_MS = 2_000
 
 
 def _foto_texto(conn: sqlite3.Connection, uid: str) -> str | None:
-    """La última foto del árbol de la idea, si ya se tomó alguna (0028)."""
+    """La última foto del árbol de el ítem, si ya se tomó alguna (0028)."""
     fila = conn.execute("SELECT archivos FROM idea_foto WHERE idea_uid = ?", (uid,)).fetchone()
     return str(fila[0]) if fila else None
 
 
 def _foto_guardar(conn: sqlite3.Connection, uid: str, estado: dict[str, tuple[int, int]]) -> None:
-    """Reemplaza la foto de la idea: es el estado actual, no un historial."""
+    """Reemplaza la foto de el ítem: es el estado actual, no un historial."""
     conn.execute(
         "INSERT INTO idea_foto (idea_uid, ts, archivos) VALUES (?, ?, ?)"
         " ON CONFLICT (idea_uid) DO UPDATE SET ts = excluded.ts, archivos = excluded.archivos",
@@ -264,7 +264,7 @@ def _planificar_anotacion(
     try:
         carpeta = resolve_repo(repo)
         # `None` es «no hay foto»; `{}` es un árbol vacío, que sí es una foto
-        # (una idea que empieza en una carpeta limpia anota lo que crea).
+        # (un ítem que empieza en una carpeta limpia anota lo que crea).
         texto = _foto_texto(conn, uid)
         base = archivos.deserializar(texto) if texto is not None else None
         if plan.inicio:

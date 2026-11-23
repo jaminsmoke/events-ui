@@ -19,13 +19,13 @@ from .comun import AlmacenMasNuevo, _columna, _existe
 from .esquema import SCHEMA_VERSION, aplicar_esquema, connect
 from .rutas import DB_FILENAME, LEGACY_DB_FILENAME
 
-# `ideas/base/migraciones.py` -> `events_core/migraciones`.
+# `items/base/migraciones.py` -> `events_core/migraciones`.
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migraciones"
-# Las migraciones de ideas y log se aplican en orden: un fichero nuevo no
+# Las migraciones de items y log se aplican en orden: un fichero nuevo no
 # obliga a tocar este módulo. `PRAGMA user_version` dice cuál hay aplicado en
 # cada almacén. La tabla `event` del repo se siembra con el esquema fresco
-# porque el core emite ahí sus `idea.*`; a los almacenes anteriores les llegó
-# por la 0005 y la 0015. La tabla `ideas` pasó a `idea_entry` +
+# porque el core emite ahí sus `item.*`; a los almacenes anteriores les llegó
+# por la 0005 y la 0015. La tabla `items` pasó a `idea_entry` +
 # `idea_lane_log` en la 0006, la ficha del descarte a `idea_rejected` en la
 # 0007, `connections` se igualó con el esquema fresco en la 0008, la cola
 # pasó a estado real y ordenable (`idea_cola`) en la 0009, el `origen` del
@@ -36,13 +36,13 @@ MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migraciones"
 # para que sobrevivan a la ficha, la 0015 sembró la tabla `event` en los
 # almacenes que nacieron sin log, la 0016 puso en triggers la exclusividad de
 # fichas y el roadmap único, para todos los escritores, y la 0017 endureció
-# `tags` a lista JSON de cadenas, la 0018 añadió `depende_de` (las ideas que
+# `tags` a lista JSON de cadenas, la 0018 añadió `depende_de` (los ítems que
 # tienen que estar aprobadas para que esta avance de carril) y la 0019 retiró
 # `connections`: la dependencia vive en la entrada y la jerarquía del mapa es
-# el propio flujo. La 0020 separa la idea (`idea_data`) de su sitio
-# (`idea_node`, una fila por idea): el estado y la posición dejan de deducirse
+# el propio flujo. La 0020 separa el ítem (`idea_data`) de su sitio
+# (`idea_node`, una fila por item): el estado y la posición dejan de deducirse
 # de las fichas y las fichas pasan a ser detalle de la estancia. La 0021
-# descompone la idea en fases (`idea_fase`) y hace que el protocolo pueda
+# descompone el ítem en fases (`idea_fase`) y hace que el protocolo pueda
 # exigirlas para cruzar una unión (`exige_fases`). La 0022 añade el otro
 # requisito del protocolo: no salir de un carril con fases abiertas
 # (`exige_fases_listas`) y la 0023 exige todas completadas para aprobar
@@ -55,8 +55,8 @@ MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migraciones"
 # al entrar en roadmap y al cerrar una fase; la 0029 añade los archivos de cada
 # requisito de la fase; la 0030 añade los lotes de la migración de Markdown
 # (`migracion_lote`, `migracion_idea`), para aplicar un plan entero en una
-# transacción, no repetirlo y saber de dónde salió cada idea; la 0031 guarda
-# en esa procedencia el carril con el que nació cada idea, para deshacer un plan
+# transacción, no repetirlo y saber de dónde salió cada item; la 0031 guarda
+# en esa procedencia el carril con el que nació cada item, para deshacer un plan
 # que archiva o descarta; la 0032 pone índice en `idea_node (estado, posicion)`,
 # que es el filtro del mapa y el orden de la cola; la 0033 copia `created_at` al
 # nodo e indexa `(estado, created_at, uid)` para que el listado por estado no
@@ -172,22 +172,22 @@ def _llevar_al_dia(conn: sqlite3.Connection) -> None:
 
     if version >= SCHEMA_VERSION:
         if _existe(conn, "ideas"):
-            _copiar_ideas_historicas(conn)
+            _copiar_items_historicos(conn)
         return
 
     if version == 0:
         # Almacén de antes de que existiera la versión: no se sabe de dónde
-        # parte, así que se le pone el esquema base de ideas/conexiones
+        # parte, así que se le pone el esquema base de items/conexiones
         # (idempotente) y se marca como al día. Los pasos 3-5 ya están
         # reflejados en él, pero la tabla `event` no: el log lo escribe
         # otro proceso y no se crea desde la app.
         #
-        # Si además trae la tabla histórica `ideas`, su contenido no está
+        # Si además trae la tabla histórica `items`, su contenido no está
         # en el esquema fresco: hay que copiarlo antes de marcar al día.
         aplicar_esquema(conn)
         conn.commit()
         if _existe(conn, "ideas"):
-            _copiar_ideas_historicas(conn)
+            _copiar_items_historicos(conn)
         return
 
     conn.isolation_level = None  # las transacciones las llevamos nosotros
@@ -216,11 +216,11 @@ def _esquema_0013_incompleto(conn: sqlite3.Connection) -> bool:
     return any(carril not in definicion for carril in carriles)
 
 
-def _copiar_ideas_historicas(conn: sqlite3.Connection) -> None:
-    """Pasa la tabla antigua `ideas` al esquema actual, si sigue viva.
+def _copiar_items_historicos(conn: sqlite3.Connection) -> None:
+    """Pasa la tabla antigua `items` al esquema actual, si sigue viva.
 
     Es el caso del almacén anterior a `user_version`: el esquema fresco crea
-    `idea_entry` pero no mueve las filas que ya había en `ideas`. Aquí se
+    `idea_entry` pero no mueve las filas que ya había en `items`. Aquí se
     copia la identidad (`uid` incluido), el estado viejo va a su ficha
     actual (`proposed` -> cola, `accepted` -> revisión aprobada,
     `rejected`/`superseded` -> descartada) y `connections` se retira (0019). Si el fichero
@@ -253,11 +253,11 @@ def _copiar_ideas_historicas(conn: sqlite3.Connection) -> None:
             ).fetchall()
             if faltan:
                 raise RuntimeError(
-                    "no se pudieron migrar las ideas históricas "
+                    "no se pudieron migrar los ítems históricos "
                     f"{', '.join(str(f[0]) for f in faltan)}"
                 )
 
-            # El nodo de cada idea vieja: la cola conserva su orden y el resto
+            # El nodo de cada ítem viejo: la cola conserva su orden y el resto
             # entra donde su estado decía. `entered_at` es su `updated_at`, que
             # es la fecha de entrada más cercana que hay en la tabla histórica;
             # `created_at` e `id` se copian tal cual (0033), que son el orden
@@ -400,11 +400,11 @@ def _aplicar_paso(conn: sqlite3.Connection, numero: int, script: Path) -> None:
             conn.execute("PRAGMA foreign_keys = ON")
 
 
-def _contar_ideas(db_file: Path) -> int | None:
+def _contar_items(db_file: Path) -> int | None:
     """Filas de la entrada en un fichero, o `None` si no se puede leer.
 
     La tabla se llama `idea_data` desde la 0020 (`idea_entry` antes); un
-    almacén de la 0004 aún lleva `ideas`, así que se mira en los dos sitios
+    almacén de la 0004 aún lleva `items`, así que se mira en los dos sitios
     (lo viejo se migra solo).
     """
     for tabla in ("idea_data", "ideas"):
@@ -426,7 +426,7 @@ def _migrar_nombre_viejo(db_file: Path) -> None:
     - Solo el viejo (`EUI_DATABASE`, sin extensión): se renombra con sus auxiliares,
       que si se quedaran con el nombre viejo SQLite no vería (adiós al WAL).
     - Los dos: manda el canónico, y el viejo se retira **solo si está vacío**. Con
-      ideas dentro no se borra nada: perder datos no es tarea de una migración.
+      items dentro no se borra nada: perder datos no es tarea de una migración.
     """
     legacy = db_file.with_name(LEGACY_DB_FILENAME)
     if not legacy.is_file():
@@ -440,7 +440,7 @@ def _migrar_nombre_viejo(db_file: Path) -> None:
                 origen.replace(db_file.with_name(DB_FILENAME + suffix))
         return
 
-    if _contar_ideas(legacy) == 0:
+    if _contar_items(legacy) == 0:
         for suffix in sufijos:
             # Un auxiliar bloqueado por otro proceso no debe romper la lectura.
             with suppress(OSError):

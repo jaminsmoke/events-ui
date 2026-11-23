@@ -1,7 +1,7 @@
 """Registro operativo de la app: qué pasó en las últimas ejecuciones.
 
 No es el log de eventos del repo (`event`, que escribe otro proceso y aquí
-solo se lee), ni el historial de ideas: es el registro de la aplicación —
+solo se lee), ni el historial de items: es el registro de la aplicación —
 arranques del core, errores no capturados y operaciones de laboratorio— para
 verse en la UI y depurar.
 
@@ -89,7 +89,7 @@ def _preparar(conn: sqlite3.Connection) -> None:
         "CREATE TABLE IF NOT EXISTS registro ("
         " id INTEGER PRIMARY KEY,"
         " ts TEXT NOT NULL,"
-        # ISO-8601 UTC con segundos, como `ideas.now_iso`.
+        # ISO-8601 UTC con segundos, como `items.now_iso`.
         " nivel TEXT NOT NULL CHECK (nivel IN ('info', 'aviso', 'error')),"
         " origen TEXT NOT NULL DEFAULT 'core',"
         " mensaje TEXT NOT NULL"

@@ -1,4 +1,4 @@
-"""Leer ideas: ficha, listado, mapa, protocolos, repos y revisiones."""
+"""Leer items: ficha, listado, mapa, protocolos, repos y revisiones."""
 
 from __future__ import annotations
 
@@ -38,45 +38,45 @@ def _fila(
     rechazo: sqlite3.Row | None,
     fases: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Arma el dict de una idea con su nodo y el detalle ya resueltos.
+    """Arma el dict de un ítem con su nodo y el detalle ya resueltos.
 
-    `row` trae la idea y su nodo (`idea_data.*` + `estado`, `entered_at`).
-    Quien lista muchas ideas no lee cada detalle por fila (eso era un N+1),
+    `row` trae el ítem y su nodo (`idea_data.*` + `estado`, `entered_at`).
+    Quien lista muchas items no lee cada detalle por fila (eso era un N+1),
     sino que los trae en lote con `_en_lote` y ensambla aquí.
     """
-    idea = dict(row)
-    estado = str(idea.pop("estado"))
-    entrada = idea.pop("entered_at")
-    idea.pop("posicion", None)
-    idea["status"] = estado
-    idea["tags"] = _tags_json(idea["tags"])
-    idea["depende_de"] = _tags_json(idea["depende_de"])
+    item = dict(row)
+    estado = str(item.pop("estado"))
+    entrada = item.pop("entered_at")
+    item.pop("posicion", None)
+    item["status"] = estado
+    item["tags"] = _tags_json(item["tags"])
+    item["depende_de"] = _tags_json(item["depende_de"])
     # `entered_at` es la fecha de la estancia actual, con el nombre que el
     # contrato le daba a cada carril: roadmap, verificación, aprobación o descarte.
-    idea["roadmap_started_at"] = entrada if estado == "roadmap" else None
-    idea["roadmap_completed_at"] = verificacion["roadmap_completed_at"] if verificacion else None
-    idea["roadmap_resultado"] = roadmap["resultado"] if roadmap else ""
-    idea["roadmap_referencia"] = roadmap["referencia"] if roadmap else ""
-    idea["verificacion_started_at"] = entrada if estado == "verificacion" else None
-    # Los intentos acumulados viven en la idea (0014): el detalle solo existe
+    item["roadmap_started_at"] = entrada if estado == "roadmap" else None
+    item["roadmap_completed_at"] = verificacion["roadmap_completed_at"] if verificacion else None
+    item["roadmap_resultado"] = roadmap["resultado"] if roadmap else ""
+    item["roadmap_referencia"] = roadmap["referencia"] if roadmap else ""
+    item["verificacion_started_at"] = entrada if estado == "verificacion" else None
+    # Los intentos acumulados viven en el ítem (0014): el detalle solo existe
     # mientras dura la estancia.
-    idea["verificacion_intentos"] = int(row["verificacion_intentos"]) if verificacion else 0
-    idea["verificacion_ultimo_resultado"] = verificacion["ultimo_resultado"] if verificacion else ""
-    idea["verificacion_comentario"] = verificacion["comentario"] if verificacion else ""
+    item["verificacion_intentos"] = int(row["verificacion_intentos"]) if verificacion else 0
+    item["verificacion_ultimo_resultado"] = verificacion["ultimo_resultado"] if verificacion else ""
+    item["verificacion_comentario"] = verificacion["comentario"] if verificacion else ""
     # La firma vive en `revision_node`; el historial la conserva al archivar.
-    idea["revision_approved_at"] = entrada if estado in ("revision_aprobada", "historial") else None
-    idea["revision_approved_by"] = revision["approved_by"] if revision else "usuario"
-    idea["revision_nota"] = revision["nota"] if revision else ""
-    idea["rejected_at"] = entrada if estado == "rejected" else None
-    idea["rejected_description"] = rechazo["rejected_description"] if rechazo else ""
-    idea["rejected_by"] = rechazo["rejected_by"] if rechazo else "usuario"
-    idea["superseded_by_uid"] = rechazo["superseded_by_uid"] if rechazo else None
-    idea["fases"] = list(fases or [])
-    return idea
+    item["revision_approved_at"] = entrada if estado in ("revision_aprobada", "historial") else None
+    item["revision_approved_by"] = revision["approved_by"] if revision else "usuario"
+    item["revision_nota"] = revision["nota"] if revision else ""
+    item["rejected_at"] = entrada if estado == "rejected" else None
+    item["rejected_description"] = rechazo["rejected_description"] if rechazo else ""
+    item["rejected_by"] = rechazo["rejected_by"] if rechazo else "usuario"
+    item["superseded_by_uid"] = rechazo["superseded_by_uid"] if rechazo else None
+    item["fases"] = list(fases or [])
+    return item
 
 
 def _row(conn: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
-    """Una idea suelta (get/update): lecturas por idea, no merece lote completo."""
+    """Una item suelta (get/update): lecturas por item, no merece lote completo."""
     uid = str(row["uid"])
     return _fila(
         row,
@@ -162,7 +162,7 @@ def _sql_listado(filtro: str | None, kind: str | None = None, columnas: str = _C
     """El SELECT del listado para un carril; el estado viaja como `:estado`.
 
     Vive aparte para que el test del plan de consulta use el mismo SQL que
-    `list_ideas`, no una copia que se quede atrás al cambiar el listado.
+    `list_items`, no una copia que se quede atrás al cambiar el listado.
 
     El filtro se compone en vez de escribir `(:estado IS NULL OR ...)`: esa
     forma deja la condición fuera del alcance del índice y SQLite recorre la
@@ -194,7 +194,7 @@ def _sql_listado(filtro: str | None, kind: str | None = None, columnas: str = _C
     )
 
 
-def list_ideas(
+def list_items(
     repo: str,
     *,
     status: str | None = None,
@@ -232,7 +232,7 @@ def list_ideas(
         ]
 
 
-def get_idea(repo: str, uid: str) -> dict[str, Any]:
+def get_item(repo: str, uid: str) -> dict[str, Any]:
     with closing(connect(ensure_repo(repo))) as conn:
         row = conn.execute(
             f"SELECT {_COLUMNAS} FROM idea_data"
@@ -249,7 +249,7 @@ def listar_protocolos(repo: str) -> list[dict[str, Any]]:
     """Las uniones permitidas entre carriles (`protocolo_flujo`).
 
     La UI las lee para no ofrecer flujos prohibidos; la que impone de verdad
-    es `update_idea`. Son configuración del almacén, no estado: el reinicio
+    es `update_item`. Son configuración del almacén, no estado: el reinicio
     de laboratorio no las toca.
     """
     with closing(connect(ensure_repo(repo))) as conn:
@@ -282,7 +282,7 @@ def map_snapshot(repo: str) -> dict[str, Any]:
             " JOIN idea_node ON idea_node.uid = idea_data.uid"
             " LEFT JOIN rejected_node ON rejected_node.uid = idea_data.uid"
             # El mapa se pinta en el orden en que llega, así que cada carril
-            # tiene que salir como lo lista `/ideas`: la cola por posición
+            # tiene que salir como lo lista `/items`: la cola por posición
             # (volver de verificación estrena posición, al final) y roadmap y
             # verificación por entrada en el nodo. El resto, por creación.
             " ORDER BY"
@@ -298,7 +298,7 @@ def map_snapshot(repo: str) -> dict[str, Any]:
             " idea_data.created_at DESC, idea_data.id DESC"
         ).fetchall()
         fases = _fases_en_lote(conn, [str(row[0]) for row in rows])
-        ideas = [
+        items = [
             {
                 **dict(row),
                 "status": str(row["estado"]),
@@ -310,7 +310,7 @@ def map_snapshot(repo: str) -> dict[str, Any]:
             }
             for row in rows
         ]
-        return {"ideas": ideas}
+        return {"ideas": items}
 
 
 # La conexión vigilante vive en `db.vigilante` (es la misma que usa el stream de
@@ -327,21 +327,21 @@ def revision(repo: str) -> dict[str, Any]:
     """Firma barata del almacén para saber si hay que releer.
 
     `PRAGMA data_version` cambia cuando **otra** conexión hace commit, así que la
-    UI puede sondear esto cada par de segundos en vez de traerse todas las ideas.
+    UI puede sondear esto cada par de segundos en vez de traerse todos los ítems.
     `data_version` es por conexión (un vigilante nuevo vuelve a empezar), así que
     la firma lleva además lo que no depende de ella: el conteo del mapa y el
     `max(id)` del log. Ese último es el que mueve la firma cuando el productor
-    escribe eventos sin tocar ideas.
+    escribe eventos sin tocar items.
     """
     db_file = ensure_repo(repo)
     with _VIGILANTES_LOCK:
         conn = vigilante(db_file, compartida=True)
         # La tabla vive como `idea_data` desde la 0020; antes, `idea_entry`.
-        tabla_idea = "idea_data" if _existe(conn, "idea_data") else "ideas"
+        tabla_item = "idea_data" if _existe(conn, "idea_data") else "ideas"
         return {
             "instance": _REVISION_INSTANCE,
             "data_version": data_version(conn),
-            "ideas": conn.execute(f"SELECT count(*) FROM {tabla_idea}").fetchone()[0],
+            "ideas": conn.execute(f"SELECT count(*) FROM {tabla_item}").fetchone()[0],
             # El log se vacía al reiniciar: `coalesce` devuelve 0 y no `NULL`.
             "ultimo_evento": conn.execute("SELECT coalesce(max(id), 0) FROM event").fetchone()[0],
         }

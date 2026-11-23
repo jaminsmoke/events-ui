@@ -124,7 +124,7 @@ def test_repo_list_es_una_linea_json(tmp_path, capsys, monkeypatch) -> None:
     assert json.loads(capsys.readouterr().out)[0]["repo"] == "lab"
 
 
-def test_idea_list_json_lleva_la_raiz(tmp_path, capsys, monkeypatch) -> None:
+def test_item_list_json_lleva_la_raiz(tmp_path, capsys, monkeypatch) -> None:
     _con_raiz(tmp_path)
     visto: dict[str, str] = {}
 
@@ -139,17 +139,17 @@ def test_idea_list_json_lleva_la_raiz(tmp_path, capsys, monkeypatch) -> None:
     assert "repo=" in visto["url"]
 
 
-def test_idea_get_sin_raiz_es_uso_invalido(capsys) -> None:
+def test_item_get_sin_raiz_es_uso_invalido(capsys) -> None:
     assert cli.main(["idea", "get", "a1"]) == 2
     assert "no hay raíz" in capsys.readouterr().err
 
 
-def test_idea_get_inexistente_sale_con_1(tmp_path, capsys, monkeypatch) -> None:
+def test_item_get_inexistente_sale_con_1(tmp_path, capsys, monkeypatch) -> None:
     _con_raiz(tmp_path)
-    monkeypatch.setattr(cli, "_get", lambda url: (None, "no existe la idea a1", 404))
+    monkeypatch.setattr(cli, "_get", lambda url: (None, "no existe el ítem a1", 404))
 
     assert cli.main(["idea", "get", "a1"]) == 1
-    assert "no existe la idea a1" in capsys.readouterr().err
+    assert "no existe el ítem a1" in capsys.readouterr().err
 
 
 def test_schema_imprime_el_contrato(capsys, monkeypatch) -> None:
@@ -159,7 +159,7 @@ def test_schema_imprime_el_contrato(capsys, monkeypatch) -> None:
     assert json.loads(capsys.readouterr().out)["openapi"] == "3.1.0"
 
 
-def test_idea_create_manda_el_cuerpo(tmp_path, capsys, monkeypatch) -> None:
+def test_item_create_manda_el_cuerpo(tmp_path, capsys, monkeypatch) -> None:
     _con_raiz(tmp_path)
     visto = {}
 
@@ -184,10 +184,10 @@ def test_idea_create_manda_el_cuerpo(tmp_path, capsys, monkeypatch) -> None:
         "tags": ["ui"],
         "depende_de": ["u0"],
     }
-    assert "/ideas?repo=" in visto["url"]
+    assert "/items?repo=" in visto["url"]
 
 
-def test_idea_create_con_fases_lee_el_fichero(tmp_path, capsys, monkeypatch) -> None:
+def test_item_create_con_fases_lee_el_fichero(tmp_path, capsys, monkeypatch) -> None:
     _con_raiz(tmp_path)
     visto: dict = {}
 
@@ -203,13 +203,13 @@ def test_idea_create_con_fases_lee_el_fichero(tmp_path, capsys, monkeypatch) -> 
     assert cli.main(["idea", "create", "--title", "A", "--fases", str(fichero), "--json"]) == 0
     assert visto["datos"]["fases"] == fases
 
-    # `{"fases": [...]}` vale igual: es el mismo formato que `idea fases`.
+    # `{"fases": [...]}` vale igual: es el mismo formato que `item fases`.
     fichero.write_text(json.dumps({"fases": fases}), encoding="utf-8")
     assert cli.main(["idea", "create", "--title", "A", "--fases", str(fichero), "--json"]) == 0
     assert visto["datos"]["fases"] == fases
 
 
-def test_idea_create_con_fases_ilegibles_no_crea(tmp_path, capsys, monkeypatch) -> None:
+def test_item_create_con_fases_ilegibles_no_crea(tmp_path, capsys, monkeypatch) -> None:
     _con_raiz(tmp_path)
     monkeypatch.setattr(
         cli, "_post", lambda url, datos: (_ for _ in ()).throw(AssertionError("no debería crear"))
@@ -224,7 +224,7 @@ def test_idea_create_con_fases_ilegibles_no_crea(tmp_path, capsys, monkeypatch) 
     assert "no existe" in capsys.readouterr().err
 
 
-def test_idea_edit_solo_los_campos_dados(tmp_path, capsys, monkeypatch) -> None:
+def test_item_edit_solo_los_campos_dados(tmp_path, capsys, monkeypatch) -> None:
     _con_raiz(tmp_path)
     visto = {}
 
@@ -237,18 +237,18 @@ def test_idea_edit_solo_los_campos_dados(tmp_path, capsys, monkeypatch) -> None:
 
     assert cli.main(["idea", "edit", "u1", "--title", "Nuevo", "--sin-etiquetas"]) == 0
     assert visto["datos"] == {"title": "Nuevo", "tags": []}
-    assert "/ideas/u1?repo=" in visto["url"]
+    assert "/items/u1?repo=" in visto["url"]
     assert "Nuevo" in capsys.readouterr().out
 
 
-def test_idea_edit_sin_cambios_es_uso_invalido(tmp_path, capsys) -> None:
+def test_item_edit_sin_cambios_es_uso_invalido(tmp_path, capsys) -> None:
     _con_raiz(tmp_path)
 
     assert cli.main(["idea", "edit", "u1"]) == 2
     assert "nada que editar" in capsys.readouterr().err
 
 
-def test_idea_move_descarta_con_motivo(tmp_path, capsys, monkeypatch) -> None:
+def test_item_move_descarta_con_motivo(tmp_path, capsys, monkeypatch) -> None:
     _con_raiz(tmp_path)
     visto = {}
 
@@ -281,7 +281,7 @@ def test_idea_move_descarta_con_motivo(tmp_path, capsys, monkeypatch) -> None:
     assert "rejected" in capsys.readouterr().out
 
 
-def test_idea_fases_reemplaza_desde_json(tmp_path, capsys, monkeypatch) -> None:
+def test_item_fases_reemplaza_desde_json(tmp_path, capsys, monkeypatch) -> None:
     _con_raiz(tmp_path)
     fichero = tmp_path / "fases.json"
     fases = [{"titulo": "Preparar", "requisitos": [{"titulo": "Listo"}]}]
@@ -297,12 +297,12 @@ def test_idea_fases_reemplaza_desde_json(tmp_path, capsys, monkeypatch) -> None:
 
     assert cli.main(["idea", "fases", "u1", str(fichero)]) == 0
     assert visto["datos"] == {"fases": fases}
-    assert "/ideas/u1?repo=" in visto["url"]
+    assert "/items/u1?repo=" in visto["url"]
 
 
-def test_idea_requisito_marca_uno_y_conserva_el_resto(tmp_path, capsys, monkeypatch) -> None:
+def test_item_requisito_marca_uno_y_conserva_el_resto(tmp_path, capsys, monkeypatch) -> None:
     _con_raiz(tmp_path)
-    idea = {
+    item = {
         "uid": "u1",
         "title": "T",
         "status": "proposed",
@@ -327,11 +327,11 @@ def test_idea_requisito_marca_uno_y_conserva_el_resto(tmp_path, capsys, monkeypa
         ],
     }
     visto = {}
-    monkeypatch.setattr(cli, "_get", lambda url: (idea, None, 200))
+    monkeypatch.setattr(cli, "_get", lambda url: (item, None, 200))
 
     def falso(url, datos):
         visto["datos"] = datos
-        return (idea, None, 200)
+        return (item, None, 200)
 
     monkeypatch.setattr(cli, "_patch", falso)
 
@@ -344,7 +344,7 @@ def test_idea_requisito_marca_uno_y_conserva_el_resto(tmp_path, capsys, monkeypa
     assert "1.2" in capsys.readouterr().out
 
 
-def test_idea_requisito_inexistente_sale_con_1(tmp_path, capsys, monkeypatch) -> None:
+def test_item_requisito_inexistente_sale_con_1(tmp_path, capsys, monkeypatch) -> None:
     _con_raiz(tmp_path)
     monkeypatch.setattr(cli, "_get", lambda url: ({"uid": "u1", "fases": []}, None, 200))
 
@@ -352,7 +352,7 @@ def test_idea_requisito_inexistente_sale_con_1(tmp_path, capsys, monkeypatch) ->
     assert "no tiene la fase" in capsys.readouterr().err
 
 
-def test_item_y_el_alias_idea_dan_lo_mismo(tmp_path, capsys, monkeypatch) -> None:
+def test_item_y_el_alias_item_dan_lo_mismo(tmp_path, capsys, monkeypatch) -> None:
     _con_raiz(tmp_path)
 
     def falso(url: str):
@@ -372,7 +372,7 @@ def test_item_y_el_alias_idea_dan_lo_mismo(tmp_path, capsys, monkeypatch) -> Non
     assert "2027-01-31" in alias.err
 
 
-def test_item_move_y_el_alias_idea_mueven_igual(tmp_path, capsys, monkeypatch) -> None:
+def test_item_move_y_el_alias_item_mueven_igual(tmp_path, capsys, monkeypatch) -> None:
     _con_raiz(tmp_path)
     visto: list[dict[str, str]] = []
 

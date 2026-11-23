@@ -12,9 +12,9 @@ from .estados import _grupo
 def _validar_fases_en_lane(destino: str, fases: list[dict[str, Any]]) -> None:
     """En la entrada y la cola las fases y sus requisitos están pendientes.
 
-    Hasta roadmap la idea es un plan: completar, fallar o rechazar una fase —o
+    Hasta roadmap el ítem es un plan: completar, fallar o rechazar una fase —o
     marcar un requisito— es trabajo, y el trabajo se lleva allí, que es donde
-    la idea está activa. Volver a estos carriles lo devuelve todo a pendiente
+    el ítem está activa. Volver a estos carriles lo devuelve todo a pendiente
     (ver `_escribir_estado`).
     """
     if destino not in ("draft", "proposed"):
@@ -63,11 +63,11 @@ def _validar_aprobacion_total(fases: list[dict[str, Any]]) -> None:
     El protocolo ya exige todas las fases completadas y una fase completada no
     puede dejar requisitos pendientes, pero la aprobación es el cierre del
     flujo: se mira también la lista que quedará, sin depender de que el cliente
-    la reenvíe. Así una idea con una fase completada a mano y un requisito
+    la reenvíe. Así un ítem con una fase completada a mano y un requisito
     pendiente no se archiva.
     """
     if not fases:
-        raise InvalidInput("no se puede aprobar sin fases: la idea no tiene ninguna")
+        raise InvalidInput("no se puede aprobar sin fases: el ítem no tiene ninguna")
     for fase in fases:
         if fase["estado"] != "completada":
             raise InvalidInput(

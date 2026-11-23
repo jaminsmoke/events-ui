@@ -19,8 +19,8 @@ from pathlib import Path
 from typing import Any
 
 from .db import open_read_only
-from .ideas.base.comun import InvalidInput, escribir_atomico, fecha_iso, now_iso
-from .ideas.base.rutas import EUI_DIR, db_file_for
+from .items.base.comun import InvalidInput, escribir_atomico, fecha_iso, now_iso
+from .items.base.rutas import EUI_DIR, db_file_for
 
 EXTENSIONES = {".md", ".markdown"}
 # Lo que nunca es documentación del proyecto: metadatos, dependencias y salidas
@@ -70,13 +70,13 @@ _NOMBRES_REFERENCIA = {
 # El contrato del plan que propone el agente. Se publica con
 # `eui schema migrate` y es lo primero que mira `check`: cierra lo que no se
 # negocia (todo a `proposed`, fases pendientes, origen obligatorio) para que el
-# agente no pueda colar un estado o una idea sin procedencia.
+# agente no pueda colar un estado o un ítem sin procedencia.
 ESQUEMA_PLAN: dict[str, Any] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "urn:events-ui:plan-migracion:1",
     "title": "Plan de migración de Markdown",
     "description": (
-        "Lo que propone el agente antes de tocar el almacén. Cada idea cita el "
+        "Lo que propone el agente antes de tocar el almacén. Cada item cita el "
         "Markdown del que sale (ruta, líneas y sha256). La v3 añade el "
         "manifiesto `documentos` (mapa / referencia / parcial). `check` añade "
         "lo que el esquema no puede comprobar (refs, dependencias, hash, "
@@ -215,7 +215,7 @@ ESQUEMA_PLAN: dict[str, Any] = {
                     "items": {"$ref": "#/$defs/ref"},
                     "uniqueItems": True,
                     "default": [],
-                    "description": "Refs de otras ideas de este plan, nunca uids.",
+                    "description": "Refs de otras items de este plan, nunca uids.",
                 },
                 "fases": {
                     "type": "array",
@@ -450,8 +450,8 @@ def revisar(raiz: Path, plan: dict[str, Any], *, plan_ruta: str = "plan.json") -
     aquí: seguir con un plan mal formado solo añadiría ruido.
     """
     raiz = raiz.resolve()
-    ideas = plan.get("ideas") if isinstance(plan.get("ideas"), list) else []
-    resumen = _resumen(ideas)
+    items = plan.get("ideas") if isinstance(plan.get("ideas"), list) else []
+    resumen = _resumen(items)
     errores = validar_esquema(plan)
     if errores:
         return {
@@ -466,39 +466,39 @@ def revisar(raiz: Path, plan: dict[str, Any], *, plan_ruta: str = "plan.json") -
 
     errores = _errores_de_destino(plan)
     vistos: dict[str, int] = {}
-    for indice, idea in enumerate(ideas):
-        ref = idea["ref"]
+    for indice, item in enumerate(items):
+        ref = item["ref"]
         if ref in vistos:
             errores.append(
-                f"ideas[{indice}].ref: repetida ({ref!r}); ya estaba en ideas[{vistos[ref]}]"
+                f"ideas[{indice}].ref: repetida ({ref!r}); ya estaba en items[{vistos[ref]}]"
             )
         else:
             vistos[ref] = indice
 
-    for indice, idea in enumerate(ideas):
-        for posicion, dependencia in enumerate(idea.get("depende_de") or []):
+    for indice, item in enumerate(items):
+        for posicion, dependencia in enumerate(item.get("depende_de") or []):
             ruta_dep = f"ideas[{indice}].depende_de[{posicion}]"
-            if dependencia == idea["ref"]:
+            if dependencia == item["ref"]:
                 errores.append(f"{ruta_dep}: se apunta a sí misma ({dependencia!r})")
             elif dependencia not in vistos:
-                errores.append(f"{ruta_dep}: no existe la idea {dependencia!r}")
+                errores.append(f"{ruta_dep}: no existe el ítem {dependencia!r}")
 
     grafo = {
-        idea["ref"]: [dep for dep in idea.get("depende_de") or [] if dep in vistos]
-        for idea in ideas
+        item["ref"]: [dep for dep in item.get("depende_de") or [] if dep in vistos]
+        for item in items
     }
     for ciclo in _ciclos(grafo):
         errores.append(f"dependencia circular: {' → '.join(ciclo)}")
 
-    errores.extend(_errores_de_origen(raiz, ideas))
-    errores.extend(_errores_de_documentos(raiz, plan, ideas))
+    errores.extend(_errores_de_origen(raiz, items))
+    errores.extend(_errores_de_documentos(raiz, plan, items))
 
     titulos: dict[tuple[str, str], int] = {}
-    for indice, idea in enumerate(ideas):
-        clave = (idea["title"].strip().casefold(), idea["origen"]["ruta"])
+    for indice, item in enumerate(items):
+        clave = (item["title"].strip().casefold(), item["origen"]["ruta"])
         if clave in titulos:
             errores.append(
-                f"ideas[{indice}]: «{idea['title']}» ya sale en ideas[{titulos[clave]}] "
+                f"ideas[{indice}]: «{item['title']}» ya sale en items[{titulos[clave]}] "
                 "del mismo fichero"
             )
         else:
@@ -506,12 +506,12 @@ def revisar(raiz: Path, plan: dict[str, Any], *, plan_ruta: str = "plan.json") -
 
     crear = [
         {
-            "ref": idea["ref"],
-            "title": idea["title"],
-            "status": idea.get("status") or "proposed",
-            "origen": idea["origen"],
+            "ref": item["ref"],
+            "title": item["title"],
+            "status": item.get("status") or "proposed",
+            "origen": item["origen"],
         }
-        for idea in ideas
+        for item in items
     ]
     return {
         "ok": not errores,
@@ -542,19 +542,19 @@ def _errores_de_destino(plan: dict[str, Any]) -> list[str]:
             errores.append("documentos: la versión 3 exige el manifiesto de documentos")
     elif documentos is not None:
         errores.append("documentos: solo vale con version 3")
-    for indice, idea in enumerate(plan.get("ideas") or []):
-        if not isinstance(idea, dict):
+    for indice, item in enumerate(plan.get("ideas") or []):
+        if not isinstance(item, dict):
             continue
-        estado = idea.get("status") or "proposed"
+        estado = item.get("status") or "proposed"
         if version == 1 and estado != "proposed":
             errores.append(
                 f"ideas[{indice}].status: la versión 1 solo admite proposed; usa version 2"
             )
-        if estado != "proposed" and idea.get("fases"):
+        if estado != "proposed" and item.get("fases"):
             errores.append(f"ideas[{indice}].fases: solo valen con status proposed")
-        if estado == "rejected" and not str(idea.get("motivo") or "").strip():
+        if estado == "rejected" and not str(item.get("motivo") or "").strip():
             errores.append(f"ideas[{indice}].motivo: rejected exige un motivo")
-        fecha = idea.get("fecha")
+        fecha = item.get("fecha")
         if fecha is not None:
             if estado not in ("historial", "rejected"):
                 errores.append(f"ideas[{indice}].fecha: solo vale para historial o rejected")
@@ -567,13 +567,13 @@ def _errores_de_destino(plan: dict[str, Any]) -> list[str]:
 
 
 def _errores_de_documentos(
-    raiz: Path, plan: dict[str, Any], ideas: list[dict[str, Any]]
+    raiz: Path, plan: dict[str, Any], items: list[dict[str, Any]]
 ) -> list[str]:
     """Allowlist del mapa, cobertura de bloques y rangos de los parciales.
 
-    Solo corre con version 3 (el manifiesto ya pasó el esquema). Las ideas solo
+    Solo corre con version 3 (el manifiesto ya pasó el esquema). Las items solo
     pueden salir de `mapa`/`parcial`; en `mapa` todos los bloques accionables
-    tienen que estar cubiertos; en `parcial` hace falta `rangos` y las ideas
+    tienen que estar cubiertos; en `parcial` hace falta `rangos` y los ítems
     (y los bloques dentro de esos rangos) tienen que caer dentro.
     """
     if plan.get("version") != 3:
@@ -633,11 +633,11 @@ def _errores_de_documentos(
         if documento.get("clase") in ("mapa", "parcial")
     }
     ideas_por_ruta: dict[str, list[tuple[int, dict[str, Any]]]] = {}
-    for indice, idea in enumerate(ideas):
-        if not isinstance(idea, dict) or not isinstance(idea.get("origen"), dict):
+    for indice, item in enumerate(items):
+        if not isinstance(item, dict) or not isinstance(item.get("origen"), dict):
             continue
-        ruta = str(idea["origen"].get("ruta") or "")
-        ideas_por_ruta.setdefault(ruta, []).append((indice, idea))
+        ruta = str(item["origen"].get("ruta") or "")
+        ideas_por_ruta.setdefault(ruta, []).append((indice, item))
         if ruta not in por_ruta:
             errores.append(
                 f"ideas[{indice}].origen.ruta: {ruta!r} no está en documentos "
@@ -666,11 +666,11 @@ def _errores_de_documentos(
         bloques = _bloques_markdown(texto)
         origenes = [
             (
-                int(idea["origen"]["desde_linea"]),
-                int(idea["origen"]["hasta_linea"]),
+                int(item["origen"]["desde_linea"]),
+                int(item["origen"]["hasta_linea"]),
             )
-            for _indice, idea in ideas_por_ruta.get(ruta, [])
-            if isinstance(idea.get("origen"), dict)
+            for _indice, item in ideas_por_ruta.get(ruta, [])
+            if isinstance(item.get("origen"), dict)
         ]
         if clase == "parcial":
             rangos = [
@@ -681,9 +681,9 @@ def _errores_de_documentos(
                 and isinstance(rango.get("hasta"), int)
             ]
             fusion = _fusionar(sorted(rangos))
-            for indice, idea in ideas_por_ruta.get(ruta, []):
-                desde = int(idea["origen"]["desde_linea"])
-                hasta = int(idea["origen"]["hasta_linea"])
+            for indice, item in ideas_por_ruta.get(ruta, []):
+                desde = int(item["origen"]["desde_linea"])
+                hasta = int(item["origen"]["hasta_linea"])
                 if not any(r_desde <= desde and hasta <= r_hasta for r_desde, r_hasta in fusion):
                     errores.append(
                         f"ideas[{indice}].origen: fuera de los rangos parciales de {ruta!r}"
@@ -710,22 +710,22 @@ def _errores_de_documentos(
     return errores
 
 
-def _resumen(ideas: list[Any]) -> dict[str, int]:
+def _resumen(items: list[Any]) -> dict[str, int]:
     archivos = {
-        idea["origen"]["ruta"]
-        for idea in ideas
-        if isinstance(idea, dict)
-        and isinstance(idea.get("origen"), dict)
-        and isinstance(idea["origen"].get("ruta"), str)
+        item["origen"]["ruta"]
+        for item in items
+        if isinstance(item, dict)
+        and isinstance(item.get("origen"), dict)
+        and isinstance(item["origen"].get("ruta"), str)
     }
-    return {"ideas": len(ideas), "archivos": len(archivos), "refs": len(ideas)}
+    return {"ideas": len(items), "archivos": len(archivos), "refs": len(items)}
 
 
-def _errores_de_origen(raiz: Path, ideas: list[dict[str, Any]]) -> list[str]:
+def _errores_de_origen(raiz: Path, items: list[dict[str, Any]]) -> list[str]:
     """Cada origen tiene que seguir siendo el fichero del scan."""
     errores: list[str] = []
-    for indice, idea in enumerate(ideas):
-        origen = idea["origen"]
+    for indice, item in enumerate(items):
+        origen = item["origen"]
         prefijo = f"ideas[{indice}].origen"
         try:
             archivo = resolver(raiz, origen["ruta"])
@@ -1050,7 +1050,7 @@ def revisar_absorcion(raiz: Path, lote: str, *, parcial: bool = False) -> dict[s
                 raiz,
                 lote,
                 str(cabecera["plan_sha256"]),
-                "el lote no tiene ideas",
+                "el lote no tiene items",
                 parcial=parcial,
             )
 
@@ -1265,7 +1265,7 @@ def _informe_archivo(
 
 
 def _marcadores_del_lote(ruta: str, filas_lote: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Un marcador visible por idea del lote, con su rango 1-based."""
+    """Un marcador visible por item del lote, con su rango 1-based."""
     marcadores: list[dict[str, Any]] = []
 
     def _clave_rango(item: dict[str, Any]) -> tuple[int, int, str]:
@@ -1357,7 +1357,7 @@ def _bloques_markdown(texto: str) -> list[dict[str, Any]]:
 
     Una viñeta con subitems directos es una cabecera de grupo, no un bloque:
     sus hijos sí cuentan. Así `ROADMAP` no confunde «Migración v2…» con una
-    idea y siguen contando las cinco tareas que cuelgan de ella.
+    item y siguen contando las cinco tareas que cuelgan de ella.
     """
     viñetas: list[dict[str, Any]] = []
     _, desde = _frontmatter(texto)
@@ -1420,7 +1420,7 @@ def confirmar_absorcion(raiz: Path, lote: str, *, parcial: bool = False) -> dict
     la vista posterior se genera con `migrate export`; en parcial el origen
     sigue en el repo con marcadores visibles `[eui:<uid>]`.
     """
-    from .ideas.migracion import escribir_absorcion, leer_absorcion
+    from .items.migracion import escribir_absorcion, leer_absorcion
 
     raiz = raiz.resolve()
     informe = revisar_absorcion(raiz, lote, parcial=parcial)
@@ -1524,7 +1524,7 @@ def listar_documentos_absorbidos(raiz: Path) -> list[dict[str, Any]]:
     filesystem del repo: el origen puede haberse retirado. Si una ruta aparece
     en varios lotes, se queda el manifiesto más reciente.
     """
-    from .ideas.migracion import leer_absorcion
+    from .items.migracion import leer_absorcion
 
     raiz = raiz.resolve()
     base = raiz / EUI_DIR / "migracion"

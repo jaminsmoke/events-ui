@@ -88,7 +88,7 @@ def _tags_json(texto: str | None) -> list[str]:
     return [elemento for elemento in valor if isinstance(elemento, str)]
 
 
-# Columnas con las que se lee una idea: su composición y su nodo. Listar, leer
+# Columnas con las que se lee un ítem: su composición y su nodo. Listar, leer
 # una ficha y devolver el resultado de un PATCH usan siempre esta forma.
 _COLUMNAS = "idea_data.*, idea_node.estado, idea_node.entered_at"
 
@@ -102,19 +102,19 @@ _COLUMNAS_RESUMEN = (
 
 
 def _emitir(conn: sqlite3.Connection, tipo: str, payload: dict[str, Any]) -> None:
-    """Añade un evento `idea.*` al log del propio almacén, en su transacción.
+    """Añade un evento `item.*` al log del propio almacén, en su transacción.
 
-    El core es quien escribe ideas, así que es también quien emite sus eventos
+    El core es quien escribe items, así que es también quien emite sus eventos
     de ciclo de vida —esos sí los produce la app; el resto del log viene del
-    productor externo. La fila viaja en la misma transacción que la idea: si
+    productor externo. La fila viaja en la misma transacción que el ítem: si
     el cambio se deshace, el evento no queda suelto. La `dedupe_key` no aplica.
     """
-    # Almacén viejo sin tabla `event`: la idea sí se escribe; el evento no.
+    # Almacén viejo sin tabla `event`: el ítem sí se escribe; el evento no.
     # Solo se traga esa ausencia: otro error (disco lleno, payload roto) debe
     # notarse, no desaparecer en silencio.
     try:
         conn.execute(
-            "INSERT INTO event (ts, type, payload, origen) VALUES (?, ?, ?, 'idea')",
+            "INSERT INTO event (ts, type, payload, origen) VALUES (?, ?, ?, 'item')",
             (now_iso(), tipo, json.dumps(payload)),
         )
     except sqlite3.OperationalError as exc:

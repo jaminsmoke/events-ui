@@ -1,7 +1,7 @@
 """`core:seed` sobre un almacén existente lo migra, no lo marca a ciegas.
 
 Antes, `init_repo` reaplicaba solo `schema/*.sql`: en un v12 creaba las
-tablas nuevas, dejaba la idea completada en `idea_completada` y fijaba
+tablas nuevas, dejaba el ítem completada en `idea_completada` y fijaba
 `user_version = 13` sin copiarla ni ampliar `protocolo_flujo`. El mapa la
 leía como borrador (draft) y los protocolos nuevos no llegaban.
 """
@@ -13,7 +13,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from events_core import ideas
+from events_core import items
 
 _ESPERADOS = {
     ("draft", "proposed"),
@@ -75,7 +75,7 @@ def _esquema_v12(conn: sqlite3.Connection) -> None:
 
 
 def _db_v12(repo: str) -> Path:
-    db = ideas.db_file_for(repo)
+    db = items.db_file_for(repo)
     db.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(db))
     try:
@@ -104,10 +104,10 @@ def _comprobar_migrado(client, repo, esperados=_ESPERADOS):  # noqa: ANN001, ANN
     mapa = client.get("/mapa", params={"repo": repo}).json()
     assert {i["uid"]: i["status"] for i in mapa["ideas"]} == {"hecha": "historial"}
 
-    db = ideas.db_file_for(repo)
+    db = items.db_file_for(repo)
     conn = sqlite3.connect(str(db))
     try:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == ideas.SCHEMA_VERSION
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == items.SCHEMA_VERSION
         tablas = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         assert "idea_completada" not in tablas
         # La completada histórica se archiva, pero conserva su firma.

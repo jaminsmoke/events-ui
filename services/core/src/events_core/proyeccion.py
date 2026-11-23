@@ -28,8 +28,8 @@ from typing import Any
 
 from . import proceso
 from .db import open_read_only
-from .ideas import InvalidInput, _existe, ensure_repo, repos_root, resolve_repo
-from .ideas.base.rutas import DB_FILENAME, EUI_DIR
+from .items import InvalidInput, _existe, ensure_repo, repos_root, resolve_repo
+from .items.base.rutas import DB_FILENAME, EUI_DIR
 
 
 def _git(carpeta: Path, *args: str) -> str | None:
@@ -99,7 +99,7 @@ def _git_cambios(carpeta: Path) -> list[dict[str, str]]:
                 cambio["origen"] = campos[i]
             i += 1
         # El almacén de la app no es trabajo del repo: se escribe solo con cada
-        # idea, así que enseñarlo dejaría la lista de cambios siempre con algo
+        # item, así que enseñarlo dejaría la lista de cambios siempre con algo
         # y «nada sin commit» no llegaría nunca. Mismo criterio que
         # `archivos._nombres`.
         if ruta == EUI_DIR or ruta.startswith(f"{EUI_DIR}/"):
@@ -344,9 +344,9 @@ def repo_estado_actual(repo: str) -> dict[str, Any]:
 
     with closing(open_read_only(db_file)) as conn:
         # La tabla vive como `idea_data` desde la 0020; antes era `idea_entry`
-        # (0006) y, más atrás, `ideas`.
-        tabla_idea = "idea_data" if _existe(conn, "idea_data") else "ideas"
-        ideas = conteo(conn, f"SELECT count(*) FROM {tabla_idea}")
+        # (0006) y, más atrás, `items`.
+        tabla_item = "idea_data" if _existe(conn, "idea_data") else "ideas"
+        items = conteo(conn, f"SELECT count(*) FROM {tabla_item}")
         eventos = conteo(conn, "SELECT count(*) FROM event")
         por_estado: dict[str, int] = {}
         try:
@@ -379,7 +379,7 @@ def repo_estado_actual(repo: str) -> dict[str, Any]:
         "commit": _git(carpeta, "rev-parse", "--short", "HEAD") if es_git else None,
         "git_cambios": _git_cambios(carpeta) if es_git else [],
         "eui_ignorado": _almacen_ignorado(carpeta) if es_git else None,
-        "ideas": ideas,
+        "ideas": items,
         "events": eventos,
         "por_estado": por_estado,
         "ultima_actividad": ultima,

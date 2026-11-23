@@ -1,6 +1,6 @@
 """CLI `eui`: lo que un agente usa en vez de la API cruda.
 
-Comandos: `doctor` (la puerta), `config`, y la lectura `repo`, `idea` y
+Comandos: `doctor` (la puerta), `config`, y la lectura `repo`, `item` y
 `schema`, todos sobre el mismo cliente HTTP. La migración llega después.
 
     uv run --directory services/core python -m events_core.cli doctor
@@ -24,8 +24,8 @@ from urllib.request import Request, urlopen
 
 from . import __version__, migracion
 from . import config as configuracion
-from .ideas.base.comun import InvalidInput
-from .ideas.base.rutas import resolve_repo
+from .items.base.comun import InvalidInput
+from .items.base.rutas import resolve_repo
 
 TIMEOUT_S = 2.0
 # Aplicar un lote escribe en el almacén: no cabe en el tiempo de un sondeo.
@@ -173,8 +173,8 @@ def evaluar(
             comprobaciones.append(
                 _comprobacion("escritura", "error", f"sin permiso de escritura en {raiz}")
             )
-        from .ideas.base.eui_fs import inventariar_ajenos
-        from .ideas.base.rutas import EUI_DIR
+        from .items.base.eui_fs import inventariar_ajenos
+        from .items.base.rutas import EUI_DIR
 
         ajenos = inventariar_ajenos(raiz / EUI_DIR)
         if ajenos:
@@ -332,21 +332,21 @@ def _repo(args: argparse.Namespace) -> int:
     return 0 if raiz else 1
 
 
-def _imprimir_idea(idea: dict[str, Any]) -> None:
-    print(idea.get("title", ""))
-    print(f"uid: {idea.get('uid', '')}")
-    print(f"estado: {idea.get('status', '')}")
-    if idea.get("tags"):
-        print(f"etiquetas: {', '.join(idea['tags'])}")
-    if idea.get("depende_de"):
-        print(f"depende de: {', '.join(idea['depende_de'])}")
-    print(f"fases: {len(idea.get('fases') or [])}")
-    if idea.get("description"):
+def _imprimir_item(item: dict[str, Any]) -> None:
+    print(item.get("title", ""))
+    print(f"uid: {item.get('uid', '')}")
+    print(f"estado: {item.get('status', '')}")
+    if item.get("tags"):
+        print(f"etiquetas: {', '.join(item['tags'])}")
+    if item.get("depende_de"):
+        print(f"depende de: {', '.join(item['depende_de'])}")
+    print(f"fases: {len(item.get('fases') or [])}")
+    if item.get("description"):
         print()
-        print(idea["description"])
+        print(item["description"])
 
 
-def _idea(args: argparse.Namespace) -> int:
+def _item(args: argparse.Namespace) -> int:
     ajustes, url = _contexto(args)
     try:
         raiz = _raiz(args, ajustes)
@@ -358,14 +358,14 @@ def _idea(args: argparse.Namespace) -> int:
         )
 
     if args.accion == "get":
-        ruta = f"{url}/ideas/{quote(args.uid, safe='')}?repo={quote(raiz, safe='')}"
+        ruta = f"{url}/items/{quote(args.uid, safe='')}?repo={quote(raiz, safe='')}"
         datos, detalle, estado = _get(ruta)
         if detalle:
             return _fallo(detalle, estado)
         if args.json:
             print(json.dumps(datos))
         else:
-            _imprimir_idea(datos)
+            _imprimir_item(datos)
         return 0
 
     parametros = {"repo": raiz, "limit": str(args.limit), "offset": str(args.offset)}
@@ -376,7 +376,7 @@ def _idea(args: argparse.Namespace) -> int:
     # El listado es un resumen; el cuerpo se pide a propósito, como en la API.
     if getattr(args, "incluir", None):
         parametros["incluir"] = args.incluir
-    datos, detalle, estado = _get(f"{url}/ideas?{urlencode(parametros)}")
+    datos, detalle, estado = _get(f"{url}/items?{urlencode(parametros)}")
     if detalle:
         return _fallo(detalle, estado)
     if args.json:
@@ -385,10 +385,10 @@ def _idea(args: argparse.Namespace) -> int:
     if not datos:
         print("(ningún ítem)")
         return 0
-    ancho_uid = max(len(idea["uid"]) for idea in datos)
-    ancho_estado = max(len(idea["status"]) for idea in datos)
-    for idea in datos:
-        print(f"{idea['uid']:<{ancho_uid}}  {idea['status']:<{ancho_estado}}  {idea['title']}")
+    ancho_uid = max(len(item["uid"]) for item in datos)
+    ancho_estado = max(len(item["status"]) for item in datos)
+    for item in datos:
+        print(f"{item['uid']:<{ancho_uid}}  {item['status']:<{ancho_estado}}  {item['title']}")
     return 0
 
 
@@ -418,16 +418,16 @@ def _con_raiz(args: argparse.Namespace) -> tuple[str | None, str]:
     return raiz, url
 
 
-def _url_idea(url: str, raiz: str, uid: str | None = None) -> str:
-    ruta = f"{url}/ideas/{quote(uid, safe='')}" if uid else f"{url}/ideas"
+def _url_item(url: str, raiz: str, uid: str | None = None) -> str:
+    ruta = f"{url}/items/{quote(uid, safe='')}" if uid else f"{url}/items"
     return f"{ruta}?repo={quote(raiz, safe='')}"
 
 
-def _mostrar(idea: dict[str, Any], como_json: bool) -> int:
+def _mostrar(item: dict[str, Any], como_json: bool) -> int:
     if como_json:
-        print(json.dumps(idea))
+        print(json.dumps(item))
     else:
-        print(f"{idea['uid']}  {idea['status']}  {idea['title']}")
+        print(f"{item['uid']}  {item['status']}  {item['title']}")
     return 0
 
 
@@ -450,7 +450,7 @@ def _fases_de_fichero(fichero: str) -> tuple[list[Any] | None, tuple[str, int] |
     return contenido, None
 
 
-def _idea_create(args: argparse.Namespace) -> int:
+def _item_create(args: argparse.Namespace) -> int:
     raiz, url = _con_raiz(args)
     if raiz is None:
         return 2
@@ -469,13 +469,13 @@ def _idea_create(args: argparse.Namespace) -> int:
         if fallo is not None:
             return _error(*fallo)
         cuerpo["fases"] = fases
-    datos, detalle, estado = _post(_url_idea(url, raiz), cuerpo)
+    datos, detalle, estado = _post(_url_item(url, raiz), cuerpo)
     if detalle:
         return _fallo(detalle, estado)
     return _mostrar(datos, args.json)
 
 
-def _idea_edit(args: argparse.Namespace) -> int:
+def _item_edit(args: argparse.Namespace) -> int:
     raiz, url = _con_raiz(args)
     if raiz is None:
         return 2
@@ -500,13 +500,13 @@ def _idea_edit(args: argparse.Namespace) -> int:
         cambios["depende_de"] = args.dep
     if not cambios:
         return _error("nada que editar: da al menos un campo", 2)
-    datos, detalle, estado = _patch(_url_idea(url, raiz, args.uid), cambios)
+    datos, detalle, estado = _patch(_url_item(url, raiz, args.uid), cambios)
     if detalle:
         return _fallo(detalle, estado)
     return _mostrar(datos, args.json)
 
 
-def _idea_move(args: argparse.Namespace) -> int:
+def _item_move(args: argparse.Namespace) -> int:
     raiz, url = _con_raiz(args)
     if raiz is None:
         return 2
@@ -526,34 +526,34 @@ def _idea_move(args: argparse.Namespace) -> int:
         valor = getattr(args, atributo, None)
         if valor is not None:
             cambios[clave] = valor
-    datos, detalle, estado = _patch(_url_idea(url, raiz, args.uid), cambios)
+    datos, detalle, estado = _patch(_url_item(url, raiz, args.uid), cambios)
     if detalle:
         return _fallo(detalle, estado)
     return _mostrar(datos, args.json)
 
 
-def _idea_fases(args: argparse.Namespace) -> int:
+def _item_fases(args: argparse.Namespace) -> int:
     raiz, url = _con_raiz(args)
     if raiz is None:
         return 2
     contenido, fallo = _fases_de_fichero(args.fichero)
     if fallo is not None:
         return _error(*fallo)
-    datos, detalle, estado = _patch(_url_idea(url, raiz, args.uid), {"fases": contenido})
+    datos, detalle, estado = _patch(_url_item(url, raiz, args.uid), {"fases": contenido})
     if detalle:
         return _fallo(detalle, estado)
     return _mostrar(datos, args.json)
 
 
-def _idea_requisito(args: argparse.Namespace) -> int:
+def _item_requisito(args: argparse.Namespace) -> int:
     raiz, url = _con_raiz(args)
     if raiz is None:
         return 2
-    destino = _url_idea(url, raiz, args.uid)
-    idea, detalle, estado = _get(destino)
+    destino = _url_item(url, raiz, args.uid)
+    item, detalle, estado = _get(destino)
     if detalle:
         return _fallo(detalle, estado)
-    fases = idea.get("fases") or []
+    fases = item.get("fases") or []
     fase = next((f for f in fases if int(f.get("orden", 0)) == args.fase), None)
     if fase is None:
         return _error(f"el ítem {args.uid} no tiene la fase {args.fase}", 1)
@@ -717,14 +717,14 @@ def _migrar_check(args: argparse.Namespace) -> int:
     print(f"repo: {informe['repo']}")
     for documento in informe.get("documentos") or []:
         print(f"· {documento['ruta']}  {documento['clase']} → {documento['destino']}")
-    for idea in informe["crear"]:
-        origen = idea["origen"]
+    for item in informe["crear"]:
+        origen = item["origen"]
         print(
-            f"+ {idea['title']}  [{idea['ref']}]  {idea.get('status', 'proposed')}  "
+            f"+ {item['title']}  [{item['ref']}]  {item.get('status', 'proposed')}  "
             f"{origen['ruta']}:{origen['desde_linea']}-{origen['hasta_linea']}"
         )
     resumen = informe["resumen"]
-    print(f"{resumen['ideas']} ideas · {resumen['archivos']} archivos · {resumen['refs']} refs")
+    print(f"{resumen['ideas']} items · {resumen['archivos']} archivos · {resumen['refs']} refs")
     if informe["ok"]:
         print("plan válido: se aplicaría como un lote")
         return 0
@@ -771,7 +771,7 @@ def _migrar_apply(args: argparse.Namespace) -> int:
     if datos["repetido"]:
         print(f"el plan ya se aplicó como lote {datos['lote']}: no se crea nada")
         return 0
-    print(f"lote {datos['lote']}: {datos['ideas']} ideas creadas")
+    print(f"lote {datos['lote']}: {datos['ideas']} items creadas")
     for creada in datos["creadas"]:
         print(f"  {creada['ref']}  {creada['uid']}")
     return 0
@@ -797,7 +797,7 @@ def _migrar_undo(args: argparse.Namespace) -> int:
     if args.json:
         print(json.dumps(datos))
         return 0
-    print(f"lote {datos['lote']} deshecho: {datos['borradas']} ideas borradas", end="")
+    print(f"lote {datos['lote']} deshecho: {datos['borradas']} items borradas", end="")
     if datos["ausentes"]:
         print(f" ({datos['ausentes']} ya no estaban)", end="")
     print()
@@ -856,7 +856,7 @@ def _migrar_absorb(args: argparse.Namespace) -> int:
 
     resumen = informe["resumen"]
     print(
-        f"{resumen['archivos']} archivos · {resumen['ideas_lote']} ideas del lote · "
+        f"{resumen['archivos']} archivos · {resumen['ideas_lote']} items del lote · "
         f"{resumen['cubiertos']}/{resumen['bloques']} bloques cubiertos"
     )
     if informe["ok"] and args.confirmar:
@@ -986,12 +986,12 @@ def _parser() -> argparse.ArgumentParser:
     listar.add_argument("--offset", type=int, default=0)
     listar.add_argument("--json", action="store_true")
     conexion(listar)
-    listar.set_defaults(func=_idea)
+    listar.set_defaults(func=_item)
     ver = acciones_item.add_parser("get", help="La ficha completa de un ítem")
     ver.add_argument("uid")
     ver.add_argument("--json", action="store_true")
     conexion(ver)
-    ver.set_defaults(func=_idea)
+    ver.set_defaults(func=_item)
 
     crear = acciones_item.add_parser("create", help="Crea un ítem en la cola de entrada")
     crear.add_argument("--title", required=True)
@@ -1006,7 +1006,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     crear.add_argument("--json", action="store_true")
     conexion(crear)
-    crear.set_defaults(func=_idea_create)
+    crear.set_defaults(func=_item_create)
 
     editar = acciones_item.add_parser("edit", help="Edita los campos dados de un ítem")
     editar.add_argument("uid")
@@ -1019,7 +1019,7 @@ def _parser() -> argparse.ArgumentParser:
     editar.add_argument("--sin-dependencias", action="store_true", help="Deja la lista vacía")
     editar.add_argument("--json", action="store_true")
     conexion(editar)
-    editar.set_defaults(func=_idea_edit)
+    editar.set_defaults(func=_item_edit)
 
     mover = acciones_item.add_parser(
         "move", help="Mueve un ítem de carril con los datos de su ficha"
@@ -1037,14 +1037,14 @@ def _parser() -> argparse.ArgumentParser:
     mover.add_argument("--sustituye-a", help="uid del ítem que releva")
     mover.add_argument("--json", action="store_true")
     conexion(mover)
-    mover.set_defaults(func=_idea_move)
+    mover.set_defaults(func=_item_move)
 
     fases = acciones_item.add_parser("fases", help="Reemplaza las fases desde un JSON")
     fases.add_argument("uid")
     fases.add_argument("fichero", help='Lista de fases o {"fases": [...]}')
     fases.add_argument("--json", action="store_true")
     conexion(fases)
-    fases.set_defaults(func=_idea_fases)
+    fases.set_defaults(func=_item_fases)
 
     requisito = acciones_item.add_parser("requisito", help="Marca o desmarca un requisito")
     requisito.add_argument("uid")
@@ -1055,7 +1055,7 @@ def _parser() -> argparse.ArgumentParser:
     marca.add_argument("--pendiente", dest="hecho", action="store_false")
     requisito.add_argument("--json", action="store_true")
     conexion(requisito)
-    requisito.set_defaults(func=_idea_requisito)
+    requisito.set_defaults(func=_item_requisito)
 
     esquema = comandos.add_parser(
         "schema", help="El OpenAPI del core o el esquema del plan de migración"
@@ -1105,7 +1105,7 @@ def _parser() -> argparse.ArgumentParser:
     aplicar.set_defaults(func=_migrar_apply)
 
     deshacer = acciones_migrar.add_parser(
-        "undo", help="Deshace un lote si nadie tocó sus ideas después"
+        "undo", help="Deshace un lote si nadie tocó sus items después"
     )
     deshacer.add_argument("lote", help="Identificador del lote que devolvió apply")
     deshacer.add_argument("--json", action="store_true")
@@ -1157,7 +1157,7 @@ def _parser() -> argparse.ArgumentParser:
 
 
 # El alias se retira el 2027-01-31: hasta entonces avisa y hace lo mismo.
-AVISO_ALIAS = "aviso: `eui idea` es un alias de `eui item`; caduca el 2027-01-31"
+AVISO_ALIAS = "aviso: `eui item` es un alias de `eui item`; caduca el 2027-01-31"
 
 
 def main(argv: list[str] | None = None) -> int:

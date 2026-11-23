@@ -6,7 +6,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Query
 
-from .. import ideas, proyeccion, registro
+from .. import items, proyeccion, registro
 from ..contrato import (
     RESPUESTAS_ERROR,
     CommitGit,
@@ -33,7 +33,7 @@ def get_proyeccion_repo(repo: RepoParam) -> dict[str, Any]:
 )
 def post_git_inicializar(repo: RepoParam) -> dict[str, Any]:
     """`git init` en la carpeta del repo; devuelve la proyección actualizada."""
-    carpeta = ideas.resolve_repo(repo)
+    carpeta = items.resolve_repo(repo)
     proyeccion.inicializar_repo(carpeta)
     registro.escribir("info", f"Repo Git inicializado en {carpeta}", origen="git")
     return proyeccion.repo_estado_actual(repo)
@@ -44,7 +44,7 @@ def post_git_inicializar(repo: RepoParam) -> dict[str, Any]:
 )
 def post_git_eliminar(repo: RepoParam) -> dict[str, Any]:
     """Borra el `.git` propio y nada más; devuelve la proyección actualizada."""
-    carpeta = ideas.resolve_repo(repo)
+    carpeta = items.resolve_repo(repo)
     proyeccion.eliminar_repo(carpeta)
     registro.escribir("info", f"Repo Git eliminado en {carpeta}", origen="git")
     return proyeccion.repo_estado_actual(repo)
@@ -58,13 +58,13 @@ def get_git_commits(
     limite: Annotated[int, Query(ge=1, le=100, description="Máximo de commits")] = 20,
 ) -> list[dict[str, str]]:
     """Los últimos commits de la rama actual, para el nodo Commits del mapa."""
-    return proyeccion.historial(ideas.resolve_repo(repo), limite)
+    return proyeccion.historial(items.resolve_repo(repo), limite)
 
 
 @router.post("/git/commit", response_model=ProyeccionRepo, tags=["git"], responses=RESPUESTAS_ERROR)
 def post_git_commit(repo: RepoParam, peticion: CommitPeticion) -> dict[str, Any]:
     """Un commit local con todo lo pendiente; devuelve la proyección al día."""
-    carpeta = ideas.resolve_repo(repo)
+    carpeta = items.resolve_repo(repo)
     proyeccion.commit(carpeta, peticion.mensaje)
     asunto = peticion.mensaje.strip().splitlines()[0][:60]
     registro.escribir("info", f"Commit local en {carpeta}: {asunto}", origen="git")
@@ -79,7 +79,7 @@ def post_git_commit(repo: RepoParam, peticion: CommitPeticion) -> dict[str, Any]
 )
 def post_git_ignorar_almacen(repo: RepoParam) -> dict[str, Any]:
     """Añade `.EUI/` al `.gitignore` de la raíz; devuelve la proyección al día."""
-    carpeta = ideas.resolve_repo(repo)
+    carpeta = items.resolve_repo(repo)
     proyeccion.ignorar_almacen(carpeta)
     registro.escribir("info", f"Almacén ignorado por Git en {carpeta}", origen="git")
     return proyeccion.repo_estado_actual(repo)

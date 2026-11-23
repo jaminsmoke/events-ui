@@ -1,6 +1,6 @@
 """Aislamiento de los tests: temporales para repos y registro.
 
-Los env vars tienen que estar antes de importar el core: `ideas` e
+Los env vars tienen que estar antes de importar el core: `items` e
 `registro` resuelven rutas al leerlos. El TestClient acota a las rutas de
 producción (sin rutas de prueba: con el `main` importado, añadir rutas a la
 app es contaminar las demás pruebas).

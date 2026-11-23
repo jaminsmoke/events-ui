@@ -8,7 +8,7 @@ terminales, y la cola no se deshace a la entrada). El PATCH impone;
 
 
 def _crear(client, repo, **kw):  # noqa: ANN001, ANN202
-    return client.post("/ideas", params={"repo": repo}, json={"title": "A", **kw}).json()["uid"]
+    return client.post("/items", params={"repo": repo}, json={"title": "A", **kw}).json()["uid"]
 
 
 def test_protocolos_sembrados(client, repo):  # noqa: ANN001, ANN202
@@ -36,7 +36,7 @@ def test_a_revision_no_se_llega_directo(client, repo):  # noqa: ANN001, ANN202
     for origen_kw in ({}, {"status": "proposed"}):
         uid = _crear(client, repo, **origen_kw)
         r = client.patch(
-            f"/ideas/{uid}", params={"repo": repo}, json={"status": "revision_aprobada"}
+            f"/items/{uid}", params={"repo": repo}, json={"status": "revision_aprobada"}
         )
         assert r.status_code == 400
         assert "protocolo" in r.json()["detail"]
@@ -46,19 +46,19 @@ def test_revision_aprobada_es_terminal(client, repo):  # noqa: ANN001, ANN202
     # Ni siquiera las que siembra el harness (status al crear) salen.
     uid = _crear(client, repo, status="revision_aprobada")
     for destino in ("proposed", "rejected", "draft", "roadmap", "verificacion"):
-        r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": destino})
+        r = client.patch(f"/items/{uid}", params={"repo": repo}, json={"status": destino})
         assert r.status_code == 400
         assert "protocolo" in r.json()["detail"]
 
 
 def test_descartadas_son_terminales(client, repo):  # noqa: ANN001, ANN202
     uid = _crear(client, repo, status="proposed")
-    r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": "rejected"})
+    r = client.patch(f"/items/{uid}", params={"repo": repo}, json={"status": "rejected"})
     assert r.status_code == 200
     # Ni a cola, ni a entrada, ni a roadmap, verificación o revisión:
     # las descartadas no salen.
     for destino in ("proposed", "draft", "roadmap", "verificacion", "revision_aprobada"):
-        r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": destino})
+        r = client.patch(f"/items/{uid}", params={"repo": repo}, json={"status": destino})
         assert r.status_code == 400
         assert "protocolo" in r.json()["detail"]
 
@@ -66,15 +66,15 @@ def test_descartadas_son_terminales(client, repo):  # noqa: ANN001, ANN202
 def test_el_rechazo_de_cola_pasa_y_de_cajon_tambien(client, repo):  # noqa: ANN001, ANN202
     # Los dos descartes que la UI ofrece: draft → rejected y proposed → rejected.
     uid_cajon = _crear(client, repo)
-    r = client.patch(f"/ideas/{uid_cajon}", params={"repo": repo}, json={"status": "rejected"})
+    r = client.patch(f"/items/{uid_cajon}", params={"repo": repo}, json={"status": "rejected"})
     assert r.status_code == 200
     uid_cola = _crear(client, repo, status="proposed")
-    r = client.patch(f"/ideas/{uid_cola}", params={"repo": repo}, json={"status": "rejected"})
+    r = client.patch(f"/items/{uid_cola}", params={"repo": repo}, json={"status": "rejected"})
     assert r.status_code == 200
 
 
 def test_reafirmar_no_es_traslado(client, repo):  # noqa: ANN001, ANN202
     # Reafirmar el mismo estado no consulta la allowlist: no es un traslado.
     uid = _crear(client, repo)
-    r = client.patch(f"/ideas/{uid}", params={"repo": repo}, json={"status": "draft"})
+    r = client.patch(f"/items/{uid}", params={"repo": repo}, json={"status": "draft"})
     assert r.status_code == 200

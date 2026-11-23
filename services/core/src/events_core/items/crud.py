@@ -1,4 +1,4 @@
-"""Escribir ideas: alta, edición, borrado y reinicio del almacén."""
+"""Escribir items: alta, edición, borrado y reinicio del almacén."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from .. import archivos, registro
 from .base.comun import _COLUMNAS, InvalidInput, _emitir, _existe, _tags_json, now_iso
 from .base.esquema import connect, ensure_repo
 from .base.rutas import repos_root, resolve_repo
-from .consulta import _row, get_idea
+from .consulta import _row, get_item
 from .modelo.dependencias import _comprobar_dependencias, _validar_dependencias
 from .modelo.estados import (
     REJECT_FIELDS,
@@ -43,7 +43,7 @@ from .trabajo.anotacion import (
 from .trabajo.fases import _escribir_fases, _fases, _normalizar_fases
 
 
-def create_idea(
+def create_item(
     repo: str,
     *,
     title: str,
@@ -67,7 +67,7 @@ def create_idea(
     # `.gitignore`, y fotografiar antes los colaría como trabajo del primer
     # cierre. La foto se toma aquí, con la conexión de escritura todavía sin
     # abrir: el recorrido del árbol no tiene el lock tomado. Si el árbol falla,
-    # se avisa y la idea nace igual.
+    # se avisa y el ítem nace igual.
     db = ensure_repo(repo)
     foto_inicial: dict[str, tuple[int, int]] | None = None
     if _grupo(status) == "roadmap":
@@ -97,7 +97,7 @@ def create_idea(
                 ts,
             ),
         )
-        # El nodo nace en la entrada y `_escribir_estado` lo mueve si la idea
+        # El nodo nace en la entrada y `_escribir_estado` lo mueve si el ítem
         # se creó ya en otro carril, en la misma transacción.
         # La fecha y el `id` se copian al nodo (0033): son el filtro y el orden
         # del listado, y ninguno cambia nunca, a diferencia de `entered_at`.
@@ -107,7 +107,7 @@ def create_idea(
             (uid, ts, datos.lastrowid, ts),
         )
         _escribir_estado(conn, uid, status, {})
-        # Las fases entran en la misma transacción que la idea: o nace completa
+        # Las fases entran en la misma transacción que el ítem: o nace completa
         # o no nace.
         if fases_finales is not None:
             _escribir_fases(conn, uid, fases_finales)
@@ -116,12 +116,12 @@ def create_idea(
         # pero se tomó antes del BEGIN (ver `foto_inicial`).
         if foto_inicial is not None:
             _foto_guardar(conn, uid, foto_inicial)
-        _emitir(conn, "idea.created", {"uid": uid, "title": title})
+        _emitir(conn, "item.created", {"uid": uid, "title": title})
         conn.commit()
-    return get_idea(repo, uid)
+    return get_item(repo, uid)
 
 
-def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
+def update_item(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
     """Actualiza solo los campos presentes. Los `None` no se escriben.
 
     El árbol se lee antes de abrir la transacción: la foto y el `git diff` de
@@ -192,7 +192,7 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
                 _validar_fases_en_lane(destino, fases_finales)
                 _validar_fases_completadas(fases_finales)
             # El gate mira la lista que quedará: la que llega en este PATCH o,
-            # si no hay, la que ya tiene la idea.
+            # si no hay, la que ya tiene el ítem.
             fases_quedan = (
                 (fases_finales if fases_finales is not None else fases_previas)
                 if cambiado_estado
@@ -242,7 +242,7 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
             if cambiado_estado:
                 _escribir_estado(conn, uid, nuevo_estado, detalle_ficha)
                 # Aprobar archiva: la firma se queda en `revision_node` y la
-                # idea pasa a `historial` en la misma transacción. El carril
+                # item pasa a `historial` en la misma transacción. El carril
                 # aprobado es la compuerta, no un sitio donde esperar.
                 if nuevo_estado == "revision_aprobada":
                     conn.execute(
@@ -256,7 +256,7 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
             # Ya con las fases escritas, se aplica lo que se planificó antes
             # del BEGIN: el delta del PATCH se anota en el primer evento.
             _aplicar_anotacion(conn, uid, plan_archivos, anotacion)
-            idea = _row(
+            item = _row(
                 conn,
                 conn.execute(
                     f"SELECT {_COLUMNAS} FROM idea_data"
@@ -267,23 +267,23 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
             )
             _emitir(
                 conn,
-                "idea.status" if cambiado_estado else "idea.updated",
-                {"uid": uid, "title": idea["title"], "status": idea["status"]},
+                "item.status" if cambiado_estado else "item.updated",
+                {"uid": uid, "title": item["title"], "status": item["status"]},
             )
             conn.commit()
         except sqlite3.IntegrityError as exc:
-            # `superseded_by_uid` apunta a una idea que no existe: es un dato
+            # `superseded_by_uid` apunta a un ítem que no existe: es un dato
             # mal puesto (400), no un fallo del servidor (500).
-            raise InvalidInput("superseded_by_uid apunta a una idea que no existe") from exc
-    return idea
+            raise InvalidInput("superseded_by_uid apunta a un ítem que no existe") from exc
+    return item
 
 
-def delete_idea(repo: str, uid: str) -> bool:
-    """Borra la idea; su nodo y el detalle se van con ella (ON DELETE CASCADE).
+def delete_item(repo: str, uid: str) -> bool:
+    """Borra el ítem; su nodo y el detalle se van con ella (ON DELETE CASCADE).
 
     Solo se acepta si está en Descartadas (`rejected`/`superseded`): el borrado
     definitivo no salta ese paso. El título se lee antes de borrar para que el
-    evento `idea.deleted` tenga qué mostrar: después no hay fila de la que
+    evento `item.deleted` tenga qué mostrar: después no hay fila de la que
     sacar nada. Si otra ficha la usa como sustituta (`superseded_by_uid`), no
     se borra: el vínculo es información y se avisa del conflicto en vez de
     romperlo en silencio.
@@ -316,7 +316,7 @@ def delete_idea(repo: str, uid: str) -> bool:
                 f"no se puede borrar {uid}: es la sustituta de {', '.join(sustitutas)};"
                 " retira ese vínculo antes"
             )
-        # El nodo y el detalle se borran con la idea (ON DELETE CASCADE).
+        # El nodo y el detalle se borran con el ítem (ON DELETE CASCADE).
         try:
             cursor = conn.execute("DELETE FROM idea_data WHERE uid = ?", (uid,))
         except sqlite3.IntegrityError as exc:
@@ -327,7 +327,7 @@ def delete_idea(repo: str, uid: str) -> bool:
         if cursor.rowcount > 0:
             # `depende_de` es una lista JSON, sin FK que la limpie: se retira
             # el uid de las listas ajenas para que nadie quede bloqueado por
-            # una idea que ya no existe.
+            # un ítem que ya no existe.
             for fila in conn.execute("SELECT uid, depende_de FROM idea_data").fetchall():
                 deps = _tags_json(fila[1])
                 if uid in deps:
@@ -335,13 +335,13 @@ def delete_idea(repo: str, uid: str) -> bool:
                         "UPDATE idea_data SET depende_de = ? WHERE uid = ?",
                         (json.dumps([otra for otra in deps if otra != uid]), fila[0]),
                     )
-            _emitir(conn, "idea.deleted", {"uid": uid, "title": titulo})
+            _emitir(conn, "item.deleted", {"uid": uid, "title": titulo})
         conn.commit()
     return cursor.rowcount > 0
 
 
 def reiniciar(repo: str) -> dict[str, Any]:
-    """Vacía el almacén de ideas, cola, fichas y eventos (LAB).
+    """Vacía el almacén de items, cola, fichas y eventos (LAB).
 
     Solo lo usa el lanzador de pruebas (`puedeProbar`) para volver a un estado
     de proyecto limpio tras una prueba: no es parte del CRUD de producto. La
@@ -358,9 +358,9 @@ def reiniciar(repo: str) -> dict[str, Any]:
 
     with closing(connect(db_file)) as conn:
         conn.execute("BEGIN IMMEDIATE")
-        n_ideas = contar(conn, "idea_data")
+        n_items = contar(conn, "idea_data")
         n_eventos = contar(conn, "event")
-        # Borrar las ideas arrastra nodo y detalle por CASCADE; los eventos no
+        # Borrar los ítems arrastra nodo y detalle por CASCADE; los eventos no
         # cuelgan de nada, se borran aparte.
         if n_eventos:
             conn.execute("DELETE FROM event")
@@ -368,6 +368,6 @@ def reiniciar(repo: str) -> dict[str, Any]:
         conn.commit()
     return {
         "repo": repo,
-        "ideas_eliminadas": n_ideas,
+        "ideas_eliminadas": n_items,
         "eventos_eliminados": n_eventos,
     }

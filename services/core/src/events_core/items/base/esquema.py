@@ -20,7 +20,7 @@ from .rutas import (
     resolve_repo,
 )
 
-# `ideas/base/esquema.py` -> `events_core/schema` (el esquema se edita a mano).
+# `items/base/esquema.py` -> `events_core/schema` (el esquema se edita a mano).
 SCHEMA_DIR = Path(__file__).resolve().parents[2] / "schema"
 
 # La versión que firma `schema/`: un almacén que nace hoy se queda en esta y no
@@ -83,9 +83,9 @@ def init_repo(repo: str) -> Path:
 
 
 def aplicar_esquema(conn: sqlite3.Connection) -> None:
-    """Aplica los `schema/*.sql` de ideas y log, y marca la versión.
+    """Aplica los `schema/*.sql` de items y log, y marca la versión.
 
-    El log entra aquí porque el core emite sus `idea.*` en él: un almacén
+    El log entra aquí porque el core emite sus `item.*` en él: un almacén
     recién sembrado que naciera sin `event` perdería justo los primeros.
     Idempotente: todo es IF NOT EXISTS.
     """

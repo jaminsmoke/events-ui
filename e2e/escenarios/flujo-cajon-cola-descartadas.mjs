@@ -36,7 +36,7 @@ export default {
     const eventos = await api("/eventos?repo=lab");
     const tipos = eventos.data.map((e) => e.type);
     await expect(
-      tipos.join(",") === "idea.created,idea.status,idea.status",
+      tipos.join(",") === "item.created,item.status,item.status",
       `los eventos cuentan el flujo (vinieron: ${tipos.join(",")})`,
     );
 

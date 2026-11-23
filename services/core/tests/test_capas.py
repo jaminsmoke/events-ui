@@ -1,6 +1,6 @@
-"""Las capas de `ideas/` solo miran hacia abajo.
+"""Las capas de `items/` solo miran hacia abajo.
 
-- `base/` no sabe de ideas: rutas del almacén, esquema, migraciones y lo común.
+- `base/` no sabe de items: rutas del almacén, esquema, migraciones y lo común.
 - `modelo/` conoce el flujo: carriles, fichas, dependencias y compuertas.
 - `trabajo/` lo desglosa en fases, requisitos y los archivos de cada evento.
 - `consulta.py` y `crud.py` son las dos caras de la API.
@@ -17,7 +17,7 @@ from pathlib import Path
 SRC = Path(__file__).resolve().parents[1] / "src"
 PAQUETE = SRC / "events_core" / "ideas"
 
-# De abajo arriba: cuanto más alto el número, más sabe de ideas.
+# De abajo arriba: cuanto más alto el número, más sabe de items.
 CAPAS = {"base": 0, "modelo": 1, "trabajo": 2}
 API = 3
 NOMBRES = {**{numero: nombre for nombre, numero in CAPAS.items()}, API: "api"}
@@ -32,12 +32,12 @@ def _capa(destino: Path) -> int | None:
         return None
     if partes[0] in CAPAS:
         return CAPAS[partes[0]]
-    assert len(partes) == 1 and destino.suffix == ".py", f"capa sin nombre en ideas/: {partes[0]}"
+    assert len(partes) == 1 and destino.suffix == ".py", f"capa sin nombre en items/: {partes[0]}"
     return API
 
 
 def _ruta(nombre: str) -> Path | None:
-    """Fichero o carpeta de un módulo de `events_core`, si cae dentro de ideas."""
+    """Fichero o carpeta de un módulo de `events_core`, si cae dentro de items."""
     partes = nombre.split(".")
     if partes[:2] != ["events_core", "ideas"]:
         return None
@@ -75,7 +75,7 @@ def _destinos(fichero: Path) -> list[Path]:
     return destinos
 
 
-def test_las_capas_de_ideas_importan_solo_hacia_abajo() -> None:
+def test_las_capas_de_items_importan_solo_hacia_abajo() -> None:
     problemas: list[str] = []
     for fichero in sorted(PAQUETE.rglob("*.py")):
         if "__pycache__" in fichero.parts or fichero == PAQUETE / "__init__.py":
@@ -92,4 +92,4 @@ def test_las_capas_de_ideas_importan_solo_hacia_abajo() -> None:
                     f" ({NOMBRES[objetivo]})"
                 )
 
-    assert not problemas, "imports hacia arriba en ideas/:\n" + "\n".join(problemas)
+    assert not problemas, "imports hacia arriba en items/:\n" + "\n".join(problemas)

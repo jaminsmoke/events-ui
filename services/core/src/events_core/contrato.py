@@ -247,6 +247,7 @@ class Protocolo(BaseModel):
 
 
 class MapSnapshot(BaseModel):
+    # Clave del plan y del mapa: dato histórico, se queda `ideas`.
     ideas: list[MapWorkItem]
 
 
@@ -279,7 +280,7 @@ class Evento(BaseModel):
     ts: str
     type: str
     payload: dict | str
-    # De dónde viene (0010): `idea`, `externo` o la tabla futura que lo sea.
+    # De dónde viene (0010): `item`, `externo` o la tabla futura que lo sea.
     origen: str = "externo"
     # Derivado del tipo (o del `payload.nivel`): colorear igual que el registro.
     nivel: Literal["info", "aviso", "error"] = "info"
@@ -430,7 +431,7 @@ class RegistroPurgado(BaseModel):
 
 
 class PlanOrigen(BaseModel):
-    """De dónde sale una idea del plan: el Markdown del scan."""
+    """De dónde sale un ítem del plan: el Markdown del scan."""
 
     ruta: str = Field(min_length=1, pattern=r"^[^\\]+$")
     desde_linea: int = Field(ge=1)
@@ -455,7 +456,7 @@ class PlanFase(BaseModel):
 
 
 class PlanIdea(BaseModel):
-    """Una idea propuesta: `ref` es local al plan, no un uid del almacén."""
+    """Un ítem propuesto: `ref` es local al plan, no un uid del almacén."""
 
     ref: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
     title: str = Field(min_length=1)
@@ -495,7 +496,7 @@ class PlanMigracion(BaseModel):
 
     La versión 2 añade destinos, fechas y motivo; la 3 el manifiesto
     `documentos` (allowlist del mapa). La 1 se conserva para los planes que
-    solo crean ideas en `proposed`.
+    solo crean items en `proposed`.
     """
 
     version: Literal[1, 2, 3]
@@ -513,7 +514,7 @@ class PlanMigracion(BaseModel):
 
 
 class MigracionCreada(BaseModel):
-    """Una idea creada por el lote: su `ref` del plan y el `uid` que recibió."""
+    """Una item creada por el lote: su `ref` del plan y el `uid` que recibió."""
 
     ref: str
     uid: str
@@ -537,7 +538,7 @@ class MigracionAplicada(BaseModel):
 class MigracionDeshecha(BaseModel):
     """Respuesta de `DELETE /migracion/lotes/{lote}`.
 
-    `ausentes` son las ideas que ya no estaban (el usuario las borró a mano);
+    `ausentes` son los ítems que ya no estaban (el usuario las borró a mano);
     el resto se borró y el lote desaparece.
     """
 
@@ -581,11 +582,11 @@ class ErrorDetail(BaseModel):
 
 
 # Errores que cualquier endpoint con `repo` puede devolver: nombre inválido
-# (400, `InvalidInput`) o carpeta/idea que no existe (404). Se declaran en
+# (400, `InvalidInput`) o carpeta/item que no existe (404). Se declaran en
 # cada decorador para que el cliente generado los tipé.
 RESPUESTAS_ERROR = {
     400: {"model": ErrorDetail, "description": "Petición inválida"},
-    404: {"model": ErrorDetail, "description": "No existe el repo o la idea"},
+    404: {"model": ErrorDetail, "description": "No existe el repo o el ítem"},
 }
 
 

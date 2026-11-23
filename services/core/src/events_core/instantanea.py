@@ -1,4 +1,4 @@
-"""Instantánea consistente de un almacén de ideas.
+"""Instantánea consistente de un almacén de items.
 
 `.EUI/EUI_DATABASE.sqlite` se versiona con el repo, pero sus auxiliares de WAL
 no (los ignora el `.gitignore` del almacén). Copiar el fichero principal a mano

@@ -7,7 +7,7 @@ import json
 import pytest
 
 from events_core import __version__, config
-from events_core.ideas.base.comun import InvalidInput
+from events_core.items.base.comun import InvalidInput
 
 
 def test_sin_fichero_usa_los_defectos() -> None:

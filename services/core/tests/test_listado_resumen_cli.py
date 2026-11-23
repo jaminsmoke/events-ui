@@ -37,7 +37,7 @@ def http_a_la_app(monkeypatch):  # noqa: ANN001, ANN202
 
 
 def _crear(client, repo, **campos):  # noqa: ANN001, ANN202
-    r = client.post("/ideas", params={"repo": repo}, json=campos)
+    r = client.post("/items", params={"repo": repo}, json=campos)
     assert r.status_code == 201, r.json()
     return r.json()
 
@@ -61,7 +61,7 @@ def test_el_cli_pide_el_cuerpo_con_incluir(http_a_la_app, repo, capsys):  # noqa
     assert filas[0]["content"] == "## Cuerpo"
 
 
-def test_idea_get_del_cli_sigue_trayendo_el_cuerpo(http_a_la_app, repo, capsys):  # noqa: ANN001, ANN202
+def test_item_get_del_cli_sigue_trayendo_el_cuerpo(http_a_la_app, repo, capsys):  # noqa: ANN001, ANN202
     creada = _crear(http_a_la_app, repo, title="A", content="## Cuerpo")
 
     assert cli.main(["idea", "get", creada["uid"], "--json", "--repo", repo]) == 0
@@ -69,7 +69,7 @@ def test_idea_get_del_cli_sigue_trayendo_el_cuerpo(http_a_la_app, repo, capsys):
     assert json.loads(capsys.readouterr().out)["content"] == "## Cuerpo"
 
 
-def test_el_idea_list_del_mcp_devuelve_el_resumen(http_a_la_app, repo):  # noqa: ANN001, ANN202
+def test_el_item_list_del_mcp_devuelve_el_resumen(http_a_la_app, repo):  # noqa: ANN001, ANN202
     _crear(http_a_la_app, repo, title="A", content="## Cuerpo")
 
     respuesta = mcp_servidor.manejar(
@@ -86,7 +86,7 @@ def test_el_idea_list_del_mcp_devuelve_el_resumen(http_a_la_app, repo):  # noqa:
     assert "content" not in filas[0]
 
 
-def test_el_idea_get_del_mcp_sigue_trayendo_el_cuerpo(http_a_la_app, repo):  # noqa: ANN001, ANN202
+def test_el_item_get_del_mcp_sigue_trayendo_el_cuerpo(http_a_la_app, repo):  # noqa: ANN001, ANN202
     creada = _crear(http_a_la_app, repo, title="A", content="## Cuerpo")
 
     respuesta = mcp_servidor.manejar(
@@ -101,7 +101,7 @@ def test_el_idea_get_del_mcp_sigue_trayendo_el_cuerpo(http_a_la_app, repo):  # n
     assert json.loads(respuesta["result"]["content"][0]["text"])["content"] == "## Cuerpo"
 
 
-def test_el_input_schema_de_idea_list_no_gana_campos() -> None:
+def test_el_input_schema_de_item_list_no_gana_campos() -> None:
     """El resumen no se pide desde el MCP: el contrato de la herramienta no cambia."""
     herramientas = mcp_servidor.manejar({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})[
         "result"

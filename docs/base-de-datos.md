@@ -1,9 +1,9 @@
 # Modelo de datos de Events UI
 
-La raíz elegida de cada repo guarda sus ideas, relaciones y protocolos en
+La raíz elegida de cada repo guarda sus ítems, relaciones y protocolos en
 `.EUI/EUI_DATABASE.sqlite`. Es un almacén por raíz, no por subcarpeta: desplegar
 carpetas en Files no siembra nada. El core activa WAL y las claves foráneas en sus
-conexiones de escritura. La versión del esquema de ideas es 31. El registro
+conexiones de escritura. La versión del esquema es 33. El registro
 operativo de la aplicación vive en otro fichero y abarca varios repositorios.
 
 `.EUI` es configuración del producto, no un directorio de trabajo: solo
@@ -16,44 +16,45 @@ purga al abrir el almacén (`ensure_repo`).
 
 | Tabla | Identidad y relación | Qué representa |
 | --- | --- | --- |
-| `idea_data` | `id` local y `uid` único | Qué es la idea: título, descripción, contenido, tipo, etiquetas, intentos acumulados de verificación, fechas y sus dependencias (`depende_de`, migración 0018). Las relaciones usan el UID. |
-| `idea_fase` | Una fila por fase y orden | Descomposición de la idea en trabajo: título, estado (`pendiente`, `completada`, `fallida`, `rechazada`), nota y cuándo entró en ese estado. Cuelga de `idea_data`, así que sobrevive a los cambios de carril. |
-| `idea_requisito` | Una fila por requisito de una fase | Criterio de hecho que cierra la fase: título, `hecho` y `done_at`. Cuelga de `idea_fase` con borrado en cascada y no tiene estado propio. |
-| `idea_foto` | Una fila por idea | Última foto del árbol, `ruta<TAB>tamaño<TAB>mtime_ns` por línea. Es el punto desde el que se mide el cierre de cada fase; una idea que nace en roadmap toma la suya al crearse, con el almacén ya sembrado y antes de abrir la transacción de escritura. |
-| `idea_fase_archivo` | Una fila por archivo anotado | Lo que cambió mientras una fase o un requisito estuvo abierto: `estado` (`nuevo`, `modificado`, `borrado`, `renombrado`), `desde` en el renombrado y el parche de Git acotado por tamaño (64 KiB por archivo, 512 KiB por fase y 8 MiB por almacén; al pasarse se sueltan los de las fases más viejas). `requisito_orden = 0` es «de la fase». El delta de un PATCH se atribuye al primer evento que trae y se calcula fuera de la transacción. |
-| `idea_node` | Una fila por UID | Dónde está: `estado`, `posicion` (solo en cola) y `entered_at`, la fecha de entrada en el carril actual. La entrada (`draft`) es un estado más; el historial es terminal. |
-| `roadmap_node` | Una fila por UID mientras dura | Resultado y referencia del trabajo en curso. Un índice parcial impide dos ideas en roadmap. |
+| `work_item_data` | `id` local y `uid` único | Qué es el ítem: título, descripción, contenido, tipo, etiquetas, intentos acumulados de verificación, fechas y sus dependencias (`depende_de`, migración 0018). Las relaciones usan el UID. |
+| `work_item_fase` | Una fila por fase y orden | Descomposición del ítem en trabajo: título, estado (`pendiente`, `completada`, `fallida`, `rechazada`), nota y cuándo entró en ese estado. Cuelga de `work_item_data`, así que sobrevive a los cambios de carril. |
+| `work_item_requisito` | Una fila por requisito de una fase | Criterio de hecho que cierra la fase: título, `hecho` y `done_at`. Cuelga de `work_item_fase` con borrado en cascada y no tiene estado propio. |
+| `work_item_foto` | Una fila por ítem | Última foto del árbol, `ruta<TAB>tamaño<TAB>mtime_ns` por línea. Es el punto desde el que se mide el cierre de cada fase; un ítem que nace en roadmap toma la suya al crearse, con el almacén ya sembrado y antes de abrir la transacción de escritura. |
+| `work_item_fase_archivo` | Una fila por archivo anotado | Lo que cambió mientras una fase o un requisito estuvo abierto: `estado` (`nuevo`, `modificado`, `borrado`, `renombrado`), `desde` en el renombrado y el parche de Git acotado por tamaño (64 KiB por archivo, 512 KiB por fase y 8 MiB por almacén; al pasarse se sueltan los de las fases más viejas). `requisito_orden = 0` es «de la fase». El delta de un PATCH se atribuye al primer evento que trae y se calcula fuera de la transacción. |
+| `work_item_node` | Una fila por UID | Dónde está: `estado`, `posicion` (solo en cola) y `entered_at`, la fecha de entrada en el carril actual. La entrada (`draft`) es un estado más; el historial es terminal. |
+| `roadmap_node` | Una fila por UID mientras dura | Resultado y referencia del trabajo en curso. Un índice parcial impide dos ítems en roadmap. |
 | `verificacion_node` | Una fila por UID mientras dura | Intentos de la estancia, último resultado, comentario y fecha de finalización del roadmap previo. |
-| `revision_node` | Una fila por UID, conservada al archivar | Autor y nota de la aprobación. La fecha es `entered_at` del nodo. Al aprobar, la idea pasa a `historial` y esta firma se conserva. La migración 0013 copia aquí las antiguas completadas. |
-| `rejected_node` | Una fila por UID mientras dura y una referencia opcional a otro UID | Motivo y autor del descarte. `superseded_by_uid` identifica la idea sustituta. |
-| `migracion_lote` | `id` único y `plan_sha256` único | Lote aplicado por `POST /migracion/aplicar`: huella canónica del plan, fecha y número de ideas. Repetir la misma huella devuelve el mismo lote sin crear nada. |
-| `migracion_idea` | Una fila por idea del lote | Procedencia: `ref`, fichero, rango de líneas, `sha256` del origen, `creada_at` y `estado` (el carril con el que nació). Cuelga de `idea_data.uid` con cascada. |
+| `revision_node` | Una fila por UID, conservada al archivar | Autor y nota de la aprobación. La fecha es `entered_at` del nodo. Al aprobar, el ítem pasa a `historial` y esta firma se conserva. La migración 0013 copia aquí las antiguas completadas. |
+| `rejected_node` | Una fila por UID mientras dura y una referencia opcional a otro UID | Motivo y autor del descarte. `superseded_by_uid` identifica el ítem sustituto. |
+| `migracion_lote` | `id` único y `plan_sha256` único | Lote aplicado por `POST /migracion/aplicar`: huella canónica del plan, fecha y número de ítems. Repetir la misma huella devuelve el mismo lote sin crear nada. |
+| `migracion_item` | Una fila por ítem del lote | Procedencia: `ref`, fichero, rango de líneas, `sha256` del origen, `creada_at` y `estado` (el carril con el que nació). Cuelga de `work_item_data.uid` con cascada. |
 | `protocolo_flujo` | Clave compuesta `(origen, destino)` | Transiciones permitidas entre grupos y, con `exige_fases` (0021 y 0024), las que exigen al menos una fase, ninguna abierta (0022) o todas completadas (0023). Desde la 0027, verificación también puede volver a roadmap o descartarse. Es configuración del repo y se conserva al reiniciar el laboratorio. |
 | `event` | `id` entero para el cursor y `dedupe_key` opcional única | Historial por repo con fecha, tipo, origen y payload. Se siembra con el almacén y la migración 0015 lo añade a los que nacieron sin él. |
 | `registro` | `id` entero en un SQLite independiente | Fecha, nivel, origen y mensaje de operaciones del core. El destino por defecto es `data/registro.sqlite` en la raíz del repo y `EVENTSUI_REGISTRO_DB` permite elegir el fichero. |
 
-`idea_node` referencia `idea_data.uid` y el detalle referencia `idea_node.uid`,
-todo con borrado en cascada. Una idea tiene exactamente una fila de nodo, así
-que no puede estar en dos carriles a la vez y no hacen falta triggers de
-exclusividad: los que traía la migración 0016 se retiraron en la 0020. La
-posición de la cola es única con un índice parcial y otro impide dos ideas en
-roadmap. El borrado definitivo solo se acepta si la idea está en Descartadas
-(`rejected`/`superseded`): no se salta ese paso. La referencia opcional a una
-idea sustituta impide borrarla mientras exista el vínculo.
+`work_item_node` referencia `work_item_data.uid` y el detalle referencia
+`work_item_node.uid`, todo con borrado en cascada. Un ítem tiene exactamente una
+fila de nodo, así que no puede estar en dos carriles a la vez y no hacen falta
+triggers de exclusividad: los que traía la migración 0016 se retiraron en la
+0020. La posición de la cola es única con un índice parcial y otro impide dos
+ítems en roadmap. El borrado definitivo solo se acepta si el ítem está en
+Descartadas (`rejected`/`superseded`): no se salta ese paso. La referencia
+opcional a un ítem sustituto impide borrarlo mientras exista el vínculo.
 
-Las dependencias viven en `idea_data.depende_de`, una lista JSON de uids: SQLite no
-admite una FK dentro de un JSON, así que el core valida que cada uid exista,
-rechaza ciclos y auto-dependencias, y retira el uid de las listas ajenas al
-borrar la idea. Un ítem no entra en roadmap, verificación, revisión aprobada ni historial
+Las dependencias viven en `work_item_data.depende_de`, una lista JSON de uids:
+SQLite no admite una FK dentro de un JSON, así que el core valida que cada uid
+exista, rechaza ciclos y auto-dependencias, y retira el uid de las listas ajenas
+al borrar el ítem. Un ítem no entra en roadmap, verificación, revisión aprobada ni historial
 mientras alguna dependencia no esté aprobada (`revision_aprobada` o
 `historial`); descartarse y editarse sí se permite, para que un ítem bloqueado
 tenga salida. El historial cuenta como aprobado: archivar no vuelve a bloquear
-a las ideas que dependen de ella.
+a los ítems que dependen de él.
 
-Las fases viven en `idea_fase`, colgadas de `idea_data` y no de `idea_node`:
+Las fases viven en `work_item_fase`, colgadas de `work_item_data` y no de
+`work_item_node`:
 no son una estancia, sobreviven al paso por verificación y a la vuelta a la
 cola o a roadmap. Cada una lleva su estado (`pendiente`, `completada`, `fallida`,
-`rechazada`) y `entered_at`. La lista se reemplaza desde el `PATCH` de la idea
+`rechazada`) y `entered_at`. La lista se reemplaza desde el `PATCH` del ítem
 en la misma transacción que el traslado, y `protocolo_flujo.exige_fases` marca
 las uniones que no se cruzan sin al menos una (hoy, entrar en roadmap y aprobar
 la revisión, que además no cuele el caso vacío) y
@@ -62,24 +63,24 @@ la revisión, que además no cuele el caso vacío) y
 revisión, `exige_fases_completas` pide todas en `completada`: aquí rechazar no
 vale, porque aprobar es dar el trabajo por hecho. Además, todos los requisitos
 de todas las fases tienen que estar hechos: el core comprueba la lista que
-quedará y, al aprobar, archiva la idea en `historial` en la misma transacción,
+quedará y, al aprobar, archiva el ítem en `historial` en la misma transacción,
 conservando la firma de `revision_node`.
 
-Los lotes de la migración de Markdown (`migracion_lote` y `migracion_idea`,
-0030 y 0031) también cuelgan de las ideas: `plan_sha256` es único, así que
+Los lotes de la migración de Markdown (`migracion_lote` y `migracion_item`,
+0030 y 0031) también cuelgan de los ítems: `plan_sha256` es único, así que
 aplicar dos veces el mismo plan devuelve el mismo lote, y la procedencia de
-cada idea se va con ella por la cascada. `creada_at` es la firma que `undo`
-compara con `idea_data.updated_at` y `estado` recuerda el carril con el que
-nació; solo borra si el nodo sigue en ese carril, nadie editó la idea y ninguna
-ficha ajena la usa como sustituta. Un historial importado conserva en
+cada ítem se va con él por la cascada. `creada_at` es la firma que `undo`
+compara con `work_item_data.updated_at` y `estado` recuerda el carril con el que
+nació; solo borra si el nodo sigue en ese carril, nadie editó el ítem y ninguna
+ficha ajena lo usa como sustituto. Un historial importado conserva en
 `revision_node` la firma `sistema` y la nota «Importado de …»; un descarte
 importado guarda su motivo en `rejected_node`.
 
 La posición única indexa la cola y el log tiene índice por `(origen, id)`. Las
-migraciones 0019 y 0020 retiraron `connections` y `idea_cola` junto con sus
+migraciones 0019 y 0020 retiraron `connections` y `work_item_cola` junto con sus
 índices. El cursor general usa la clave entera de `event`.
-Los eventos guardan la referencia a la idea en el payload, de modo que borrar la
-idea conserva su historial cuando existe la tabla. El reinicio del laboratorio
+Los eventos guardan la referencia al ítem en el payload, de modo que borrarlo
+conserva su historial cuando existe la tabla. El reinicio del laboratorio
 vacía expresamente el log. La retención del historial por defecto es de 90 días
 o 5.000 eventos y la del registro operativo de 90 días o 2.000 entradas.
 
@@ -87,7 +88,7 @@ o 5.000 eventos y la del registro operativo de 90 días o 2.000 entradas.
 
 La anotación no vigila nada: compara dos fotos del árbol.
 
-- **La foto de partida** se toma al entrar en roadmap y al crear una idea que ya
+- **La foto de partida** se toma al entrar en roadmap y al crear un ítem que ya
   nace ahí. En el alta, el almacén se siembra primero (`.EUI` y su `.gitignore`)
   y la foto se toma después, para que nada de lo que crea el sembrado cuente
   como trabajo; el recorrido se hace antes de abrir la transacción de escritura.
@@ -125,10 +126,30 @@ El comando deja la copia sin auxiliares, en modo rollback, y comprueba
 versionado por la copia y se comprueba desde un directorio limpio abriéndola:
 debe ver los mismos ítems que la app, sin `-wal` al lado.
 
-Fuentes del modelo: [ideas y protocolos](../services/core/src/events_core/schema/ideas.sql),
+Fuentes del modelo: [ítems y protocolos](../services/core/src/events_core/schema/ideas.sql),
 [eventos](../services/core/src/events_core/schema/eventos.sql),
 [registro](../services/core/src/events_core/registro.py) y
 [migraciones](../services/core/src/events_core/migraciones/).
+
+## Legado `idea` (caducidad 2027-01-31)
+
+El almacén, el OpenAPI y las herramientas siguen publicando `idea_*` hasta la
+migración 0034; este documento usa ya `work_item*`. La correspondencia:
+
+| Hoy en el almacén | Nombre nuevo |
+| --- | --- |
+| `idea_data` | `work_item_data` |
+| `idea_node` | `work_item_node` |
+| `idea_fase` | `work_item_fase` |
+| `idea_requisito` | `work_item_requisito` |
+| `idea_foto` | `work_item_foto` |
+| `idea_fase_archivo` | `work_item_fase_archivo` |
+| `migracion_idea`, `idea_uid` | `migracion_item`, `work_item_uid` |
+| `schema/ideas.sql` | `schema/items.sql` |
+
+`kind: "idea"` no es un alias: es un valor de dato de los ítems que ya existen
+y se queda. A partir del 2027-01-31 no quedan alias: un `.EUI` viejo se migra al
+abrirlo (0034) y `grep -r idea` no encuentra nada.
 
 ## Comprobación local del 18 de noviembre de 2026
 
@@ -138,11 +159,11 @@ integridad y referencias. Las escrituras de prueba se hicieron en bases temporal
 
 | Ficheros observados | Resultado |
 | --- | --- |
-| Dos almacenes de ideas | Ambos en v13 y WAL, con siete protocolos (la observación es anterior a la 0021). Uno tenía seis ideas repartidas entre los carriles, sin tabla `event`. El otro estaba vacío y sí tenía `event`. |
+| Dos almacenes de ítems | Ambos en v13 y WAL, con siete protocolos (la observación es anterior a la 0021). Uno tenía seis ítems repartidos entre los carriles, sin tabla `event`. El otro estaba vacío y sí tenía `event`. |
 | Dos registros operativos | Uno bajo `data/` y otro bajo `services/core/data/`, con una y 21 entradas respectivamente. La ruta predeterminada depende del directorio de arranque. |
-| Integridad | `PRAGMA integrity_check` devolvió `ok` en los cuatro ficheros y `PRAGMA foreign_key_check` devolvió cero filas. En ambos almacenes había cero conexiones y cero ideas en varias fichas a la vez. |
+| Integridad | `PRAGMA integrity_check` devolvió `ok` en los cuatro ficheros y `PRAGMA foreign_key_check` devolvió cero filas. En ambos almacenes había cero conexiones y cero ítems en varias fichas a la vez. |
 
-Los datos locales por sí solos no ejercitan las relaciones entre ideas. Con
+Los datos locales por sí solos no ejercitan las relaciones entre ítems. Con
 almacenes temporales se comprobaron sustituciones, enlaces recíprocos, fichas
 solapadas, tipos históricos, cursores tras un reinicio y lecturas con WAL activo.
 Los resultados y las pruebas de cierre están en Events UI; `eui migrate export ROADMAP.md` genera la vista Markdown del documento absorbido.

@@ -7,7 +7,7 @@ UI reactiva sobre un log de eventos en SQLite, para monitorizar repositorios en
 tiempo real. Las decisiones de arquitectura viven en los comentarios del código.
 Plan vivo en Events UI; la vista Markdown se genera con `eui migrate export ROADMAP.md`.
 
-**Idea central:** la app **no produce eventos**. Un proceso externo escribe el log;
+**La clave:** la app **no produce eventos**. Un proceso externo escribe el log;
 esta app lo abre en solo lectura, detecta novedades baratas con `PRAGMA data_version`
 y hace tail por cursor. No hay watcher de ficheros ni poller de git.
 
@@ -103,7 +103,7 @@ agentes y sale con 1 si algo falla:
 uv run --directory services/core python -m events_core.cli doctor
 uv run --directory services/core python -m events_core.cli config --json
 uv run --directory services/core python -m events_core.cli repo
-uv run --directory services/core python -m events_core.cli idea list --status proposed
+uv run --directory services/core python -m events_core.cli item list --status proposed
 uv run --directory services/core python -m events_core.cli schema --pretty
 uv run --directory services/core python -m events_core.cli schema migrate --pretty
 uv run --directory services/core python -m events_core.cli migrate scan docs --json
@@ -111,14 +111,14 @@ uv run --directory services/core python -m events_core.cli migrate classify docs
 uv run --directory services/core python -m events_core.cli migrate check migracion/plan.json
 uv run --directory services/core python -m events_core.cli migrate apply migracion/plan.json
 uv run --directory services/core python -m events_core.cli migrate undo <lote>
-uv run --directory services/core python -m events_core.cli idea create --title "Revisar el login" --tag ui
-uv run --directory services/core python -m events_core.cli idea edit <uid> --description "..."
-uv run --directory services/core python -m events_core.cli idea move <uid> roadmap --resultado "..."
-uv run --directory services/core python -m events_core.cli idea fases <uid> fases.json
-uv run --directory services/core python -m events_core.cli idea requisito <uid> 1 1 --hecho
+uv run --directory services/core python -m events_core.cli item create --title "Revisar el login" --tag ui
+uv run --directory services/core python -m events_core.cli item edit <uid> --description "..."
+uv run --directory services/core python -m events_core.cli item move <uid> roadmap --resultado "..."
+uv run --directory services/core python -m events_core.cli item fases <uid> fases.json
+uv run --directory services/core python -m events_core.cli item requisito <uid> 1 1 --hecho
 ```
 
-`repo` enseña la raíz configurada (`repo list`, las del laboratorio), `idea
+`repo` enseña la raíz configurada (`repo list`, las del laboratorio), `item
 list|get` leen y `create|edit|move|fases|requisito` escriben con el mismo
 contrato que la UI, y `schema` vuelca el OpenAPI del core. Todos aceptan `--repo`/`--url`/`--port` para pisar la configuración y
 `--json` de una línea; salen con 0 bien, 1 no encontrado y 2 fallo o mal uso.
@@ -134,7 +134,7 @@ transacción (`POST /migracion/aplicar`); repetir el mismo plan no duplica.
 El plan v2 admite `proposed`/`draft`/`historial`/`rejected`; el v3 añade
 `documentos`. `migrate undo <lote>` lo deshace
 (`DELETE /migracion/lotes/{lote}`) solo si nadie movió, editó o reemplazó sus
-ideas después.
+ítems después.
 
 El CRUD del CLI no adivina campos: `create` manda título, descripción,
 contenido, tipo, estado, etiquetas y dependencias; `edit` cambia solo lo que se
@@ -168,10 +168,10 @@ solo se anuncian con `--permitir-escritura` o `EVENTSUI_MCP_ESCRITURA=1`.
 }
 ```
 
-Herramientas de lectura: `doctor`, `repo_actual`, `repo_list`, `idea_list`,
-`idea_get`, `migrate_scan`, `migrate_classify` y `migrate_check`. Con escritura
-se suman `idea_create`, `idea_edit`, `idea_move`, `idea_fases`,
-`idea_requisito`, `migrate_apply` y `migrate_undo`. El esquema del plan se lee
+Herramientas de lectura: `doctor`, `repo_actual`, `repo_list`, `item_list`,
+`item_get`, `migrate_scan`, `migrate_classify` y `migrate_check`. Con escritura
+se suman `item_create`, `item_edit`, `item_move`, `item_fases`,
+`item_requisito`, `migrate_apply` y `migrate_undo`. El esquema del plan se lee
 en el recurso `eui://schema/plan-migracion`. stdout es solo protocolo; los
 errores del CLI vuelven como `isError: true` y los logs van a stderr.
 
@@ -184,8 +184,8 @@ Los tipos TS del cliente no se escriben a mano: se generan del OpenAPI del
 core con [`openapi-typescript`](https://openapi-ts.dev/) y las llamadas van
 por [`openapi-fetch`](https://openapi-ts.dev/openapi-fetch), tipado por esos
 `paths`: ruta, query y el **cuerpo** de POST/PATCH se comprueban contra el
-contrato (`api.POST("/ideas", { params, body })` compone el `body` contra
-`IdeaCreate` generado). El cliente vive en `packages/ui/src/core/api.ts` junto
+contrato (`api.POST("/items", { params, body })` compone el `body` contra
+`WorkItemCreate` generado). El cliente vive en `packages/ui/src/core/api.ts` junto
 con `unwrap`, que convierte el error del core en su `detail`. Tras
 cambiar la API del core:
 
@@ -195,7 +195,7 @@ corepack pnpm gen:api    # vuelca app.openapi() y regenera la UI
 
 Eso deja `packages/ui/openapi.json` (snapshot versionado: el diff muestra qué
 cambió del contrato) y `packages/ui/src/core/schema.ts` (generado, no editar).
-`api.ts` deriva `Idea`, `Mapa`, `Revision` y `RepoListado` de
+`api.ts` deriva `WorkItem`, `Mapa`, `Revision` y `RepoListado` de
 ahí, así que un cambio en el core se ve en el siguiente `check`. No necesita
 el core en marcha: el volcado importa la app con `uv run` (módulo
 `events_core.dump_openapi`).
@@ -203,11 +203,11 @@ el core en marcha: el volcado importa la app con `uv run` (módulo
 pnpm 11+ no ejecuta postinstall de dependencias sin permiso: la política vive en
 `allowBuilds` dentro de `pnpm-workspace.yaml`, no en `package.json`.
 
-## Ideas por repositorio
+## Ítems por repositorio
 
-La primera tabla no es la de eventos, es la de ideas.
-La carpeta raíz elegida lleva dentro `.EUI/EUI_DATABASE.sqlite`, un SQLite con esa tabla: las
-ideas sobre un repo viajan con su código.
+La primera tabla no es la de eventos, es la de ítems.
+La carpeta raíz elegida lleva dentro `.EUI/EUI_DATABASE.sqlite`, un SQLite con esa tabla: los
+ítems sobre un repo viajan con su código.
 
 La raíz es la carpeta que se abre en la app —la del diálogo nativo o el nombre dentro
 de `repoprobe/repos`— y es la única que se siembra: desplegar subcarpetas en Files no
@@ -215,8 +215,8 @@ crea `.EUI` en ellas. Abrir una subcarpeta como raíz la convierte en un workspa
 propio, con su propio almacén; el estado de Git puede seguir viniendo del repo que la
 contiene. Es la misma regla que VS Code: lo que abres es la raíz.
 
-La primera petición sobre esa raíz siembra su `.EUI/EUI_DATABASE.sqlite` con
-`schema/ideas.sql` si aún no está, así que abrir un repo en la UI basta. El seed sigue
+La primera petición sobre esa raíz siembra su `.EUI/EUI_DATABASE.sqlite` con el
+esquema de `schema/` si aún no está, así que abrir un repo en la UI basta. El seed sigue
 existiendo para hacerlo sin arrancar el core:
 
 ```bash
@@ -231,13 +231,13 @@ corepack pnpm core:dev           # Swagger en http://127.0.0.1:18765/docs
 | GET / PUT | `/config` — raíz por defecto y puerto compartidos con el CLI |
 | GET | `/archivo?repo=<ruta>&ruta=<relativa>` — texto de un archivo (512 KiB, 415 si es binario) |
 | GET | `/archivo-bytes?repo=<ruta>&ruta=<relativa>` — bytes de una imagen (12 MiB, solo `image/*`) |
-| GET | `/ideas?repo=<ruta>` (filtros `status`, `kind`, `limit`, `offset`) |
-| POST | `/ideas?repo=<ruta>` |
-| GET / PATCH / DELETE | `/ideas/{uid}?repo=<ruta>` |
-| GET | `/mapa?repo=<ruta>` — las ideas del mapa en una sola lectura |
+| GET | `/items?repo=<ruta>` (filtros `status`, `kind`, `limit`, `offset`) |
+| POST | `/items?repo=<ruta>` |
+| GET / PATCH / DELETE | `/items/{uid}?repo=<ruta>` |
+| GET | `/mapa?repo=<ruta>` — los ítems del mapa en una sola lectura |
 | GET | `/revision?repo=<ruta>` — firma barata (`PRAGMA data_version` + conteos) para el refresco en vivo |
-| POST | `/migracion/aplicar?repo=<ruta>` — aplica un plan de migración como lote (cada idea a su carril, idempotente) |
-| DELETE | `/migracion/lotes/{lote}?repo=<ruta>` — deshace el lote si sus ideas no cambiaron (409 con conflictos) |
+| POST | `/migracion/aplicar?repo=<ruta>` — aplica un plan de migración como lote (cada ítem a su carril, idempotente) |
+| DELETE | `/migracion/lotes/{lote}?repo=<ruta>` — deshace el lote si sus ítems no cambiaron (409 con conflictos) |
 | GET | `/protocolos?repo=<ruta>` — uniones permitidas entre carriles (allowlist) |
 | GET | `/eventos?repo=<ruta>` — tail del log (`desde`, `limite`, `origen`) |
 | GET | `/eventos/stream?repo=<ruta>` — SSE en vivo con backfill |
@@ -245,7 +245,7 @@ corepack pnpm core:dev           # Swagger en http://127.0.0.1:18765/docs
 | GET | `/proyecciones/repo?repo=<ruta>` — identidad (ruta, si es work tree Git, raíz, rama/commit) y conteos del repo |
 | GET | `/log` — registro operativo de la app (filtros `nivel`, `origen`) |
 | POST | `/log/purgar` — purga del registro forzada (también pasa sola al escribir) |
-| POST | `/reiniciar?repo=<ruta>` — vacía ideas, fichas y eventos del laboratorio |
+| POST | `/reiniciar?repo=<ruta>` — vacía ítems, fichas y eventos del laboratorio |
 
 ### Pruebas en el laboratorio
 
@@ -254,23 +254,23 @@ En escritorio, abre un repo de `repoprobe/repos` (o de la raíz configurada en
 para ver el movimiento y volver a abrirlo para consultar los pasos. El selector
 del lanzador ofrece:
 
-- **Reparto y limpieza**: diez ideas, siete en cola y tres descartadas.
-- **Mapa completo por carriles**: siembra ideas en todos los carriles, con
+- **Reparto y limpieza**: diez ítems, siete en cola y tres descartados.
+- **Mapa completo por carriles**: siembra ítems en todos los carriles, con
   fases en varios estados, requisitos, motivos y dependencias, para ver las
   fichas, los contadores, los cables, sus compuertas y el grosor según la
   presión.
-- **Cable en marcha**: una idea salta de carril en carril cinco veces para ver
+- **Cable en marcha**: un ítem salta de carril en carril cinco veces para ver
   el cable de llegada abrirse en guiones y correr con la chispa.
-- **Fases hasta aprobar**: una idea con una fase recorre el flujo hasta la
+- **Fases hasta aprobar**: un ítem con una fase recorre el flujo hasta la
   aprobación, con las compuertas de fases en el camino.
-- **Fases: crear, completar y fallar**: una idea con cuatro fases recorre
+- **Fases: crear, completar y fallar**: un ítem con cuatro fases recorre
   pendiente, completada, fallida y rechazada, con pausas para mirarlo, y
   termina cruzando a verificación cuando ya no queda ninguna abierta.
 - **Fases: el motivo sobrevive**: una fase rechazada con motivo vuelve a la
   cola como pendiente sin perderlo.
 - **Fases con requisitos**: una fase con dos requisitos se completa solo al
   cerrarlos y entonces cruza a verificación.
-- **Ida y vuelta y descarte**: una idea llega a verificación, vuelve a la cola y
+- **Ida y vuelta y descarte**: un ítem llega a verificación, vuelve a la cola y
   se descarta con motivo.
 
 Cada prueba deja seis segundos para ver el resultado y después **vacía todos los
@@ -289,11 +289,11 @@ o 15175 están ocupados por la app, el runner elige otros libres;
 ### Flujo de carriles
 
 El recorrido por defecto es **entrada → cola → roadmap → verificación → revisión aprobada → historial**.
-Desde entrada o cola se puede descartar una idea. Desde verificación se puede
+Desde entrada o cola se puede descartar un ítem. Desde verificación se puede
 devolver al final de la cola, volver a roadmap para rehacerla o descartarla con
 su motivo; el mapa dibuja un nodo de **Revisión rechazada** que cuelga del nudo
 del cable Verificación→Revisión aprobada y tres cables ortogonales de vuelta,
-sin un carril nuevo. Aprobar archiva: la idea cae en historial con sus fases y ya no se mueve
+sin un carril nuevo. Aprobar archiva: el ítem cae en historial con sus fases y ya no se mueve
 ni se edita desde el mapa. El core admite un ítem activo en roadmap y consulta
 `protocolo_flujo` para autorizar los traslados entre grupos. La UI obtiene esas
 reglas con `GET /protocolos`.
@@ -318,9 +318,9 @@ la cámara reencuadra y los nodos se funden en cascada. El repo local se crea
 puente, con confirmación: `POST /git/inicializar` lo crea y `POST /git/eliminar`
 lo borra, sin anidar dentro de otro repo ni tocar el `.git` de un contenedor.
 
-Una idea puede declarar `depende_de` (uids de otras ideas del repo): el core no
-la deja entrar en roadmap, verificación, revisión aprobada ni historial mientras
-alguna de ellas no esté aprobada (`revision_aprobada` o `historial`). Se edita con el `PATCH` del ítem y la fila
+Un ítem puede declarar `depende_de` (uids de otros ítems del repo): el core no
+lo deja entrar en roadmap, verificación, revisión aprobada ni historial mientras
+alguno de ellos no esté aprobado (`revision_aprobada` o `historial`). Se edita con el `PATCH` del ítem y la fila
 del mapa enseña a quién espera; las dependencias descartadas no liberan.
 
 Para actualizar un almacén v12 existente, ábrelo desde la aplicación o ejecuta
@@ -348,43 +348,43 @@ primera lectura. Añadir una columna o cambiar un `CHECK` es, entonces, editar
 Cuando el paso cambia un `CHECK` o una columna, SQLite no tiene `ALTER` para eso y
 hay que reconstruir la tabla. Esa migración lleva `-- sin-foreign-keys` en la
 cabecera y el runner apaga las claves foráneas antes de abrir la transacción
-(dentro se ignora el `PRAGMA`): sin eso, tirar `idea_data` arrastraría su nodo
-y el detalle por `ON DELETE CASCADE`. El paso `0004` es el ejemplo: reconstruye
-`ideas` para añadir `CHECK (json_valid(tags))`.
+(dentro se ignora el `PRAGMA`): sin eso, tirar `work_item_data` arrastraría su nodo
+y el detalle por `ON DELETE CASCADE`. El paso `0004` es el ejemplo: reconstruyó la tabla de ítems de entonces para añadir `CHECK (json_valid(tags))`.
 
 ## Estado
 
 - **F0 (hecho):** andamio, `/health`, proxy UI→core.
-- **F0.5 (hecho):** tablas de ideas, seed de `.EUI/EUI_DATABASE.sqlite`, API CRUD por repo.
+- **F0.5 (hecho):** tablas de ítems, seed de `.EUI/EUI_DATABASE.sqlite`, API CRUD por repo.
 - **F0.6 (hecho):** `/revision` y visor en vivo: cada dos segundos se comprueba la
-  revisión y, si cambia, se lee `/mapa`. Una idea se anima al pasar entre carriles.
+  revisión y, si cambia, se lee `/mapa`. Un ítem se anima al pasar entre carriles.
 - **F0.7 (hecho):** la UI escribe, no solo mira: crear ítems («Nuevo ítem»), editar
-  título/descripción/tags y moverlas entre carriles. Eliminar es un segundo paso
+  título/descripción/tags y moverlos entre carriles. Eliminar es un segundo paso
   solo desde Descartadas (nodo Eliminadas con quema visual; el core rechaza el
   DELETE fuera de `rejected`/`superseded`). Todo por `openapi-fetch` tipado por
   el OpenAPI generado, con los errores 400/404 declarados en el contrato.
 - **F1–F3 (hecho):** sobre de evento + SSE en vivo por repo (F1), proyección de repo
   con identidad git (F2) y empaquetado con sidecar Python en la desktop, bandeja y
   avisos (F3). El instalador firmado queda fuera (cuesta dinero).
-- **Dependencias entre ideas (0018) y fuera `connections` (0019)**: un ítem
-  declara `depende_de` y no avanza de carril hasta que esas ideas estén
-  aprobadas; la tabla de conexiones y sus enlaces laterales se retiraron, así
+- **Dependencias entre ítems (0018) y fuera `connections` (0019)**: un ítem
+  declara `depende_de` y no avanza de carril hasta que esos ítems estén
+  aprobados; la tabla de conexiones y sus enlaces laterales se retiraron, así
   que el mapa pinta cada carril plano.
-- **La idea y su nodo (0020)**: `idea_data` guarda qué es la idea y `idea_node`
-  dónde está (`estado`, `posicion` y `entered_at`), una fila por idea; el detalle
+- **El ítem y su nodo (0020)**: `work_item_data` guarda qué es el ítem y
+  `work_item_node` dónde está (`estado`, `posicion` y `entered_at`), una fila
+  por ítem; el detalle
   de cada carril vive en `roadmap_node`, `verificacion_node`, `revision_node` y
   `rejected_node`. La entrada (`draft`) es un nodo más y no hay triggers de
   exclusividad: no puede estar en dos carriles porque solo tiene una fila.
-- **Fases de la idea (0021)**: `idea_fase` la descompone con su propio estado
+- **Fases del ítem (0021)**: `work_item_fase` lo descompone con su propio estado
   (`pendiente`, `completada`, `fallida`, `rechazada`); el protocolo puede exigir
   al menos una para cruzar una unión (`protocolo_flujo.exige_fases`, hoy al
   entrar en roadmap y al aprobar la revisión, 0024) y ninguna abierta para salir de él a verificación
   (`exige_fases_listas`, 0022), y todas completadas para aprobar la revisión
   (`exige_fases_completas`, 0023). La lista viaja en el `PATCH` y se reemplaza
   en la misma transacción que el traslado. Al aprobar se exige además que todos
-  los requisitos estén hechos y la idea se archiva en historial.
-- **Archivos por fase (0028)**: `idea_foto` guarda la última foto del árbol y
-  `idea_fase_archivo` los cambios de cada fase. No hay watcher: se fotografía al
+  los requisitos estén hechos y el ítem se archiva en historial.
+- **Archivos por fase (0028)**: `work_item_foto` guarda la última foto del árbol
+  y `work_item_fase_archivo` los cambios de cada fase. No hay watcher: se fotografía al
   entrar en roadmap (donde empieza el trabajo) y cada vez que una fase se
   cierra; lo que cambió entre dos fotos es lo que tocó esa fase. Sin Git solo
   van ruta y estado (`nuevo`, `modificado`, `borrado`); con Git, además, el
@@ -393,17 +393,42 @@ y el detalle por `ON DELETE CASCADE`. El paso `0004` es el ejemplo: reconstruye
   la ficha los lista; el que tiene parche se despliega al pulsarlo. Cada
   requisito enseña los archivos que cambiaron mientras se hacía; lo que se marca
   en bloque o lo cierra la fase se queda en la fase. Deshacer la marca de un
-  requisito no borra lo anotado: un clic de más no se lleva el registro. Una idea que nace ya en
+  requisito no borra lo anotado: un clic de más no se lleva el registro. Un ítem que nace ya en
   roadmap también toma su foto de partida, y un archivo movido se anota una vez
   (`renombrado`, con su origen) en vez de como borrado y nuevo.
 - **Historial (0026)**. Aprobar es la compuerta: el core guarda la firma en
-  `revision_node` y deja la idea en `historial` con sus fases y requisitos. El
+  `revision_node` y deja el ítem en `historial` con sus fases y requisitos. El
   carril es terminal y se lee sin editar. La migración archiva las aprobadas
   existentes y conserva su firma.
-- **Flujo de ideas (0013)**. La migración incorpora roadmap, verificación y
+- **Flujo de ítems (0013)**. La migración incorpora roadmap, verificación y
   revisión aprobada, y traslada las fichas históricas de completadas a `revision_node`.
 - **Log con pestañas:** un solo flyout con `Eventos` (timeline del repo, por
   origen y nivel) y `Registro` (operativo de la app, por etiqueta y nivel).
+
+## Legado: `idea` con fecha de caducidad
+
+La primera versión llamó «idea» a lo que hoy es un ítem de implementación. El
+código lleva ya el vocabulario nuevo en la documentación impulsada por la API y
+el modelo, pero hasta que aterrice la migración 0034 el almacén y el OpenAPI
+siguen publicando los nombres de la izquierda:
+
+| En el código, hasta la caducidad | Nombre nuevo |
+| --- | --- |
+| `/ideas`, `/ideas/{uid}` | `/items`, `/items/{uid}` |
+| `eui idea …` | `eui item …` |
+| `idea_create` … (MCP) | `item_create` … |
+| `idea_data`, `idea_node`, `idea_fase`, `idea_requisito`, `idea_foto`, `idea_fase_archivo` | `work_item_data`, `work_item_node`, `work_item_fase`, `work_item_requisito`, `work_item_foto`, `work_item_fase_archivo` |
+| `migracion_idea`, columna `idea_uid` | `migracion_item`, `work_item_uid` |
+| eventos `idea.*` | `item.*` |
+| `Idea`, `IdeaCreate`, `IdeaUpdate` (TS) | `WorkItem`, `WorkItemCreate`, `WorkItemUpdate` |
+| `schema/ideas.sql` | `schema/items.sql` |
+
+El valor `kind: "idea"` **no** es un alias: es un dato histórico de los ítems
+que ya existen y se queda como está.
+
+**Caducidad: 2027-01-31.** A partir de esa fecha los alias dejan de existir: un
+`.EUI` que aún tenga el esquema viejo se migra al abrirlo (0034) y `grep -r idea`
+ya no encuentra nada en el código.
 
 ## Licencia
 

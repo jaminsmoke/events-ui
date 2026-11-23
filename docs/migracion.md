@@ -1,7 +1,7 @@
 # Migración de Markdown
 
 Pautas para el agente que convierte roadmaps, backlogs y notas en Markdown en
-ideas de Events UI. La regla corta: **el agente propone, el importador decide y
+ítems de Events UI. La regla corta: **el agente propone, el importador decide y
 aplica**. Nadie escribe el almacén a mano ni llama a la API cruda.
 
 ## Flujo
@@ -12,28 +12,28 @@ aplica**. Nadie escribe el almacén a mano ni llama a la API cruda.
 2. `eui migrate classify <ruta>` (alias `migrate plan`) propone el manifiesto
    `documentos`: cada Markdown con `ruta`, `clase` (`mapa` / `referencia` /
    `parcial`), `motivo` y `destino`. La allowlist del mapa son `mapa` y
-   `parcial`; el resto queda como referencia y no crea ideas. Revisa el
+   `parcial`; el resto queda como referencia y no crea ítems. Revisa el
    resultado antes de pegarlo en el plan.
-3. Lee los ficheros del scan y decide qué es una idea y qué es contexto. Solo
-   saca ideas de documentos en la allowlist.
-4. Escribe `plan.json` v3 con `documentos`, las ideas y su `origen` (fichero,
+3. Lee los ficheros del scan y decide qué es un ítem y qué es contexto. Solo
+   saca ítems de documentos en la allowlist.
+4. Escribe `plan.json` v3 con `documentos`, los ítems y su `origen` (fichero,
    rango de líneas y `sha256` del scan). No inventes uids: los pone el
-   importador. Un `parcial` declara `rangos`; las ideas de ese fichero tienen
+   importador. Un `parcial` declara `rangos`; los ítems de ese fichero tienen
    que caer dentro.
 5. `eui migrate check plan.json` valida el esquema, los refs, las
    dependencias, los ciclos, el `sha256` de cada origen, la clasificación y
    que no queden bloques accionables sin cubrir en los documentos `mapa` /
    `parcial`. Sale con 0 si se aplicaría, 1 si hay problemas y 2 si el plan
    no se puede leer.
-6. `eui migrate apply plan.json` aplica el lote de una vez. Cada idea entra en
+6. `eui migrate apply plan.json` aplica el lote de una vez. Cada ítem entra en
    el carril que declara el plan: `proposed` por defecto, `draft` para notas
    sin triar, `historial` para lo hecho y `rejected` con `motivo` para lo que
-   no se hace. El core escribe el lote entero en una transacción: si una idea
-   falla, no queda ninguna. La huella del plan identifica el lote, así que
+   no se hace. El core escribe el lote entero en una transacción: si un ítem
+   falla, no queda ninguno. La huella del plan identifica el lote, así que
    repetir el mismo `apply` devuelve el mismo lote y no duplica nada.
-7. `eui migrate undo <lote>` deshace solo lo que creó ese lote. Si una idea
+7. `eui migrate undo <lote>` deshace solo lo que creó ese lote. Si un ítem
    cambió de carril, se editó después de crearse o una ficha ajena la usa como
-   sustituta, no borra nada y enumera los conflictos (409). Las que el usuario
+   sustituto, no borra nada y enumera los conflictos (409). Las que el usuario
    ya borró a mano se cuentan como ausentes y el resto se deshace igual.
 8. `eui migrate absorb <lote> --dry-run` prepara la retirada del origen, pero
    **no escribe**: comprueba la cobertura por fichero, los hashes y la copia que
@@ -51,11 +51,11 @@ origen (p. ej. `ROADMAP.plan.json`). **No** lo pongas dentro de `.EUI/`: esa
 carpeta solo admite el almacén, su `.gitignore` y las copias de absorción en
 `migracion/<lote>/`.
 
-## Qué es una idea
+## Qué es un ítem
 
-- **Un elemento accionable, una idea.** Una viñeta, una fila de tabla o una
+- **Un elemento accionable, un ítem.** Una viñeta, una fila de tabla o una
   sección con un trabajo concreto. Un encabezado que solo agrupa (`## Backlog`)
-  no es una idea: es contexto.
+  no es un ítem: es contexto.
 - `title`: el texto del elemento, sin numeración, sin `-` ni `[ ]`, sin
   prefijos de tipo. Si empieza por verbo, déjalo en imperativo.
 - `description`: una o tres frases con lo que pide el elemento.
@@ -69,7 +69,7 @@ carpeta solo admite el almacén, su `.gitignore` y las copias de absorción en
   historial → `historial`; «no se hace» o «descartado» → `rejected` con
   `motivo`. Si el documento no lo dice, no lo inventes: `proposed` o `draft`.
 - `depende_de`: solo si el elemento lo dice de forma explícita («depende de»,
-  «después de», «bloqueada por»). Resuelve el título contra otra idea del mismo
+  «después de», «bloqueada por»). Resuelve el título contra otro ítem del mismo
   plan con `ref`; si no hay referencia clara, se deja vacío.
 - `fases`: solo con `status: proposed`, si el elemento lista pasos propios de
   ejecución. Todas entran en `pendiente`, sin fechas, y cada una con al menos
@@ -79,7 +79,7 @@ carpeta solo admite el almacén, su `.gitignore` y las copias de absorción en
 
 ## Origen e idempotencia
 
-Cada idea del plan lleva:
+Cada ítem del plan lleva:
 
 ```json
 "origen": {
@@ -105,50 +105,50 @@ de documentos. Las v1/v2 siguen válidas sin `documentos`.
 - `documentos[]` (v3): `ruta`, `clase` (`mapa` / `referencia` / `parcial`),
   `motivo` y `destino` (`mapa` / `referencia`). `parcial` exige `rangos`
   `[{desde, hasta}]`. Solo `mapa` y `parcial` alimentan el mapa.
-- `ref` identifica la idea dentro del plan (`idea-1`, `backlog-login`…) y es lo
+- `ref` identifica el ítem dentro del plan (`item-1`, `backlog-login`…) y es lo
   que usa `depende_de`; no es un uid y no puede repetirse.
 - `kind` siempre `idea`; `status` puede ser `proposed`, `draft`, `historial`
   o `rejected`; fases solo para `proposed`, en `pendiente` y con requisitos sin
   marcar. `rejected` exige `motivo`.
 - `fecha` (ISO 8601) solo con `historial` o `rejected`; sin ella se usa la de
   importación. Lo demás se rechaza antes de mirar el repo.
-- Cada idea exige `origen` con `ruta`, `desde_linea`, `hasta_linea` y `sha256`.
+- Cada ítem exige `origen` con `ruta`, `desde_linea`, `hasta_linea` y `sha256`.
   Las líneas son 1-based e incluyen el título y el cuerpo del elemento. La
   `ruta` tiene que estar clasificada en la allowlist.
 - `check` añade lo que el esquema no puede comprobar: `ref` repetidos,
   dependencias que no existan o formen ciclo, `origen.ruta` fuera del repo, un
-  `sha256` que ya no cuadre, documentos sin clasificar, ideas saliendo de
+  `sha256` que ya no cuadre, documentos sin clasificar, ítems saliendo de
   `referencia`, bloques accionables sin cubrir y rangos de `parcial`.
 
 ## El lote
 
-`apply` no crea ideas sueltas: crea un lote. `migracion_lote` guarda la huella
-canónica del plan (`sha256`), la fecha y el número de ideas; `migracion_idea`
-guarda de cada una su `ref`, el fichero de origen, el rango de líneas y el
+`apply` no crea ítems sueltos: crea un lote. `migracion_lote` guarda la huella
+canónica del plan (`sha256`), la fecha y el número de ítems; `migracion_item`
+guarda de cada uno su `ref`, el fichero de origen, el rango de líneas y el
 `sha256`, más la fecha de creación. La huella es única: el mismo plan enviado
 dos veces devuelve el mismo lote con `repetido: true` y no escribe nada.
 
-Las ideas nacen en su carril (las de la cola, al final), con sus fases
+Los ítems nacen en su carril (las de la cola, al final), con sus fases
 pendientes y requisitos sin marcar si es `proposed`; `depende_de` se resuelve
 de refs a uids dentro del lote. La procedencia guarda también ese carril, así
 que `undo` sabe cuál esperar. Un fallo a mitad deshace la transacción entera,
 igual al deshacer.
 
-`undo` usa la procedencia: borra en una transacción solo las ideas del lote y
+`undo` usa la procedencia: borra en una transacción solo los ítems del lote y
 se niega entero (409, con la lista de conflictos) si alguna está en un carril
 distinto del que guardó el lote, se editó después de crearse —`updated_at` ya
 no coincide con `creada_at`— o una ficha de fuera del lote la usa como
 sustituta. No se lleva por delante las
 listas `depende_de` de las supervivientes: les retira los uids del lote. El
-lote y su procedencia desaparecen con las ideas.
+lote y su procedencia desaparecen con los ítems.
 
 ## Absorción en seco
 
 `absorb` trabaja con el lote ya aplicado y con **toda la procedencia del mismo
-fichero**, no solo con las ideas de ese lote: un ROADMAP puede haber entrado en
+fichero**, no solo con los ítems de ese lote: un ROADMAP puede haber entrado en
 varias tandas y todas cuentan. Para cada fichero:
 
-- agrupa los rangos de `migracion_idea` por `ruta` y los fusiona;
+- agrupa los rangos de `migracion_item` por `ruta` y los fusiona;
 - considera bloques las viñetas accionables (hojas) fuera de frontmatter y de
   bloques de código: una cabecera con subitems no cuenta, pero sus hijos sí;
 - marca como hueco cada bloque cuya línea no cae en ningún rango;
@@ -162,12 +162,12 @@ ficheros ausentes o un documento sin bloques. `--dry-run` no crea
 `.EUI/migracion/` y no borra nada. `--confirmar` solo actúa si el informe está
 en verde: copia el origen en `.EUI/migracion/<lote>/`, deja un manifiesto
 `absorcion.json` con los hashes y elimina el Markdown. `undo` restaura la copia
-antes de borrar las ideas del lote, y `migrate export` genera la vista Markdown
-desde `migracion_idea` + `idea_data`.
+antes de borrar los ítems del lote, y `migrate export` genera la vista Markdown
+desde `migracion_item` + `work_item_data`.
 
 `--parcial` es opt-in. Sirve cuando aún quedan bloques sin migrar: el informe
 exige rangos de procedencia sin solapar, planea un marcador `- [eui:<uid>]`
-por cada idea del lote y deja el resto del fichero. `--confirmar --parcial`
+por cada ítem del lote y deja el resto del fichero. `--confirmar --parcial`
 copia el original, reescribe el origen con esos marcadores y guarda
 `sha256_stub` en el manifiesto para que `undo` pueda restaurar si el fichero
 no cambió después. Si la cobertura ya es total, hay que usar absorb sin
@@ -179,8 +179,8 @@ no cambió después. Si la cobertura ya es total, hay que usar absorb sin
   `apply`. `absorb --dry-run` solo informa; la retirada con copia exige
   `--confirmar` explícito. La absorción parcial tampoco es automática: hace
   falta `--parcial`. La migración es un alta, no una reescritura del repo.
-- No inventar ideas, estados, fechas, responsables ni uids.
-- No importar bloques de código, tablas de ejemplo ni citas como ideas: son
+- No inventar ítems, estados, fechas, responsables ni uids.
+- No importar bloques de código, tablas de ejemplo ni citas como ítems: son
   contenido, no trabajo.
 - No meter secretos. Si un bloque parece credenciales, se descarta y se avisa.
 - No mover a roadmap ni verificación. A `historial` o `rejected` solo si el
@@ -188,14 +188,22 @@ no cambió después. Si la cobertura ya es total, hay que usar absorb sin
 - No tocar `.EUI/` ni commitear. El commit lo decide el usuario después de
   revisar el lote.
 
+## Legado `idea` (caducidad 2027-01-31)
+
+El plan no cambia: los nombres de tabla (`migracion_idea` → `migracion_item`,
+`idea_data` → `work_item_data`) y de ruta (`/ideas` → `/items`) son del almacén
+y de la API. `kind: "idea"` y la clave `ideas` del plan se quedan: son datos y
+contrato del plan v1-v3, no alias. Hasta el
+2027-01-31 el almacén y la API siguen publicando los nombres viejos.
+
 ## Antes de aplicar
 
 - [ ] `check` sale sin errores ni avisos nuevos.
 - [ ] El plan v3 trae `documentos` y cada origen cae en la allowlist.
-- [ ] Los `mapa`/`parcial` no dejan bloques accionables sin idea.
-- [ ] Cada idea tiene `origen` con `sha256` y su rango de líneas.
-- [ ] No hay dos ideas con la misma referencia ni con el mismo título y origen.
+- [ ] Los `mapa`/`parcial` no dejan bloques accionables sin ítem.
+- [ ] Cada ítem tiene `origen` con `sha256` y su rango de líneas.
+- [ ] No hay dos ítems con la misma referencia ni con el mismo título y origen.
 - [ ] Los totales del plan cuadran con el resumen del scan.
-- [ ] Cada idea está en el carril que dice el documento; ninguna inventada.
+- [ ] Cada ítem está en el carril que dice el documento; ninguno inventado.
 - [ ] `historial` y `rejected` no llevan fases; los descartes tienen motivo.
 - [ ] Cada fase tiene al menos un requisito y ningún requisito viene marcado.

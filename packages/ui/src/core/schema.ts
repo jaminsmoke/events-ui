@@ -1530,7 +1530,12 @@ export interface components {
         };
         /**
          * Revision
-         * @description Firma del almacén para el refresco en vivo (`PRAGMA data_version`).
+         * @description Firma del almacén para el refresco en vivo.
+         *
+         *     `data_version` es `PRAGMA data_version` y es por conexión: un vigilante
+         *     nuevo vuelve a empezar su cuenta. `ultimo_evento` sale del propio almacén
+         *     (`max(id)` del log), así que un evento nuevo mueve la firma aunque no se
+         *     toque ninguna idea.
          */
         Revision: {
             /** Instance */
@@ -1539,6 +1544,8 @@ export interface components {
             data_version: number;
             /** Ideas */
             ideas: number;
+            /** Ultimo Evento */
+            ultimo_evento: number;
         };
         /** ValidationError */
         ValidationError: {

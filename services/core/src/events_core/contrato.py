@@ -251,11 +251,18 @@ class MapSnapshot(BaseModel):
 
 
 class Revision(BaseModel):
-    """Firma del almacén para el refresco en vivo (`PRAGMA data_version`)."""
+    """Firma del almacén para el refresco en vivo.
+
+    `data_version` es `PRAGMA data_version` y es por conexión: un vigilante
+    nuevo vuelve a empezar su cuenta. `ultimo_evento` sale del propio almacén
+    (`max(id)` del log), así que un evento nuevo mueve la firma aunque no se
+    toque ninguna idea.
+    """
 
     instance: str
     data_version: int
     ideas: int
+    ultimo_evento: int
 
 
 class Repo(BaseModel):

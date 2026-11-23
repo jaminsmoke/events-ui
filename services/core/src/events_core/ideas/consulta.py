@@ -328,7 +328,10 @@ def revision(repo: str) -> dict[str, Any]:
 
     `PRAGMA data_version` cambia cuando **otra** conexión hace commit, así que la
     UI puede sondear esto cada par de segundos en vez de traerse todas las ideas.
-    Los conteos van de propina: cubren el caso de un commit que no cambia la firma.
+    `data_version` es por conexión (un vigilante nuevo vuelve a empezar), así que
+    la firma lleva además lo que no depende de ella: el conteo del mapa y el
+    `max(id)` del log. Ese último es el que mueve la firma cuando el productor
+    escribe eventos sin tocar ideas.
     """
     db_file = ensure_repo(repo)
     with _VIGILANTES_LOCK:
@@ -339,4 +342,6 @@ def revision(repo: str) -> dict[str, Any]:
             "instance": _REVISION_INSTANCE,
             "data_version": data_version(conn),
             "ideas": conn.execute(f"SELECT count(*) FROM {tabla_idea}").fetchone()[0],
+            # El log se vacía al reiniciar: `coalesce` devuelve 0 y no `NULL`.
+            "ultimo_evento": conn.execute("SELECT coalesce(max(id), 0) FROM event").fetchone()[0],
         }

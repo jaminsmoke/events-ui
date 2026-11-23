@@ -262,8 +262,7 @@ export default function App({
     };
   }, [ideas, quemas]);
   // F1: el log del repo en vivo (cada `EUI_DATABASE` lleva el suyo).
-  const [versionLog, setVersionLog] = useState(0);
-  const { eventos, conectado } = useEventos(repo, versionLog);
+  const { eventos, conectado } = useEventos(repo);
   // Los protocolos de flujo: las uniones permitidas entre carriles. La fila
   // no ofrece traslados prohibidos; el core los rechaza si llegan igual.
   const { puedeIr, exigeFases, exigeFasesListas, exigeFasesCompletas, paso } = useProtocolos(repo);
@@ -281,7 +280,6 @@ export default function App({
     void reiniciar().then(
       () => {
         soltar(repo, pendiente.ejecucion);
-        setVersionLog((v) => v + 1);
         setAvisoRecuperacion("Se cerró la app durante una prueba: el laboratorio quedó vacío.");
       },
       (err: unknown) => {
@@ -739,10 +737,7 @@ export default function App({
           abrirMapa={setMapa}
           commit={commit}
           cambios={proyeccion?.git_cambios.length ?? 0}
-          reiniciar={async () => {
-            await reiniciar();
-            setVersionLog((v) => v + 1);
-          }}
+          reiniciar={reiniciar}
           onCerrar={() => setPruebasAbiertas(false)}
         />
       )}

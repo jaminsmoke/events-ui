@@ -55,13 +55,16 @@ export function resumenEvento(evento: Evento): string {
  *  (`: ping`) son comentarios SSE y llegan sin `data`: el `JSON.parse` no se
  *  toca.
  *
- *  Sin repo no hay stream: con el repo sin elegir no hay log que vigilar.
+ *  Un vaciado del almacén (`/reiniciar`) borra el log y los `id:` vuelven a
+ *  empezar; el core rebobina su cursor con la misma regla. Aquí la lista se
+ *  reinicia igual: un frame que no crece respecto al último es un log nuevo,
+ *  no una continuación. Sin repo no hay stream.
  */
-export function useEventos(repo: string | null, version: number): { eventos: Evento[]; conectado: boolean } {
+export function useEventos(repo: string | null): { eventos: Evento[]; conectado: boolean } {
   // El estado se resetea al cambiar de repo (verificado por repo en el render,
   // sin seteo en el efecto).
-  const [estado, setEstado] = useState<{ repo: string | null; version: number; eventos: Evento[] }>({
-    repo, version,
+  const [estado, setEstado] = useState<{ repo: string | null; eventos: Evento[] }>({
+    repo,
     eventos: [],
   });
   const [conectado, setConectado] = useState(false);
@@ -73,10 +76,13 @@ export function useEventos(repo: string | null, version: number): { eventos: Eve
     fuente.addEventListener("evento", (mensaje) => {
       try {
         const evento = JSON.parse(mensaje.data) as Evento;
-        setEstado((previo) => ({
-          repo, version,
-          eventos: previo.repo === repo && previo.version === version ? [...previo.eventos.slice(-99), evento] : [evento],
-        }));
+        setEstado((previo) => {
+          const previos = previo.repo === repo ? previo.eventos : [];
+          const ultimo = previos[previos.length - 1];
+          // Un id que no crece es un vaciado: el log nuevo empieza otra vez.
+          const reinicia = ultimo === undefined || evento.id <= ultimo.id;
+          return { repo, eventos: reinicia ? [evento] : [...previos.slice(-99), evento] };
+        });
       } catch {
         // Un frame roto no rompe el stream: el siguiente lo sustituye.
       }
@@ -84,8 +90,8 @@ export function useEventos(repo: string | null, version: number): { eventos: Eve
     fuente.onopen = () => setConectado(true);
     fuente.onerror = () => setConectado(false);
     return () => fuente.close();
-  }, [repo, version]);
+  }, [repo]);
 
-  const eventos = estado.repo === repo && estado.version === version ? estado.eventos : [];
+  const eventos = estado.repo === repo ? estado.eventos : [];
   return { eventos, conectado: conectado && repo !== null };
 }

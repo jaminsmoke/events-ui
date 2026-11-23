@@ -13,7 +13,9 @@ type Fallo = { repo: string; mensaje: string };
 /** Ideas del repo, refrescadas solas.
  *
  *  El refresco no es un watcher de ficheros: se pregunta `GET /revision`, cuya
- *  firma sale de `PRAGMA data_version` del almacén. Si cambia, se relee el mapa.
+ *  firma sale de `PRAGMA data_version` del almacén, del conteo de ideas y del
+ *  `max(id)` del log. Si cambia, se relee el mapa: un evento nuevo del
+ *  productor mueve la firma aunque no toque ninguna idea.
  *  El ritmo lo marca `sondeo`: un latido común cada 2 s que se para con la
  *  ventana oculta; si un turno llega con una lectura en vuelo, se salta. */
 export function useRepo(repo: string | null) {
@@ -36,7 +38,7 @@ export function useRepo(repo: string | null) {
       try {
         const rev = await unwrap(api.GET("/revision", { params: { query: { repo } } }));
         if (!vivo) return;
-        const actual = `${rev.instance}/${rev.data_version}/${rev.ideas}`;
+        const actual = `${rev.instance}/${rev.data_version}/${rev.ideas}/${rev.ultimo_evento}`;
         if (actual !== firma) {
           const mapa: Mapa = await unwrap(api.GET("/mapa", { params: { query: { repo } } }));
           if (!vivo) return;
@@ -72,7 +74,8 @@ export function useRepo(repo: string | null) {
   }, [repo]);
 
   // Escrituras por la API tipada: no hace falta refrescar a mano, el sondeo
-  // de `/revision` ve el cambio (`data_version` sube) y relee el mapa solo.
+  // de `/revision` ve el cambio (`data_version` sube o `ultimo_evento` crece)
+  // y relee el mapa solo.
   // `crear` devuelve la idea recién creada (con su `uid`): el lanzador de
   // pruebas lo necesita para mover lo que acaba de crear.
   const crear = useCallback(

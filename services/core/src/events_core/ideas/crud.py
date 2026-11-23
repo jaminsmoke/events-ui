@@ -53,7 +53,14 @@ def create_idea(
     status: str = "draft",
     tags: Iterable[str] = (),
     depende_de: Iterable[str] = (),
+    fases: Iterable[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
+    # Las fases del alta se validan antes de tocar el almacén: si la lista no
+    # vale, no se siembra el `.EUI` ni queda una ficha sin su desglose.
+    fases_finales = _normalizar_fases(list(fases), []) if fases is not None else None
+    if fases_finales is not None:
+        _validar_fases_en_lane(status, fases_finales)
+        _validar_fases_completadas(fases_finales)
     uid = uuid.uuid4().hex
     ts = now_iso()
     # El almacén se siembra antes de la foto: nace con su `.EUI` y su
@@ -98,6 +105,10 @@ def create_idea(
             (uid, ts),
         )
         _escribir_estado(conn, uid, status, {})
+        # Las fases entran en la misma transacción que la idea: o nace completa
+        # o no nace.
+        if fases_finales is not None:
+            _escribir_fases(conn, uid, fases_finales)
         # Nacer ya en roadmap también es entrar: sin foto de partida, la primera
         # fase anotaría como suyo todo el árbol que ya estaba. Se guarda aquí,
         # pero se tomó antes del BEGIN (ver `foto_inicial`).

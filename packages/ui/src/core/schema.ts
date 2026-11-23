@@ -918,6 +918,8 @@ export interface components {
             tags?: string[];
             /** Depende De */
             depende_de?: string[];
+            /** Fases */
+            fases?: components["schemas"]["Fase"][];
             /** Uid */
             uid: string;
             /** Created At */
@@ -983,8 +985,6 @@ export interface components {
             rejected_by: "usuario" | "agente" | "sistema";
             /** Superseded By Uid */
             superseded_by_uid?: string | null;
-            /** Fases */
-            fases?: components["schemas"]["Fase"][];
         };
         /** IdeaCreate */
         IdeaCreate: {
@@ -1016,6 +1016,8 @@ export interface components {
             tags?: string[];
             /** Depende De */
             depende_de?: string[];
+            /** Fases */
+            fases?: components["schemas"]["FaseEntrada"][] | null;
         };
         /**
          * IdeaUpdate

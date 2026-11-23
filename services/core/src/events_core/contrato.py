@@ -106,6 +106,9 @@ class IdeaCreate(BaseModel):
     tags: list[str] = Field(default_factory=list)
     # Uids de ideas que tienen que estar aprobadas para que esta avance.
     depende_de: list[str] = Field(default_factory=list)
+    # El desglose en el alta: sin él, crear con fases exige un segundo PATCH y
+    # deja la ficha a medias entre las dos llamadas.
+    fases: list[FaseEntrada] | None = None
 
 
 class IdeaUpdate(BaseModel):

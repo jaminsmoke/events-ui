@@ -365,6 +365,30 @@ def test_nacer_en_roadmap_toma_la_foto_de_partida(client, tmp_path):  # noqa: AN
     assert [archivo["ruta"] for archivo in fase["archivos"]] == ["nuevo.txt"]
 
 
+def test_nacer_en_roadmap_con_fases_toma_la_foto_de_partida(client, tmp_path):  # noqa: ANN001, ANN202
+    """El alta con desglose no puede anotar como trabajo el árbol que ya estaba."""
+    carpeta = tmp_path / "roadmap-con-fases"
+    carpeta.mkdir()
+    (carpeta / "viejo.txt").write_text("antes", encoding="utf-8")
+
+    r = client.post(
+        "/ideas",
+        params={"repo": str(carpeta)},
+        json={
+            "title": "A",
+            "status": "roadmap",
+            "fases": [{"titulo": "Diseño", "requisitos": [{"titulo": "Cubre el borde"}]}],
+        },
+    )
+    assert r.status_code == 201, r.json()
+    uid = r.json()["uid"]
+    assert r.json()["fases"][0]["archivos"] == []
+
+    (carpeta / "nuevo.txt").write_text("después", encoding="utf-8")
+    fase = _cerrar(client, carpeta, uid)
+    assert [archivo["ruta"] for archivo in fase["archivos"]] == ["nuevo.txt"]
+
+
 def test_el_tope_por_fase_cuenta_bytes_y_no_caracteres(monkeypatch):  # noqa: ANN001, ANN202
     texto = "ñ" * 20  # 20 caracteres, 40 bytes en UTF-8
     monkeypatch.setattr(archivos, "hay_git", lambda _carpeta: True)

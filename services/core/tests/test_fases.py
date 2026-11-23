@@ -24,6 +24,58 @@ def _fases(client, repo, uid):  # noqa: ANN001, ANN202
     return r.json()["fases"]
 
 
+def test_crear_con_fases_en_una_sola_llamada(client, repo):  # noqa: ANN001, ANN202
+    """`fases` en el alta: la ficha nace con su desglose, sin PATCH intermedio."""
+    r = client.post(
+        "/ideas",
+        params={"repo": repo},
+        json={
+            "title": "Con desglose",
+            "status": "roadmap",
+            "fases": [
+                {"titulo": "Diseño", "requisitos": [{"titulo": "Cubre el borde"}]},
+                {"titulo": "Prueba", "requisitos": [{"titulo": "Pasa lint"}]},
+            ],
+        },
+    )
+    assert r.status_code == 201, r.json()
+    ficha = r.json()
+    assert ficha["status"] == "roadmap"
+    assert [(f["orden"], f["titulo"], f["estado"]) for f in ficha["fases"]] == [
+        (1, "Diseño", "pendiente"),
+        (2, "Prueba", "pendiente"),
+    ]
+    assert [q["titulo"] for q in ficha["fases"][0]["requisitos"]] == ["Cubre el borde"]
+    assert all(f["entered_at"] for f in ficha["fases"])
+
+    mapa = client.get("/mapa", params={"repo": repo}).json()["ideas"]
+    assert [f["titulo"] for f in mapa[0]["fases"]] == ["Diseño", "Prueba"]
+
+
+def test_crear_con_fases_invalidas_no_deja_la_idea(client, repo):  # noqa: ANN001, ANN202
+    """Las compuertas del PATCH valen en el alta: si la lista no vale, no hay ficha."""
+    for fases in (
+        [{"titulo": "Sin criterio"}],
+        [{"titulo": "A", "orden": 1}, {"titulo": "B", "orden": 1}],
+        [
+            {
+                "titulo": "Hecha",
+                "estado": "completada",
+                "requisitos": [{"titulo": "Uno", "hecho": True}],
+            }
+        ],
+    ):
+        r = client.post(
+            "/ideas",
+            params={"repo": repo},
+            json={"title": "A", "status": "draft", "fases": fases},
+        )
+        assert r.status_code == 400, fases
+        assert "detail" in r.json()
+
+    assert client.get("/ideas", params={"repo": repo}).json() == []
+
+
 def test_entrar_en_roadmap_exige_una_fase(client, repo):  # noqa: ANN001, ANN202
     uid = _crear(client, repo, status="proposed")
 

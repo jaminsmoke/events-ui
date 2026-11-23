@@ -115,19 +115,32 @@ def _migrar_esquema(db_file: Path) -> None:
             _AL_DIA[db_file] = nueva
 
 
-def _llevar_al_dia(conn: sqlite3.Connection) -> None:
-    """Aplica los pasos que le falten al almacén ya abierto."""
+def comprobar_version(conn: sqlite3.Connection) -> int:
+    """`user_version` del almacén abierto, o el error si es posterior.
+
+    Dos casos distintos que antes caían en el mismo `return` en silencio:
+    «está al día» y «lo migró un core más nuevo». El segundo no se puede poner
+    al día hacia atrás: se nombra y no se escribe ni una fila.
+
+    Vive aquí y no dentro de `_llevar_al_dia` porque `/health` abre en solo
+    lectura y no pasa por `ensure_repo`, pero tampoco debe decir «ok» de un
+    almacén que este core no entiende.
+    """
     version = int(conn.execute("PRAGMA user_version").fetchone()[0])
-    # Dos casos distintos que antes caían en el mismo `return` en silencio:
-    # «está al día» y «lo migró un core más nuevo». El segundo no se puede
-    # poner al día hacia atrás: se nombra y no se escribe ni una fila. Va antes
-    # que las comprobaciones de la 0013/0018, que asumen un almacén viejo.
     if version > SCHEMA_VERSION:
         raise AlmacenMasNuevo(
             f"el almacén está en la versión de esquema {version} y este core entiende"
             f" hasta la {SCHEMA_VERSION}: lo migró una versión más nueva de Events UI."
             " Actualiza la aplicación; el almacén no se ha tocado."
         )
+    return version
+
+
+def _llevar_al_dia(conn: sqlite3.Connection) -> None:
+    """Aplica los pasos que le falten al almacén ya abierto."""
+    # Va antes que las comprobaciones de la 0013/0018, que asumen un almacén
+    # viejo y aplicarían pasos sobre uno posterior.
+    version = comprobar_version(conn)
     # Un almacén firmado por el `core:seed` anterior no pasó por la
     # migración 0013: `aplicar_esquema` marcó la versión sin copiar
     # `idea_completada` ni ampliar los protocolos. Si ese esquema

@@ -135,6 +135,10 @@ def health() -> dict[str, Any]:
     porque la app no lo crea. Publica además la `version` (el CLI comprueba que
     habla con el binario que espera) y la `repo` por defecto de la
     configuración compartida, que es la que ven los clientes de fuera.
+
+    Un almacén que migró un core posterior no se publica como `ok`: esta ruta
+    abre en solo lectura, así que no migra, pero nombra el caso con un 409 y el
+    mismo mensaje que `ensure_repo`.
     """
     path = db_path()
     ajustes = configuracion.leer_segura()
@@ -149,6 +153,7 @@ def health() -> dict[str, Any]:
         return report
 
     with closing(open_read_only(path)) as conn:
+        ideas.comprobar_version(conn)
         report["status"] = "ok"
         report["journal_mode"] = journal_mode(conn)
         report["data_version"] = data_version(conn)

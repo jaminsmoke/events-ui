@@ -17,6 +17,10 @@ export interface paths {
          *     porque la app no lo crea. Publica además la `version` (el CLI comprueba que
          *     habla con el binario que espera) y la `repo` por defecto de la
          *     configuración compartida, que es la que ven los clientes de fuera.
+         *
+         *     Un almacén que migró un core posterior no se publica como `ok`: esta ruta
+         *     abre en solo lectura, así que no migra, pero nombra el caso con un 409 y el
+         *     mismo mensaje que `ensure_repo`.
          */
         get: operations["health_health_get"];
         put?: never;

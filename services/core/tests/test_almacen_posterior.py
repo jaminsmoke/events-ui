@@ -45,6 +45,22 @@ def test_un_almacen_posterior_da_409_con_el_motivo(client, repo):  # noqa: ANN00
     assert client.get("/mapa", params={"repo": repo}).status_code == 409
 
 
+def test_health_tambien_nombra_el_almacen_posterior(client, repo, monkeypatch):  # noqa: ANN001, ANN202
+    """`/health` abre en solo lectura: no migra, pero no dice «ok» de lo que no entiende."""
+    db = ideas.init_repo(repo)
+    monkeypatch.setenv("EVENTSUI_DB", str(db))
+
+    assert client.get("/health").json()["status"] == "ok"
+
+    posterior = ideas.SCHEMA_VERSION + 1
+    _firmar(db, posterior)
+    r = client.get("/health")
+
+    assert r.status_code == 409, r.json()
+    assert "versión más nueva" in r.json()["detail"]
+    assert _version(db) == posterior
+
+
 def test_el_almacen_al_dia_sigue_abriendo(client, repo):  # noqa: ANN001, ANN202
     db = ideas.init_repo(repo)
 

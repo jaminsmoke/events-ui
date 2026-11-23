@@ -32,7 +32,7 @@ from .base.esquema import (
     ensure_repo,
     init_repo,
 )
-from .base.migraciones import MIGRATIONS_DIR
+from .base.migraciones import MIGRATIONS_DIR, comprobar_version
 from .base.rutas import DB_FILENAME, EUI_DIR, db_file_for, repos_root, resolve_repo
 from .consulta import get_idea, list_ideas, list_repos, listar_protocolos, map_snapshot, revision
 from .crud import create_idea, delete_idea, reiniciar, update_idea
@@ -50,6 +50,7 @@ __all__ = [
     "SCHEMA_VERSION",
     "aplicar_esquema",
     "aplicar_migracion",
+    "comprobar_version",
     "connect",
     "deshacer_migracion",
     "create_idea",

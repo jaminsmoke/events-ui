@@ -125,8 +125,6 @@ export default function App({
   const [seleccion, setSeleccion] = useState<Seleccion | null>(null);
   // Archivo abierto en la vista Archivo del panel (ruta relativa); `null`, nada.
   const [archivoAbierto, setArchivoAbierto] = useState<string | null>(null);
-  // Documento absorbido abierto en su visor; `null`, ninguno.
-  const [documentoAbierto, setDocumentoAbierto] = useState<string | null>(null);
   // Ancho de la ventana, no del lienzo: el marco que la rodea es fijo (dos
   // rail de 44, el pane de 232 y el Resumen de 272).
   const [ventanaEstrecha, setVentanaEstrecha] = useState(
@@ -199,17 +197,12 @@ export default function App({
   // que soltar o cerrar: con el panel derecho abierto, un segundo Escape lo
   // cierra en vez de quedarse sin oyente tras la primera pulsación.
   useEffect(() => {
-    if (!panel && !vistaDerecha && !archivoAbierto && !documentoAbierto && seleccion === null) {
+    if (!panel && !vistaDerecha && !archivoAbierto && seleccion === null) {
       return;
     }
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       // El visor ocupa el centro: Escape lo cierra antes que nada.
-      if (documentoAbierto && vistaDerecha === "documento") {
-        setVistaDerecha(null);
-        setDocumentoAbierto(null);
-        return;
-      }
       if (archivoAbierto && vistaDerecha === "archivo") {
         setVistaDerecha(null);
         setArchivoAbierto(null);
@@ -224,7 +217,7 @@ export default function App({
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [panel, vistaDerecha, archivoAbierto, documentoAbierto, seleccion]);
+  }, [panel, vistaDerecha, archivoAbierto, seleccion]);
 
   const {
     ideas,
@@ -435,7 +428,6 @@ export default function App({
       setMapa("ideas");
       setSeleccion(null);
       setArchivoAbierto(null);
-      setDocumentoAbierto(null);
       setSelectorAbierto(false);
     },
     [olvidar],
@@ -1110,7 +1102,6 @@ export default function App({
             onVista={setVistaDerecha}
             repo={repo}
             archivoAbierto={archivoAbierto}
-            documentoAbierto={documentoAbierto}
             proyeccion={proyeccion}
             commits={commits}
             seleccion={seleccion}
@@ -1136,7 +1127,6 @@ export default function App({
             onClose={() => {
               setVistaDerecha(null);
               setArchivoAbierto(null);
-              setDocumentoAbierto(null);
             }}
           />
         )}

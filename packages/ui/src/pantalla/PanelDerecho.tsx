@@ -22,7 +22,6 @@ import { CuerpoIdea } from "./InspectorIdea";
 import { CuerpoNudo } from "./InspectorNudo";
 import type { AccionesIdea } from "./InspectorIdea";
 import { VisorArchivo } from "./VisorArchivo";
-import { VisorDocumento } from "./VisorDocumento";
 /** Panel derecho del marco, con varias vistas que comparten cabecera.
  *
  *  Resumen es el estado del repo de un vistazo: sale por encima del lienzo —no
@@ -30,13 +29,13 @@ import { VisorDocumento } from "./VisorDocumento";
  *  pedir nada nuevo al core. El Inspector recibe lo que se pulsa en el mapa:
  *  así los detalles caben aquí y las filas del lienzo pueden quedarse en una
  *  sola línea. Archivo reutiliza el mismo panel para el visor: al abrir un
- *  archivo no se monta otro panel, y al cerrarlo vuelve el lienzo entero. */
+ *  archivo no se monta otro panel, y al cerrarlo vuelve el lienzo entero.
+ *  Los Markdown absorbidos no tienen vista aquí: CLI/API. */
 export function PanelDerecho({
   vista,
   onVista,
   repo,
   archivoAbierto,
-  documentoAbierto,
   proyeccion,
   onIgnorarAlmacen,
   commits,
@@ -57,8 +56,6 @@ export function PanelDerecho({
   repo: string;
   /** Ruta abierta en la vista Archivo; `null` deja el aviso de vacío. */
   archivoAbierto: string | null;
-  /** Documento absorbido abierto en su visor; `null` deja el aviso de vacío. */
-  documentoAbierto: string | null;
   proyeccion: ProyeccionRepo | null | undefined;
   /** Escribe `.EUI/` en el `.gitignore` de esta raíz; lo ofrece el Resumen. */
   onIgnorarAlmacen: () => Promise<unknown>;
@@ -96,7 +93,7 @@ export function PanelDerecho({
 
   return (
     <aside
-      className={`resumen${vista === "archivo" || vista === "documento" ? " resumen--visor" : ""}`}
+      className={`resumen${vista === "archivo" ? " resumen--visor" : ""}`}
       aria-label="Panel derecho"
     >
       <div className="panel-cabecera">
@@ -104,7 +101,6 @@ export function PanelDerecho({
           {pestana("resumen", "Resumen")}
           {pestana("inspector", "Inspector")}
           {archivoAbierto && pestana("archivo", "Archivo")}
-          {documentoAbierto && pestana("documento", "Documento")}
         </div>
         <button
           type="button"
@@ -124,16 +120,6 @@ export function PanelDerecho({
             <p className="hint">
               Ningún archivo abierto. Pulsa uno en el Explorador o en la ficha de
               un cambio.
-            </p>
-          </div>
-        )
-      ) : vista === "documento" ? (
-        documentoAbierto ? (
-          <VisorDocumento key={documentoAbierto} repo={repo} ruta={documentoAbierto} />
-        ) : (
-          <div className="panel-cuerpo">
-            <p className="hint">
-              Ningún documento abierto. Pulsa uno en el pane Documentos.
             </p>
           </div>
         )

@@ -374,7 +374,7 @@ def test_absorb_parcial_confirmar_reescribe_y_undo_restaura(client, tmp_path) ->
     assert manifiesto["modo"] == "parcial"
     assert manifiesto["archivos"][0]["sha256_stub"]
 
-    # La parcial no alimenta el pane de documentos absorbidos.
+    # La parcial no registra documentos absorbidos (solo CLI/API total).
     assert client.get("/documentos", params={"repo": str(tmp_path)}).json() == []
 
     respuesta = client.delete(f"/migracion/lotes/{lote['lote']}", params={"repo": str(tmp_path)})

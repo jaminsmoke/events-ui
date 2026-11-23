@@ -12,9 +12,9 @@ export type VistaPane = "mapas" | "archivos" | "git";
 export type MapaLienzo = "ideas" | "git" | "documentos";
 
 /** Vista del rail derecho: las estadísticas del repo, el inspector de lo que
- *  se selecciona en el lienzo, el archivo abierto y el documento absorbido.
- *  `null` es el panel cerrado. */
-export type VistaDerecha = "resumen" | "inspector" | "archivo" | "documento";
+ *  se selecciona en el lienzo y el archivo abierto. Los Markdown absorbidos
+ *  no viven aquí: salen por CLI (`migrate export`) y API. `null` cierra el panel. */
+export type VistaDerecha = "resumen" | "inspector" | "archivo";
 
 /** Barra de actividad izquierda: una tira de iconos, cada uno con su vista.
  *  No navega ella misma: solo decide qué panel se ve. Repetir el icono activo

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Query
 
@@ -11,6 +11,7 @@ from ..contrato import (
     RESPUESTAS_ERROR,
     Idea,
     IdeaCreate,
+    IdeaResumen,
     IdeaUpdate,
     Kind,
     MapSnapshot,
@@ -31,15 +32,29 @@ def get_repos() -> list[dict[str, Any]]:
     return ideas.list_repos()
 
 
-@router.get("/ideas", response_model=list[Idea], tags=["ideas"], responses=RESPUESTAS_ERROR)
+@router.get(
+    "/ideas",
+    response_model=list[IdeaResumen] | list[Idea],
+    tags=["ideas"],
+    responses=RESPUESTAS_ERROR,
+)
 def get_ideas(
     repo: RepoParam,
     status: Status | None = None,
     kind: Kind | None = None,
+    # La fila del listado es un resumen; el cuerpo se pide a propósito.
+    incluir: Literal["contenido"] | None = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[dict[str, Any]]:
-    return ideas.list_ideas(repo, status=status, kind=kind, limit=limit, offset=offset)
+    return ideas.list_ideas(
+        repo,
+        status=status,
+        kind=kind,
+        limit=limit,
+        offset=offset,
+        incluir_contenido=incluir == "contenido",
+    )
 
 
 @router.post(

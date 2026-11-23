@@ -83,6 +83,14 @@ def _tags_json(texto: str | None) -> list[str]:
 # una ficha y devolver el resultado de un PATCH usan siempre esta forma.
 _COLUMNAS = "idea_data.*, idea_node.estado, idea_node.entered_at"
 
+# Lo mismo sin el cuerpo ni la estancia: el listado pinta una fila y el
+# Markdown se pide a propósito (`?incluir=contenido` o la ficha).
+_COLUMNAS_RESUMEN = (
+    "idea_data.uid, idea_data.title, idea_data.description, idea_data.kind,"
+    " idea_data.tags, idea_data.depende_de, idea_data.created_at, idea_data.updated_at,"
+    " idea_node.estado"
+)
+
 
 def _emitir(conn: sqlite3.Connection, tipo: str, payload: dict[str, Any]) -> None:
     """Añade un evento `idea.*` al log del propio almacén, en su transacción.

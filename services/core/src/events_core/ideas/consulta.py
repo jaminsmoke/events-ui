@@ -9,7 +9,7 @@ from contextlib import closing
 from typing import Any
 
 from ..db import data_version, open_read_only, vigilante
-from .base.comun import _COLUMNAS, _existe, _tags_json
+from .base.comun import _COLUMNAS, _COLUMNAS_RESUMEN, _existe, _tags_json
 from .base.esquema import connect, ensure_repo
 from .base.rutas import DB_FILENAME, EUI_DIR, repos_root
 from .modelo.estados import _grupo, _rechazo, _revision, _roadmap, _verificacion
@@ -134,7 +134,31 @@ def _en_lote(
     return roadmaps, verificaciones, revisiones, rechazos, _fases_en_lote(conn, uids)
 
 
-def _sql_listado(filtro: str | None, kind: str | None = None) -> str:
+def _resumen(row: sqlite3.Row, fases: list[dict[str, Any]]) -> dict[str, Any]:
+    """Una fila del listado: lo que pinta la lista, sin cuerpo ni fichas.
+
+    Las fases ya vienen en lote para el contador; ni sus requisitos ni sus
+    archivos viajan a la fila.
+    """
+    requisitos = [requisito for fase in fases for requisito in fase.get("requisitos") or []]
+    return {
+        "uid": str(row["uid"]),
+        "title": row["title"],
+        "description": row["description"],
+        "kind": row["kind"],
+        "status": str(row["estado"]),
+        "tags": _tags_json(row["tags"]),
+        "depende_de": _tags_json(row["depende_de"]),
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+        "fases_hechas": sum(1 for fase in fases if fase.get("estado") == "completada"),
+        "fases_total": len(fases),
+        "requisitos_hechos": sum(1 for requisito in requisitos if requisito.get("hecho")),
+        "requisitos_total": len(requisitos),
+    }
+
+
+def _sql_listado(filtro: str | None, kind: str | None = None, columnas: str = _COLUMNAS) -> str:
     """El SELECT del listado para un carril; el estado viaja como `:estado`.
 
     Vive aparte para que el test del plan de consulta use el mismo SQL que
@@ -162,7 +186,7 @@ def _sql_listado(filtro: str | None, kind: str | None = None) -> str:
         # los ordene sin B-tree temporal; el `id` desempata como antes.
         orden = "idea_node.created_at DESC, idea_node.id DESC"
     return (
-        f"SELECT {_COLUMNAS} FROM idea_data"
+        f"SELECT {columnas} FROM idea_data"
         " JOIN idea_node ON idea_node.uid = idea_data.uid"
         f"{where}"  # compuesto, no `IS NULL OR`: ver el docstring
         f" ORDER BY {orden}"
@@ -177,6 +201,7 @@ def list_ideas(
     kind: str | None = None,
     limit: int = 100,
     offset: int = 0,
+    incluir_contenido: bool = False,
 ) -> list[dict[str, Any]]:
     with closing(connect(ensure_repo(repo))) as conn:
         # El estado es una columna del nodo, no la presencia en una ficha: el
@@ -184,12 +209,16 @@ def list_ideas(
         # leyéndose como el descarte que es.
         filtro = _grupo(status) if status else None
         rows = conn.execute(
-            _sql_listado(filtro, kind),
+            _sql_listado(filtro, kind, _COLUMNAS if incluir_contenido else _COLUMNAS_RESUMEN),
             {"kind": kind, "estado": filtro, "limit": limit, "offset": offset},
         ).fetchall()
-        roadmaps, verificaciones, revisiones, rechazos, fases = _en_lote(
-            conn, [str(r["uid"]) for r in rows]
-        )
+        uids = [str(r["uid"]) for r in rows]
+        # El resumen solo necesita las fases, para sus contadores: ni el cuerpo
+        # ni las fichas de carril se leen.
+        if not incluir_contenido:
+            fases = _fases_en_lote(conn, uids)
+            return [_resumen(r, fases.get(str(r["uid"]), [])) for r in rows]
+        roadmaps, verificaciones, revisiones, rechazos, fases = _en_lote(conn, uids)
         return [
             _fila(
                 r,

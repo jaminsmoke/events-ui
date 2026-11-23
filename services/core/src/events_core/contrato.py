@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Annotated, Literal
 
 from fastapi import Query
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 # Se repiten los CHECK de `schema/ideas.sql` a propÃ³sito: aquÃ­ sirven para que el
 # contrato OpenAPI publique los enums y la UI no tenga que adivinarlos.
@@ -166,6 +166,36 @@ class Idea(IdeaCreate):
     superseded_by_uid: str | None = None
     # Las fases de la idea (0021), en orden y con su propio estado.
     fases: list[Fase] = Field(default_factory=list)
+
+
+class IdeaResumen(BaseModel):
+    """Una fila del listado: la idea sin su Markdown ni el desglose de fases.
+
+    `/ideas` es la pantalla de una lista, no la ficha: con 500 ideas y Markdown
+    absorbido cada fila arrastraba su cuerpo entero. El detalle sigue en
+    `/ideas/{uid}` y `?incluir=contenido` devuelve el listado de antes.
+    """
+
+    uid: str
+    title: str
+    description: str = ""
+    # El tipo histórico se lee tal cual; el contrato no lo crea.
+    kind: KindLeido = "idea"
+    status: Status
+    tags: list[str] = Field(default_factory=list)
+    depende_de: list[str] = Field(default_factory=list)
+    created_at: str
+    updated_at: str
+    # Contadores de la ficha: una fila sabe cuánto lleva sin traerse fases,
+    # requisitos ni archivos.
+    fases_hechas: int = 0
+    fases_total: int = 0
+    requisitos_hechos: int = 0
+    requisitos_total: int = 0
+    # El listado completo se valida contra `Idea`: que un resumen rechace los
+    # campos de más es lo que distingue a los dos modelos en la unión de la
+    # ruta, en vez de que uno se coma los campos del otro.
+    model_config = ConfigDict(extra="forbid")
 
 
 class MapIdea(BaseModel):

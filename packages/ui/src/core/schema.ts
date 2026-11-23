@@ -1020,6 +1020,64 @@ export interface components {
             fases?: components["schemas"]["FaseEntrada"][] | null;
         };
         /**
+         * IdeaResumen
+         * @description Una fila del listado: la idea sin su Markdown ni el desglose de fases.
+         *
+         *     `/ideas` es la pantalla de una lista, no la ficha: con 500 ideas y Markdown
+         *     absorbido cada fila arrastraba su cuerpo entero. El detalle sigue en
+         *     `/ideas/{uid}` y `?incluir=contenido` devuelve el listado de antes.
+         */
+        IdeaResumen: {
+            /** Uid */
+            uid: string;
+            /** Title */
+            title: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /**
+             * Kind
+             * @default idea
+             * @enum {string}
+             */
+            kind: "idea" | "adr" | "note";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "historial" | "rejected" | "superseded";
+            /** Tags */
+            tags?: string[];
+            /** Depende De */
+            depende_de?: string[];
+            /** Created At */
+            created_at: string;
+            /** Updated At */
+            updated_at: string;
+            /**
+             * Fases Hechas
+             * @default 0
+             */
+            fases_hechas: number;
+            /**
+             * Fases Total
+             * @default 0
+             */
+            fases_total: number;
+            /**
+             * Requisitos Hechos
+             * @default 0
+             */
+            requisitos_hechos: number;
+            /**
+             * Requisitos Total
+             * @default 0
+             */
+            requisitos_total: number;
+        };
+        /**
          * IdeaUpdate
          * @description Campos ausentes no se tocan; `null` explícito tampoco los borra.
          *
@@ -1551,6 +1609,7 @@ export interface operations {
                 repo: string;
                 status?: ("draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "historial" | "rejected" | "superseded") | null;
                 kind?: "idea" | null;
+                incluir?: "contenido" | null;
                 limit?: number;
                 offset?: number;
             };
@@ -1566,7 +1625,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Idea"][];
+                    "application/json": components["schemas"]["IdeaResumen"][] | components["schemas"]["Idea"][];
                 };
             };
             /** @description Petición inválida */

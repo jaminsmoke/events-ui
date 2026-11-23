@@ -58,7 +58,9 @@ MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migraciones"
 # transacción, no repetirlo y saber de dónde salió cada idea; la 0031 guarda
 # en esa procedencia el carril con el que nació cada idea, para deshacer un plan
 # que archiva o descarta; la 0032 pone índice en `idea_node (estado, posicion)`,
-# que es el filtro del mapa y el orden de la cola.
+# que es el filtro del mapa y el orden de la cola; la 0033 copia `created_at` al
+# nodo e indexa `(estado, created_at, uid)` para que el listado por estado no
+# tenga que ordenar en un B-tree temporal.
 
 # Marca en la cabecera de una migración que reconstruye una tabla con claves
 # foráneas apuntándole (ver `_aplicar_paso`).
@@ -234,10 +236,13 @@ def _copiar_ideas_historicas(conn: sqlite3.Connection) -> None:
 
             # El nodo de cada idea vieja: la cola conserva su orden y el resto
             # entra donde su estado decía. `entered_at` es su `updated_at`, que
-            # es la fecha de entrada más cercana que hay en la tabla histórica.
+            # es la fecha de entrada más cercana que hay en la tabla histórica;
+            # `created_at` e `id` se copian tal cual (0033), que son el orden
+            # del listado.
             conn.execute(
                 """
-                INSERT OR IGNORE INTO idea_node (uid, estado, posicion, entered_at)
+                INSERT OR IGNORE INTO idea_node
+                    (uid, estado, posicion, created_at, id, entered_at)
                 SELECT uid,
                        CASE
                            -- En los almacenes anteriores «accepted» era el
@@ -251,6 +256,8 @@ def _copiar_ideas_historicas(conn: sqlite3.Connection) -> None:
                             THEN (SELECT COALESCE(MAX(posicion), 0) FROM idea_node)
                                  + ROW_NUMBER() OVER (ORDER BY created_at, id)
                             ELSE NULL END,
+                       created_at,
+                       id,
                        updated_at
                 FROM ideas
                 WHERE uid IN (SELECT uid FROM idea_data)

@@ -71,6 +71,12 @@ CREATE TABLE IF NOT EXISTS idea_node (
     -- Solo la cola tiene orden. `posicion` es única por carril, no por repo:
     -- una idea fuera de la cola no ocupa sitio.
     posicion    INTEGER,
+    -- Copia de `idea_data.created_at` y de su `id` (0033). Ninguno cambia
+    -- nunca: están aquí para que `(estado, created_at, id)` sirva al filtro
+    -- del listado y a su `ORDER BY` a la vez, sin B-tree temporal. El `id`
+    -- desempata por orden de creación, que es lo que hacía antes.
+    created_at  TEXT    NOT NULL,
+    id          INTEGER NOT NULL,
     -- Cuándo entró en el nodo actual. Sustituye a `entered_at`, `started_at`,
     -- `approved_at` y `rejected_at`, que eran la misma fecha con cuatro nombres.
     entered_at  TEXT    NOT NULL,
@@ -92,6 +98,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS idea_roadmap_unico
 -- listado por estado recorría la tabla entera. Compuesto porque la cola ordena
 -- por `posicion`: el prefijo sirve para el filtro y el par para el orden.
 CREATE INDEX IF NOT EXISTS idea_node_estado ON idea_node (estado, posicion);
+
+-- El listado ordena por `created_at DESC, id DESC`: con la fecha y el `id` en
+-- el nodo, este índice cubre filtro y orden, y desaparece el B-tree temporal
+-- que costaba 184 ms con 160 000 fichas en `historial`.
+CREATE INDEX IF NOT EXISTS idea_node_estado_fecha ON idea_node (estado, created_at, id);
 
 -- El detalle de la estancia en roadmap: el resultado y la referencia del
 -- trabajo. Vive solo mientras dura: al pasar a verificación se retira y la

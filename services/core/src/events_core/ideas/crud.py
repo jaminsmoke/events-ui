@@ -80,7 +80,7 @@ def create_idea(
     with closing(connect(db)) as conn:
         deps = _validar_dependencias(conn, uid, list(depende_de))
         _comprobar_dependencias(conn, uid, status, deps)
-        conn.execute(
+        datos = conn.execute(
             "INSERT INTO idea_data"
             " (uid, title, description, content, kind, tags, depende_de,"
             " created_at, updated_at)"
@@ -99,10 +99,12 @@ def create_idea(
         )
         # El nodo nace en la entrada y `_escribir_estado` lo mueve si la idea
         # se creó ya en otro carril, en la misma transacción.
+        # La fecha y el `id` se copian al nodo (0033): son el filtro y el orden
+        # del listado, y ninguno cambia nunca, a diferencia de `entered_at`.
         conn.execute(
-            "INSERT INTO idea_node (uid, estado, posicion, entered_at)"
-            " VALUES (?, 'draft', NULL, ?)",
-            (uid, ts),
+            "INSERT INTO idea_node (uid, estado, posicion, created_at, id, entered_at)"
+            " VALUES (?, 'draft', NULL, ?, ?, ?)",
+            (uid, ts, datos.lastrowid, ts),
         )
         _escribir_estado(conn, uid, status, {})
         # Las fases entran en la misma transacción que la idea: o nace completa

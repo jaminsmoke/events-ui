@@ -158,7 +158,9 @@ def _sql_listado(filtro: str | None, kind: str | None = None) -> str:
     elif filtro in ("roadmap", "verificacion"):
         orden = "idea_node.entered_at ASC, idea_data.created_at ASC"
     else:
-        orden = "idea_data.created_at DESC, idea_data.id DESC"
+        # La fecha y el `id` están copiados en el nodo (0033) para que el índice
+        # los ordene sin B-tree temporal; el `id` desempata como antes.
+        orden = "idea_node.created_at DESC, idea_node.id DESC"
     return (
         f"SELECT {_COLUMNAS} FROM idea_data"
         " JOIN idea_node ON idea_node.uid = idea_data.uid"

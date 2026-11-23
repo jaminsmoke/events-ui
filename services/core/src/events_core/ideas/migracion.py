@@ -104,7 +104,7 @@ def _insertar_idea(conn: sqlite3.Connection, idea: dict[str, Any], uid: str, ts:
     confundir un archivo con una aprobación humana.
     """
     estado = str(idea.get("status") or "proposed")
-    conn.execute(
+    datos = conn.execute(
         "INSERT INTO idea_data"
         " (uid, title, description, content, kind, tags, depende_de, created_at, updated_at)"
         " VALUES (?, ?, ?, ?, 'idea', ?, '[]', ?, ?)",
@@ -119,10 +119,12 @@ def _insertar_idea(conn: sqlite3.Connection, idea: dict[str, Any], uid: str, ts:
         ),
     )
     # Igual que `create_idea`: el nodo nace en la entrada y `_escribir_estado`
-    # lo lleva al carril pedido en la misma transacción.
+    # lo lleva al carril pedido en la misma transacción. La fecha y el `id` van
+    # copiados al nodo (0033), que es lo que ordena el listado.
     conn.execute(
-        "INSERT INTO idea_node (uid, estado, posicion, entered_at) VALUES (?, 'draft', NULL, ?)",
-        (uid, ts),
+        "INSERT INTO idea_node (uid, estado, posicion, created_at, id, entered_at)"
+        " VALUES (?, 'draft', NULL, ?, ?, ?)",
+        (uid, ts, datos.lastrowid, ts),
     )
     detalle: dict[str, Any] = {}
     if estado == "rejected":

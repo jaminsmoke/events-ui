@@ -1,0 +1,108 @@
+"""El orden del listado sin B-tree temporal: `created_at` en el nodo (0033).
+
+`list_ideas` ordena por `created_at DESC` y la fecha vive en `idea_data`, así
+que el filtro por estado y el orden no los podía servir el mismo índice: SQLite
+leía las coincidencias y las ordenaba en un B-tree temporal. La 0033 copia la
+fecha al nodo (no cambia nunca) y pone `(estado, created_at, uid)`.
+"""
+
+from __future__ import annotations
+
+import sqlite3
+from contextlib import closing
+from pathlib import Path
+
+from events_core import ideas
+from events_core.ideas import consulta
+
+INDICE = "idea_node_estado_fecha"
+
+
+def _columnas(db: Path, indice: str) -> list[str]:
+    with closing(sqlite3.connect(db)) as conn:
+        return [str(fila[2]) for fila in conn.execute(f"PRAGMA index_info('{indice}')").fetchall()]
+
+
+def _indice_estado_fecha(db: Path) -> dict[str, list[str]]:
+    """Las columnas de `idea_node_estado_fecha`, si está."""
+    with closing(sqlite3.connect(db)) as conn:
+        nombres = [
+            str(fila[1])
+            for fila in conn.execute("PRAGMA index_list('idea_node')").fetchall()
+            if fila[1] == INDICE
+        ]
+    return {nombre: _columnas(db, nombre) for nombre in nombres}
+
+
+def _plan(db: Path, estado: str) -> str:
+    with closing(sqlite3.connect(db)) as conn:
+        return " | ".join(
+            str(fila[3])
+            for fila in conn.execute(
+                "EXPLAIN QUERY PLAN " + consulta._sql_listado(estado),
+                {"kind": None, "estado": estado, "limit": 100, "offset": 0},
+            )
+        )
+
+
+def test_el_esquema_fresco_trae_la_fecha_en_el_nodo_y_su_indice(repo):  # noqa: ANN001, ANN202
+    db = ideas.init_repo(repo)
+
+    assert _indice_estado_fecha(db) == {INDICE: ["estado", "created_at", "id"]}
+    with closing(sqlite3.connect(db)) as conn:
+        columnas = {str(fila[1]) for fila in conn.execute("PRAGMA table_info('idea_node')")}
+    assert {"created_at", "id"} <= columnas
+
+
+def test_la_fecha_del_nodo_es_la_de_la_idea(repo):  # noqa: ANN001, ANN202
+    db = ideas.init_repo(repo)
+    uid = ideas.create_idea(repo, title="A")["uid"]
+
+    with closing(sqlite3.connect(db)) as conn:
+        nodo = conn.execute("SELECT created_at FROM idea_node WHERE uid = ?", (uid,)).fetchone()[0]
+        dato = conn.execute("SELECT created_at FROM idea_data WHERE uid = ?", (uid,)).fetchone()[0]
+
+    assert nodo == dato
+
+
+def test_el_listado_por_historial_no_ordena_en_memoria(repo):  # noqa: ANN001, ANN202
+    db = ideas.init_repo(repo)
+
+    plan = _plan(db, "historial")
+
+    assert INDICE in plan
+    assert "TEMP B-TREE" not in plan
+
+
+def test_el_listado_sigue_de_mas_nueva_a_mas_vieja(repo):  # noqa: ANN001, ANN202
+    uids = [ideas.create_idea(repo, title=f"Idea {n}")["uid"] for n in range(3)]
+
+    listado = ideas.list_ideas(repo)
+
+    assert [idea["uid"] for idea in listado] == list(reversed(uids))
+
+
+def test_un_almacen_v32_sube_con_la_fecha_copiada_y_sin_tocar_datos(repo):  # noqa: ANN001, ANN202
+    db = ideas.init_repo(repo)
+    uid = ideas.create_idea(repo, title="A")["uid"]
+    # La versión anterior: el nodo sin la fecha, sin el `id` y sin el índice.
+    with closing(sqlite3.connect(db)) as conn:
+        conn.execute(f"DROP INDEX {INDICE}")
+        conn.execute("ALTER TABLE idea_node DROP COLUMN created_at")
+        conn.execute("ALTER TABLE idea_node DROP COLUMN id")
+        conn.execute("PRAGMA user_version = 32")
+        conn.commit()
+
+    ideas.ensure_repo(repo)
+
+    with closing(sqlite3.connect(db)) as conn:
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == ideas.SCHEMA_VERSION
+        fecha_nodo = conn.execute(
+            "SELECT created_at FROM idea_node WHERE uid = ?", (uid,)
+        ).fetchone()[0]
+        fecha_dato = conn.execute(
+            "SELECT created_at FROM idea_data WHERE uid = ?", (uid,)
+        ).fetchone()[0]
+    assert fecha_nodo == fecha_dato
+    assert _indice_estado_fecha(db) == {INDICE: ["estado", "created_at", "id"]}
+    assert ideas.get_idea(repo, uid)["uid"] == uid

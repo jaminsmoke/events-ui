@@ -1,6 +1,8 @@
 import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 
+import { esperarCables } from "../cables.mjs";
+
 export default {
   nombre: "prueba-recuperacion",
   descripcion:
@@ -19,7 +21,7 @@ export default {
       await selector.or(pruebas).first().waitFor();
       if (await selector.isVisible()) await selector.click();
       await pruebas.waitFor();
-      await esperar(() => page.locator(".wire").count().then((n) => n === 11), "los once cables");
+      await esperarCables(page, esperar);
     };
 
     /** Deja la marca de la prueba como la dejaría una ejecución: `latido`

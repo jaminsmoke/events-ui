@@ -1,6 +1,8 @@
 import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 
+import { esperarCables } from "../cables.mjs";
+
 const tablasOperativas = [
   "idea_data", "idea_node", "rejected_node", "roadmap_node", "verificacion_node",
   "revision_node", "idea_fase", "idea_requisito", "event",
@@ -45,7 +47,7 @@ export default {
       await selector.or(pruebas).first().waitFor();
       if (await selector.isVisible()) await selector.click();
       await pruebas.waitFor();
-      await esperar(() => page.locator(".wire").count().then((n) => n === 11), "los once cables");
+      await esperarCables(page, esperar);
       const inicial = await geometria(page);
       expect(inicial.cabeceras.length === 8, "ocho nodos de la fila principal");
       await pruebas.click();

@@ -1,5 +1,7 @@
 /** El inspector derecho: la selección del lienzo abre la ficha del carril y
  *  de la idea, y Escape o el fondo sueltan la selección. */
+import { esperarCables } from "../cables.mjs";
+
 export default {
   nombre: "inspector",
   descripcion:
@@ -24,7 +26,7 @@ export default {
     await selector.or(pruebas).first().waitFor();
     if (await selector.isVisible()) await selector.click();
     await page.getByText("Idea de inspector", { exact: true }).first().waitFor();
-    await esperar(() => page.locator(".wire").count().then((n) => n === 11), "los once cables");
+    await esperarCables(page, esperar);
 
     // El panel arranca cerrado; su icono lo abre directamente en el Inspector.
     const iconoInspector = page.getByRole("button", { name: "Inspector", exact: true });

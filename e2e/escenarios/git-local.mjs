@@ -2,6 +2,8 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
+import { esperarCables } from "../cables.mjs";
+
 /** Git del sistema, siempre dentro de la carpeta indicada. */
 function git(carpeta, ...args) {
   return execFileSync("git", ["-C", carpeta, ...args], { encoding: "utf8" });
@@ -30,7 +32,7 @@ export default {
       await selector.or(pruebas).first().waitFor();
       if (await selector.isVisible()) await selector.click();
       await pruebas.waitFor();
-      await esperar(() => page.locator(".wire").count().then((n) => n === 11), "los once cables");
+      await esperarCables(page, esperar);
       // El pane de Mapas arranca cerrado y las pestañas viven dentro de él.
       await page.getByRole("button", { name: "Mapas", exact: true }).click();
 

@@ -1,3 +1,5 @@
+import { esperarCables } from "../cables.mjs";
+
 export default {
   nombre: "prueba-fases",
   descripcion:
@@ -19,7 +21,7 @@ export default {
     await selector.or(pruebas).first().waitFor();
     if (await selector.isVisible()) await selector.click();
     await page.getByText("Fases E2E", { exact: true }).waitFor();
-    await esperar(() => page.locator(".wire").count().then((n) => n === 11), "los once cables");
+    await esperarCables(page, esperar);
 
     /** La fila del carril que toque; el mapa la remonta al cambiar de nodo. */
     const filaEn = (carril) =>

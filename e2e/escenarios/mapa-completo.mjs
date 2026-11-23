@@ -3,6 +3,8 @@ import { rmSync, writeFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 
+import { esperarCables } from "../cables.mjs";
+
 /** Git del sistema, siempre dentro de la carpeta indicada. */
 function git(carpeta, ...args) {
   return execFileSync("git", ["-C", carpeta, ...args], { encoding: "utf8" });
@@ -36,7 +38,7 @@ export default {
     // (la de Git sale deshabilitada mientras no haya work tree).
     await page.getByRole("button", { name: "Mapas", exact: true }).click();
     await page.locator('.pane[aria-label="Mapas"]').waitFor();
-    await esperar(() => page.locator(".wire").count().then((n) => n === 11), "los once cables");
+    await esperarCables(page, esperar);
 
     // Git se simula con el lab vacío, antes de sembrar: la prueba se vacía sola
     // seis segundos después de sembrada y estas comprobaciones no caben a la vez.
@@ -156,7 +158,7 @@ export default {
     // pestañas de mapa donde estaban antes de commitear.
     await page.getByRole("button", { name: "Mapas", exact: true }).click();
     await page.getByRole("button", { name: "Mapa de trabajo", exact: true }).click();
-    await esperar(() => page.locator(".wire").count().then((n) => n === 11), "de vuelta a Trabajo");
+    await esperarCables(page, esperar, "de vuelta a Trabajo");
 
     await pruebas.click();
     const dialogo = page.getByRole("dialog", { name: "Pruebas del laboratorio" });

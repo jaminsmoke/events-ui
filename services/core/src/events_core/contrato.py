@@ -13,7 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 # Se repiten los CHECK de `schema/ideas.sql` a propÃ³sito: aquÃ­ sirven para que el
 # contrato OpenAPI publique los enums y la UI no tenga que adivinarlos.
-# Al crear y editar solo se admite la idea: nota/ADR no estÃ¡n pensados como
+# Al crear y editar solo se admite el ítem: nota/ADR no estÃ¡n pensados como
 # tipos nuevos. Al leer sÃ­ se conservan los histÃ³ricos (`adr`, `note`): vienen
 # de almacenes anteriores y no pueden tumbar el listado ni la ficha.
 Kind = Literal["idea"]
@@ -73,7 +73,7 @@ class RequisitoEntrada(BaseModel):
 
 
 class Fase(BaseModel):
-    """Una fase de la idea (0021), con su propio estado y fecha de entrada."""
+    """Una fase del ítem (0021), con su propio estado y fecha de entrada."""
 
     orden: int = Field(ge=1)
     titulo: str = Field(min_length=1)
@@ -97,21 +97,21 @@ class FaseEntrada(BaseModel):
     requisitos: list[RequisitoEntrada] | None = None
 
 
-class IdeaCreate(BaseModel):
+class WorkItemCreate(BaseModel):
     title: str = Field(min_length=1)
     description: str = ""
     content: str = ""
     kind: Kind = "idea"
     status: Status = "draft"
     tags: list[str] = Field(default_factory=list)
-    # Uids de ideas que tienen que estar aprobadas para que esta avance.
+    # Uids de ítems que tienen que estar aprobados para que este avance.
     depende_de: list[str] = Field(default_factory=list)
     # El desglose en el alta: sin él, crear con fases exige un segundo PATCH y
     # deja la ficha a medias entre las dos llamadas.
     fases: list[FaseEntrada] | None = None
 
 
-class IdeaUpdate(BaseModel):
+class WorkItemUpdate(BaseModel):
     """Campos ausentes no se tocan; `null` explícito tampoco los borra.
 
     Los del descarte viajan junto al `status: rejected`/`superseded`: el
@@ -140,7 +140,7 @@ class IdeaUpdate(BaseModel):
     fases: list[FaseEntrada] | None = None
 
 
-class Idea(IdeaCreate):
+class WorkItem(WorkItemCreate):
     uid: str
     # El tipo histórico se devuelve tal cual; el contrato no lo crea.
     kind: KindLeido = "idea"
@@ -164,16 +164,16 @@ class Idea(IdeaCreate):
     rejected_description: str = ""
     rejected_by: Literal["usuario", "agente", "sistema"] = "usuario"
     superseded_by_uid: str | None = None
-    # Las fases de la idea (0021), en orden y con su propio estado.
+    # Las fases del ítem (0021), en orden y con su propio estado.
     fases: list[Fase] = Field(default_factory=list)
 
 
-class IdeaResumen(BaseModel):
-    """Una fila del listado: la idea sin su Markdown ni el desglose de fases.
+class WorkItemResumen(BaseModel):
+    """Una fila del listado: el ítem sin su Markdown ni el desglose de fases.
 
-    `/ideas` es la pantalla de una lista, no la ficha: con 500 ideas y Markdown
+    `/items` es la pantalla de una lista, no la ficha: con 500 ítems y Markdown
     absorbido cada fila arrastraba su cuerpo entero. El detalle sigue en
-    `/ideas/{uid}` y `?incluir=contenido` devuelve el listado de antes.
+    `/items/{uid}` y `?incluir=contenido` devuelve el listado de antes.
     """
 
     uid: str
@@ -192,13 +192,13 @@ class IdeaResumen(BaseModel):
     fases_total: int = 0
     requisitos_hechos: int = 0
     requisitos_total: int = 0
-    # El listado completo se valida contra `Idea`: que un resumen rechace los
+    # El listado completo se valida contra `WorkItem`: que un resumen rechace los
     # campos de más es lo que distingue a los dos modelos en la unión de la
     # ruta, en vez de que uno se coma los campos del otro.
     model_config = ConfigDict(extra="forbid")
 
 
-class MapIdea(BaseModel):
+class MapWorkItem(BaseModel):
     uid: str
     title: str
     description: str
@@ -247,7 +247,7 @@ class Protocolo(BaseModel):
 
 
 class MapSnapshot(BaseModel):
-    ideas: list[MapIdea]
+    ideas: list[MapWorkItem]
 
 
 class Revision(BaseModel):
@@ -256,7 +256,7 @@ class Revision(BaseModel):
     `data_version` es `PRAGMA data_version` y es por conexión: un vigilante
     nuevo vuelve a empezar su cuenta. `ultimo_evento` sale del propio almacén
     (`max(id)` del log), así que un evento nuevo mueve la firma aunque no se
-    toque ninguna idea.
+    toque ningún ítem.
     """
 
     instance: str

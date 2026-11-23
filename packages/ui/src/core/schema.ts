@@ -58,11 +58,35 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Ideas */
-        get: operations["get_ideas_ideas_get"];
+        /**
+         * Get Items
+         * @deprecated
+         */
+        get: operations["get_items_ideas_get"];
         put?: never;
-        /** Post Idea */
-        post: operations["post_idea_ideas_post"];
+        /**
+         * Post Item
+         * @deprecated
+         */
+        post: operations["post_item_ideas_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Items */
+        get: operations["get_items_items_get"];
+        put?: never;
+        /** Post Item */
+        post: operations["post_item_items_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -76,16 +100,44 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Idea */
-        get: operations["get_idea_ideas__uid__get"];
+        /**
+         * Get Item
+         * @deprecated
+         */
+        get: operations["get_item_ideas__uid__get"];
         put?: never;
         post?: never;
-        /** Remove Idea */
-        delete: operations["remove_idea_ideas__uid__delete"];
+        /**
+         * Remove Item
+         * @deprecated
+         */
+        delete: operations["remove_item_ideas__uid__delete"];
         options?: never;
         head?: never;
-        /** Patch Idea */
-        patch: operations["patch_idea_ideas__uid__patch"];
+        /**
+         * Patch Item
+         * @deprecated
+         */
+        patch: operations["patch_item_ideas__uid__patch"];
+        trace?: never;
+    };
+    "/items/{uid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Item */
+        get: operations["get_item_items__uid__get"];
+        put?: never;
+        post?: never;
+        /** Remove Item */
+        delete: operations["remove_item_items__uid__delete"];
+        options?: never;
+        head?: never;
+        /** Patch Item */
+        patch: operations["patch_item_items__uid__patch"];
         trace?: never;
     };
     "/reiniciar": {
@@ -99,7 +151,7 @@ export interface paths {
         put?: never;
         /**
          * Post Reiniciar
-         * @description Reinicio de laboratorio: el almacén queda vacío (ideas, cola, fichas
+         * @description Reinicio de laboratorio: el almacén queda vacío (ítems, cola, fichas
          *     y eventos). Solo lo llama el lanzador de pruebas del desktop
          *     (`puedeProbar`): no es parte del CRUD de producto.
          */
@@ -143,7 +195,7 @@ export interface paths {
         };
         /**
          * Get Map
-         * @description Las ideas del mapa tal como estaban en una misma lectura de SQLite.
+         * @description Los ítems del mapa tal como estaban en una misma lectura de SQLite.
          */
         get: operations["get_map_mapa_get"];
         put?: never;
@@ -815,7 +867,7 @@ export interface components {
         };
         /**
          * Fase
-         * @description Una fase de la idea (0021), con su propio estado y fecha de entrada.
+         * @description Una fase del ítem (0021), con su propio estado y fecha de entrada.
          */
         Fase: {
             /** Orden */
@@ -892,269 +944,35 @@ export interface components {
             /** Data Version */
             data_version?: number | null;
         };
-        /** Idea */
-        Idea: {
-            /** Title */
-            title: string;
-            /**
-             * Description
-             * @default
-             */
-            description: string;
-            /**
-             * Content
-             * @default
-             */
-            content: string;
-            /**
-             * Kind
-             * @default idea
-             * @enum {string}
-             */
-            kind: "idea" | "adr" | "note";
-            /**
-             * Status
-             * @default draft
-             * @enum {string}
-             */
-            status: "draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "historial" | "rejected" | "superseded";
-            /** Tags */
-            tags?: string[];
-            /** Depende De */
-            depende_de?: string[];
-            /** Fases */
-            fases?: components["schemas"]["Fase"][];
-            /** Uid */
-            uid: string;
-            /** Created At */
-            created_at: string;
-            /** Updated At */
-            updated_at: string;
-            /** Roadmap Started At */
-            roadmap_started_at?: string | null;
-            /** Roadmap Completed At */
-            roadmap_completed_at?: string | null;
-            /**
-             * Roadmap Resultado
-             * @default
-             */
-            roadmap_resultado: string;
-            /**
-             * Roadmap Referencia
-             * @default
-             */
-            roadmap_referencia: string;
-            /** Verificacion Started At */
-            verificacion_started_at?: string | null;
-            /**
-             * Verificacion Intentos
-             * @default 0
-             */
-            verificacion_intentos: number;
-            /**
-             * Verificacion Ultimo Resultado
-             * @default
-             */
-            verificacion_ultimo_resultado: string;
-            /**
-             * Verificacion Comentario
-             * @default
-             */
-            verificacion_comentario: string;
-            /** Revision Approved At */
-            revision_approved_at?: string | null;
-            /**
-             * Revision Approved By
-             * @default usuario
-             * @enum {string}
-             */
-            revision_approved_by: "usuario" | "agente" | "sistema";
-            /**
-             * Revision Nota
-             * @default
-             */
-            revision_nota: string;
-            /** Rejected At */
-            rejected_at?: string | null;
-            /**
-             * Rejected Description
-             * @default
-             */
-            rejected_description: string;
-            /**
-             * Rejected By
-             * @default usuario
-             * @enum {string}
-             */
-            rejected_by: "usuario" | "agente" | "sistema";
-            /** Superseded By Uid */
-            superseded_by_uid?: string | null;
-        };
-        /** IdeaCreate */
-        IdeaCreate: {
-            /** Title */
-            title: string;
-            /**
-             * Description
-             * @default
-             */
-            description: string;
-            /**
-             * Content
-             * @default
-             */
-            content: string;
-            /**
-             * Kind
-             * @default idea
-             * @constant
-             */
-            kind: "idea";
-            /**
-             * Status
-             * @default draft
-             * @enum {string}
-             */
-            status: "draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "historial" | "rejected" | "superseded";
-            /** Tags */
-            tags?: string[];
-            /** Depende De */
-            depende_de?: string[];
-            /** Fases */
-            fases?: components["schemas"]["FaseEntrada"][] | null;
-        };
-        /**
-         * IdeaResumen
-         * @description Una fila del listado: la idea sin su Markdown ni el desglose de fases.
-         *
-         *     `/ideas` es la pantalla de una lista, no la ficha: con 500 ideas y Markdown
-         *     absorbido cada fila arrastraba su cuerpo entero. El detalle sigue en
-         *     `/ideas/{uid}` y `?incluir=contenido` devuelve el listado de antes.
-         */
-        IdeaResumen: {
-            /** Uid */
-            uid: string;
-            /** Title */
-            title: string;
-            /**
-             * Description
-             * @default
-             */
-            description: string;
-            /**
-             * Kind
-             * @default idea
-             * @enum {string}
-             */
-            kind: "idea" | "adr" | "note";
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "historial" | "rejected" | "superseded";
-            /** Tags */
-            tags?: string[];
-            /** Depende De */
-            depende_de?: string[];
-            /** Created At */
-            created_at: string;
-            /** Updated At */
-            updated_at: string;
-            /**
-             * Fases Hechas
-             * @default 0
-             */
-            fases_hechas: number;
-            /**
-             * Fases Total
-             * @default 0
-             */
-            fases_total: number;
-            /**
-             * Requisitos Hechos
-             * @default 0
-             */
-            requisitos_hechos: number;
-            /**
-             * Requisitos Total
-             * @default 0
-             */
-            requisitos_total: number;
-        };
-        /**
-         * IdeaUpdate
-         * @description Campos ausentes no se tocan; `null` explícito tampoco los borra.
-         *
-         *     Los del descarte viajan junto al `status: rejected`/`superseded`: el
-         *     motivo y quién lo dictamina se guardan en `rejected_node` al entrar en
-         *     `descartadas`. Los de roadmap, verificación y revisión aprobada viajan
-         *     igual junto a su `status` y se guardan en su detalle.
-         */
-        IdeaUpdate: {
-            /** Title */
-            title?: string | null;
-            /** Description */
-            description?: string | null;
-            /** Content */
-            content?: string | null;
-            /** Kind */
-            kind?: "idea" | null;
-            /** Status */
-            status?: ("draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "historial" | "rejected" | "superseded") | null;
-            /** Tags */
-            tags?: string[] | null;
-            /** Depende De */
-            depende_de?: string[] | null;
-            /** Rejected Description */
-            rejected_description?: string | null;
-            /** Rejected By */
-            rejected_by?: ("usuario" | "agente" | "sistema") | null;
-            /** Superseded By Uid */
-            superseded_by_uid?: string | null;
-            /** Roadmap Resultado */
-            roadmap_resultado?: string | null;
-            /** Roadmap Referencia */
-            roadmap_referencia?: string | null;
-            /** Verificacion Resultado */
-            verificacion_resultado?: string | null;
-            /** Verificacion Comentario */
-            verificacion_comentario?: string | null;
-            /** Approved By */
-            approved_by?: ("usuario" | "agente" | "sistema") | null;
-            /** Revision Nota */
-            revision_nota?: string | null;
-            /** Fases */
-            fases?: components["schemas"]["FaseEntrada"][] | null;
-        };
-        /** MapIdea */
-        MapIdea: {
-            /** Uid */
-            uid: string;
-            /** Title */
-            title: string;
-            /** Description */
-            description: string;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "historial" | "rejected" | "superseded";
-            /** Depende De */
-            depende_de?: string[];
-            /** Rejected At */
-            rejected_at?: string | null;
-            /**
-             * Rejected Description
-             * @default
-             */
-            rejected_description: string;
-            /** Fases */
-            fases?: components["schemas"]["Fase"][];
-        };
         /** MapSnapshot */
         MapSnapshot: {
             /** Ideas */
-            ideas: components["schemas"]["MapIdea"][];
+            ideas: components["schemas"]["MapWorkItem"][];
+        };
+        /** MapWorkItem */
+        MapWorkItem: {
+            /** Uid */
+            uid: string;
+            /** Title */
+            title: string;
+            /** Description */
+            description: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "historial" | "rejected" | "superseded";
+            /** Depende De */
+            depende_de?: string[];
+            /** Rejected At */
+            rejected_at?: string | null;
+            /**
+             * Rejected Description
+             * @default
+             */
+            rejected_description: string;
+            /** Fases */
+            fases?: components["schemas"]["Fase"][];
         };
         /**
          * MigracionAplicada
@@ -1539,7 +1357,7 @@ export interface components {
          *     `data_version` es `PRAGMA data_version` y es por conexión: un vigilante
          *     nuevo vuelve a empezar su cuenta. `ultimo_evento` sale del propio almacén
          *     (`max(id)` del log), así que un evento nuevo mueve la firma aunque no se
-         *     toque ninguna idea.
+         *     toque ningún ítem.
          */
         Revision: {
             /** Instance */
@@ -1563,6 +1381,240 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** WorkItem */
+        WorkItem: {
+            /** Title */
+            title: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /**
+             * Content
+             * @default
+             */
+            content: string;
+            /**
+             * Kind
+             * @default idea
+             * @enum {string}
+             */
+            kind: "idea" | "adr" | "note";
+            /**
+             * Status
+             * @default draft
+             * @enum {string}
+             */
+            status: "draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "historial" | "rejected" | "superseded";
+            /** Tags */
+            tags?: string[];
+            /** Depende De */
+            depende_de?: string[];
+            /** Fases */
+            fases?: components["schemas"]["Fase"][];
+            /** Uid */
+            uid: string;
+            /** Created At */
+            created_at: string;
+            /** Updated At */
+            updated_at: string;
+            /** Roadmap Started At */
+            roadmap_started_at?: string | null;
+            /** Roadmap Completed At */
+            roadmap_completed_at?: string | null;
+            /**
+             * Roadmap Resultado
+             * @default
+             */
+            roadmap_resultado: string;
+            /**
+             * Roadmap Referencia
+             * @default
+             */
+            roadmap_referencia: string;
+            /** Verificacion Started At */
+            verificacion_started_at?: string | null;
+            /**
+             * Verificacion Intentos
+             * @default 0
+             */
+            verificacion_intentos: number;
+            /**
+             * Verificacion Ultimo Resultado
+             * @default
+             */
+            verificacion_ultimo_resultado: string;
+            /**
+             * Verificacion Comentario
+             * @default
+             */
+            verificacion_comentario: string;
+            /** Revision Approved At */
+            revision_approved_at?: string | null;
+            /**
+             * Revision Approved By
+             * @default usuario
+             * @enum {string}
+             */
+            revision_approved_by: "usuario" | "agente" | "sistema";
+            /**
+             * Revision Nota
+             * @default
+             */
+            revision_nota: string;
+            /** Rejected At */
+            rejected_at?: string | null;
+            /**
+             * Rejected Description
+             * @default
+             */
+            rejected_description: string;
+            /**
+             * Rejected By
+             * @default usuario
+             * @enum {string}
+             */
+            rejected_by: "usuario" | "agente" | "sistema";
+            /** Superseded By Uid */
+            superseded_by_uid?: string | null;
+        };
+        /** WorkItemCreate */
+        WorkItemCreate: {
+            /** Title */
+            title: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /**
+             * Content
+             * @default
+             */
+            content: string;
+            /**
+             * Kind
+             * @default idea
+             * @constant
+             */
+            kind: "idea";
+            /**
+             * Status
+             * @default draft
+             * @enum {string}
+             */
+            status: "draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "historial" | "rejected" | "superseded";
+            /** Tags */
+            tags?: string[];
+            /** Depende De */
+            depende_de?: string[];
+            /** Fases */
+            fases?: components["schemas"]["FaseEntrada"][] | null;
+        };
+        /**
+         * WorkItemResumen
+         * @description Una fila del listado: el ítem sin su Markdown ni el desglose de fases.
+         *
+         *     `/items` es la pantalla de una lista, no la ficha: con 500 ítems y Markdown
+         *     absorbido cada fila arrastraba su cuerpo entero. El detalle sigue en
+         *     `/items/{uid}` y `?incluir=contenido` devuelve el listado de antes.
+         */
+        WorkItemResumen: {
+            /** Uid */
+            uid: string;
+            /** Title */
+            title: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /**
+             * Kind
+             * @default idea
+             * @enum {string}
+             */
+            kind: "idea" | "adr" | "note";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "historial" | "rejected" | "superseded";
+            /** Tags */
+            tags?: string[];
+            /** Depende De */
+            depende_de?: string[];
+            /** Created At */
+            created_at: string;
+            /** Updated At */
+            updated_at: string;
+            /**
+             * Fases Hechas
+             * @default 0
+             */
+            fases_hechas: number;
+            /**
+             * Fases Total
+             * @default 0
+             */
+            fases_total: number;
+            /**
+             * Requisitos Hechos
+             * @default 0
+             */
+            requisitos_hechos: number;
+            /**
+             * Requisitos Total
+             * @default 0
+             */
+            requisitos_total: number;
+        };
+        /**
+         * WorkItemUpdate
+         * @description Campos ausentes no se tocan; `null` explícito tampoco los borra.
+         *
+         *     Los del descarte viajan junto al `status: rejected`/`superseded`: el
+         *     motivo y quién lo dictamina se guardan en `rejected_node` al entrar en
+         *     `descartadas`. Los de roadmap, verificación y revisión aprobada viajan
+         *     igual junto a su `status` y se guardan en su detalle.
+         */
+        WorkItemUpdate: {
+            /** Title */
+            title?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Content */
+            content?: string | null;
+            /** Kind */
+            kind?: "idea" | null;
+            /** Status */
+            status?: ("draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "historial" | "rejected" | "superseded") | null;
+            /** Tags */
+            tags?: string[] | null;
+            /** Depende De */
+            depende_de?: string[] | null;
+            /** Rejected Description */
+            rejected_description?: string | null;
+            /** Rejected By */
+            rejected_by?: ("usuario" | "agente" | "sistema") | null;
+            /** Superseded By Uid */
+            superseded_by_uid?: string | null;
+            /** Roadmap Resultado */
+            roadmap_resultado?: string | null;
+            /** Roadmap Referencia */
+            roadmap_referencia?: string | null;
+            /** Verificacion Resultado */
+            verificacion_resultado?: string | null;
+            /** Verificacion Comentario */
+            verificacion_comentario?: string | null;
+            /** Approved By */
+            approved_by?: ("usuario" | "agente" | "sistema") | null;
+            /** Revision Nota */
+            revision_nota?: string | null;
+            /** Fases */
+            fases?: components["schemas"]["FaseEntrada"][] | null;
         };
     };
     responses: never;
@@ -1613,7 +1665,7 @@ export interface operations {
             };
         };
     };
-    get_ideas_ideas_get: {
+    get_items_ideas_get: {
         parameters: {
             query: {
                 /** @description Carpeta del repo: ruta absoluta o nombre en el lab */
@@ -1636,7 +1688,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["IdeaResumen"][] | components["schemas"]["Idea"][];
+                    "application/json": components["schemas"]["WorkItemResumen"][] | components["schemas"]["WorkItem"][];
                 };
             };
             /** @description Petición inválida */
@@ -1668,7 +1720,7 @@ export interface operations {
             };
         };
     };
-    post_idea_ideas_post: {
+    post_item_ideas_post: {
         parameters: {
             query: {
                 /** @description Carpeta del repo: ruta absoluta o nombre en el lab */
@@ -1680,7 +1732,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["IdeaCreate"];
+                "application/json": components["schemas"]["WorkItemCreate"];
             };
         };
         responses: {
@@ -1690,7 +1742,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Idea"];
+                    "application/json": components["schemas"]["WorkItem"];
                 };
             };
             /** @description Petición inválida */
@@ -1722,7 +1774,116 @@ export interface operations {
             };
         };
     };
-    get_idea_ideas__uid__get: {
+    get_items_items_get: {
+        parameters: {
+            query: {
+                /** @description Carpeta del repo: ruta absoluta o nombre en el lab */
+                repo: string;
+                status?: ("draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "historial" | "rejected" | "superseded") | null;
+                kind?: "idea" | null;
+                incluir?: "contenido" | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkItemResumen"][] | components["schemas"]["WorkItem"][];
+                };
+            };
+            /** @description Petición inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description No existe el repo o la idea */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_item_items_post: {
+        parameters: {
+            query: {
+                /** @description Carpeta del repo: ruta absoluta o nombre en el lab */
+                repo: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkItemCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkItem"];
+                };
+            };
+            /** @description Petición inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description No existe el repo o la idea */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_item_ideas__uid__get: {
         parameters: {
             query: {
                 /** @description Carpeta del repo: ruta absoluta o nombre en el lab */
@@ -1742,7 +1903,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Idea"];
+                    "application/json": components["schemas"]["WorkItem"];
                 };
             };
             /** @description Petición inválida */
@@ -1774,7 +1935,7 @@ export interface operations {
             };
         };
     };
-    remove_idea_ideas__uid__delete: {
+    remove_item_ideas__uid__delete: {
         parameters: {
             query: {
                 /** @description Carpeta del repo: ruta absoluta o nombre en el lab */
@@ -1824,7 +1985,7 @@ export interface operations {
             };
         };
     };
-    patch_idea_ideas__uid__patch: {
+    patch_item_ideas__uid__patch: {
         parameters: {
             query: {
                 /** @description Carpeta del repo: ruta absoluta o nombre en el lab */
@@ -1838,7 +1999,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["IdeaUpdate"];
+                "application/json": components["schemas"]["WorkItemUpdate"];
             };
         };
         responses: {
@@ -1848,7 +2009,165 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Idea"];
+                    "application/json": components["schemas"]["WorkItem"];
+                };
+            };
+            /** @description Petición inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description No existe el repo o la idea */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_item_items__uid__get: {
+        parameters: {
+            query: {
+                /** @description Carpeta del repo: ruta absoluta o nombre en el lab */
+                repo: string;
+            };
+            header?: never;
+            path: {
+                uid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkItem"];
+                };
+            };
+            /** @description Petición inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description No existe el repo o la idea */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_item_items__uid__delete: {
+        parameters: {
+            query: {
+                /** @description Carpeta del repo: ruta absoluta o nombre en el lab */
+                repo: string;
+            };
+            header?: never;
+            path: {
+                uid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Petición inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description No existe el repo o la idea */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_item_items__uid__patch: {
+        parameters: {
+            query: {
+                /** @description Carpeta del repo: ruta absoluta o nombre en el lab */
+                repo: string;
+            };
+            header?: never;
+            path: {
+                uid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkItemUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkItem"];
                 };
             };
             /** @description Petición inválida */

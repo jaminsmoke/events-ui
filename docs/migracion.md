@@ -193,8 +193,9 @@ no cambió después. Si la cobertura ya es total, hay que usar absorb sin
 El plan no cambia: los nombres de tabla (`migracion_idea` → `migracion_item`,
 `idea_data` → `work_item_data`) y de ruta (`/ideas` → `/items`) son del almacén
 y de la API. `kind: "idea"` y la clave `ideas` del plan se quedan: son datos y
-contrato del plan v1-v3, no alias. Hasta el
-2027-01-31 el almacén y la API siguen publicando los nombres viejos.
+contrato del plan v1-v3, no alias. Hasta el 2027-01-31 el almacén sigue con
+los nombres viejos; la API ya publica `/items` y responde por `/ideas` con la
+cabecera `Deprecation`.
 
 ## Antes de aplicar
 

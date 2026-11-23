@@ -1,18 +1,14 @@
-"""Rutas de ideas: repos, CRUD, mapa, protocolos y reinicio del laboratorio."""
+"""Rutas de ítems: repos, CRUD, mapa, protocolos y reinicio del laboratorio."""
 
 from __future__ import annotations
 
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query, Response
 
 from .. import ideas, registro
 from ..contrato import (
     RESPUESTAS_ERROR,
-    Idea,
-    IdeaCreate,
-    IdeaResumen,
-    IdeaUpdate,
     Kind,
     MapSnapshot,
     Protocolo,
@@ -21,24 +17,41 @@ from ..contrato import (
     RepoParam,
     Revision,
     Status,
+    WorkItem,
+    WorkItemCreate,
+    WorkItemResumen,
+    WorkItemUpdate,
 )
 
 router = APIRouter()
 
 
-@router.get("/repos", response_model=list[Repo], tags=["ideas"])
+def _deprecacion(response: Response) -> None:
+    """`/ideas` responde igual que `/items`, pero anuncia su sucesora."""
+    response.headers["Deprecation"] = "true"
+
+
+@router.get("/repos", response_model=list[Repo], tags=["items"])
 def get_repos() -> list[dict[str, Any]]:
     """Repos investigados que ya tienen `.EUI/EUI_DATABASE.sqlite`."""
     return ideas.list_repos()
 
 
 @router.get(
-    "/ideas",
-    response_model=list[IdeaResumen] | list[Idea],
-    tags=["ideas"],
+    "/items",
+    response_model=list[WorkItemResumen] | list[WorkItem],
+    tags=["items"],
     responses=RESPUESTAS_ERROR,
 )
-def get_ideas(
+@router.get(
+    "/ideas",
+    response_model=list[WorkItemResumen] | list[WorkItem],
+    tags=["items"],
+    responses=RESPUESTAS_ERROR,
+    deprecated=True,
+    dependencies=[Depends(_deprecacion)],
+)
+def get_items(
     repo: RepoParam,
     status: Status | None = None,
     kind: Kind | None = None,
@@ -58,37 +71,74 @@ def get_ideas(
 
 
 @router.post(
-    "/ideas", response_model=Idea, status_code=201, tags=["ideas"], responses=RESPUESTAS_ERROR
+    "/items",
+    response_model=WorkItem,
+    status_code=201,
+    tags=["items"],
+    responses=RESPUESTAS_ERROR,
 )
-def post_idea(body: IdeaCreate, repo: RepoParam) -> dict[str, Any]:
+@router.post(
+    "/ideas",
+    response_model=WorkItem,
+    status_code=201,
+    tags=["items"],
+    responses=RESPUESTAS_ERROR,
+    deprecated=True,
+    dependencies=[Depends(_deprecacion)],
+)
+def post_item(body: WorkItemCreate, repo: RepoParam) -> dict[str, Any]:
     return ideas.create_idea(repo, **body.model_dump())
 
 
-@router.get("/ideas/{uid}", response_model=Idea, tags=["ideas"], responses=RESPUESTAS_ERROR)
-def get_idea(uid: str, repo: RepoParam) -> dict[str, Any]:
+@router.get("/items/{uid}", response_model=WorkItem, tags=["items"], responses=RESPUESTAS_ERROR)
+@router.get(
+    "/ideas/{uid}",
+    response_model=WorkItem,
+    tags=["items"],
+    responses=RESPUESTAS_ERROR,
+    deprecated=True,
+    dependencies=[Depends(_deprecacion)],
+)
+def get_item(uid: str, repo: RepoParam) -> dict[str, Any]:
     return ideas.get_idea(repo, uid)
 
 
-@router.patch("/ideas/{uid}", response_model=Idea, tags=["ideas"], responses=RESPUESTAS_ERROR)
-def patch_idea(uid: str, body: IdeaUpdate, repo: RepoParam) -> dict[str, Any]:
+@router.patch("/items/{uid}", response_model=WorkItem, tags=["items"], responses=RESPUESTAS_ERROR)
+@router.patch(
+    "/ideas/{uid}",
+    response_model=WorkItem,
+    tags=["items"],
+    responses=RESPUESTAS_ERROR,
+    deprecated=True,
+    dependencies=[Depends(_deprecacion)],
+)
+def patch_item(uid: str, body: WorkItemUpdate, repo: RepoParam) -> dict[str, Any]:
     return ideas.update_idea(repo, uid, body.model_dump(exclude_unset=True))
 
 
-@router.delete("/ideas/{uid}", status_code=204, tags=["ideas"], responses=RESPUESTAS_ERROR)
-def remove_idea(uid: str, repo: RepoParam) -> None:
+@router.delete("/items/{uid}", status_code=204, tags=["items"], responses=RESPUESTAS_ERROR)
+@router.delete(
+    "/ideas/{uid}",
+    status_code=204,
+    tags=["items"],
+    responses=RESPUESTAS_ERROR,
+    deprecated=True,
+    dependencies=[Depends(_deprecacion)],
+)
+def remove_item(uid: str, repo: RepoParam) -> None:
     if not ideas.delete_idea(repo, uid):
         raise KeyError(uid)
 
 
-@router.post("/reiniciar", response_model=Reinicio, tags=["ideas"], responses=RESPUESTAS_ERROR)
+@router.post("/reiniciar", response_model=Reinicio, tags=["items"], responses=RESPUESTAS_ERROR)
 def post_reiniciar(repo: RepoParam) -> dict[str, Any]:
-    """Reinicio de laboratorio: el almacén queda vacío (ideas, cola, fichas
+    """Reinicio de laboratorio: el almacén queda vacío (ítems, cola, fichas
     y eventos). Solo lo llama el lanzador de pruebas del desktop
     (`puedeProbar`): no es parte del CRUD de producto."""
     resultado = ideas.reiniciar(repo)
     registro.escribir(
         "info",
-        f"Reinicio de laboratorio en {repo}: {resultado['ideas_eliminadas']} ideas, "
+        f"Reinicio de laboratorio en {repo}: {resultado['ideas_eliminadas']} ítems, "
         f"{resultado['eventos_eliminados']} eventos",
         origen="reiniciar",
     )
@@ -96,7 +146,7 @@ def post_reiniciar(repo: RepoParam) -> dict[str, Any]:
 
 
 @router.get(
-    "/protocolos", response_model=list[Protocolo], tags=["ideas"], responses=RESPUESTAS_ERROR
+    "/protocolos", response_model=list[Protocolo], tags=["items"], responses=RESPUESTAS_ERROR
 )
 def get_protocolos(repo: RepoParam) -> list[dict[str, Any]]:
     """Las uniones permitidas entre carriles (`protocolo_flujo`).
@@ -107,13 +157,13 @@ def get_protocolos(repo: RepoParam) -> list[dict[str, Any]]:
     return ideas.listar_protocolos(repo)
 
 
-@router.get("/mapa", response_model=MapSnapshot, tags=["ideas"], responses=RESPUESTAS_ERROR)
+@router.get("/mapa", response_model=MapSnapshot, tags=["items"], responses=RESPUESTAS_ERROR)
 def get_map(repo: RepoParam) -> dict[str, Any]:
-    """Las ideas del mapa tal como estaban en una misma lectura de SQLite."""
+    """Los ítems del mapa tal como estaban en una misma lectura de SQLite."""
     return ideas.map_snapshot(repo)
 
 
-@router.get("/revision", response_model=Revision, tags=["ideas"], responses=RESPUESTAS_ERROR)
+@router.get("/revision", response_model=Revision, tags=["items"], responses=RESPUESTAS_ERROR)
 def get_revision(repo: RepoParam) -> dict[str, Any]:
     """Sondeo de cambio: la UI lo pide cada par de segundos, sin traerse el mapa."""
     return ideas.revision(repo)

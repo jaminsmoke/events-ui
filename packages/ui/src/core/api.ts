@@ -8,12 +8,12 @@ type Schemas = components["schemas"];
  *  generado con `pnpm gen:api`). No escribirlos a mano: si el core cambia un
  *  campo o un enum, aquí se ve en el siguiente `check`, no en producción.
  *
- *  La UI lee el mapa (`MapSnapshot`), así que su idea es `MapIdea` —los mismos
- *  campos que consume la fila: `uid`, `title`, `description`, `status`— y el
- *  resto (`tags`…) llega al editar, por la `Idea` del CRUD. */
-export type Idea = Schemas["MapIdea"];
+ *  La UI lee el mapa (`MapSnapshot`), así que su ítem es `MapWorkItem` —los
+ *  mismos campos que consume la fila: `uid`, `title`, `description`, `status`—
+ *  y el resto (`tags`…) llega al editar, por la `WorkItem` del CRUD. */
+export type Idea = Schemas["MapWorkItem"];
 
-/** Espejo de GET /mapa: las ideas del mapa. */
+/** Espejo de GET /mapa: los ítems del mapa. */
 export type Mapa = Schemas["MapSnapshot"];
 
 /** Espejo de GET /revision: firma del almacén para el refresco en vivo. */
@@ -22,9 +22,9 @@ export type Revision = Schemas["Revision"];
 /** Una carpeta del laboratorio ya sembrada, tal como la devuelve GET /repos. */
 export type RepoListado = Schemas["Repo"];
 
-/** Cuerpo de POST /ideas y de PATCH /ideas/{uid}, del contrato generado. */
-export type IdeaCreate = Schemas["IdeaCreate"];
-export type IdeaUpdate = Schemas["IdeaUpdate"];
+/** Cuerpo de POST /items y de PATCH /items/{uid}, del contrato generado. */
+export type IdeaCreate = Schemas["WorkItemCreate"];
+export type IdeaUpdate = Schemas["WorkItemUpdate"];
 
 /** El sobre del evento del log externo (F1): `payload` es JSON libre. */
 export type Evento = Schemas["Evento"];
@@ -65,7 +65,7 @@ export const API_BASE = import.meta.env.VITE_API_URL?.replace(/\/$/, "") ?? "/ap
 /** Cliente tipado por `paths` (el OpenAPI generado): ruta, query, path params
  *  y **cuerpo** de POST/PATCH vienen del contrato, así que una llamada con
  *  cuerpo se escribe `api.POST("/ideas", { params: { query: { repo } }, body })`
- *  y el `body` se comprueba contra `IdeaCreate` sin escribir tipos a mano. */
+ *  y el `body` se comprueba contra `WorkItemCreate` sin escribir tipos a mano. */
 export const api = createClient<paths>({ baseUrl: API_BASE });
 
 /** ¿Es un error con `detail` de texto (400/404 del core, o el 422 de

@@ -6,8 +6,8 @@ cliente: cada herramienta arma el argv del CLI y ejecuta `cli.main` capturando
 su salida, así que las validaciones, los payloads y los códigos de salida son
 los mismos que usa un humano.
 
-Lectura por defecto. Las herramientas que escriben (`idea_create`, `idea_edit`,
-`idea_move`, `idea_fases`, `idea_requisito`, `migrate_apply`, `migrate_undo`)
+Lectura por defecto. Las herramientas que escriben (`item_create`, `item_edit`,
+`item_move`, `item_fases`, `item_requisito`, `migrate_apply`, `migrate_undo`)
 solo se anuncian y se ejecutan con `--permitir-escritura` o
 `EVENTSUI_MCP_ESCRITURA=1`.
 """
@@ -34,10 +34,10 @@ PROTOCOLO = PROTOCOLOS[-1]
 URI_ESQUEMA = "eui://schema/plan-migracion"
 
 INSTRUCCIONES = (
-    "Cliente de Events UI. Lee con doctor, repo_actual, repo_list, idea_list, "
-    "idea_get, migrate_scan, migrate_classify y migrate_check. Las herramientas que escriben solo "
+    "Cliente de Events UI. Lee con doctor, repo_actual, repo_list, item_list, "
+    "item_get, migrate_scan, migrate_classify y migrate_check. Las herramientas que escriben solo "
     "aparecen si el servidor arrancó con --permitir-escritura o "
-    "EVENTSUI_MCP_ESCRITURA=1."
+    "EVENTSUI_MCP_ESCRITURA=1. `idea_*` son alias obsoletos de las `item_*`."
 )
 
 _REPO = {
@@ -83,8 +83,8 @@ _LECTURA: tuple[dict[str, Any], ...] = (
         "inputSchema": _esquema({"url": _URL, "port": _PORT}),
     },
     {
-        "name": "idea_list",
-        "description": "Lista las ideas del mapa con filtros de estado, tipo y paginación.",
+        "name": "item_list",
+        "description": "Lista los ítems del mapa con filtros de estado, tipo y paginación.",
         "inputSchema": _esquema(
             {
                 **_COMUNES,
@@ -96,8 +96,8 @@ _LECTURA: tuple[dict[str, Any], ...] = (
         ),
     },
     {
-        "name": "idea_get",
-        "description": "La ficha completa de una idea: campos, fases, requisitos y procedencia.",
+        "name": "item_get",
+        "description": "La ficha completa de un ítem: campos, fases, requisitos y procedencia.",
         "inputSchema": _esquema({**_COMUNES, "uid": {"type": "string"}}, ["uid"]),
     },
     {
@@ -126,8 +126,8 @@ _LECTURA: tuple[dict[str, Any], ...] = (
 
 _ESCRITURA: tuple[dict[str, Any], ...] = (
     {
-        "name": "idea_create",
-        "description": "Crea una idea (por defecto en draft) con etiquetas y dependencias.",
+        "name": "item_create",
+        "description": "Crea un ítem (por defecto en draft) con etiquetas y dependencias.",
         "inputSchema": _esquema(
             {
                 **_COMUNES,
@@ -144,9 +144,9 @@ _ESCRITURA: tuple[dict[str, Any], ...] = (
         ),
     },
     {
-        "name": "idea_edit",
+        "name": "item_edit",
         "description": (
-            "Edita solo los campos dados de una idea; permite vaciar etiquetas o dependencias."
+            "Edita solo los campos dados de un ítem; permite vaciar etiquetas o dependencias."
         ),
         "inputSchema": _esquema(
             {
@@ -164,8 +164,8 @@ _ESCRITURA: tuple[dict[str, Any], ...] = (
         ),
     },
     {
-        "name": "idea_move",
-        "description": "Mueve una idea de carril con los datos de la ficha de destino.",
+        "name": "item_move",
+        "description": "Mueve un ítem de carril con los datos de la ficha de destino.",
         "inputSchema": _esquema(
             {
                 **_COMUNES,
@@ -191,9 +191,9 @@ _ESCRITURA: tuple[dict[str, Any], ...] = (
         ),
     },
     {
-        "name": "idea_fases",
+        "name": "item_fases",
         "description": (
-            "Reemplaza las fases de una idea con la lista inline `fases` o con "
+            "Reemplaza las fases de un ítem con la lista inline `fases` o con "
             'el JSON de `fichero` (lista o {"fases": [...]}).'
         ),
         "inputSchema": _esquema(
@@ -207,7 +207,7 @@ _ESCRITURA: tuple[dict[str, Any], ...] = (
         ),
     },
     {
-        "name": "idea_requisito",
+        "name": "item_requisito",
         "description": "Marca o desmarca un requisito conservando estados, notas y el resto.",
         "inputSchema": _esquema(
             {
@@ -227,13 +227,37 @@ _ESCRITURA: tuple[dict[str, Any], ...] = (
     },
     {
         "name": "migrate_undo",
-        "description": "Deshace un lote si sus ideas no cambiaron de carril ni se editaron.",
+        "description": "Deshace un lote si sus ítems no cambiaron de carril ni se editaron.",
         "inputSchema": _esquema({**_COMUNES, "lote": {"type": "string"}}, ["lote"]),
     },
 )
 
-HERRAMIENTAS = {herramienta["name"]: herramienta for herramienta in (*_LECTURA, *_ESCRITURA)}
-HERRAMIENTAS_ESCRITURA = frozenset(herramienta["name"] for herramienta in _ESCRITURA)
+
+def _alias(herramienta: dict[str, Any]) -> dict[str, Any]:
+    """La misma herramienta con el nombre viejo, marcada como obsoleta."""
+    canonico = herramienta["name"]
+    return {
+        "name": canonico.replace("item_", "idea_", 1),
+        "description": f"Obsoleta: usa `{canonico}`. {herramienta['description']}",
+        "inputSchema": herramienta["inputSchema"],
+        "_meta": {"deprecated": True},
+    }
+
+
+_ALIAS_LECTURA = tuple(_alias(h) for h in _LECTURA if h["name"].startswith("item_"))
+_ALIAS_ESCRITURA = tuple(_alias(h) for h in _ESCRITURA if h["name"].startswith("item_"))
+
+HERRAMIENTAS = {
+    herramienta["name"]: herramienta
+    for herramienta in (*_LECTURA, *_ESCRITURA, *_ALIAS_LECTURA, *_ALIAS_ESCRITURA)
+}
+_CANONICO = {
+    alias["name"]: alias["name"].replace("idea_", "item_", 1)
+    for alias in (*_ALIAS_LECTURA, *_ALIAS_ESCRITURA)
+}
+HERRAMIENTAS_ESCRITURA = frozenset(
+    herramienta["name"] for herramienta in (*_ESCRITURA, *_ALIAS_ESCRITURA)
+)
 
 
 def permite_escritura(flag: bool) -> bool:
@@ -252,21 +276,21 @@ def _error(ident: Any, codigo: int, mensaje: str) -> dict[str, Any]:
 
 def _lista_herramientas(permitir_escritura: bool) -> list[dict[str, Any]]:
     if permitir_escritura:
-        return [*_LECTURA, *_ESCRITURA]
-    return list(_LECTURA)
+        return [*_LECTURA, *_ESCRITURA, *_ALIAS_LECTURA, *_ALIAS_ESCRITURA]
+    return [*_LECTURA, *_ALIAS_LECTURA]
 
 
 # Campos que no son de una herramienta pero sí de otra: el error dice dónde
 # están, en vez de dejar al cliente adivinando qué herramienta los acepta.
 _SUGERENCIAS = {
-    "fases": "idea_fases",
-    "fichero": "idea_fases",
-    "status": "idea_move",
-    "fase": "idea_requisito",
-    "requisito": "idea_requisito",
-    "hecho": "idea_requisito",
-    "limpiar_tags": "idea_edit",
-    "limpiar_dependencias": "idea_edit",
+    "fases": "item_fases",
+    "fichero": "item_fases",
+    "status": "item_move",
+    "fase": "item_requisito",
+    "requisito": "item_requisito",
+    "hecho": "item_requisito",
+    "limpiar_tags": "item_edit",
+    "limpiar_dependencias": "item_edit",
     "lote": "migrate_undo",
     "plan": "migrate_check",
 }
@@ -355,14 +379,15 @@ def _comunes(argumentos: dict[str, Any], *, con_repo: bool = True) -> list[str]:
 def _orden(nombre: str, a: dict[str, Any]) -> tuple[list[str], str | None]:
     """El argv del CLI para una herramienta; el segundo valor es un temporal."""
     temporal: str | None = None
+    nombre = _CANONICO.get(nombre, nombre)
     if nombre == "doctor":
         argv = ["doctor"]
     elif nombre == "repo_actual":
         argv = ["repo"]
     elif nombre == "repo_list":
         argv = ["repo", "list"]
-    elif nombre == "idea_list":
-        argv = ["idea", "list"]
+    elif nombre == "item_list":
+        argv = ["item", "list"]
         if a.get("status"):
             argv += ["--status", str(a["status"])]
         if a.get("kind"):
@@ -371,10 +396,10 @@ def _orden(nombre: str, a: dict[str, Any]) -> tuple[list[str], str | None]:
             argv += ["--limit", str(int(a["limit"]))]
         if a.get("offset") is not None:
             argv += ["--offset", str(int(a["offset"]))]
-    elif nombre == "idea_get":
-        argv = ["idea", "get", str(a["uid"])]
-    elif nombre == "idea_create":
-        argv = ["idea", "create", "--title", str(a["title"])]
+    elif nombre == "item_get":
+        argv = ["item", "get", str(a["uid"])]
+    elif nombre == "item_create":
+        argv = ["item", "create", "--title", str(a["title"])]
         for clave, bandera in (
             ("description", "--description"),
             ("content", "--content"),
@@ -397,8 +422,8 @@ def _orden(nombre: str, a: dict[str, Any]) -> tuple[list[str], str | None]:
                 json.dump(fases, fichero, ensure_ascii=False)
                 temporal = fichero.name
             argv += ["--fases", temporal]
-    elif nombre == "idea_edit":
-        argv = ["idea", "edit", str(a["uid"])]
+    elif nombre == "item_edit":
+        argv = ["item", "edit", str(a["uid"])]
         for clave, bandera in (
             ("title", "--title"),
             ("description", "--description"),
@@ -416,8 +441,8 @@ def _orden(nombre: str, a: dict[str, Any]) -> tuple[list[str], str | None]:
         else:
             for dep in a.get("depende_de") or []:
                 argv += ["--dep", str(dep)]
-    elif nombre == "idea_move":
-        argv = ["idea", "move", str(a["uid"]), str(a["status"])]
+    elif nombre == "item_move":
+        argv = ["item", "move", str(a["uid"]), str(a["status"])]
         for clave, bandera in (
             ("resultado", "--resultado"),
             ("referencia", "--referencia"),
@@ -431,7 +456,7 @@ def _orden(nombre: str, a: dict[str, Any]) -> tuple[list[str], str | None]:
         ):
             if a.get(clave) is not None:
                 argv += [bandera, str(a[clave])]
-    elif nombre == "idea_fases":
+    elif nombre == "item_fases":
         if a.get("fichero"):
             ruta = str(a["fichero"])
         else:
@@ -444,10 +469,10 @@ def _orden(nombre: str, a: dict[str, Any]) -> tuple[list[str], str | None]:
                 json.dump(fases, fichero, ensure_ascii=False)
                 temporal = fichero.name
             ruta = temporal
-        argv = ["idea", "fases", str(a["uid"]), ruta]
-    elif nombre == "idea_requisito":
+        argv = ["item", "fases", str(a["uid"]), ruta]
+    elif nombre == "item_requisito":
         argv = [
-            "idea",
+            "item",
             "requisito",
             str(a["uid"]),
             str(int(a["fase"])),

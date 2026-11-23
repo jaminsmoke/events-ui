@@ -42,7 +42,7 @@ def test_tools_list_por_defecto_solo_lectura() -> None:
     herramientas = mcp_servidor.manejar(_peticion("tools/list"))["result"]["tools"]
     nombres = {herramienta["name"] for herramienta in herramientas}
 
-    assert {"doctor", "idea_list", "idea_get", "migrate_scan", "migrate_check"} <= nombres
+    assert {"doctor", "item_list", "item_get", "migrate_scan", "migrate_check"} <= nombres
     assert not (nombres & mcp_servidor.HERRAMIENTAS_ESCRITURA)
 
 
@@ -52,30 +52,30 @@ def test_tools_list_con_permiso_anuncia_escritura() -> None:
     ]
     nombres = {herramienta["name"] for herramienta in herramientas}
 
-    assert {"idea_create", "idea_edit", "idea_move", "idea_fases", "idea_requisito"} <= nombres
+    assert {"item_create", "item_edit", "item_move", "item_fases", "item_requisito"} <= nombres
     assert {"migrate_apply", "migrate_undo"} <= nombres
 
 
 def test_escritura_sin_permiso_devuelve_is_error() -> None:
     respuesta = mcp_servidor.manejar(
-        _peticion("tools/call", {"name": "idea_create", "arguments": {"title": "Hola"}})
+        _peticion("tools/call", {"name": "item_create", "arguments": {"title": "Hola"}})
     )
 
     assert respuesta["result"]["isError"] is True
     assert "escritura desactivada" in respuesta["result"]["content"][0]["text"]
 
 
-def test_tools_list_anuncia_fases_en_idea_create() -> None:
+def test_tools_list_anuncia_fases_en_item_create() -> None:
     herramientas = mcp_servidor.manejar(_peticion("tools/list"), permitir_escritura=True)["result"][
         "tools"
     ]
-    crear = next(h for h in herramientas if h["name"] == "idea_create")
+    crear = next(h for h in herramientas if h["name"] == "item_create")
 
     assert crear["inputSchema"]["properties"]["fases"]["type"] == "array"
 
 
-def test_idea_create_con_fases_usa_un_temporal_y_lo_borra(monkeypatch) -> None:
-    """Las fases inline viajan al CLI como fichero, igual que en `idea_fases`."""
+def test_item_create_con_fases_usa_un_temporal_y_lo_borra(monkeypatch) -> None:
+    """Las fases inline viajan al CLI como fichero, igual que en `item_fases`."""
     visto: dict = {}
 
     def falso(argv):  # noqa: ANN001, ANN202
@@ -91,7 +91,7 @@ def test_idea_create_con_fases_usa_un_temporal_y_lo_borra(monkeypatch) -> None:
     respuesta = mcp_servidor.manejar(
         _peticion(
             "tools/call",
-            {"name": "idea_create", "arguments": {"title": "A", "fases": fases}},
+            {"name": "item_create", "arguments": {"title": "A", "fases": fases}},
         ),
         permitir_escritura=True,
     )
@@ -115,7 +115,7 @@ def test_tools_call_reutiliza_el_cli(monkeypatch) -> None:
         _peticion(
             "tools/call",
             {
-                "name": "idea_list",
+                "name": "item_list",
                 "arguments": {"repo": "lab", "status": "proposed", "limit": 5},
             },
         )
@@ -124,7 +124,7 @@ def test_tools_call_reutiliza_el_cli(monkeypatch) -> None:
     assert respuesta["result"].get("isError") is None
     datos = json.loads(respuesta["result"]["content"][0]["text"])
     assert datos[0]["uid"] == "u1"
-    assert visto["argv"][:2] == ["idea", "list"]
+    assert visto["argv"][:2] == ["item", "list"]
     assert "--json" in visto["argv"]
     assert visto["argv"][visto["argv"].index("--repo") + 1] == "lab"
     assert visto["argv"][visto["argv"].index("--limit") + 1] == "5"
@@ -138,7 +138,7 @@ def test_tools_call_devuelve_el_error_del_cli(monkeypatch) -> None:
     monkeypatch.setattr(mcp_servidor.cli, "main", falso)
 
     respuesta = mcp_servidor.manejar(
-        _peticion("tools/call", {"name": "idea_get", "arguments": {"uid": "u1"}})
+        _peticion("tools/call", {"name": "item_get", "arguments": {"uid": "u1"}})
     )
 
     assert respuesta["result"]["isError"] is True
@@ -146,21 +146,21 @@ def test_tools_call_devuelve_el_error_del_cli(monkeypatch) -> None:
 
 
 def test_campo_desconocido_es_error_de_protocolo(monkeypatch) -> None:
-    """`fases` en `idea_edit` no puede aceptarse y perderse en silencio."""
+    """`fases` en `item_edit` no puede aceptarse y perderse en silencio."""
     visto: list[list[str]] = []
     monkeypatch.setattr(mcp_servidor.cli, "main", lambda argv: visto.append(argv) or 0)
 
     respuesta = mcp_servidor.manejar(
         _peticion(
             "tools/call",
-            {"name": "idea_edit", "arguments": {"uid": "u1", "content": "hola", "fases": []}},
+            {"name": "item_edit", "arguments": {"uid": "u1", "content": "hola", "fases": []}},
         ),
         permitir_escritura=True,
     )
 
     assert respuesta["error"]["code"] == -32602
     assert "fases" in respuesta["error"]["message"]
-    assert "idea_fases" in respuesta["error"]["message"]
+    assert "item_fases" in respuesta["error"]["message"]
     assert visto == []
 
 
@@ -168,12 +168,12 @@ def test_campo_de_otra_herramienta_sugiere_la_suya() -> None:
     respuesta = mcp_servidor.manejar(
         _peticion(
             "tools/call",
-            {"name": "idea_get", "arguments": {"uid": "u1", "status": "roadmap"}},
+            {"name": "item_get", "arguments": {"uid": "u1", "status": "roadmap"}},
         )
     )
 
     assert respuesta["error"]["code"] == -32602
-    assert "idea_move" in respuesta["error"]["message"]
+    assert "item_move" in respuesta["error"]["message"]
 
 
 def test_required_ausente_es_invalid_params(monkeypatch) -> None:
@@ -181,7 +181,7 @@ def test_required_ausente_es_invalid_params(monkeypatch) -> None:
         mcp_servidor.cli, "main", lambda argv: (_ for _ in ()).throw(AssertionError())
     )
 
-    respuesta = mcp_servidor.manejar(_peticion("tools/call", {"name": "idea_get", "arguments": {}}))
+    respuesta = mcp_servidor.manejar(_peticion("tools/call", {"name": "item_get", "arguments": {}}))
 
     assert respuesta["error"]["code"] == -32602
     assert "uid" in respuesta["error"]["message"]
@@ -190,7 +190,7 @@ def test_required_ausente_es_invalid_params(monkeypatch) -> None:
 
 def test_tipo_incorrecto_es_invalid_params() -> None:
     respuesta = mcp_servidor.manejar(
-        _peticion("tools/call", {"name": "idea_list", "arguments": {"limit": "cinco"}})
+        _peticion("tools/call", {"name": "item_list", "arguments": {"limit": "cinco"}})
     )
 
     assert respuesta["error"]["code"] == -32602
@@ -212,7 +212,7 @@ def test_tools_list_anuncia_additional_properties_false() -> None:
             ]
 
 
-def test_idea_fases_usa_un_temporal_y_lo_borra(monkeypatch) -> None:
+def test_item_fases_usa_un_temporal_y_lo_borra(monkeypatch) -> None:
     visto = {}
 
     def falso(argv):
@@ -228,7 +228,7 @@ def test_idea_fases_usa_un_temporal_y_lo_borra(monkeypatch) -> None:
         _peticion(
             "tools/call",
             {
-                "name": "idea_fases",
+                "name": "item_fases",
                 "arguments": {"uid": "u1", "fases": [{"titulo": "Preparar"}]},
             },
         ),
@@ -291,3 +291,66 @@ def test_stdio_responde_y_sale_con_eof() -> None:
     assert respuestas[0]["result"]["serverInfo"]["name"] == "events-ui"
     assert respuestas[1]["result"]["tools"]
     assert all("isError" not in respuesta for respuesta in respuestas)
+
+
+def test_tools_list_anuncia_los_alias_deprecados() -> None:
+    herramientas = mcp_servidor.manejar(_peticion("tools/list"), permitir_escritura=True)["result"][
+        "tools"
+    ]
+    por_nombre = {herramienta["name"]: herramienta for herramienta in herramientas}
+    canonicos = (
+        "item_list",
+        "item_get",
+        "item_create",
+        "item_edit",
+        "item_move",
+        "item_fases",
+        "item_requisito",
+    )
+
+    for canonico in canonicos:
+        alias = por_nombre[canonico.replace("item_", "idea_", 1)]
+        assert alias["description"].startswith(f"Obsoleta: usa `{canonico}`.")
+        assert alias["_meta"] == {"deprecated": True}
+        assert alias["inputSchema"] == por_nombre[canonico]["inputSchema"]
+        assert "_meta" not in por_nombre[canonico]
+
+
+def test_alias_idea_devuelve_lo_mismo_que_item(monkeypatch) -> None:
+    vistos: list[list[str]] = []
+
+    def falso(argv):
+        vistos.append(argv)
+        print(json.dumps([{"uid": "u1", "status": "proposed", "title": "Hola"}]))
+        return 0
+
+    monkeypatch.setattr(mcp_servidor.cli, "main", falso)
+    argumentos = {"repo": "lab", "status": "proposed"}
+
+    nueva = mcp_servidor.manejar(
+        _peticion("tools/call", {"name": "item_list", "arguments": argumentos})
+    )
+    vieja = mcp_servidor.manejar(
+        _peticion("tools/call", {"name": "idea_list", "arguments": argumentos})
+    )
+
+    assert vieja == nueva
+    assert vistos == [["item", "list", "--status", "proposed", "--json", "--repo", "lab"]] * 2
+
+
+def test_alias_de_escritura_respeta_el_permiso(monkeypatch) -> None:
+    visto: list[list[str]] = []
+    monkeypatch.setattr(mcp_servidor.cli, "main", lambda argv: visto.append(argv) or 0)
+
+    negada = mcp_servidor.manejar(
+        _peticion("tools/call", {"name": "idea_create", "arguments": {"title": "Hola"}})
+    )
+    permitida = mcp_servidor.manejar(
+        _peticion("tools/call", {"name": "idea_create", "arguments": {"title": "Hola"}}),
+        permitir_escritura=True,
+    )
+
+    assert negada["result"]["isError"] is True
+    assert "escritura desactivada" in negada["result"]["content"][0]["text"]
+    assert permitida["result"].get("isError") is None
+    assert visto == [["item", "create", "--title", "Hola", "--json"]]

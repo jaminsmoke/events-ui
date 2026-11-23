@@ -134,6 +134,40 @@ def _en_lote(
     return roadmaps, verificaciones, revisiones, rechazos, _fases_en_lote(conn, uids)
 
 
+def _sql_listado(filtro: str | None, kind: str | None = None) -> str:
+    """El SELECT del listado para un carril; el estado viaja como `:estado`.
+
+    Vive aparte para que el test del plan de consulta use el mismo SQL que
+    `list_ideas`, no una copia que se quede atrás al cambiar el listado.
+
+    El filtro se compone en vez de escribir `(:estado IS NULL OR ...)`: esa
+    forma deja la condición fuera del alcance del índice y SQLite recorre la
+    tabla entera aunque el índice esté. Con la igualdad suelta, el filtro por
+    estado entra por `idea_node_estado`.
+    """
+    condiciones = []
+    if kind is not None:
+        condiciones.append("idea_data.kind = :kind")
+    if filtro is not None:
+        condiciones.append("idea_node.estado = :estado")
+    where = f" WHERE {' AND '.join(condiciones)}" if condiciones else ""
+    # En cola, el orden es la posición; roadmap y verificación, la entrada
+    # en el nodo; el resto, por fecha de creación.
+    if filtro == "proposed":
+        orden = "idea_node.posicion ASC, idea_data.created_at ASC"
+    elif filtro in ("roadmap", "verificacion"):
+        orden = "idea_node.entered_at ASC, idea_data.created_at ASC"
+    else:
+        orden = "idea_data.created_at DESC, idea_data.id DESC"
+    return (
+        f"SELECT {_COLUMNAS} FROM idea_data"
+        " JOIN idea_node ON idea_node.uid = idea_data.uid"
+        f"{where}"  # compuesto, no `IS NULL OR`: ver el docstring
+        f" ORDER BY {orden}"
+        " LIMIT :limit OFFSET :offset"
+    )
+
+
 def list_ideas(
     repo: str,
     *,
@@ -147,21 +181,8 @@ def list_ideas(
         # filtro es el mismo para los seis carriles y `superseded` sigue
         # leyéndose como el descarte que es.
         filtro = _grupo(status) if status else None
-        # En cola, el orden es la posición; roadmap y verificación, la entrada
-        # en el nodo; el resto, por fecha de creación.
-        if filtro == "proposed":
-            orden = "idea_node.posicion ASC, idea_data.created_at ASC"
-        elif filtro in ("roadmap", "verificacion"):
-            orden = "idea_node.entered_at ASC, idea_data.created_at ASC"
-        else:
-            orden = "idea_data.created_at DESC, idea_data.id DESC"
         rows = conn.execute(
-            f"SELECT {_COLUMNAS} FROM idea_data"
-            " JOIN idea_node ON idea_node.uid = idea_data.uid"
-            " WHERE (:kind IS NULL OR kind = :kind)"
-            " AND (:estado IS NULL OR idea_node.estado = :estado)"
-            f" ORDER BY {orden}"
-            " LIMIT :limit OFFSET :offset",
+            _sql_listado(filtro, kind),
             {"kind": kind, "estado": filtro, "limit": limit, "offset": offset},
         ).fetchall()
         roadmaps, verificaciones, revisiones, rechazos, fases = _en_lote(

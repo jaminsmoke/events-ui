@@ -12,6 +12,8 @@ from contextlib import closing
 from pathlib import Path
 
 from events_core import ideas
+from events_core.ideas import consulta
+from events_core.ideas.base import migraciones
 
 
 def _indices_estado(db: Path) -> dict[str, list[str]]:
@@ -53,3 +55,69 @@ def test_un_almacen_v31_sube_con_el_indice_y_sin_tocar_datos(repo):  # noqa: ANN
         assert conn.execute("SELECT count(*) FROM idea_node").fetchone()[0] == 1
     assert _indices_estado(db) == {"idea_node_estado": ["estado", "posicion"]}
     assert ideas.get_idea(repo, uid)["uid"] == uid
+
+
+# El almacén de la 0003: `ideas` con su estado, conexiones y sin versión. Lo
+# que la app se encuentra en un repo de hace meses.
+_ESQUEMA_V2 = """
+CREATE TABLE ideas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, uid TEXT NOT NULL UNIQUE,
+    title TEXT NOT NULL, description TEXT NOT NULL DEFAULT '',
+    content TEXT NOT NULL DEFAULT '',
+    kind TEXT NOT NULL DEFAULT 'idea' CHECK (kind IN ('idea', 'adr', 'note')),
+    status TEXT NOT NULL DEFAULT 'draft'
+        CHECK (status IN ('draft', 'proposed', 'accepted', 'rejected', 'superseded')),
+    tags TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE TABLE connections (
+    id INTEGER PRIMARY KEY,
+    parent_uid TEXT NOT NULL REFERENCES ideas (uid) ON DELETE CASCADE,
+    child_uid TEXT NOT NULL REFERENCES ideas (uid) ON DELETE CASCADE,
+    kind TEXT NOT NULL DEFAULT 'child', created_at TEXT NOT NULL,
+    UNIQUE (parent_uid, child_uid, kind));
+INSERT INTO ideas (uid, title, description, content, kind, status, tags, created_at, updated_at)
+    VALUES ('vieja', 'Vieja', '', '', 'idea', 'proposed', '[]',
+            '2025-01-01T00:00:00Z', '2025-01-01T00:00:00Z'),
+           ('hija', 'Hija', '', '', 'idea', 'draft', '[]',
+            '2025-01-01T00:00:00Z', '2025-01-01T00:00:00Z');
+PRAGMA user_version = 2;
+"""
+
+
+def test_el_listado_por_estado_usa_el_indice(repo):  # noqa: ANN001, ANN202
+    db = ideas.init_repo(repo)
+    with closing(sqlite3.connect(db)) as conn:
+        plan = " ".join(
+            str(fila[3])
+            for fila in conn.execute(
+                "EXPLAIN QUERY PLAN " + consulta._sql_listado("proposed"),
+                {"kind": None, "estado": "proposed", "limit": 10, "offset": 0},
+            )
+        )
+
+    assert "idea_node_estado" in plan
+    assert "SCAN idea_node" not in plan
+
+
+def test_un_almacen_v12_sube_al_dia_sin_tocar_datos(repo):  # noqa: ANN001, ANN202
+    db = ideas.db_file_for(repo)
+    db.parent.mkdir(parents=True, exist_ok=True)
+    with closing(sqlite3.connect(db)) as conn:
+        conn.executescript(_ESQUEMA_V2)
+        conn.isolation_level = None
+        # Los pasos reales hasta la 12: un almacén de esa versión, no una copia.
+        for numero, script in migraciones._pasos(2):
+            if numero > 12:
+                break
+            migraciones._aplicar_paso(conn, numero, script)
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 12
+
+    ideas.ensure_repo(repo)  # lo que hace la app al abrir el almacén
+
+    with closing(sqlite3.connect(db)) as conn:
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == ideas.SCHEMA_VERSION
+        filas = dict(conn.execute("SELECT uid, estado FROM idea_node").fetchall())
+    # `draft` y `proposed` compartían carril en el modelo viejo (0006), así que
+    # las dos ideas llegan a la cola; lo que importa es que no se pierde ninguna.
+    assert filas == {"vieja": "proposed", "hija": "proposed"}
+    assert _indices_estado(db) == {"idea_node_estado": ["estado", "posicion"]}

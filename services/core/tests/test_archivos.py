@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -378,3 +379,223 @@ def test_el_tope_por_fase_cuenta_bytes_y_no_caracteres(monkeypatch):  # noqa: AN
 
     # Los 20 caracteres caben en 30, pero sus 40 bytes no: antes se colaba.
     assert all("contenido" not in cambio for cambio in cambios)
+
+
+def test_un_patch_con_tres_cierres_recorre_el_arbol_una_vez(client, tmp_path, monkeypatch):  # noqa: ANN001, ANN202
+    """El PATCH entero es un recorrido y un diff; el delta va al primer evento."""
+    carpeta = tmp_path / "tres-cierres"
+    carpeta.mkdir()
+    uid = _en_roadmap(client, carpeta)
+    fases = _fases_payload(client, carpeta, uid)
+    fases.append({"titulo": "Prueba", "requisitos": [{"titulo": "Pasa lint"}]})
+    fases.append({"titulo": "Cierre", "requisitos": [{"titulo": "Pasa e2e"}]})
+    _guardar_fases(client, carpeta, uid, fases)
+
+    llamadas = {"foto": 0, "contenidos": 0}
+    foto, contenidos = archivos.foto, archivos.contenidos
+
+    def foto_contada(ruta):  # noqa: ANN001, ANN202
+        llamadas["foto"] += 1
+        return foto(ruta)
+
+    def contenidos_contados(ruta, cambios):  # noqa: ANN001, ANN202
+        llamadas["contenidos"] += 1
+        return contenidos(ruta, cambios)
+
+    monkeypatch.setattr(archivos, "foto", foto_contada)
+    monkeypatch.setattr(archivos, "contenidos", contenidos_contados)
+
+    (carpeta / "pieza.py").write_text("x", encoding="utf-8")
+    fases = _fases_payload(client, carpeta, uid)
+    for fase in fases:
+        fase["estado"] = "completada"
+        for requisito in fase["requisitos"]:
+            requisito["hecho"] = True
+    idea = _guardar_fases(client, carpeta, uid, fases)
+
+    assert llamadas == {"foto": 1, "contenidos": 1}
+    # El delta no se reparte: se queda en el primer cierre del PATCH.
+    assert [archivo["ruta"] for archivo in idea["fases"][0]["archivos"]] == ["pieza.py"]
+    assert idea["fases"][1]["archivos"] == []
+    assert idea["fases"][2]["archivos"] == []
+
+
+def test_el_arbol_se_lee_fuera_de_la_transaccion(client, tmp_path, monkeypatch):  # noqa: ANN001, ANN202
+    """Si el disco se leyera tras el primer UPDATE, `in_transaction` sería True."""
+    carpeta = tmp_path / "fuera-del-begin"
+    carpeta.mkdir()
+    uid = _en_roadmap(client, carpeta)
+
+    from events_core.ideas import crud as crud_modulo
+
+    conexiones = []
+    conectar = crud_modulo.connect
+
+    def conectar_vigilado(*args, **kwargs):  # noqa: ANN002, ANN003, ANN202
+        conn = conectar(*args, **kwargs)
+        conexiones.append(conn)
+        return conn
+
+    monkeypatch.setattr(crud_modulo, "connect", conectar_vigilado)
+
+    abiertas = []
+    foto = archivos.foto
+
+    def foto_vigilada(ruta):  # noqa: ANN001, ANN202
+        abiertas.append(conexiones[-1].in_transaction)
+        return foto(ruta)
+
+    monkeypatch.setattr(archivos, "foto", foto_vigilada)
+
+    (carpeta / "pieza.py").write_text("x", encoding="utf-8")
+    _cerrar(client, carpeta, uid)
+
+    # Una sola lectura del árbol, y sin transacción abierta.
+    assert abiertas == [False]
+
+
+def test_nacer_en_roadmap_fotografia_antes_de_abrir_la_conexion(client, tmp_path, monkeypatch):  # noqa: ANN001, ANN202
+    """La foto de partida se toma con cero conexiones de escritura abiertas."""
+    carpeta = tmp_path / "foto-antes"
+    carpeta.mkdir()
+    (carpeta / "viejo.txt").write_text("antes", encoding="utf-8")
+
+    from events_core.ideas import crud as crud_modulo
+
+    conexiones = []
+    conectar = crud_modulo.connect
+
+    def conectar_vigilado(*args, **kwargs):  # noqa: ANN002, ANN003, ANN202
+        conn = conectar(*args, **kwargs)
+        conexiones.append(conn)
+        return conn
+
+    monkeypatch.setattr(crud_modulo, "connect", conectar_vigilado)
+
+    vistas = []
+    foto = archivos.foto
+
+    def foto_vigilada(ruta):  # noqa: ANN001, ANN202
+        vistas.append(len(conexiones))
+        return foto(ruta)
+
+    monkeypatch.setattr(archivos, "foto", foto_vigilada)
+
+    r = client.post(
+        "/ideas",
+        params={"repo": str(carpeta)},
+        json={"title": "A", "status": "roadmap"},
+    )
+    assert r.status_code == 201, r.json()
+    # Una sola foto, y antes de que exista la conexión del alta.
+    assert vistas == [0]
+
+
+def test_si_el_arbol_falla_la_idea_nace_igual(client, tmp_path, monkeypatch):  # noqa: ANN001, ANN202
+    """Un árbol ilegible deja aviso, no un 500: la idea se crea igual."""
+    from types import SimpleNamespace
+
+    from events_core.ideas import crud as crud_modulo
+
+    carpeta = tmp_path / "arbol-roto"
+    carpeta.mkdir()
+
+    def foto_rota(_ruta):  # noqa: ANN001, ANN202
+        raise OSError("árbol ilegible")
+
+    avisos = []
+    monkeypatch.setattr(archivos, "foto", foto_rota)
+    monkeypatch.setattr(
+        crud_modulo,
+        "registro",
+        SimpleNamespace(escribir=lambda nivel, texto: avisos.append((nivel, texto))),
+    )
+
+    r = client.post(
+        "/ideas",
+        params={"repo": str(carpeta)},
+        json={"title": "A", "status": "roadmap"},
+    )
+    assert r.status_code == 201, r.json()
+    uid = r.json()["uid"]
+    assert client.get(f"/ideas/{uid}", params={"repo": str(carpeta)}).status_code == 200
+    assert any(nivel == "aviso" and "No se pudo fotografiar" in texto for nivel, texto in avisos)
+
+
+@pytest.mark.skipif(GIT is None, reason="git no está instalado")
+def test_la_foto_de_partida_espera_a_que_exista_el_almacen(client, tmp_path, monkeypatch):  # noqa: ANN001, ANN202
+    """La foto se toma con el almacén ya sembrado; si no, el orden no es el bueno."""
+    from events_core.ideas.base.rutas import DB_FILENAME, EUI_DIR
+
+    carpeta = tmp_path / "orden-sembrado"
+    carpeta.mkdir()
+    (carpeta / "base.txt").write_text("uno\n", encoding="utf-8")
+    _git(carpeta, "init", "-b", "main")
+    _git(carpeta, "config", "user.email", "test@example.com")
+    _git(carpeta, "config", "user.name", "Test")
+    _git(carpeta, "add", "-A")
+    _git(carpeta, "commit", "-m", "inicial")
+    assert not (carpeta / EUI_DIR).exists()
+
+    vistas = []
+    foto = archivos.foto
+
+    def foto_vigilada(ruta):  # noqa: ANN001, ANN202
+        vistas.append((carpeta / EUI_DIR / DB_FILENAME).is_file())
+        return foto(ruta)
+
+    monkeypatch.setattr(archivos, "foto", foto_vigilada)
+
+    r = client.post(
+        "/ideas",
+        params={"repo": str(carpeta)},
+        json={"title": "A", "status": "roadmap"},
+    )
+    assert r.status_code == 201, r.json()
+    # Una sola foto, y con el almacén ya en su sitio.
+    assert vistas == [True]
+
+
+def test_el_presupuesto_corta_la_anotacion_y_deja_aviso(client, tmp_path, monkeypatch):  # noqa: ANN001, ANN202
+    """Pasado el tope no se paga el diff, el evento se queda sin archivos y avisa."""
+    from types import SimpleNamespace
+
+    from events_core.ideas.trabajo import anotacion as anotacion_modulo
+
+    carpeta = tmp_path / "presupuesto"
+    carpeta.mkdir()
+    uid = _en_roadmap(client, carpeta)
+    (carpeta / "pieza.py").write_text("x", encoding="utf-8")
+
+    avisos = []
+    monkeypatch.setattr(
+        anotacion_modulo,
+        "registro",
+        SimpleNamespace(escribir=lambda nivel, texto: avisos.append((nivel, texto))),
+    )
+    monkeypatch.setattr(anotacion_modulo, "PRESUPUESTO_MS", 5)
+
+    foto = archivos.foto
+
+    def foto_lenta(ruta):  # noqa: ANN001, ANN202
+        time.sleep(0.02)
+        return foto(ruta)
+
+    monkeypatch.setattr(archivos, "foto", foto_lenta)
+
+    diffs = []
+    contenidos = archivos.contenidos
+
+    def contenidos_contados(ruta, cambios):  # noqa: ANN001, ANN202
+        diffs.append(1)
+        return contenidos(ruta, cambios)
+
+    monkeypatch.setattr(archivos, "contenidos", contenidos_contados)
+
+    fase = _cerrar(client, carpeta, uid)
+
+    # Se paró antes del paso caro y el evento quedó sin archivos.
+    assert diffs == []
+    assert fase["archivos"] == []
+    # El aviso lleva el uid y el evento que se quedó sin lista.
+    assert any(nivel == "aviso" and uid in texto and "fase 1" in texto for nivel, texto in avisos)

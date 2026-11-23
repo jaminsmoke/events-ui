@@ -19,8 +19,8 @@ purga al abrir el almacén (`ensure_repo`).
 | `idea_data` | `id` local y `uid` único | Qué es la idea: título, descripción, contenido, tipo, etiquetas, intentos acumulados de verificación, fechas y sus dependencias (`depende_de`, migración 0018). Las relaciones usan el UID. |
 | `idea_fase` | Una fila por fase y orden | Descomposición de la idea en trabajo: título, estado (`pendiente`, `completada`, `fallida`, `rechazada`), nota y cuándo entró en ese estado. Cuelga de `idea_data`, así que sobrevive a los cambios de carril. |
 | `idea_requisito` | Una fila por requisito de una fase | Criterio de hecho que cierra la fase: título, `hecho` y `done_at`. Cuelga de `idea_fase` con borrado en cascada y no tiene estado propio. |
-| `idea_foto` | Una fila por idea | Última foto del árbol, `ruta<TAB>tamaño<TAB>mtime_ns` por línea. Es el punto desde el que se mide el cierre de cada fase; una idea que nace en roadmap toma la suya al crearse. |
-| `idea_fase_archivo` | Una fila por archivo anotado | Lo que cambió mientras una fase o un requisito estuvo abierto: `estado` (`nuevo`, `modificado`, `borrado`, `renombrado`), `desde` en el renombrado y el parche de Git acotado por tamaño (64 KiB por archivo, 512 KiB por fase y 8 MiB por almacén; al pasarse se sueltan los de las fases más viejas). `requisito_orden = 0` es «de la fase». |
+| `idea_foto` | Una fila por idea | Última foto del árbol, `ruta<TAB>tamaño<TAB>mtime_ns` por línea. Es el punto desde el que se mide el cierre de cada fase; una idea que nace en roadmap toma la suya al crearse, con el almacén ya sembrado y antes de abrir la transacción de escritura. |
+| `idea_fase_archivo` | Una fila por archivo anotado | Lo que cambió mientras una fase o un requisito estuvo abierto: `estado` (`nuevo`, `modificado`, `borrado`, `renombrado`), `desde` en el renombrado y el parche de Git acotado por tamaño (64 KiB por archivo, 512 KiB por fase y 8 MiB por almacén; al pasarse se sueltan los de las fases más viejas). `requisito_orden = 0` es «de la fase». El delta de un PATCH se atribuye al primer evento que trae y se calcula fuera de la transacción. |
 | `idea_node` | Una fila por UID | Dónde está: `estado`, `posicion` (solo en cola) y `entered_at`, la fecha de entrada en el carril actual. La entrada (`draft`) es un estado más; el historial es terminal. |
 | `roadmap_node` | Una fila por UID mientras dura | Resultado y referencia del trabajo en curso. Un índice parcial impide dos ideas en roadmap. |
 | `verificacion_node` | Una fila por UID mientras dura | Intentos de la estancia, último resultado, comentario y fecha de finalización del roadmap previo. |
@@ -82,6 +82,26 @@ Los eventos guardan la referencia a la idea en el payload, de modo que borrar la
 idea conserva su historial cuando existe la tabla. El reinicio del laboratorio
 vacía expresamente el log. La retención del historial por defecto es de 90 días
 o 5.000 eventos y la del registro operativo de 90 días o 2.000 entradas.
+
+## Cómo se anotan los archivos
+
+La anotación no vigila nada: compara dos fotos del árbol.
+
+- **La foto de partida** se toma al entrar en roadmap y al crear una idea que ya
+  nace ahí. En el alta, el almacén se siembra primero (`.EUI` y su `.gitignore`)
+  y la foto se toma después, para que nada de lo que crea el sembrado cuente
+  como trabajo; el recorrido se hace antes de abrir la transacción de escritura.
+- **El delta de un PATCH** es lo que cambió desde la última foto. Se mide una
+  sola vez por petición —un recorrido del árbol y un `git diff`— fuera de la
+  transacción: el lock de escritura solo cubre el SQL.
+- **La atribución**: si el PATCH cierra varias fases o marca varios requisitos,
+  el delta entero se anota en el **primer** evento. Un único recorrido no se
+  puede repartir entre eventos, y repartirlo sería inventar; el resto se queda
+  sin lista propia.
+- **Tope blando de 2 s**: si el recorrido ya se pasó, no se paga el `git diff`,
+  el evento se queda sin archivos, la foto avanza igual y queda un aviso en el
+  registro con el uid y los eventos saltados. Una fase cerrada sin lista es
+  recuperable; un core que no acepta escrituras, no.
 
 ## Versionar el almacén
 

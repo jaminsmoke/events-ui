@@ -1,8 +1,19 @@
-"""Los archivos que toca cada fase o requisito (0028, 0029), por evento."""
+"""Los archivos que toca cada fase o requisito (0028, 0029).
+
+La foto se toma **antes** del `BEGIN`: se decide qué eventos trae el PATCH, se
+recorre el árbol una sola vez y solo después se escribe el SQL, así que el lock
+de escritura no cubre ni el recorrido ni el `git diff`.
+
+El delta de un PATCH se atribuye al **primer** evento. Un único recorrido no se
+puede repartir entre fases, y repartirlo sería inventar: los demás eventos del
+mismo PATCH no reescriben su lista.
+"""
 
 from __future__ import annotations
 
 import sqlite3
+import time
+from dataclasses import dataclass
 from typing import Any
 
 from ... import archivos, registro
@@ -16,6 +27,11 @@ from ..modelo.estados import FASE_CIERRE
 # más viejas —la ruta y el estado se quedan—, que es el trabajo que ya no se
 # consulta; el reciente se conserva entero.
 LIMITE_PARQUES = 8 * 1024 * 1024
+
+# Tope blando de la anotación: pasado este tiempo entre pasos, no se paga el
+# `git diff` y el evento se queda sin archivos, con aviso. Una fase cerrada sin
+# lista es recuperable; un core que no acepta escrituras durante segundos, no.
+PRESUPUESTO_MS = 2_000
 
 
 def _foto_texto(conn: sqlite3.Connection, uid: str) -> str | None:
@@ -120,39 +136,44 @@ def _podar_parches(conn: sqlite3.Connection) -> int:
     return podadas
 
 
-def _anotar_archivos(
-    conn: sqlite3.Connection,
-    repo: str,
-    uid: str,
+@dataclass(frozen=True)
+class _Plan:
+    """Qué filas toca el PATCH, decidido sin tocar la base ni el disco."""
+
+    vigentes: tuple[int, ...]
+    nuevas: tuple[int, ...]
+    reabiertas: tuple[int, ...]
+    requisitos_fuera: tuple[tuple[int, int], ...]
+    eventos: tuple[tuple[int, int], ...]
+    inicio: bool
+
+
+@dataclass(frozen=True)
+class _Anotacion:
+    """Lo que se leyó del árbol, todavía sin transacción abierta."""
+
+    cambios: list[dict[str, Any]]
+    foto: dict[str, tuple[int, int]]
+    saltados: tuple[tuple[int, int], ...] = ()
+
+
+def _plan_de_eventos(
     antes: list[dict[str, Any]],
     despues: list[dict[str, Any]],
     *,
     inicio: bool,
-) -> None:
-    """Anota los archivos que cambiaron, por fase y por requisito (0029).
+) -> _Plan:
+    """Qué eventos y qué limpiezas pide el PATCH, solo en memoria.
 
-    Se comparan dos fotos del árbol, no se vigila nada: la de partida es la
-    última guardada (o la de la entrada en roadmap, que es donde empieza el
-    trabajo). Cada evento —cerrar una fase o marcar un requisito— se lleva lo
-    que cambió desde la foto anterior. Sin foto previa no se inventa un cambio:
-    se toma la primera y el evento siguiente ya mide de verdad. Sin Git la foto
-    da rutas y estado; con Git se añade el parche (`archivos.contenidos`).
-
-    Un fallo del árbol no puede tumbar el PATCH: la fase se cierra igual y el
-    aviso queda en el registro.
+    Un evento es `(fase, requisito)`, con el requisito 0 para «la fase». La
+    decisión no mira el disco ni escribe: eso es lo que permite leer el árbol
+    antes de abrir la transacción.
     """
     previas = {int(fase["orden"]): fase for fase in antes}
-    vigentes = [int(fase["orden"]) for fase in despues]
-    if vigentes:
-        marcas = ",".join("?" for _ in vigentes)
-        conn.execute(
-            f"DELETE FROM idea_fase_archivo WHERE idea_uid = ? AND fase_orden NOT IN ({marcas})",
-            (uid, *vigentes),
-        )
-    else:
-        conn.execute("DELETE FROM idea_fase_archivo WHERE idea_uid = ?", (uid,))
-
-    # Cada evento pendiente es (fase, requisito); el requisito 0 es «la fase».
+    vigentes = tuple(int(fase["orden"]) for fase in despues)
+    nuevas: list[int] = []
+    reabiertas: list[int] = []
+    requisitos_fuera: list[tuple[int, int]] = []
     eventos: list[tuple[int, int]] = []
     for fase in despues:
         orden = int(fase["orden"])
@@ -163,16 +184,10 @@ def _anotar_archivos(
         }
         if previa is None:
             # Una fase nueva con un número que fue de otra no hereda sus archivos.
-            conn.execute(
-                "DELETE FROM idea_fase_archivo WHERE idea_uid = ? AND fase_orden = ?",
-                (uid, orden),
-            )
+            nuevas.append(orden)
         elif fase["estado"] == "pendiente" and previa["estado"] != "pendiente":
             # Reabrir la fase suelta lo anotado: todavía no ha hecho nada nuevo.
-            conn.execute(
-                "DELETE FROM idea_fase_archivo WHERE idea_uid = ? AND fase_orden = ?",
-                (uid, orden),
-            )
+            reabiertas.append(orden)
         elif fase["estado"] in FASE_CIERRE and previa["estado"] != fase["estado"]:
             eventos.append((orden, 0))
         else:
@@ -186,11 +201,7 @@ def _anotar_archivos(
             # marcar y sigue ahí).
             vigentes_requisitos = {int(requisito["orden"]) for requisito in fase["requisitos"]}
             for orden_requisito in sorted(set(hechos_antes) - vigentes_requisitos):
-                conn.execute(
-                    "DELETE FROM idea_fase_archivo"
-                    " WHERE idea_uid = ? AND fase_orden = ? AND requisito_orden = ?",
-                    (uid, orden, orden_requisito),
-                )
+                requisitos_fuera.append((orden, orden_requisito))
             nuevos = sorted(
                 orden_requisito
                 for orden_requisito in hechos_ahora
@@ -203,39 +214,130 @@ def _anotar_archivos(
                 # ellos, así que se anota en la fase y cada uno se queda sin
                 # lista propia.
                 eventos.append((orden, 0))
+    return _Plan(
+        vigentes=vigentes,
+        nuevas=tuple(nuevas),
+        reabiertas=tuple(reabiertas),
+        requisitos_fuera=tuple(requisitos_fuera),
+        eventos=tuple(eventos),
+        inicio=inicio,
+    )
 
-    if not eventos and not inicio:
-        return
 
+def _agotado(inicio: float) -> bool:
+    """¿La anotación lleva más del presupuesto blando?
+
+    Se mira entre pasos, no dentro: un recorrido del árbol no se puede
+    interrumpir a media enumeración. Lo que sí se puede es no empezar el
+    siguiente, que es el caro (el `git diff`).
+    """
+    return (time.monotonic() - inicio) * 1000 >= PRESUPUESTO_MS
+
+
+def _eventos_texto(eventos: tuple[tuple[int, int], ...]) -> str:
+    """«fase 1», «fase 2/requisito 1»: los eventos que se quedaron sin archivos."""
+    return ", ".join(
+        f"fase {fase}" if requisito == 0 else f"fase {fase}/requisito {requisito}"
+        for fase, requisito in eventos
+    )
+
+
+def _planificar_anotacion(
+    conn: sqlite3.Connection,
+    repo: str,
+    uid: str,
+    plan: _Plan,
+) -> _Anotacion | None:
+    """Lee el árbol y calcula el delta, sin escribir y una sola vez por PATCH.
+
+    Se llama **antes** del primer `INSERT`/`UPDATE`: el lock de escritura no
+    cubre ni el recorrido del árbol ni el `git diff`. Cerrar tres fases en un
+    mismo PATCH hace un recorrido y un diff, no tres.
+
+    Se comparan dos fotos del árbol, no se vigila nada: la de partida es la
+    última guardada (o la de la entrada en roadmap, que es donde empieza el
+    trabajo). Sin Git la foto da rutas y estado; con Git se añade el parche
+    (`archivos.contenidos`).
+    """
+    if not plan.eventos and not plan.inicio:
+        return None
     try:
         carpeta = resolve_repo(repo)
         # `None` es «no hay foto»; `{}` es un árbol vacío, que sí es una foto
         # (una idea que empieza en una carpeta limpia anota lo que crea).
         texto = _foto_texto(conn, uid)
-        base: dict[str, tuple[int, int]] | None = (
-            archivos.deserializar(texto) if texto is not None else None
-        )
-        if inicio:
-            base = archivos.foto(carpeta)
-        for orden, requisito in eventos:
-            ahora = archivos.foto(carpeta)
-            if base is None:
-                # Primera foto: no hay contra qué comparar, así que no se anota
-                # un cambio que no se sabe si hubo.
-                base = ahora
-                break
-            cambios = archivos.cambios(base, ahora)
-            archivos.contenidos(carpeta, cambios)
-            _escribir_archivos(conn, uid, orden, requisito, cambios)
-            base = ahora
-        if base is not None:
-            _foto_guardar(conn, uid, base)
-        podadas = _podar_parches(conn)
-        if podadas:
-            registro.escribir(
-                "aviso",
-                f"Parches sueltos de {uid}: {podadas} fases antiguas, tope de "
-                f"{LIMITE_PARQUES // (1024 * 1024)} MiB por almacén",
-            )
+        base = archivos.deserializar(texto) if texto is not None else None
+        if plan.inicio:
+            # Entrar en roadmap no anota nada: toma la foto contra la que se
+            # medirá el primer cierre.
+            return _Anotacion(cambios=[], foto=archivos.foto(carpeta))
+        inicio = time.monotonic()
+        ahora = archivos.foto(carpeta)
+        if base is None:
+            # Primera foto: no hay contra qué comparar, así que no se anota un
+            # cambio que no se sabe si hubo. El evento siguiente ya mide.
+            return _Anotacion(cambios=[], foto=ahora)
+        if _agotado(inicio):
+            # El recorrido ya se pasó del tope: no se paga el `git diff` y el
+            # evento se queda sin archivos. La foto avanza igual, para no
+            # atribuir a un evento futuro lo que era de este.
+            return _Anotacion(cambios=[], foto=ahora, saltados=plan.eventos)
+        cambios = archivos.cambios(base, ahora)
+        archivos.contenidos(carpeta, cambios)
+        return _Anotacion(cambios=cambios, foto=ahora)
     except OSError as exc:
+        # Un fallo del árbol no puede tumbar el PATCH: la fase se cierra igual
+        # y el aviso queda en el registro.
         registro.escribir("aviso", f"No se pudieron anotar los archivos de {uid}: {exc}")
+        return None
+
+
+def _aplicar_anotacion(
+    conn: sqlite3.Connection,
+    uid: str,
+    plan: _Plan,
+    anotacion: _Anotacion | None,
+) -> None:
+    """Escribe lo planificado: solo SQL, con el disco ya leído.
+
+    El delta del PATCH entero se atribuye al **primer** evento: un único
+    recorrido no se puede repartir entre fases, y repartirlo sería inventar. Los
+    demás eventos del mismo PATCH no reescriben su lista.
+    """
+    if plan.vigentes:
+        marcas = ",".join("?" for _ in plan.vigentes)
+        conn.execute(
+            f"DELETE FROM idea_fase_archivo WHERE idea_uid = ? AND fase_orden NOT IN ({marcas})",
+            (uid, *plan.vigentes),
+        )
+    else:
+        conn.execute("DELETE FROM idea_fase_archivo WHERE idea_uid = ?", (uid,))
+    for orden in (*plan.nuevas, *plan.reabiertas):
+        conn.execute(
+            "DELETE FROM idea_fase_archivo WHERE idea_uid = ? AND fase_orden = ?",
+            (uid, orden),
+        )
+    for orden, orden_requisito in plan.requisitos_fuera:
+        conn.execute(
+            "DELETE FROM idea_fase_archivo"
+            " WHERE idea_uid = ? AND fase_orden = ? AND requisito_orden = ?",
+            (uid, orden, orden_requisito),
+        )
+    if anotacion is None:
+        return
+    if plan.eventos:
+        _escribir_archivos(conn, uid, *plan.eventos[0], anotacion.cambios)
+    _foto_guardar(conn, uid, anotacion.foto)
+    if anotacion.saltados:
+        registro.escribir(
+            "aviso",
+            f"Anotación de {uid} parada por el presupuesto de {PRESUPUESTO_MS} ms:"
+            f" sin archivos en {_eventos_texto(anotacion.saltados)}",
+        )
+    podadas = _podar_parches(conn)
+    if podadas:
+        registro.escribir(
+            "aviso",
+            f"Parches sueltos de {uid}: {podadas} fases antiguas, tope de "
+            f"{LIMITE_PARQUES // (1024 * 1024)} MiB por almacén",
+        )

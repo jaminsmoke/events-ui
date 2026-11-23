@@ -34,7 +34,12 @@ from .modelo.validacion import (
     _validar_fases_completadas,
     _validar_fases_en_lane,
 )
-from .trabajo.anotacion import _anotar_archivos, _foto_guardar
+from .trabajo.anotacion import (
+    _aplicar_anotacion,
+    _foto_guardar,
+    _plan_de_eventos,
+    _planificar_anotacion,
+)
 from .trabajo.fases import _escribir_fases, _fases, _normalizar_fases
 
 
@@ -51,7 +56,21 @@ def create_idea(
 ) -> dict[str, Any]:
     uid = uuid.uuid4().hex
     ts = now_iso()
-    with closing(connect(ensure_repo(repo))) as conn:
+    # El almacén se siembra antes de la foto: nace con su `.EUI` y su
+    # `.gitignore`, y fotografiar antes los colaría como trabajo del primer
+    # cierre. La foto se toma aquí, con la conexión de escritura todavía sin
+    # abrir: el recorrido del árbol no tiene el lock tomado. Si el árbol falla,
+    # se avisa y la idea nace igual.
+    db = ensure_repo(repo)
+    foto_inicial: dict[str, tuple[int, int]] | None = None
+    if _grupo(status) == "roadmap":
+        try:
+            foto_inicial = archivos.foto(resolve_repo(repo))
+        except OSError as exc:
+            # Sin foto, el primer cierre toma la primera y no anota lo que no
+            # sabe: mejor eso que perder el alta.
+            registro.escribir("aviso", f"No se pudo fotografiar el árbol de {uid}: {exc}")
+    with closing(connect(db)) as conn:
         deps = _validar_dependencias(conn, uid, list(depende_de))
         _comprobar_dependencias(conn, uid, status, deps)
         conn.execute(
@@ -80,19 +99,23 @@ def create_idea(
         )
         _escribir_estado(conn, uid, status, {})
         # Nacer ya en roadmap también es entrar: sin foto de partida, la primera
-        # fase anotaría como suyo todo el árbol que ya estaba.
-        if _grupo(status) == "roadmap":
-            try:
-                _foto_guardar(conn, uid, archivos.foto(resolve_repo(repo)))
-            except OSError as exc:
-                registro.escribir("aviso", f"No se pudo fotografiar el árbol de {uid}: {exc}")
+        # fase anotaría como suyo todo el árbol que ya estaba. Se guarda aquí,
+        # pero se tomó antes del BEGIN (ver `foto_inicial`).
+        if foto_inicial is not None:
+            _foto_guardar(conn, uid, foto_inicial)
         _emitir(conn, "idea.created", {"uid": uid, "title": title})
         conn.commit()
     return get_idea(repo, uid)
 
 
 def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
-    """Actualiza solo los campos presentes. Los `None` no se escriben."""
+    """Actualiza solo los campos presentes. Los `None` no se escriben.
+
+    El árbol se lee antes de abrir la transacción: la foto y el `git diff` de
+    la anotación (0028) se calculan con la conexión todavía sin escribir, y el
+    delta del PATCH se anota en el primer evento que trae (ver `anotacion.py`).
+    Si el árbol falla, queda un aviso y la ficha se guarda igual.
+    """
     clean = {k: v for k, v in changes.items() if v is not None and k in UPDATABLE}
     rechazo = {k: v for k, v in changes.items() if v is not None and k in REJECT_FIELDS}
     estado_detalle = {k: v for k, v in changes.items() if v is not None and k in STATE_FIELDS}
@@ -188,6 +211,15 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
                     )
             if cambiado_estado and _grupo(nuevo_estado) in ("revision_aprobada", "historial"):
                 _validar_aprobacion_total(fases_quedan)
+            # El árbol se lee aquí, con la transacción todavía sin abrir: el
+            # lock de escritura no cubre el recorrido ni el `git diff`, y un
+            # PATCH con varias fases hace uno de cada.
+            plan_archivos = _plan_de_eventos(
+                fases_previas,
+                fases_finales if fases_finales is not None else fases_previas,
+                inicio=cambiado_estado and _grupo(str(nuevo_estado)) == "roadmap",
+            )
+            anotacion = _planificar_anotacion(conn, repo, uid, plan_archivos)
             cursor = conn.execute(
                 f"UPDATE idea_data SET {assignments} WHERE uid = :uid",
                 {**clean, "uid": uid},
@@ -208,17 +240,9 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
                 _actualizar_ficha_activa(conn, uid, actual, detalle_ficha)
             if fases_finales is not None:
                 _escribir_fases(conn, uid, fases_finales)
-            # Cerrar una fase es el evento que anota sus archivos: se mira el
-            # árbol aquí, con las fases ya definitivas y en la misma
-            # transacción. Entrar en roadmap toma la foto de partida.
-            _anotar_archivos(
-                conn,
-                repo,
-                uid,
-                fases_previas,
-                fases_finales if fases_finales is not None else fases_previas,
-                inicio=cambiado_estado and _grupo(str(nuevo_estado)) == "roadmap",
-            )
+            # Ya con las fases escritas, se aplica lo que se planificó antes
+            # del BEGIN: el delta del PATCH se anota en el primer evento.
+            _aplicar_anotacion(conn, uid, plan_archivos, anotacion)
             idea = _row(
                 conn,
                 conn.execute(

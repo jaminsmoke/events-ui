@@ -255,6 +255,91 @@ def _lista_herramientas(permitir_escritura: bool) -> list[dict[str, Any]]:
     return list(_LECTURA)
 
 
+# Campos que no son de una herramienta pero sí de otra: el error dice dónde
+# están, en vez de dejar al cliente adivinando qué herramienta los acepta.
+_SUGERENCIAS = {
+    "fases": "idea_fases",
+    "fichero": "idea_fases",
+    "status": "idea_move",
+    "fase": "idea_requisito",
+    "requisito": "idea_requisito",
+    "hecho": "idea_requisito",
+    "limpiar_tags": "idea_edit",
+    "limpiar_dependencias": "idea_edit",
+    "lote": "migrate_undo",
+    "plan": "migrate_check",
+}
+
+_TIPOS = {"string": str, "integer": int, "boolean": bool, "array": list, "object": dict}
+
+
+def _sugerencia(nombre: str, campo: str) -> str | None:
+    """La herramienta que sí acepta `campo`, si hay una."""
+    directa = _SUGERENCIAS.get(campo)
+    if directa is not None and directa != nombre:
+        return directa
+    for otra, herramienta in HERRAMIENTAS.items():
+        if otra != nombre and campo in herramienta["inputSchema"]["properties"]:
+            return otra
+    return None
+
+
+def _validar_valor(campo: str, valor: Any, esquema: dict[str, Any]) -> str | None:
+    """Un valor contra su trozo de `inputSchema`; `None` si encaja.
+
+    Solo lo que usan los esquemas de este servidor: tipo, `enum`, `minimum`,
+    `maximum` y el tipo de los elementos de un array. Un `bool` no vale como
+    entero aunque en Python sea `int`.
+    """
+    tipo = esquema.get("type")
+    if tipo == "integer":
+        if isinstance(valor, bool) or not isinstance(valor, int):
+            return f"`{campo}` tiene que ser un entero"
+    else:
+        esperado = _TIPOS.get(tipo)
+        if esperado is not None and not isinstance(valor, esperado):
+            return f"`{campo}` tiene que ser de tipo {tipo}"
+    opciones = esquema.get("enum")
+    if opciones is not None and valor not in opciones:
+        return f"`{campo}` tiene que ser uno de {', '.join(str(o) for o in opciones)}"
+    if tipo == "integer":
+        if "minimum" in esquema and valor < esquema["minimum"]:
+            return f"`{campo}` no puede ser menor que {esquema['minimum']}"
+        if "maximum" in esquema and valor > esquema["maximum"]:
+            return f"`{campo}` no puede ser mayor que {esquema['maximum']}"
+    if tipo == "array":
+        items = esquema.get("items") or {}
+        for indice, elemento in enumerate(valor):
+            problema = _validar_valor(f"{campo}[{indice}]", elemento, items)
+            if problema is not None:
+                return problema
+    return None
+
+
+def _validar_entrada(nombre: str, argumentos: dict[str, Any]) -> str | None:
+    """La entrada contra el `inputSchema` de la herramienta; `None` si vale.
+
+    `tools/list` anuncia `additionalProperties: false` y `required`: esto es lo
+    que cumple el anuncio. Se llama antes de `_orden`, así que una clave
+    desconocida no llega a descartarse en silencio.
+    """
+    esquema = HERRAMIENTAS[nombre]["inputSchema"]
+    propiedades = esquema.get("properties") or {}
+    for campo in argumentos:
+        if campo not in propiedades:
+            otra = _sugerencia(nombre, campo)
+            aviso = f"campo desconocido: {campo}"
+            return f"{aviso} (usa {otra})" if otra else aviso
+    for campo in esquema.get("required") or ():
+        if argumentos.get(campo) is None:
+            return f"falta el campo obligatorio: {campo}"
+    for campo, valor in argumentos.items():
+        problema = _validar_valor(campo, valor, propiedades[campo])
+        if problema is not None:
+            return problema
+    return None
+
+
 def _comunes(argumentos: dict[str, Any], *, con_repo: bool = True) -> list[str]:
     extras: list[str] = []
     if con_repo and argumentos.get("repo"):
@@ -467,6 +552,9 @@ def manejar(mensaje: Any, *, permitir_escritura: bool = False) -> dict[str, Any]
                 return _error(ident, -32602, f"herramienta desconocida: {nombre!r}")
             if not isinstance(argumentos, dict):
                 return _error(ident, -32602, "`arguments` tiene que ser un objeto")
+            problema = _validar_entrada(nombre, argumentos)
+            if problema is not None:
+                return _error(ident, -32602, problema)
             return _ok(ident, _ejecutar(nombre, argumentos, permitir_escritura))
         if metodo == "resources/list":
             return _ok(

@@ -109,15 +109,56 @@ def test_tools_call_devuelve_el_error_del_cli(monkeypatch) -> None:
     assert "no existe la idea" in respuesta["result"]["content"][0]["text"]
 
 
-def test_tools_call_argumentos_invalidos_no_tumban(monkeypatch) -> None:
+def test_campo_desconocido_es_error_de_protocolo(monkeypatch) -> None:
+    """`fases` en `idea_edit` no puede aceptarse y perderse en silencio."""
+    visto: list[list[str]] = []
+    monkeypatch.setattr(mcp_servidor.cli, "main", lambda argv: visto.append(argv) or 0)
+
+    respuesta = mcp_servidor.manejar(
+        _peticion(
+            "tools/call",
+            {"name": "idea_edit", "arguments": {"uid": "u1", "content": "hola", "fases": []}},
+        ),
+        permitir_escritura=True,
+    )
+
+    assert respuesta["error"]["code"] == -32602
+    assert "fases" in respuesta["error"]["message"]
+    assert "idea_fases" in respuesta["error"]["message"]
+    assert visto == []
+
+
+def test_campo_de_otra_herramienta_sugiere_la_suya() -> None:
+    respuesta = mcp_servidor.manejar(
+        _peticion(
+            "tools/call",
+            {"name": "idea_get", "arguments": {"uid": "u1", "status": "roadmap"}},
+        )
+    )
+
+    assert respuesta["error"]["code"] == -32602
+    assert "idea_move" in respuesta["error"]["message"]
+
+
+def test_required_ausente_es_invalid_params(monkeypatch) -> None:
     monkeypatch.setattr(
         mcp_servidor.cli, "main", lambda argv: (_ for _ in ()).throw(AssertionError())
     )
 
     respuesta = mcp_servidor.manejar(_peticion("tools/call", {"name": "idea_get", "arguments": {}}))
 
-    assert respuesta["result"]["isError"] is True
-    assert "argumentos inválidos" in respuesta["result"]["content"][0]["text"]
+    assert respuesta["error"]["code"] == -32602
+    assert "uid" in respuesta["error"]["message"]
+    assert "isError" not in respuesta
+
+
+def test_tipo_incorrecto_es_invalid_params() -> None:
+    respuesta = mcp_servidor.manejar(
+        _peticion("tools/call", {"name": "idea_list", "arguments": {"limit": "cinco"}})
+    )
+
+    assert respuesta["error"]["code"] == -32602
+    assert "limit" in respuesta["error"]["message"]
 
 
 def test_idea_fases_usa_un_temporal_y_lo_borra(monkeypatch) -> None:

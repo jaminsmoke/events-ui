@@ -1,7 +1,10 @@
 // Release: una versión, dos paquetes, todo verificado.
 //
 // Uso: `corepack pnpm release 0.2.0` (o sin argumento para empaquetar la
-// versión actual). Orden de los pasos y por qué cada uno existe:
+// versión actual). Con `--esperar` sigue además el run de CI del tag y
+// comprueba la release publicada (`scripts/release-verificar.mjs`): sin el
+// flag nada cambia, porque el tag tiene que llegar al remoto antes de que
+// exista el run. Orden de los pasos y por qué cada uno existe:
 //   1. `bump <versión>` — las 7 versiones pasan a ser las mismas.
 //   2. `gen:api` — el core ya dice la versión nueva en `/openapi.json`,
 //      el cliente generado se regenera (si falla, el contrato cambió).
@@ -13,13 +16,24 @@
 //
 // Nada se commitea si algo falla antes: el árbol queda como estaba.
 
-import { execSync } from "node:child_process";
+import { execSync, spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const ARGUMENTO = process.argv[2];
+
+// Un solo flag (`--esperar`) y, como mucho, la versión suelta. Cualquier otro
+// `--` se rechaza antes de tocar nada: un release a medias por una errata es
+// peor que no empezarlo.
+const ARGUMENTOS = process.argv.slice(2);
+const ESPERAR = ARGUMENTOS.includes("--esperar");
+const DESCONOCIDO = ARGUMENTOS.find((arg) => arg.startsWith("--") && arg !== "--esperar");
+if (DESCONOCIDO) {
+  console.error(`Argumento desconocido: «${DESCONOCIDO}» (solo --esperar y la versión)`);
+  process.exit(1);
+}
+const ARGUMENTO = ARGUMENTOS.find((arg) => !arg.startsWith("--"));
 
 function paso(nombre, comando, { cwd: directorio = ROOT, opcional = false } = {}) {
   console.log(`\n── ${nombre} ──`);
@@ -82,3 +96,20 @@ if (yaHayTag) {
 
 console.log(`\nListo: v${version} commiteado y etiquetado.`);
 console.log("Artefactos: apps/web/dist (estático) y los bundles de apps/desktop/src-tauri/target.");
+
+if (ESPERAR) {
+  // El tag tiene que estar en el remoto para que el workflow exista: se avisa
+  // en vez de empujar por su cuenta. La verificación espera a que aparezca.
+  console.log(`\n── esperar a que el tag se publique ──`);
+  console.log("(si aún no está en el remoto, empújalo: git push --follow-tags)");
+  const verificacion = spawnSync("node", ["scripts/release-verificar.mjs", version], {
+    cwd: ROOT,
+    stdio: "inherit",
+  });
+  if (verificacion.status !== 0) {
+    console.error("\nEl release local está hecho, pero la publicación no se completó.");
+    process.exit(verificacion.status ?? 1);
+  }
+} else {
+  console.log(`\nCuando el tag llegue al remoto: corepack pnpm release:verificar ${version}`);
+}

@@ -16,6 +16,7 @@
     "bump": "node scripts/bump.mjs",
     "build:sidecar": "node scripts/build-sidecar.mjs",
     "release": "node scripts/release.mjs",
+    "release:verificar": "node scripts/release-verificar.mjs",
     "check": "corepack pnpm check:contract && corepack pnpm check:versions && corepack pnpm check:ui && corepack pnpm check:py && corepack pnpm check:test && corepack pnpm check:rust",
     "e2e": "node e2e/run.mjs",
     "check:test": "uv run --directory services/core pytest -q",

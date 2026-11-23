@@ -53,6 +53,9 @@ export const UNIONES: Record<string, readonly Union[]> = {
   "rechazo-cola": [["verificacion", "proposed"]],
   "rechazo-roadmap": [["verificacion", "roadmap"]],
   "rechazo-descartadas": [["verificacion", "rejected"]],
+  /* Eliminar no es unión de protocolo: el cable Descartadas→Eliminadas se
+   * abre en la UI; el borrado real solo sale de ideas ya descartadas. */
+  "etapa-eliminadas": [],
   "etapa-git": [],
   "etapa-historial": [],
 };

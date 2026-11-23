@@ -140,6 +140,33 @@ def test_borrar_la_idea_se_lleva_sus_fases(client, repo):  # noqa: ANN001, ANN20
     )
     assert r.status_code == 200, r.json()
 
+    # De roadmap no se descarta: hay que cerrar fases, pasar a verificación y
+    # entonces sí a Descartadas antes del DELETE definitivo.
+    assert (
+        client.patch(
+            f"/ideas/{uid}",
+            params={"repo": repo},
+            json={
+                "status": "verificacion",
+                "fases": [
+                    {
+                        "titulo": "Única",
+                        "estado": "completada",
+                        "requisitos": [{"titulo": "Uno", "hecho": True}],
+                    }
+                ],
+            },
+        ).status_code
+        == 200
+    )
+    assert (
+        client.patch(
+            f"/ideas/{uid}",
+            params={"repo": repo},
+            json={"status": "rejected", "rejected_description": "limpia fases"},
+        ).status_code
+        == 200
+    )
     assert client.delete(f"/ideas/{uid}", params={"repo": repo}).status_code == 204
     with sqlite3.connect(str(ideas.db_file_for(repo))) as conn:
         assert conn.execute("SELECT count(*) FROM idea_fase").fetchone()[0] == 0

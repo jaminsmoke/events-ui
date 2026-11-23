@@ -37,7 +37,9 @@ function titulo(paso: Paso, lane: DestinoCable, uniones: readonly Union[]): stri
     ? `Revisión rechazada → ${destinoRechazo}: `
     : lane === "descartadas"
       ? "Descartar (entrada o cola): "
-      : "Protocolo: ";
+      : lane === "eliminadas"
+        ? "Eliminar (desde Descartadas): "
+        : "Protocolo: ";
   if (!paso.abierta) return `${prefijo}esta unión no está permitida`;
   if (paso.exige.length === 0) return `${prefijo}paso libre`;
   return prefijo + paso.exige.map((exigencia) => TEXTO_EXIGENCIA[exigencia]).join("; ");

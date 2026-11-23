@@ -7,10 +7,12 @@ export type Status = Idea["status"];
  *  No son tablas: son una vista sobre `ideas.status`. `draft` es la entrada,
  *  donde se crea; `proposed` está en cola; `roadmap`, `verificacion` y
  *  `revision_aprobada` son las fichas del flujo completo; y
- *  `rejected`/`superseded` cierran la rama en Descartadas. En cuanto una
- *  idea recibe carril, deja la entrada: no se ve en los dos sitios a la vez.
- *  Un carril de verdad solo hará falta cuando las columnas sean datos
- *  (nombre, orden, por repo), no constantes.
+ *  `rejected`/`superseded` cierran la rama en Descartadas. `eliminadas` es
+ *  solo representación en el mapa: no hay status persistido; las filas que
+ *  llegan ahí se queman y desaparecen. En cuanto una idea recibe carril,
+ *  deja la entrada: no se ve en los dos sitios a la vez. Un carril de verdad
+ *  solo hará falta cuando las columnas sean datos (nombre, orden, por repo),
+ *  no constantes.
  */
 export const LANES = [
   { id: "cola", title: "Backlog" },
@@ -19,6 +21,7 @@ export const LANES = [
   { id: "revision_aprobada", title: "Revisión" },
   { id: "historial", title: "Changelog" },
   { id: "descartadas", title: "Descartadas" },
+  { id: "eliminadas", title: "Eliminadas" },
 ] as const;
 
 export type LaneId = (typeof LANES)[number]["id"];
@@ -53,5 +56,11 @@ export function laneOf(status: Status): LaneId | null {
   if (status === "verificacion") return "verificacion";
   if (status === "revision_aprobada") return "revision_aprobada";
   if (status === "historial") return "historial";
+  // `eliminadas` no sale de un status: solo vive en la UI mientras se quema.
   return null;
+}
+
+/** ¿Se puede pedir la eliminación definitiva? Solo desde Descartadas. */
+export function sePuedeEliminar(status: Status | undefined): boolean {
+  return status === "rejected" || status === "superseded";
 }

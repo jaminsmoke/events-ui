@@ -51,6 +51,12 @@
   border-color: #5c2f2f;
 }
 
+.node.lane-eliminadas {
+  --tinte: #e85d04;
+  --pulso: #e85d0444;
+  border-color: #3d2218;
+}
+
 /* Git cierra la línea como un nodo de estado, no como un carril. Apagado
  * conserva su sitio para que el mapa no cambie de forma al encenderse. */
 .node.nodo-git {
@@ -151,6 +157,10 @@
 
 .node.lane-descartadas > .node-head {
   background: #2a1a1d;
+}
+
+.node.lane-eliminadas > .node-head {
+  background: #241612;
 }
 
 .node-head {
@@ -395,6 +405,98 @@
 .lane-descartadas .dot,
 .vuelo.descartadas .dot {
   background: var(--bad);
+}
+
+.lane-eliminadas .dot {
+  background: #e85d04;
+  box-shadow: 0 0 6px #e85d04;
+}
+
+/* Quema en Eliminadas: la fila se carboniza y se desvanece; no queda rastro. */
+.fila-quema {
+  position: relative;
+  overflow: hidden;
+  pointer-events: none;
+  animation: quemar-fila 1.35s ease-in forwards;
+}
+
+.fila-quema .row-head {
+  background: #2a1610;
+  border-color: #7a3b1e;
+}
+
+.fila-quema .row-title {
+  color: #f4c095;
+}
+
+.quema-llamas {
+  position: absolute;
+  right: 10px;
+  bottom: 2px;
+  display: flex;
+  gap: 3px;
+  height: 14px;
+  align-items: flex-end;
+}
+
+.quema-llamas i {
+  display: block;
+  width: 4px;
+  border-radius: 2px 2px 1px 1px;
+  background: linear-gradient(to top, #e85d04, #ffba08 55%, #fff3);
+  animation: llama 0.35s ease-in-out infinite alternate;
+}
+
+.quema-llamas i:nth-child(1) {
+  height: 8px;
+  animation-delay: 0s;
+}
+
+.quema-llamas i:nth-child(2) {
+  height: 12px;
+  animation-delay: 0.08s;
+}
+
+.quema-llamas i:nth-child(3) {
+  height: 7px;
+  animation-delay: 0.16s;
+}
+
+@keyframes llama {
+  from {
+    transform: scaleY(0.85) translateY(1px);
+    filter: brightness(0.9);
+  }
+  to {
+    transform: scaleY(1.15) translateY(-1px);
+    filter: brightness(1.25);
+  }
+}
+
+@keyframes quemar-fila {
+  0% {
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+  25% {
+    filter: brightness(1.35) saturate(1.4) sepia(0.35);
+  }
+  55% {
+    opacity: 0.85;
+    filter: brightness(0.75) contrast(1.2) sepia(0.5);
+    transform: translateY(-2px);
+  }
+  80% {
+    opacity: 0.35;
+    filter: brightness(0.25) contrast(1.4);
+    transform: translateY(-6px) scale(0.98);
+  }
+  100% {
+    opacity: 0;
+    filter: brightness(0.05);
+    transform: translateY(-14px) scale(0.92);
+  }
 }
 
 /* ---------- el vuelo de una fila ----------

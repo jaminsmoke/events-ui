@@ -13,7 +13,8 @@ import type { LaneId } from "./carriles";
  *  desaparecen de ahí —no se ven en dos sitios a la vez— y para bajar de
  *  nivel se pasa por la disyuntiva de carriles. Cada carril es un nodo con su
  *  lista plana: la jerarquía que importa son las fases de cada ítem, que viven
- *  fuera del mapa.
+ *  fuera del mapa. `eliminadas` sale vacío del árbol: solo la UI le inyecta
+ *  filas efímeras mientras se queman.
  *
  *  Plegar y desplegar cambia solo lo que se ve; mover, crear, editar y
  *  borrar ideas entra por la API, nunca tocando el árbol a mano.

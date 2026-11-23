@@ -22,6 +22,23 @@ export {
   VueloCambio,
 } from "./nodos-git";
 
+/** Fila efímera en Eliminadas: se quema y desaparece; no hay ficha persistida. */
+export function FilaQuema({ titulo }: { titulo: string }) {
+  return (
+    <div className="row fila-quema" aria-hidden="true">
+      <div className="row-head">
+        <span className="dot" />
+        <span className="row-title">{titulo}</span>
+        <span className="quema-llamas" aria-hidden="true">
+          <i />
+          <i />
+          <i />
+        </span>
+      </div>
+    </div>
+  );
+}
+
 /** Un nodo entero: cabecera plegable y, debajo, su propia lista. */
 export function NodeBox({
   node,
@@ -70,7 +87,9 @@ export function NodeBox({
   onSeleccionar?: (seleccion: Seleccion) => void;
 }) {
   const tiene = node.kids.length > 0;
-  const abierto = tiene && !cerrados.has(node.key);
+  // Eliminadas se abre sola mientras hay una quema en curso.
+  const forzarAbierto = node.tone === "eliminadas" && tiene;
+  const abierto = (tiene && !cerrados.has(node.key)) || forzarAbierto;
   // La entrada y los carriles se seleccionan por su clave de árbol: el cajón
   // es uno solo, así que no necesita identidad propia.
   const yo: Seleccion =
@@ -101,26 +120,30 @@ export function NodeBox({
 
       {abierto && (
         <div className="node-body">
-          {node.kids.map((kid) => (
-            <NodeRow
-              key={kid.key}
-              node={kid}
-              nodo={node.tone ?? "ideas"}
-              volando={volando}
-              onMover={onMover}
-              onPideEditar={onPideEditar}
-              onEditar={onEditar}
-              onBorrar={onBorrar}
-              onCargarIdea={onCargarIdea}
-              puedeIr={puedeIr}
-              exigeFases={exigeFases}
-              exigeFasesListas={exigeFasesListas}
-              exigeFasesCompletas={exigeFasesCompletas}
-              catalogo={catalogo}
-              seleccion={seleccion}
-              onSeleccionar={onSeleccionar}
-            />
-          ))}
+          {node.kids.map((kid) =>
+            node.tone === "eliminadas" && !kid.idea ? (
+              <FilaQuema key={kid.key} titulo={kid.title} />
+            ) : (
+              <NodeRow
+                key={kid.key}
+                node={kid}
+                nodo={node.tone ?? "ideas"}
+                volando={volando}
+                onMover={onMover}
+                onPideEditar={onPideEditar}
+                onEditar={onEditar}
+                onBorrar={onBorrar}
+                onCargarIdea={onCargarIdea}
+                puedeIr={puedeIr}
+                exigeFases={exigeFases}
+                exigeFasesListas={exigeFasesListas}
+                exigeFasesCompletas={exigeFasesCompletas}
+                catalogo={catalogo}
+                seleccion={seleccion}
+                onSeleccionar={onSeleccionar}
+              />
+            ),
+          )}
         </div>
       )}
     </section>

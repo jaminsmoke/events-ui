@@ -254,6 +254,14 @@ def test_undo_salta_las_ideas_que_ya_no_estaban(client, tmp_path) -> None:
         "/migracion/aplicar", params={"repo": str(tmp_path)}, json=_plan(tmp_path)
     ).json()
     uid = {creada["ref"]: creada["uid"] for creada in datos["creadas"]}["dos"]
+    assert (
+        client.patch(
+            f"/ideas/{uid}",
+            params={"repo": str(tmp_path)},
+            json={"status": "rejected", "rejected_description": "fuera del lote"},
+        ).status_code
+        == 200
+    )
     assert client.delete(f"/ideas/{uid}", params={"repo": str(tmp_path)}).status_code == 204
 
     respuesta = client.delete(f"/migracion/lotes/{datos['lote']}", params={"repo": str(tmp_path)})

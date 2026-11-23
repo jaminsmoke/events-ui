@@ -12,7 +12,7 @@ import type { TreeNode } from "./mapa/arbol";
 import { duracionChispa, useCables } from "./mapa/cables";
 import { Compuerta, LeyendaCompuertas } from "./mapa/compuertas";
 import { useCamara } from "./mapa/camara";
-import { LANES } from "./mapa/carriles";
+import { LANES, sePuedeEliminar } from "./mapa/carriles";
 import type { LaneId, Status } from "./mapa/carriles";
 import {
   NodeBox,
@@ -242,7 +242,32 @@ export default function App({
     eliminarRepoGit,
     commit,
   } = useRepo(repo);
-  const tree = useMemo(() => (ideas ? buildTree(ideas) : null), [ideas]);
+  // Filas que cruzan Descartadas→Eliminadas: solo UI, se queman y luego
+  // se borra el dato. No hay status `eliminadas` en el almacén.
+  const [quemas, setQuemas] = useState<{ id: number; uid: string; title: string }[]>([]);
+  const quemaSeq = useRef(0);
+  const tree = useMemo(() => {
+    if (!ideas) return null;
+    const ocultas = new Set(quemas.map((quema) => quema.uid));
+    const base = buildTree(ideas.filter((idea) => !ocultas.has(idea.uid)));
+    if (quemas.length === 0) return base;
+    return {
+      ...base,
+      carriles: base.carriles.map((lane) => {
+        if (lane.tone !== "eliminadas") return lane;
+        return {
+          ...lane,
+          total: quemas.length,
+          kids: quemas.map((quema) => ({
+            key: `quema-${quema.id}`,
+            title: quema.title,
+            total: 0,
+            kids: [],
+          })),
+        };
+      }),
+    };
+  }, [ideas, quemas]);
   // F1: el log del repo en vivo (cada `EUI_DATABASE` lleva el suyo).
   const [versionLog, setVersionLog] = useState(0);
   const { eventos, conectado } = useEventos(repo, versionLog);
@@ -551,6 +576,30 @@ export default function App({
     [mover],
   );
 
+  /** Descartadas → Eliminadas: quema visual y luego borrado real. */
+  const alEliminar = useCallback(
+    async (uid: string) => {
+      const idea = ideas?.find((item) => item.uid === uid);
+      if (!idea || !sePuedeEliminar(idea.status)) {
+        throw new Error("Solo se eliminan ideas que ya están en Descartadas");
+      }
+      const id = ++quemaSeq.current;
+      setQuemas((prev) => [...prev, { id, uid, title: idea.title }]);
+      setCerrados((prev) => {
+        const next = new Set(prev);
+        next.delete("lane-eliminadas");
+        return next;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 1400));
+      try {
+        await borrar(uid);
+      } finally {
+        setQuemas((prev) => prev.filter((quema) => quema.id !== id));
+      }
+    },
+    [ideas, borrar],
+  );
+
   const toggle = useCallback((key: string) => {
     setCerrados((prev) => {
       const next = new Set(prev);
@@ -581,7 +630,7 @@ export default function App({
       onMover={alMover}
       onPideEditar={(uid, titulo, descripcion) => setEditando({ uid, titulo, descripcion })}
       onEditar={editar}
-      onBorrar={borrar}
+      onBorrar={alEliminar}
       onCargarIdea={cargarIdea}
       puedeIr={puedeIr}
       exigeFases={exigeFases}
@@ -958,7 +1007,7 @@ export default function App({
                       setEditando({ uid, titulo, descripcion })
                     }
                     onEditar={editar}
-                    onBorrar={borrar}
+                    onBorrar={alEliminar}
                     onCargarIdea={cargarIdea}
                     puedeIr={puedeIr}
                     exigeFases={exigeFases}
@@ -1076,7 +1125,7 @@ export default function App({
               exigeFasesCompletas,
               onMover: alMover,
               onEditar: editar,
-              onBorrar: borrar,
+              onBorrar: alEliminar,
               onPideEditar: (uid, titulo, descripcion) =>
                 setEditando({ uid, titulo, descripcion }),
             }}

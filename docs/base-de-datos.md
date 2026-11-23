@@ -37,8 +37,9 @@ todo con borrado en cascada. Una idea tiene exactamente una fila de nodo, así
 que no puede estar en dos carriles a la vez y no hacen falta triggers de
 exclusividad: los que traía la migración 0016 se retiraron en la 0020. La
 posición de la cola es única con un índice parcial y otro impide dos ideas en
-roadmap. La referencia opcional a una idea sustituta impide borrarla mientras
-exista el vínculo.
+roadmap. El borrado definitivo solo se acepta si la idea está en Descartadas
+(`rejected`/`superseded`): no se salta ese paso. La referencia opcional a una
+idea sustituta impide borrarla mientras exista el vínculo.
 
 Las dependencias viven en `idea_data.depende_de`, una lista JSON de uids: SQLite no
 admite una FK dentro de un JSON, así que el core valida que cada uid exista,

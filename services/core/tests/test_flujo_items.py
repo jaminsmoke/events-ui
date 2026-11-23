@@ -258,6 +258,16 @@ def test_borrar_la_sustituta_conserva_el_vinculo(client, repo):  # noqa: ANN001,
     assert r.status_code == 200, r.json()
     assert r.json()["superseded_by_uid"] == sustituta
 
+    # La sustituta también tiene que estar en Descartadas para poder intentar
+    # el borrado definitivo; el vínculo sigue bloqueando.
+    assert (
+        client.patch(
+            f"/ideas/{sustituta}",
+            params={"repo": repo},
+            json={"status": "rejected", "rejected_description": "sustituta de prueba"},
+        ).status_code
+        == 200
+    )
     r = client.delete(f"/ideas/{sustituta}", params={"repo": repo})
     assert r.status_code == 400
     assert sustituta in r.json()["detail"]
@@ -272,6 +282,26 @@ def test_borrar_la_sustituta_conserva_el_vinculo(client, repo):  # noqa: ANN001,
     # Sin la ficha que la referencia, el borrado pasa.
     assert client.delete(f"/ideas/{vieja}", params={"repo": repo}).status_code == 204
     assert client.delete(f"/ideas/{sustituta}", params={"repo": repo}).status_code == 204
+
+
+def test_borrar_exige_descartadas(client, repo):  # noqa: ANN001, ANN202
+    """El DELETE no salta Descartadas: primero se descarta, luego se elimina."""
+    uid = _crear(client, repo, status="proposed")
+    r = client.delete(f"/ideas/{uid}", params={"repo": repo})
+    assert r.status_code == 400
+    assert "descártala" in r.json()["detail"]
+    assert client.get(f"/ideas/{uid}", params={"repo": repo}).status_code == 200
+
+    assert (
+        client.patch(
+            f"/ideas/{uid}",
+            params={"repo": repo},
+            json={"status": "rejected", "rejected_description": "fuera"},
+        ).status_code
+        == 200
+    )
+    assert client.delete(f"/ideas/{uid}", params={"repo": repo}).status_code == 204
+    assert client.get(f"/ideas/{uid}", params={"repo": repo}).status_code == 404
 
 
 def test_roadmap_solo_un_activo(client, repo):  # noqa: ANN001, ANN202
@@ -387,5 +417,13 @@ def test_borrar_una_idea_la_quita_de_las_dependencias(client, repo):  # noqa: AN
     b = _crear(client, repo, title="B")
     client.patch(f"/ideas/{b}", params={"repo": repo}, json={"depende_de": [a]})
 
+    assert (
+        client.patch(
+            f"/ideas/{a}",
+            params={"repo": repo},
+            json={"status": "rejected", "rejected_description": "ya no"},
+        ).status_code
+        == 200
+    )
     assert client.delete(f"/ideas/{a}", params={"repo": repo}).status_code == 204
     assert client.get(f"/ideas/{b}", params={"repo": repo}).json()["depende_de"] == []

@@ -346,6 +346,8 @@ const ESTADOS_POR_CARRIL: Record<LaneId, readonly Status[]> = {
   revision_aprobada: ["revision_aprobada"],
   historial: ["historial"],
   descartadas: ["rejected", "superseded"],
+  /* Solo representación visual: no hay status persistido. */
+  eliminadas: [],
 };
 const ESTADOS_ENTRADA: readonly Status[] = ["draft"];
 
@@ -383,6 +385,20 @@ function CuerpoCarril({
       .map((destino) => ({ origen, destino, paso: paso(origen, destino) }))
       .filter((union) => union.paso?.abierta),
   );
+
+  // Eliminadas no guarda ideas: es el paso visual antes del borrado definitivo.
+  if (estados.length === 0) {
+    return (
+      <div className="panel-cuerpo inspector-cuerpo">
+        <p className="inspector-asunto">{titulo}</p>
+        <p className="inspector-meta">Solo representación</p>
+        <p className="hint">
+          Las ideas llegan desde Descartadas, se queman y desaparecen. No se
+          guardan en el almacén.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="panel-cuerpo inspector-cuerpo">

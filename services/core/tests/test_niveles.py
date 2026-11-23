@@ -26,11 +26,20 @@ def _sembrar_event(repo) -> None:  # noqa: ANN001, ANN202
 def test_nivel_por_tipo(client, repo):  # noqa: ANN001, ANN202
     _sembrar_event(repo)
     uid = client.post("/ideas", params={"repo": repo}, json={"title": "A"}).json()["uid"]
+    assert (
+        client.patch(
+            f"/ideas/{uid}",
+            params={"repo": repo},
+            json={"status": "rejected", "rejected_description": "log"},
+        ).status_code
+        == 200
+    )
     client.delete(f"/ideas/{uid}", params={"repo": repo})
 
     eventos = client.get("/eventos", params={"repo": repo}).json()
     por_tipo = {e["type"]: e["nivel"] for e in eventos}
-    assert por_tipo == {"idea.created": "info", "idea.deleted": "aviso"}
+    assert por_tipo["idea.created"] == "info"
+    assert por_tipo["idea.deleted"] == "aviso"
 
 
 def test_nivel_de_payload_manda(client, repo):  # noqa: ANN001, ANN202

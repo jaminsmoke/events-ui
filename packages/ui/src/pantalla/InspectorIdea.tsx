@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import type { Idea, IdeaUpdate } from "../core/api";
 import type { PuedeIr } from "../core/useProtocolos";
 import { ACCIONES_ESTADO, motivoBloqueo } from "../mapa/acciones";
-import { ETIQUETA_ESTADO, LANES, laneOf } from "../mapa/carriles";
+import { ETIQUETA_ESTADO, LANES, laneOf, sePuedeEliminar } from "../mapa/carriles";
 import type { Status } from "../mapa/carriles";
 import { ETIQUETA_FASE } from "../mapa/fase";
 import { fechaCorta } from "../mapa/formato";
@@ -182,18 +182,19 @@ export function CuerpoIdea({
                 Editar datos…
               </button>
             )}
-            {acciones.onBorrar && !confirmando && (
+            {acciones.onBorrar && sePuedeEliminar(idea.status) && !confirmando && (
               <button
                 type="button"
                 className="btn ghost"
+                title="Pasa por Eliminadas y se quema; no se guarda"
                 onClick={() => setConfirmando(true)}
               >
-                Borrar
+                Eliminar
               </button>
             )}
-            {acciones.onBorrar && confirmando && (
+            {acciones.onBorrar && sePuedeEliminar(idea.status) && confirmando && (
               <span className="fila-acciones">
-                ¿Borrar?
+                ¿Eliminar del todo?
                 <button
                   className="btn ghost"
                   type="button"

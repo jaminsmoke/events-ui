@@ -244,16 +244,32 @@ def update_idea(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
 def delete_idea(repo: str, uid: str) -> bool:
     """Borra la idea; su nodo y el detalle se van con ella (ON DELETE CASCADE).
 
-    El título se lee antes de borrar para que el evento `idea.deleted` tenga
-    qué mostrar: después no hay fila de la que sacar nada. Si otra ficha la
-    usa como sustituta (`superseded_by_uid`), no se borra: el vínculo es
-    información y se avisa del conflicto en vez de romperlo en silencio.
+    Solo se acepta si está en Descartadas (`rejected`/`superseded`): el borrado
+    definitivo no salta ese paso. El título se lee antes de borrar para que el
+    evento `idea.deleted` tenga qué mostrar: después no hay fila de la que
+    sacar nada. Si otra ficha la usa como sustituta (`superseded_by_uid`), no
+    se borra: el vínculo es información y se avisa del conflicto en vez de
+    romperlo en silencio.
     """
     with closing(connect(ensure_repo(repo))) as conn:
-        titulo_row = conn.execute("SELECT title FROM idea_data WHERE uid = ?", (uid,)).fetchone()
+        fila = conn.execute(
+            "SELECT idea_data.title, idea_node.estado"
+            " FROM idea_data JOIN idea_node ON idea_node.uid = idea_data.uid"
+            " WHERE idea_data.uid = ?",
+            (uid,),
+        ).fetchone()
+        if fila is None:
+            return False
+        estado = str(fila["estado"])
+        if estado not in ("rejected", "superseded"):
+            raise InvalidInput(
+                f"no se puede borrar {uid}: primero descártala"
+                f" (está en {estado}, no en Descartadas)"
+            )
+        titulo = str(fila["title"])
         sustitutas = [
-            str(fila[0])
-            for fila in conn.execute(
+            str(row[0])
+            for row in conn.execute(
                 "SELECT uid FROM rejected_node WHERE superseded_by_uid = ? ORDER BY uid",
                 (uid,),
             )
@@ -282,7 +298,7 @@ def delete_idea(repo: str, uid: str) -> bool:
                         "UPDATE idea_data SET depende_de = ? WHERE uid = ?",
                         (json.dumps([otra for otra in deps if otra != uid]), fila[0]),
                     )
-            _emitir(conn, "idea.deleted", {"uid": uid, "title": titulo_row[0]})
+            _emitir(conn, "idea.deleted", {"uid": uid, "title": titulo})
         conn.commit()
     return cursor.rowcount > 0
 

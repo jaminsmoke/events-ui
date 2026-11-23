@@ -8,7 +8,7 @@ import type { PuedeIr } from "../core/useProtocolos";
 import { DescartaIdea } from "../pantalla/DescartaIdea";
 import { ACCIONES_ESTADO, motivoBloqueo } from "./acciones";
 import type { TreeNode } from "./arbol";
-import { ETIQUETA_ESTADO } from "./carriles";
+import { ETIQUETA_ESTADO, sePuedeEliminar } from "./carriles";
 import type { Status } from "./carriles";
 import { FasesIdea } from "./fases";
 import { comoFases, type Fase } from "./fase";
@@ -361,14 +361,19 @@ export function NodeRow({
               Fases · {hechas}/{fases.length}
             </button>
           )}
-          {onBorrar && !enHistorial && !confirmando && (
-            <button type="button" className="btn ghost mover" onClick={() => setConfirmando(true)}>
-              Borrar
+          {onBorrar && sePuedeEliminar(estado) && !confirmando && (
+            <button
+              type="button"
+              className="btn ghost mover"
+              title="Pasa por Eliminadas y se quema; no se guarda"
+              onClick={() => setConfirmando(true)}
+            >
+              Eliminar
             </button>
           )}
-          {onBorrar && !enHistorial && confirmando && (
+          {onBorrar && sePuedeEliminar(estado) && confirmando && (
             <span className="fila-acciones">
-              ¿Borrar?
+              ¿Eliminar del todo?
               <button
                 className="btn ghost mover"
                 type="button"

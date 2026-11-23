@@ -359,9 +359,10 @@ y el detalle por `ON DELETE CASCADE`. El paso `0004` es el ejemplo: reconstruye
 - **F0.6 (hecho):** `/revision` y visor en vivo: cada dos segundos se comprueba la
   revisión y, si cambia, se lee `/mapa`. Una idea se anima al pasar entre carriles.
 - **F0.7 (hecho):** la UI escribe, no solo mira: crear ítems («Nuevo ítem»), editar
-  título/descripción/tags y borrar desde la fila, y moverlas entre carriles. Todo por
-  `openapi-fetch` tipado por el OpenAPI generado, con los errores 400/404 declarados
-  en el contrato.
+  título/descripción/tags y moverlas entre carriles. Eliminar es un segundo paso
+  solo desde Descartadas (nodo Eliminadas con quema visual; el core rechaza el
+  DELETE fuera de `rejected`/`superseded`). Todo por `openapi-fetch` tipado por
+  el OpenAPI generado, con los errores 400/404 declarados en el contrato.
 - **F1–F3 (hecho):** sobre de evento + SSE en vivo por repo (F1), proyección de repo
   con identidad git (F2) y empaquetado con sidecar Python en la desktop, bandeja y
   avisos (F3). El instalador firmado queda fuera (cuesta dinero).

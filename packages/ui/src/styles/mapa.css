@@ -234,6 +234,14 @@
   transform: translateX(calc((var(--col) + var(--gap)) / -2));
 }
 
+.linea > .lane-eliminadas {
+  grid-column: 2;
+  margin-top: calc(var(--altura-cola) + 36px);
+  /* Misma banda que Descartadas, una columna a la izquierda: el cable de
+   * eliminación va en horizontal y no pelea con la bajada Entrada→Descartadas. */
+  transform: translateX(calc((var(--col) + var(--gap)) / -2 - (var(--col) + var(--gap))));
+}
+
 /* El puente a Git y el de Documentos comparten la última columna. */
 .estacion-git {
   grid-column: 7;

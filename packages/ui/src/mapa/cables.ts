@@ -489,6 +489,39 @@ export function useCables({
           longitud: largo(puntos),
         });
       }
+
+      /* Eliminadas vive a la izquierda de Descartadas (misma banda). El cable
+       * sale del canto izquierdo de Descartadas y entra por el derecho de
+       * Eliminadas: la eliminación definitiva no se persiste, solo se
+       * representa el paso visual antes del borrado. */
+      const eliminadas = cajas.get("eliminadas");
+      if (descartadas && eliminadas) {
+        const y = descartadas.y + descartadas.h / 2;
+        const x1 = descartadas.x + 1;
+        const x2 = eliminadas.x + eliminadas.w - 1;
+        const puntos = [
+          { x: x1, y },
+          { x: x2, y },
+        ];
+        trazos.push({
+          id: "etapa-eliminadas",
+          lane: "eliminadas",
+          origenLane: "descartadas",
+          destinoLane: "eliminadas",
+          uniones: UNIONES["etapa-eliminadas"] ?? [],
+          abierta: true,
+          presion: total("descartadas"),
+          puntos,
+          x1,
+          y1: y,
+          x2,
+          y2: y,
+          d: trazoDe(puntos),
+          compuerta: { x: (x1 + x2) / 2, y, angulo: 0 },
+          chevron: { x: x1 + (x2 - x1) * 0.65, y, angulo: 180 },
+          longitud: largo(puntos),
+        });
+      }
       /* El nudo de Descartadas es un rombo, como el de Revisión rechazada: las
        * compuertas de la entrada —la de la etapa y la del descarte— caen dentro
        * de él. */

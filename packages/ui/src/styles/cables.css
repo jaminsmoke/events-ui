@@ -79,6 +79,12 @@
   --wire: #c0704a;
 }
 
+.wire.eliminadas,
+.chevron.eliminadas,
+.compuerta.eliminadas {
+  --wire: #e85d04;
+}
+
 /* Zona de golpe del cable: el trazo real es fino, así que la selección usa un
  *  trazo ancho e invisible encima. El `.cables` del SVG no recibe eventos; el
  *  hijo sí, por `pointer-events: stroke`. */
@@ -252,6 +258,11 @@
 .spark.descartadas {
   fill: #f0883e;
   filter: drop-shadow(0 0 6px #f0883e);
+}
+
+.spark.eliminadas {
+  fill: #e85d04;
+  filter: drop-shadow(0 0 6px #e85d04);
 }
 
 @keyframes chispa {

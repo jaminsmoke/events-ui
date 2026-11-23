@@ -159,7 +159,7 @@ export default {
     // El pane de Git y el de Mapas son excluyentes: volver a Mapas deja las
     // pestañas de mapa donde estaban antes de commitear.
     await page.getByRole("button", { name: "Mapas", exact: true }).click();
-    await page.getByRole("button", { name: "Mapa de trabajo", exact: true }).click();
+    await page.getByRole("button", { name: "Mapa de Trabajo", exact: true }).click();
     await esperarCables(page, esperar, "de vuelta a Trabajo");
 
     await pruebas.click();
@@ -179,7 +179,7 @@ export default {
       (await cuenta("descartadas")).includes("3");
     await esperar(reparto, "el reparto completo por carriles", 90_000);
 
-    // El Changelog ya no es un carril del Mapa de Ideas: sus tres fichas se
+    // El Changelog ya no es un carril del Mapa de Trabajo: sus tres fichas se
     // comprueban en el Mapa de Documentos, que se abre desde su puente.
     await page.getByRole("button", { name: /Abrir mapa de Documentos/ }).click();
     await page.locator(".linea-documentos").waitFor();
@@ -187,7 +187,7 @@ export default {
       () => page.locator(".lane-historial > .node-head").innerText().then((t) => t.includes("3")),
       "las tres fichas archivadas en Documentos",
     );
-    const aTrabajo = page.getByRole("button", { name: "Mapa de trabajo", exact: true });
+    const aTrabajo = page.getByRole("button", { name: "Mapa de Trabajo", exact: true });
     if (!(await aTrabajo.isVisible())) {
       await page.getByRole("button", { name: "Mapas", exact: true }).click();
     }

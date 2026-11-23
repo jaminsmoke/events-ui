@@ -215,7 +215,7 @@ export function PaneMapas({
               aria-pressed={mapa === "ideas"}
               onClick={() => onMapa("ideas")}
             >
-              Mapa de trabajo
+              Mapa de Trabajo
             </button>
             <button
               type="button"

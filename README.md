@@ -16,7 +16,7 @@ y hace tail por cursor. No hay watcher de ficheros ni poller de git.
 ```
 apps/desktop      Envoltorio Tauri 2 (diálogo nativo) sobre la UI compartida
 apps/web          Envoltorio web (Vite, 15174) sobre la misma UI compartida
-packages/ui       UI compartida: mapa de ideas, selector de repo y API, sin
+packages/ui       UI compartida: mapa de trabajo, selector de repo y API, sin
                   envoltorio. Desktop inyecta el diálogo nativo; la web ofrece
                   la lista de `GET /repos` y pegar la ruta.
 services/core     FastAPI + SQLite WAL          (uv)
@@ -307,7 +307,7 @@ el caso del laboratorio dentro del repo de la aplicación. La proyección expone
 lo ignora (`True`) o si no hay Git (`None`). Resumen lo enseña y ofrece
 «Ignorar .EUI», que añade `.EUI/` al `.gitignore` de esa raíz.
 
-Hay dos mapas enlazados. El **Mapa de trabajo** termina en el puente **Entregar
+Hay dos mapas enlazados. El **Mapa de Trabajo** termina en el puente **Entregar
 a Git**, que solo se activa con work tree y abre el **Mapa de Git**.
 Su primer nodo, **Cambios sin commit**, lista lo que ve
 `git status --porcelain`: archivos modificados, preparados o sin seguimiento.

@@ -36,7 +36,7 @@ export default {
       // El pane de Mapas arranca cerrado y las pestañas viven dentro de él.
       await page.getByRole("button", { name: "Mapas", exact: true }).click();
 
-      // En el Mapa de Ideas solo vive el puente: apagado si el lab está ignorado.
+      // En el Mapa de Trabajo solo vive el puente: apagado si el lab está ignorado.
       // El puente a Documentos reusa la clase `nodo-git`: se nombra el de Git.
       const puente = page.locator('.nodo-git[aria-label="Entregar a Git"]');
       await esperar(
@@ -140,7 +140,7 @@ export default {
       );
 
       // Eliminar desde el puente: pide confirmación y vuelve a apagarse.
-      await page.getByRole("button", { name: "Mapa de trabajo", exact: true }).click();
+      await page.getByRole("button", { name: "Mapa de Trabajo", exact: true }).click();
       await page.getByRole("button", { name: "Eliminar repo…", exact: true }).click();
       const dialogoEliminar = page.getByRole("dialog", { name: "Eliminar repo local" });
       await dialogoEliminar.waitFor();

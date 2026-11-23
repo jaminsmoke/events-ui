@@ -67,7 +67,7 @@ export default {
     await selector.or(pruebas).first().waitFor();
     if (await selector.isVisible()) await selector.click();
 
-    // El cable del archivo vive en el Mapa de Ideas; las fichas del historial
+    // El cable del archivo vive en el Mapa de Trabajo; las fichas del historial
     // se mudaron al Mapa de Documentos, que se abre desde su puente.
     await esperar(
       () => page.locator(".wire.historial").count().then((n) => n === 1),

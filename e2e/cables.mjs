@@ -1,4 +1,4 @@
-/** Los cables que dibuja el Mapa de Ideas, por id.
+/** Los cables que dibuja el Mapa de Trabajo, por id.
  *
  *  La cuenta vivía copiada en siete escenarios y se quedó en diez cuando el
  *  mapa pasó a once (`etapa-eliminadas`, en `62e5934`): siete esperas viejas y

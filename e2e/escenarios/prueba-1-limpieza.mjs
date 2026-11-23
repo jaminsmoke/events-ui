@@ -10,7 +10,7 @@ const tablasOperativas = [
 
 async function geometria(page) {
   return page.evaluate(() => ({
-    // Solo el Mapa de Ideas: el Mapa de Git es otra vista y no se mide aquí.
+    // Solo el Mapa de Trabajo: el Mapa de Git es otra vista y no se mide aquí.
     // El Historial cuelga de `.estacion-git`, así que se busca en cualquier
     // nivel de la línea y no solo entre los hijos directos.
     cabeceras: Array.from(

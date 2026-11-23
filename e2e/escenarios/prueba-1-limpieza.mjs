@@ -49,7 +49,10 @@ export default {
       await pruebas.waitFor();
       await esperarCables(page, esperar);
       const inicial = await geometria(page);
-      expect(inicial.cabeceras.length === 8, "ocho nodos de la fila principal");
+      // Nueve cabeceras: el cajón, seis carriles del flujo y los dos puentes
+      // (Git y Documentos). El Historial ya no es un carril de esta fila: vive
+      // en el Mapa de Documentos.
+      expect(inicial.cabeceras.length === 9, "nueve nodos de la fila principal");
       await pruebas.click();
       const boton = (name) => page.getByRole("dialog", { name: "Pruebas del laboratorio" }).getByRole("button", { name, exact: true });
       await boton("Lanzar").click();

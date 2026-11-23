@@ -39,15 +39,17 @@ export default {
     await page.getByRole("button", { name: "Mapas", exact: true }).click();
     await page.locator('.pane[aria-label="Mapas"]').waitFor();
     await esperarCables(page, esperar);
+    // El puente a Documentos reusa la clase `nodo-git`: se nombra el de Git.
+    const puenteGit = page.locator('.nodo-git[aria-label="Entregar a Git"]');
 
     // Git se simula con el lab vacío, antes de sembrar: la prueba se vacía sola
     // seis segundos después de sembrada y estas comprobaciones no caben a la vez.
     await esperar(
-      () => page.locator(".nodo-git.apagado").count().then((n) => n === 1),
+      () => puenteGit.evaluate((el) => el.classList.contains("apagado")),
       "el puente a Git apagado",
     );
     expect(
-      (await page.locator(".nodo-git").innerText()).includes("Sin repositorio local"),
+      (await puenteGit.innerText()).includes("Sin repositorio local"),
       "el puente apagado debe explicar por qué",
     );
     const pestanaGit = page.getByRole("button", { name: "Mapa de Git", exact: true });
@@ -66,11 +68,11 @@ export default {
     // cuenta como cambio, así que sin esto el nodo sale vacío.
     writeFileSync(path.join(lab, "nota.txt"), "primera versión\n", "utf8");
     await esperar(
-      () => page.locator(".nodo-git.activo").count().then((n) => n === 1),
+      () => puenteGit.evaluate((el) => el.classList.contains("activo")),
       "el puente a Git activo tras git init",
       15_000,
     );
-    const puenteActivo = await page.locator(".nodo-git").innerText();
+    const puenteActivo = await puenteGit.innerText();
     expect(puenteActivo.includes("main"), "el puente activo debe mostrar la rama main");
     expect(puenteActivo.includes("sin commits"), "un repo vacío no debe inventar un commit");
     await page.getByRole("button", { name: /Abrir mapa de Git/ }).click();
@@ -174,9 +176,23 @@ export default {
       (await cuenta("roadmap")).includes("1") &&
       (await cuenta("verificacion")).includes("2") &&
       (await cuenta("revision_aprobada")).includes("2") &&
-      (await cuenta("historial")).includes("3") &&
       (await cuenta("descartadas")).includes("3");
     await esperar(reparto, "el reparto completo por carriles", 90_000);
+
+    // El Changelog ya no es un carril del Mapa de Ideas: sus tres fichas se
+    // comprueban en el Mapa de Documentos, que se abre desde su puente.
+    await page.getByRole("button", { name: /Abrir mapa de Documentos/ }).click();
+    await page.locator(".linea-documentos").waitFor();
+    await esperar(
+      () => page.locator(".lane-historial > .node-head").innerText().then((t) => t.includes("3")),
+      "las tres fichas archivadas en Documentos",
+    );
+    const aTrabajo = page.getByRole("button", { name: "Mapa de trabajo", exact: true });
+    if (!(await aTrabajo.isVisible())) {
+      await page.getByRole("button", { name: "Mapas", exact: true }).click();
+    }
+    await aTrabajo.click();
+    await esperarCables(page, esperar, "de vuelta a Trabajo");
 
     // La ficha de roadmap se abre sola y enseña los tres estados de fase.
     await esperar(
@@ -277,15 +293,7 @@ export default {
       15_000,
     );
 
-    for (const lane of [
-      "root",
-      "cola",
-      "roadmap",
-      "verificacion",
-      "revision_aprobada",
-      "historial",
-      "descartadas",
-    ]) {
+    for (const lane of ["root", "cola", "roadmap", "verificacion", "revision_aprobada", "descartadas"]) {
       expect((await cuenta(lane)).includes("0"), `el carril ${lane} no quedó vacío`);
     }
     await page.screenshot({ path: resultado("mapa-completo-limpio.png") });

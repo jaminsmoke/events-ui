@@ -91,8 +91,8 @@ export default {
       "la ficha del carril",
     );
     const fichaCarril = (await panel.innerText()).toLowerCase();
-    expect(fichaCarril.includes("en cola"), "la ficha del carril debe nombrarlo");
-    expect(fichaCarril.includes("en roadmap"), "la ficha debe enseñar la salida a roadmap");
+    expect(fichaCarril.includes("backlog"), "la ficha del carril debe nombrarlo");
+    expect(fichaCarril.includes("→ roadmap"), "la ficha debe enseñar la salida a roadmap");
     expect(fichaCarril.includes("idea de inspector"), "la ficha debe listar sus ideas");
 
     // Pulsar la idea dentro de la propia ficha también la selecciona.
@@ -151,7 +151,8 @@ export default {
     await iconoInspector.click();
     // Sin panel el lienzo se ensancha y el mapa se vuelve a medir.
     await page.waitForTimeout(300);
-    await page.locator(".nodo-puente .node-head").click();
+    // Los dos puentes (Git y Documentos) comparten clase: se nombra el de Git.
+    await page.locator('.nodo-puente[aria-label="Entregar a Git"] .node-head').click();
     await iconoInspector.click();
     await esperar(
       () => panel.innerText().then((t) => t.toLowerCase().includes("entregar a git")),

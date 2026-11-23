@@ -67,6 +67,15 @@ export default {
     await selector.or(pruebas).first().waitFor();
     if (await selector.isVisible()) await selector.click();
 
+    // El cable del archivo vive en el Mapa de Ideas; las fichas del historial
+    // se mudaron al Mapa de Documentos, que se abre desde su puente.
+    await esperar(
+      () => page.locator(".wire.historial").count().then((n) => n === 1),
+      "el cable del historial",
+    );
+    await page.getByRole("button", { name: /Abrir mapa de Documentos/ }).click();
+    await page.locator(".linea-documentos").waitFor();
+
     const fila = page.locator(`.lane-historial .row[data-uid="${uid}"]`);
     const cabeza = fila.locator(".row-head");
     await cabeza.waitFor({ timeout: 20_000 });
@@ -97,11 +106,8 @@ export default {
     await fila.locator(".fila-detalle").screenshot({ path: resultado("historial.png") });
     await page.screenshot({ path: resultado("historial-mapa.png") });
 
-    await esperar(
-      () => page.locator(".wire.historial").count().then((n) => n === 1),
-      "el cable del historial",
-    );
-
-    await api(`/ideas/${uid}?repo=lab`, { method: "DELETE" });
+    // El runner vacía el laboratorio tras cada escenario. El historial no se
+    // borra por la API (solo se borra desde Descartadas), así que aquí no hay
+    // nada que limpiar.
   },
 };

@@ -37,7 +37,8 @@ export default {
       await page.getByRole("button", { name: "Mapas", exact: true }).click();
 
       // En el Mapa de Ideas solo vive el puente: apagado si el lab está ignorado.
-      const puente = page.locator(".nodo-git");
+      // El puente a Documentos reusa la clase `nodo-git`: se nombra el de Git.
+      const puente = page.locator('.nodo-git[aria-label="Entregar a Git"]');
       await esperar(
         () => puente.evaluate((el) => el.classList.contains("apagado")),
         "Git apagado en el lab ignorado",

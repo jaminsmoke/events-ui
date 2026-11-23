@@ -18,6 +18,16 @@ from contextlib import closing, suppress
 from pathlib import Path
 from typing import Any
 
+from .contrato import (
+    FichaError,
+    FichaLegible,
+    InformeClasificacion,
+    InformeRevision,
+    InformeScan,
+    ResumenClasificacion,
+    ResumenRevision,
+    ResumenScan,
+)
 from .db import open_read_only
 from .items.base.comun import InvalidInput, escribir_atomico, fecha_iso, now_iso
 from .items.base.rutas import EUI_DIR, db_file_for
@@ -320,7 +330,7 @@ def resolver(raiz: Path, ruta: str | None) -> Path:
     return destino
 
 
-def escanear(raiz: Path, ruta: str | None = None) -> dict[str, Any]:
+def escanear(raiz: Path, ruta: str | None = None) -> InformeScan:
     """El informe: cada Markdown con su hash y lo reconocido, y un resumen."""
     raiz = raiz.resolve()
     destino = resolver(raiz, ruta)
@@ -328,20 +338,20 @@ def escanear(raiz: Path, ruta: str | None = None) -> dict[str, Any]:
     recortado = len(archivos) > MAX_ARCHIVOS
     fichas = [_ficha(archivo, raiz) for archivo in archivos[:MAX_ARCHIVOS]]
 
-    return {
-        "repo": str(raiz),
-        "ruta": _relativa(destino, raiz),
-        "archivos": fichas,
-        "resumen": {
-            "archivos": len(fichas),
-            "secciones": sum(ficha.get("secciones", 0) for ficha in fichas),
-            "tareas": sum(ficha.get("tareas", {}).get("total", 0) for ficha in fichas),
-        },
-        "recortado": recortado,
-    }
+    return InformeScan(
+        repo=str(raiz),
+        ruta=_relativa(destino, raiz),
+        archivos=fichas,
+        resumen=ResumenScan(
+            archivos=len(fichas),
+            secciones=sum(ficha.get("secciones", 0) for ficha in fichas),
+            tareas=sum(ficha.get("tareas", {}).get("total", 0) for ficha in fichas),
+        ),
+        recortado=recortado,
+    )
 
 
-def clasificar(raiz: Path, ruta: str | None = None) -> dict[str, Any]:
+def clasificar(raiz: Path, ruta: str | None = None) -> InformeClasificacion:
     """Propone el manifiesto `documentos` a partir del scan.
 
     No escribe nada: es la mitad legible de la allowlist. El agente revisa
@@ -352,32 +362,32 @@ def clasificar(raiz: Path, ruta: str | None = None) -> dict[str, Any]:
     """
     informe = escanear(raiz, ruta)
     documentos: list[dict[str, Any]] = []
-    for ficha in informe["archivos"]:
-        if "error" in ficha:
+    for ficha in informe.archivos:
+        if isinstance(ficha, FichaError):
             continue
         documento = _proponer_documento(ficha)
         if documento is not None:
             documentos.append(documento)
-    return {
-        "repo": informe["repo"],
-        "ruta": informe["ruta"],
-        "documentos": documentos,
-        "resumen": {
-            "documentos": len(documentos),
-            "mapa": sum(1 for doc in documentos if doc["clase"] == "mapa"),
-            "referencia": sum(1 for doc in documentos if doc["clase"] == "referencia"),
-        },
-        "recortado": informe["recortado"],
-    }
+    return InformeClasificacion(
+        repo=informe.repo,
+        ruta=informe.ruta,
+        documentos=documentos,
+        resumen=ResumenClasificacion(
+            documentos=len(documentos),
+            mapa=sum(1 for doc in documentos if doc["clase"] == "mapa"),
+            referencia=sum(1 for doc in documentos if doc["clase"] == "referencia"),
+        ),
+        recortado=informe.recortado,
+    )
 
 
-def _proponer_documento(ficha: dict[str, Any]) -> dict[str, Any] | None:
+def _proponer_documento(ficha: FichaLegible) -> dict[str, Any] | None:
     """Una entrada del manifiesto a partir de la ficha del scan."""
-    ruta = str(ficha.get("ruta") or "")
+    ruta = ficha.ruta
     if not ruta:
         return None
     stem = Path(ruta).stem.casefold()
-    tareas = int((ficha.get("tareas") or {}).get("total") or 0)
+    tareas = ficha.tareas.total
     if stem in _NOMBRES_MAPA or any(stem.startswith(f"{nombre}-") for nombre in _NOMBRES_MAPA):
         return {
             "ruta": ruta,
@@ -441,8 +451,8 @@ def validar_esquema(datos: Any, esquema: dict[str, Any] | None = None) -> list[s
     Cubre las palabras que usa `ESQUEMA_PLAN` (y ninguna más): `$ref` local,
     `type`, `const`, `enum`, `required`, `properties`,
     `additionalProperties: false`, `items`, `minItems`, `uniqueItems`,
-    `minLength`, `pattern` y `minimum`. Así el contrato publicado y lo que
-    `check` acepta no pueden separarse.
+    `minLength`, `pattern`, `minimum` y `anyOf` (basta una rama). Así el
+    contrato publicado y lo que `check` acepta no pueden separarse.
     """
     raiz_esquema = ESQUEMA_PLAN if esquema is None else esquema
     errores: list[str] = []
@@ -459,7 +469,7 @@ def _items_del_plan(plan: dict[str, Any]) -> list[Any]:
     return []
 
 
-def revisar(raiz: Path, plan: dict[str, Any], *, plan_ruta: str = "plan.json") -> dict[str, Any]:
+def revisar(raiz: Path, plan: dict[str, Any], *, plan_ruta: str = "plan.json") -> InformeRevision:
     """Valida el plan y enseña lo que se crearía, sin escribir nada.
 
     Primero el esquema; solo si pasa se miran los refs, las dependencias, los
@@ -471,15 +481,15 @@ def revisar(raiz: Path, plan: dict[str, Any], *, plan_ruta: str = "plan.json") -
     resumen = _resumen(items)
     errores = validar_esquema(plan)
     if errores:
-        return {
-            "ok": False,
-            "repo": str(raiz),
-            "plan": plan_ruta,
-            "crear": [],
-            "documentos": [],
-            "errores": errores,
-            "resumen": resumen,
-        }
+        return InformeRevision(
+            ok=False,
+            repo=str(raiz),
+            plan=plan_ruta,
+            crear=[],
+            documentos=[],
+            errores=errores,
+            resumen=ResumenRevision.model_validate(resumen),
+        )
 
     errores = _errores_de_destino(plan)
     vistos: dict[str, int] = {}
@@ -530,12 +540,12 @@ def revisar(raiz: Path, plan: dict[str, Any], *, plan_ruta: str = "plan.json") -
         }
         for item in items
     ]
-    return {
-        "ok": not errores,
-        "repo": str(raiz),
-        "plan": plan_ruta,
-        "crear": crear,
-        "documentos": [
+    return InformeRevision(
+        ok=not errores,
+        repo=str(raiz),
+        plan=plan_ruta,
+        crear=crear,
+        documentos=[
             {
                 "ruta": doc["ruta"],
                 "clase": doc["clase"],
@@ -544,9 +554,9 @@ def revisar(raiz: Path, plan: dict[str, Any], *, plan_ruta: str = "plan.json") -
             for doc in (plan.get("documentos") or [])
             if isinstance(doc, dict) and "ruta" in doc and "clase" in doc
         ],
-        "errores": errores,
-        "resumen": resumen,
-    }
+        errores=errores,
+        resumen=ResumenRevision.model_validate(resumen),
+    )
 
 
 def _errores_de_destino(plan: dict[str, Any]) -> list[str]:
@@ -811,6 +821,12 @@ def _validar(
     if "$ref" in nodo:
         nodo = _resolver_ref(raiz, nodo["$ref"])
 
+    opciones = nodo.get("anyOf")
+    if isinstance(opciones, list) and not any(
+        not _errores_de_rama(valor, opcion, raiz, ruta) for opcion in opciones
+    ):
+        errores.append(f"{ruta}: no encaja en ninguna de las {len(opciones)} formas posibles")
+
     if "const" in nodo and not _igual(valor, nodo["const"]):
         errores.append(f"{ruta}: {_texto(valor)} no es el valor exigido ({_texto(nodo['const'])})")
     if "enum" in nodo and not any(_igual(valor, opcion) for opcion in nodo["enum"]):
@@ -862,6 +878,15 @@ def _validar(
             for clave in valor:
                 if clave not in propiedades:
                     errores.append(f"{ruta}.{clave}: no está permitido")
+
+
+def _errores_de_rama(
+    valor: Any, nodo: dict[str, Any], raiz: dict[str, Any], ruta: str
+) -> list[str]:
+    """Los errores de una rama de `anyOf`, aparte: si una pasa, la unión pasa."""
+    errores: list[str] = []
+    _validar(valor, nodo, raiz, ruta, errores)
+    return errores
 
 
 def _resolver_ref(raiz: dict[str, Any], referencia: str) -> dict[str, Any]:

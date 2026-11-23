@@ -71,8 +71,8 @@ def post_aplicar(body: PlanMigracion, repo: RepoParam) -> dict[str, Any]:
     # las claves ausentes son la forma normal de decir «no aplica».
     plan = body.model_dump(exclude_none=True)
     informe = escaneo.revisar(resolve_repo(repo), plan)
-    if not informe["ok"]:
-        raise items.InvalidInput("; ".join(informe["errores"]))
+    if not informe.ok:
+        raise items.InvalidInput("; ".join(informe.errores))
     return items.aplicar_migracion(repo, plan, plan_sha256=escaneo.huella_plan(plan))
 
 

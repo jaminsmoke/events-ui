@@ -278,6 +278,35 @@ class Repo(BaseModel):
     db_path: str
 
 
+class Comprobacion(BaseModel):
+    """Una línea de `doctor`: qué se miró, cómo salió y el detalle."""
+
+    nombre: str
+    estado: Literal["ok", "aviso", "error"]
+    detalle: str
+
+
+class InformeDoctor(BaseModel):
+    """`eui doctor --json`: el diagnóstico del core y de la configuración.
+
+    Es un informe, no contrato de almacén: si una comprobación nueva no cabe en
+    `Comprobacion`, se toca el modelo y el `outputSchema` del MCP le sigue. Eso
+    es justo lo que se gana al dejar de armar el JSON a mano.
+    """
+
+    ok: bool
+    url: str
+    version: str
+    comprobaciones: list[Comprobacion]
+
+
+class RepoActual(BaseModel):
+    """La raíz con la que trabajaría el CLI; `None` si no hay ninguna elegida."""
+
+    repo: str | None
+    url: str
+
+
 class Evento(BaseModel):
     """El sobre del evento (F1): lo estable; `payload` es JSON libre."""
 
@@ -633,6 +662,120 @@ class Health(BaseModel):
     db_exists: bool
     journal_mode: str | None = None
     data_version: int | None = None
+
+
+class Tareas(BaseModel):
+    """Lo que el scan cuenta de las casillas de un Markdown."""
+
+    total: int
+    hechas: int
+
+
+class Titulo(BaseModel):
+    """Un título ATX, con su nivel y su línea (1-based)."""
+
+    nivel: int
+    texto: str
+    linea: int
+
+
+class FichaLegible(BaseModel):
+    """Un Markdown que el scan pudo leer."""
+
+    ruta: str
+    bytes: int
+    # El plan lo guarda como origen: es lo que hace idempotente el apply.
+    sha256: str
+    lineas: int
+    frontmatter: dict[str, str] | None
+    titulos: list[Titulo]
+    secciones: int
+    tareas: Tareas
+
+
+class FichaError(BaseModel):
+    """Un Markdown que no se pudo leer: se anota y el scan sigue."""
+
+    ruta: str
+    error: str
+
+
+# Las dos formas de una ficha del scan: legible o con su error.
+FichaScan = FichaLegible | FichaError
+
+
+class ResumenScan(BaseModel):
+    archivos: int
+    secciones: int
+    tareas: int
+
+
+class InformeScan(BaseModel):
+    """`eui migrate scan --json`: qué Markdown hay bajo la ruta y qué se reconoce."""
+
+    repo: str
+    ruta: str
+    archivos: list[FichaScan]
+    resumen: ResumenScan
+    recortado: bool
+
+
+class DocumentoPropuesto(BaseModel):
+    """Una entrada del manifiesto que propone `classify`, sin escribir nada."""
+
+    ruta: str
+    clase: str
+    motivo: str
+    destino: str
+
+
+class ResumenClasificacion(BaseModel):
+    documentos: int
+    mapa: int
+    referencia: int
+
+
+class InformeClasificacion(BaseModel):
+    """`eui migrate classify --json`: el manifiesto propuesto a partir del scan."""
+
+    repo: str
+    ruta: str
+    documentos: list[DocumentoPropuesto]
+    resumen: ResumenClasificacion
+    recortado: bool
+
+
+class CreacionPlan(BaseModel):
+    """Lo que `migrate check` dice que crearía de un ítem del plan."""
+
+    ref: str
+    title: str
+    status: str
+    origen: PlanOrigen
+
+
+class DocumentoPlan(BaseModel):
+    ruta: str
+    clase: str
+    destino: str
+
+
+class ResumenRevision(BaseModel):
+    items: int
+    archivos: int
+    refs: int
+
+
+class InformeRevision(BaseModel):
+    """`eui migrate check --json`: si el plan entra y qué haría."""
+
+    ok: bool
+    repo: str
+    plan: str
+    crear: list[CreacionPlan]
+    documentos: list[DocumentoPlan]
+    errores: list[str]
+    resumen: ResumenRevision
 
 
 # El repo viaja como query param y no como segmento de la URL: el selector de

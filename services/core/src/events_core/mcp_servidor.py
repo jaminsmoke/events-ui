@@ -27,7 +27,18 @@ from typing import Any
 from pydantic import TypeAdapter
 
 from . import __version__, cli, migracion
-from .contrato import MigracionAplicada, MigracionDeshecha, Repo, WorkItem, WorkItemResumen
+from .contrato import (
+    InformeClasificacion,
+    InformeDoctor,
+    InformeRevision,
+    InformeScan,
+    MigracionAplicada,
+    MigracionDeshecha,
+    Repo,
+    RepoActual,
+    WorkItem,
+    WorkItemResumen,
+)
 
 # Versiones del protocolo que este servidor entiende. Si el cliente pide otra,
 # se responde con la última: el cliente decide si sigue o se desconecta.
@@ -314,10 +325,12 @@ def _envoltura(clave: str, tipo: Any) -> dict[str, Any]:
 
 
 # Las herramientas cuyo `--json` es un modelo del contrato: el esquema sale del
-# modelo, así que no puede quedarse atrás. `doctor`, `repo_actual`,
-# `migrate_scan`, `migrate_classify` y `migrate_check` arman su JSON a mano y se
-# quedan sin `outputSchema` (ficha `19c47c02`).
+# modelo, así que no puede quedarse atrás. Las quince lo son: los informes de
+# `doctor`, `repo_actual`, `migrate_scan`, `migrate_classify` y `migrate_check`
+# también son modelos (ficha `19c47c02`).
 _SALIDAS: dict[str, dict[str, Any]] = {
+    "doctor": TypeAdapter(InformeDoctor).json_schema(),
+    "repo_actual": TypeAdapter(RepoActual).json_schema(),
     "repo_list": _envoltura("repos", list[Repo]),
     "item_list": _envoltura("items", list[WorkItemResumen] | list[WorkItem]),
     "item_get": TypeAdapter(WorkItem).json_schema(),
@@ -326,6 +339,9 @@ _SALIDAS: dict[str, dict[str, Any]] = {
     "item_move": TypeAdapter(WorkItem).json_schema(),
     "item_fases": TypeAdapter(WorkItem).json_schema(),
     "item_requisito": TypeAdapter(WorkItem).json_schema(),
+    "migrate_scan": TypeAdapter(InformeScan).json_schema(),
+    "migrate_classify": TypeAdapter(InformeClasificacion).json_schema(),
+    "migrate_check": TypeAdapter(InformeRevision).json_schema(),
     "migrate_apply": TypeAdapter(MigracionAplicada).json_schema(),
     "migrate_undo": TypeAdapter(MigracionDeshecha).json_schema(),
 }

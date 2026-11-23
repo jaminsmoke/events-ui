@@ -34,7 +34,7 @@ def test_escanear_reconoce_el_markdown(tmp_path) -> None:
     )
     archivo.write_text(texto, encoding="utf-8")
 
-    informe = migracion.escanear(tmp_path, "docs")
+    informe = migracion.escanear(tmp_path, "docs").model_dump()
 
     assert informe["ruta"] == "docs"
     assert informe["resumen"] == {"archivos": 1, "secciones": 1, "tareas": 2}
@@ -61,7 +61,7 @@ def test_scan_ignora_ruido_y_ordena(tmp_path) -> None:
         archivo.parent.mkdir(parents=True, exist_ok=True)
         archivo.write_text("# t\n", encoding="utf-8")
 
-    informe = migracion.escanear(tmp_path)
+    informe = migracion.escanear(tmp_path).model_dump()
 
     assert [ficha["ruta"] for ficha in informe["archivos"]] == ["a.md", "b.md", "z.markdown"]
 
@@ -69,7 +69,7 @@ def test_scan_ignora_ruido_y_ordena(tmp_path) -> None:
 def test_scan_de_un_archivo_suelto(tmp_path) -> None:
     (tmp_path / "uno.md").write_text("## Uno\n", encoding="utf-8")
 
-    informe = migracion.escanear(tmp_path, "uno.md")
+    informe = migracion.escanear(tmp_path, "uno.md").model_dump()
 
     assert informe["ruta"] == "uno.md"
     assert [ficha["ruta"] for ficha in informe["archivos"]] == ["uno.md"]
@@ -197,7 +197,7 @@ def test_plan_v2_acepta_los_cuatro_destinos(tmp_path) -> None:
         },
     ]
 
-    informe = migracion.revisar(tmp_path, plan)
+    informe = migracion.revisar(tmp_path, plan).model_dump()
 
     assert informe["ok"] is True
     assert {crear["status"] for crear in informe["crear"]} == {
@@ -212,7 +212,7 @@ def test_plan_v1_solo_admite_proposed(tmp_path) -> None:
     plan = _plan_valido(tmp_path)
     plan["ideas"][0]["status"] = "draft"
 
-    errores = migracion.revisar(tmp_path, plan)["errores"]
+    errores = migracion.revisar(tmp_path, plan).errores
 
     assert any("versión 1" in error and "version 2" in error for error in errores)
 
@@ -222,14 +222,14 @@ def test_rejected_exige_motivo_y_fecha_valida(tmp_path) -> None:
     plan["version"] = 2
     plan["ideas"][0]["status"] = "rejected"
 
-    assert any("motivo" in error for error in migracion.revisar(tmp_path, plan)["errores"])
+    assert any("motivo" in error for error in migracion.revisar(tmp_path, plan).errores)
 
     plan["ideas"][0]["motivo"] = "duplicada"
     plan["ideas"][0]["fecha"] = "ayer"
-    assert any("fecha inválida" in error for error in migracion.revisar(tmp_path, plan)["errores"])
+    assert any("fecha inválida" in error for error in migracion.revisar(tmp_path, plan).errores)
 
     plan["ideas"][0]["fecha"] = "2025-03-04"
-    assert migracion.revisar(tmp_path, plan)["ok"] is True
+    assert migracion.revisar(tmp_path, plan).ok is True
 
 
 def test_historial_no_lleva_fases_y_fecha_solo_en_archivo(tmp_path) -> None:
@@ -238,13 +238,13 @@ def test_historial_no_lleva_fases_y_fecha_solo_en_archivo(tmp_path) -> None:
     plan["ideas"][0]["status"] = "historial"
     plan["ideas"][0]["fases"] = [{"titulo": "A", "requisitos": [{"titulo": "B"}]}]
 
-    errores = migracion.revisar(tmp_path, plan)["errores"]
+    errores = migracion.revisar(tmp_path, plan).errores
     assert any("fases" in error for error in errores)
 
     plan["ideas"][0].pop("fases")
     plan["ideas"][0]["status"] = "proposed"
     plan["ideas"][0]["fecha"] = "2025-01-01"
-    assert any("fecha" in error for error in migracion.revisar(tmp_path, plan)["errores"])
+    assert any("fecha" in error for error in migracion.revisar(tmp_path, plan).errores)
 
 
 def _plan_valido(tmp_path, **cambios):
@@ -293,8 +293,30 @@ def test_validar_esquema_exige_titulo(tmp_path) -> None:
     assert any("ideas[0].title" in error and "falta" in error for error in errores)
 
 
+def test_validar_esquema_exige_items_o_ideas() -> None:
+    """El `anyOf` del plan se comprueba de verdad: sin ninguna de las dos, no pasa."""
+    errores = migracion.validar_esquema({"version": 3})
+
+    assert any("formas posibles" in error for error in errores)
+    # Las dos ramas siguen valiendo: la unión no rompe lo que ya pasaba.
+    assert not any("formas posibles" in error for error in migracion.validar_esquema({"ideas": []}))
+    assert not any("formas posibles" in error for error in migracion.validar_esquema({"items": []}))
+
+
+def test_validar_esquema_anyof_basta_una_rama() -> None:
+    esquema = {"anyOf": [{"type": "string"}, {"type": "integer"}]}
+
+    assert migracion.validar_esquema("hola", esquema) == []
+    assert migracion.validar_esquema(3, esquema) == []
+    # `True` no es un entero para el validador, y `None` no es ninguna de las dos.
+    assert migracion.validar_esquema(True, esquema) != []
+    assert migracion.validar_esquema(None, esquema) != []
+
+
 def test_check_plan_correcto(tmp_path) -> None:
-    informe = migracion.revisar(tmp_path, _plan_valido(tmp_path), plan_ruta="plan.json")
+    informe = migracion.revisar(
+        tmp_path, _plan_valido(tmp_path), plan_ruta="plan.json"
+    ).model_dump()
 
     assert informe["ok"] is True
     assert informe["errores"] == []
@@ -307,14 +329,14 @@ def test_check_ref_repetida(tmp_path) -> None:
     plan = _plan_valido(tmp_path)
     plan["ideas"].append({**plan["ideas"][0], "title": "Otra"})
 
-    informe = migracion.revisar(tmp_path, plan)
+    informe = migracion.revisar(tmp_path, plan).model_dump()
 
     assert informe["ok"] is False
     assert any("repetida" in error for error in informe["errores"])
 
 
 def test_check_dependencia_inexistente(tmp_path) -> None:
-    informe = migracion.revisar(tmp_path, _plan_valido(tmp_path, depende_de=["nadie"]))
+    informe = migracion.revisar(tmp_path, _plan_valido(tmp_path, depende_de=["nadie"])).model_dump()
 
     assert any("no existe el ítem" in error for error in informe["errores"])
 
@@ -326,7 +348,7 @@ def test_check_dependencia_circular(tmp_path) -> None:
     )
     plan["ideas"][0]["depende_de"] = ["idea-2"]
 
-    informe = migracion.revisar(tmp_path, plan)
+    informe = migracion.revisar(tmp_path, plan).model_dump()
 
     assert any("dependencia circular" in error for error in informe["errores"])
 
@@ -335,7 +357,7 @@ def test_check_hash_obsoleto(tmp_path) -> None:
     plan = _plan_valido(tmp_path)
     (tmp_path / "docs" / "backlog.md").write_text("# otro\n", encoding="utf-8")
 
-    informe = migracion.revisar(tmp_path, plan)
+    informe = migracion.revisar(tmp_path, plan).model_dump()
 
     assert any("cambió desde el scan" in error for error in informe["errores"])
 
@@ -344,7 +366,7 @@ def test_check_origen_fuera_del_repo(tmp_path) -> None:
     plan = _plan_valido(tmp_path)
     plan["ideas"][0]["origen"]["ruta"] = "../fuera.md"
 
-    informe = migracion.revisar(tmp_path, plan)
+    informe = migracion.revisar(tmp_path, plan).model_dump()
 
     assert any("dentro del repo" in error for error in informe["errores"])
 
@@ -353,7 +375,7 @@ def test_check_lineas_fuera_del_fichero(tmp_path) -> None:
     plan = _plan_valido(tmp_path)
     plan["ideas"][0]["origen"]["hasta_linea"] = 99
 
-    informe = migracion.revisar(tmp_path, plan)
+    informe = migracion.revisar(tmp_path, plan).model_dump()
 
     assert any("supera las" in error for error in informe["errores"])
 
@@ -362,7 +384,7 @@ def test_check_titulo_repetido_en_el_mismo_fichero(tmp_path) -> None:
     plan = _plan_valido(tmp_path)
     plan["ideas"].append({**plan["ideas"][0], "ref": "idea-2"})
 
-    informe = migracion.revisar(tmp_path, plan)
+    informe = migracion.revisar(tmp_path, plan).model_dump()
 
     assert any("ya sale en" in error for error in informe["errores"])
 
@@ -550,7 +572,7 @@ def test_classify_propone_mapa_y_referencia(tmp_path) -> None:
     (tmp_path / "README.md").write_text("# Hola\n\nTexto.\n", encoding="utf-8")
     (tmp_path / "notas.md").write_text("- [ ] tarea\n", encoding="utf-8")
 
-    informe = migracion.clasificar(tmp_path)
+    informe = migracion.clasificar(tmp_path).model_dump()
 
     por_ruta = {doc["ruta"]: doc for doc in informe["documentos"]}
     assert por_ruta["ROADMAP.md"]["clase"] == "mapa"
@@ -574,7 +596,7 @@ def test_cli_migrate_classify_y_alias_plan(tmp_path, capsys) -> None:
 
 
 def test_plan_v3_ok_con_documentos(tmp_path) -> None:
-    informe = migracion.revisar(tmp_path, _plan_v3(tmp_path))
+    informe = migracion.revisar(tmp_path, _plan_v3(tmp_path)).model_dump()
 
     assert informe["ok"] is True
     assert informe["documentos"] == [
@@ -586,7 +608,7 @@ def test_plan_v3_exige_documentos(tmp_path) -> None:
     plan = _plan_valido(tmp_path)
     plan["version"] = 3
 
-    errores = migracion.revisar(tmp_path, plan)["errores"]
+    errores = migracion.revisar(tmp_path, plan).errores
 
     assert any("documentos" in error and "versión 3" in error for error in errores)
 
@@ -595,7 +617,7 @@ def test_plan_v2_no_admite_documentos(tmp_path) -> None:
     plan = _plan_v3(tmp_path)
     plan["version"] = 2
 
-    errores = migracion.revisar(tmp_path, plan)["errores"]
+    errores = migracion.revisar(tmp_path, plan).errores
 
     assert any("documentos" in error and "version 3" in error for error in errores)
 
@@ -605,7 +627,7 @@ def test_check_rechaza_item_en_referencia(tmp_path) -> None:
     plan["documentos"][0]["clase"] = "referencia"
     plan["documentos"][0]["destino"] = "referencia"
 
-    errores = migracion.revisar(tmp_path, plan)["errores"]
+    errores = migracion.revisar(tmp_path, plan).errores
 
     assert any("referencia" in error and "mapa" in error for error in errores)
 
@@ -619,7 +641,7 @@ def test_check_exige_bloques_clasificados(tmp_path) -> None:
     )
     plan["ideas"][0]["origen"]["sha256"] = hashlib.sha256(archivo.read_bytes()).hexdigest()
 
-    errores = migracion.revisar(tmp_path, plan)["errores"]
+    errores = migracion.revisar(tmp_path, plan).errores
 
     assert any("bloques sin clasificar" in error for error in errores)
 
@@ -629,11 +651,11 @@ def test_parcial_exige_rangos_y_cubre_items(tmp_path) -> None:
     plan["documentos"][0]["clase"] = "parcial"
     plan["documentos"][0]["destino"] = "mapa"
 
-    assert any("rangos" in error for error in migracion.revisar(tmp_path, plan)["errores"])
+    assert any("rangos" in error for error in migracion.revisar(tmp_path, plan).errores)
 
     plan["documentos"][0]["rangos"] = [{"desde": 1, "hasta": 2}]
-    errores = migracion.revisar(tmp_path, plan)["errores"]
+    errores = migracion.revisar(tmp_path, plan).errores
     assert any("fuera de los rangos parciales" in error for error in errores)
 
     plan["documentos"][0]["rangos"] = [{"desde": 1, "hasta": 5}]
-    assert migracion.revisar(tmp_path, plan)["ok"] is True
+    assert migracion.revisar(tmp_path, plan).ok is True

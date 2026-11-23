@@ -24,6 +24,7 @@ from urllib.request import Request, urlopen
 
 from . import __version__, migracion
 from . import config as configuracion
+from .contrato import FichaError, InformeDoctor, RepoActual
 from .items.base.comun import InvalidInput
 from .items.base.rutas import resolve_repo
 
@@ -236,14 +237,13 @@ def _doctor(args: argparse.Namespace) -> int:
     ok = all(c["estado"] != "error" for c in comprobaciones)
 
     if args.json:
+        # El modelo es la única definición de la salida: el MCP publica su
+        # esquema, así que `doctor` y `tools/call` no pueden separarse.
         print(
             json.dumps(
-                {
-                    "ok": ok,
-                    "url": url,
-                    "version": __version__,
-                    "comprobaciones": comprobaciones,
-                },
+                InformeDoctor(
+                    ok=ok, url=url, version=__version__, comprobaciones=comprobaciones
+                ).model_dump(),
                 # ASCII a propósito: un agente lo lee igual con cualquier
                 # consola (cp1252 en Windows) sin pelearse con los acentos.
             )
@@ -326,7 +326,7 @@ def _repo(args: argparse.Namespace) -> int:
     except InvalidInput as exc:
         return _error(str(exc))
     if args.json:
-        print(json.dumps({"repo": raiz, "url": url}))
+        print(json.dumps(RepoActual(repo=raiz, url=url).model_dump()))
     else:
         print(raiz or "(sin definir: elige una carpeta en la app o `eui config set repo <ruta>`)")
     return 0 if raiz else 1
@@ -617,31 +617,28 @@ def _migrar_scan(args: argparse.Namespace) -> int:
         return _error(str(exc), 1)
 
     if args.json:
-        print(json.dumps(informe))
+        print(json.dumps(informe.model_dump()))
         return 0
 
-    print(f"repo: {informe['repo']}")
-    print(f"ruta: {informe['ruta']}")
-    if not informe["archivos"]:
+    print(f"repo: {informe.repo}")
+    print(f"ruta: {informe.ruta}")
+    if not informe.archivos:
         print("(no hay Markdown)")
         return 0
-    for ficha in informe["archivos"]:
-        if "error" in ficha:
-            print(f"{ficha['ruta']}  error: {ficha['error']}")
+    for ficha in informe.archivos:
+        if isinstance(ficha, FichaError):
+            print(f"{ficha.ruta}  error: {ficha.error}")
             continue
-        tareas = ficha["tareas"]
+        tareas = ficha.tareas
         print(
-            f"{ficha['ruta']}  {ficha['secciones']} secciones · "
-            f"{tareas['total']} tareas ({tareas['hechas']} hechas) · "
-            f"{ficha['bytes']} B"
+            f"{ficha.ruta}  {ficha.secciones} secciones · "
+            f"{tareas.total} tareas ({tareas.hechas} hechas) · "
+            f"{ficha.bytes} B"
         )
-    resumen = informe["resumen"]
+    resumen = informe.resumen
     print()
-    print(
-        f"{resumen['archivos']} archivos · {resumen['secciones']} secciones · "
-        f"{resumen['tareas']} tareas"
-    )
-    if informe["recortado"]:
+    print(f"{resumen.archivos} archivos · {resumen.secciones} secciones · {resumen.tareas} tareas")
+    if informe.recortado:
         print(f"(recortado a {migracion.MAX_ARCHIVOS} archivos)")
     return 0
 
@@ -665,26 +662,22 @@ def _migrar_classify(args: argparse.Namespace) -> int:
         return _error(str(exc), 1)
 
     if args.json:
-        print(json.dumps(informe))
+        print(json.dumps(informe.model_dump()))
         return 0
 
-    print(f"repo: {informe['repo']}")
-    print(f"ruta: {informe['ruta']}")
-    if not informe["documentos"]:
+    print(f"repo: {informe.repo}")
+    print(f"ruta: {informe.ruta}")
+    if not informe.documentos:
         print("(no hay Markdown que clasificar)")
         return 0
-    for documento in informe["documentos"]:
-        print(
-            f"{documento['ruta']}  {documento['clase']} → {documento['destino']}  "
-            f"{documento['motivo']}"
-        )
-    resumen = informe["resumen"]
+    for documento in informe.documentos:
+        print(f"{documento.ruta}  {documento.clase} → {documento.destino}  {documento.motivo}")
+    resumen = informe.resumen
     print()
     print(
-        f"{resumen['documentos']} documentos · {resumen['mapa']} mapa · "
-        f"{resumen['referencia']} referencia"
+        f"{resumen.documentos} documentos · {resumen.mapa} mapa · {resumen.referencia} referencia"
     )
-    if informe["recortado"]:
+    if informe.recortado:
         print(f"(recortado a {migracion.MAX_ARCHIVOS} archivos)")
     return 0
 
@@ -710,27 +703,27 @@ def _migrar_check(args: argparse.Namespace) -> int:
     informe = migracion.revisar(Path(raiz), plan, plan_ruta=str(args.plan))
 
     if args.json:
-        print(json.dumps(informe))
-        return 0 if informe["ok"] else 1
+        print(json.dumps(informe.model_dump()))
+        return 0 if informe.ok else 1
 
-    print(f"plan: {informe['plan']}")
-    print(f"repo: {informe['repo']}")
-    for documento in informe.get("documentos") or []:
-        print(f"· {documento['ruta']}  {documento['clase']} → {documento['destino']}")
-    for item in informe["crear"]:
-        origen = item["origen"]
+    print(f"plan: {informe.plan}")
+    print(f"repo: {informe.repo}")
+    for documento in informe.documentos:
+        print(f"· {documento.ruta}  {documento.clase} → {documento.destino}")
+    for item in informe.crear:
+        origen = item.origen
         print(
-            f"+ {item['title']}  [{item['ref']}]  {item.get('status', 'proposed')}  "
-            f"{origen['ruta']}:{origen['desde_linea']}-{origen['hasta_linea']}"
+            f"+ {item.title}  [{item.ref}]  {item.status}  "
+            f"{origen.ruta}:{origen.desde_linea}-{origen.hasta_linea}"
         )
-    resumen = informe["resumen"]
-    print(f"{resumen['items']} items · {resumen['archivos']} archivos · {resumen['refs']} refs")
-    if informe["ok"]:
+    resumen = informe.resumen
+    print(f"{resumen.items} items · {resumen.archivos} archivos · {resumen.refs} refs")
+    if informe.ok:
         print("plan válido: se aplicaría como un lote")
         return 0
-    for error in informe["errores"]:
+    for error in informe.errores:
         print(f"error  {error}", file=sys.stderr)
-    print(f"{len(informe['errores'])} problemas: no se aplicaría", file=sys.stderr)
+    print(f"{len(informe.errores)} problemas: no se aplicaría", file=sys.stderr)
     return 1
 
 
@@ -754,10 +747,10 @@ def _migrar_apply(args: argparse.Namespace) -> int:
 
     # Validar aquí falla rápido y no manda al core un plan que no va a entrar.
     informe = migracion.revisar(Path(raiz), plan, plan_ruta=str(args.plan))
-    if not informe["ok"]:
-        for error in informe["errores"]:
+    if not informe.ok:
+        for error in informe.errores:
             print(f"error  {error}", file=sys.stderr)
-        return _error(f"{len(informe['errores'])} problemas: no se aplica nada", 1)
+        return _error(f"{len(informe.errores)} problemas: no se aplica nada", 1)
 
     _, url = _contexto(args)
     destino = f"{url}/migracion/aplicar?repo={quote(raiz, safe='')}"

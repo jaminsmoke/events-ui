@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import sys
@@ -425,22 +426,118 @@ def test_item_get_devuelve_structured_content_y_su_esquema(monkeypatch) -> None:
     assert migracion.validar_esquema(roto, esquema) != []
 
 
-def test_doctor_devuelve_structured_content_sin_output_schema(monkeypatch) -> None:
-    """`doctor` arma su JSON a mano: estructura sí, esquema no (ficha 19c47c02)."""
-    informe = {"ok": True, "url": "http://127.0.0.1:1", "version": "0.0.0", "comprobaciones": []}
-
-    def falso(_argv):  # noqa: ANN001, ANN202
-        print(json.dumps(informe))
-        return 0
-
-    monkeypatch.setattr(mcp_servidor.cli, "main", falso)
-
-    resultado = mcp_servidor.manejar(_peticion("tools/call", {"name": "doctor", "arguments": {}}))[
-        "result"
+def test_todas_las_herramientas_publican_su_salida() -> None:
+    """Las quince herramientas anuncian `outputSchema`: su `--json` es un modelo."""
+    herramientas = mcp_servidor.manejar(_peticion("tools/list"), permitir_escritura=True)["result"][
+        "tools"
     ]
 
-    assert resultado["structuredContent"] == informe
-    assert "outputSchema" not in _herramienta("doctor")
+    assert len(herramientas) == len(mcp_servidor.HERRAMIENTAS) == 15
+    for herramienta in herramientas:
+        esquema = herramienta["outputSchema"]
+        assert esquema["type"] == "object", herramienta["name"]
+        assert esquema.get("properties"), herramienta["name"]
+
+
+def _salida_validada(nombre: str, resultado: dict) -> dict:
+    """El `structuredContent` de una llamada, contra el `outputSchema` publicado."""
+    assert resultado.get("isError") is None, resultado
+    estructura = resultado["structuredContent"]
+    assert migracion.validar_esquema(estructura, _herramienta(nombre)["outputSchema"]) == []
+    return estructura
+
+
+def test_doctor_devuelve_structured_content_validado(monkeypatch, tmp_path) -> None:
+    """`doctor` con un core falso: su informe cumple el esquema que publica."""
+    monkeypatch.setattr(
+        mcp_servidor.cli,
+        "_health",
+        lambda _url: ({"version": mcp_servidor.__version__, "status": "ok"}, None),
+    )
+
+    resultado = mcp_servidor.manejar(
+        _peticion("tools/call", {"name": "doctor", "arguments": {"repo": str(tmp_path)}})
+    )["result"]
+
+    estructura = _salida_validada("doctor", resultado)
+    assert estructura["version"] == mcp_servidor.__version__
+    assert any(
+        comprobacion["nombre"] == "conexión" and comprobacion["estado"] == "ok"
+        for comprobacion in estructura["comprobaciones"]
+    )
+
+
+def test_repo_actual_devuelve_structured_content_validado(tmp_path) -> None:
+    resultado = mcp_servidor.manejar(
+        _peticion("tools/call", {"name": "repo_actual", "arguments": {"repo": str(tmp_path)}})
+    )["result"]
+
+    estructura = _salida_validada("repo_actual", resultado)
+    assert estructura["repo"] == str(tmp_path.resolve())
+    assert estructura["url"].startswith("http://127.0.0.1:")
+
+
+def test_migrate_scan_devuelve_structured_content_validado(tmp_path) -> None:
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "backlog.md").write_text(
+        "# Backlog\n\n## Ideas\n\n- [ ] una\n", encoding="utf-8"
+    )
+
+    resultado = mcp_servidor.manejar(
+        _peticion("tools/call", {"name": "migrate_scan", "arguments": {"repo": str(tmp_path)}})
+    )["result"]
+
+    estructura = _salida_validada("migrate_scan", resultado)
+    assert [ficha["ruta"] for ficha in estructura["archivos"]] == ["docs/backlog.md"]
+    assert estructura["resumen"]["tareas"] == 1
+
+
+def test_migrate_classify_devuelve_structured_content_validado(tmp_path) -> None:
+    (tmp_path / "ROADMAP.md").write_text("# ROADMAP\n\n## Ideas\n\n- [ ] una\n", encoding="utf-8")
+
+    resultado = mcp_servidor.manejar(
+        _peticion("tools/call", {"name": "migrate_classify", "arguments": {"repo": str(tmp_path)}})
+    )["result"]
+
+    estructura = _salida_validada("migrate_classify", resultado)
+    assert estructura["resumen"]["documentos"] == len(estructura["documentos"]) == 1
+    assert estructura["documentos"][0]["clase"] == "mapa"
+
+
+def test_migrate_check_devuelve_structured_content_validado(tmp_path) -> None:
+    documento = tmp_path / "docs" / "backlog.md"
+    documento.parent.mkdir()
+    documento.write_text("# Backlog\n\n## Idea uno\n\n- [ ] hacer algo\n", encoding="utf-8")
+    plan = {
+        "version": 1,
+        "ideas": [
+            {
+                "ref": "idea-1",
+                "title": "Idea uno",
+                "status": "proposed",
+                "origen": {
+                    "ruta": "docs/backlog.md",
+                    "desde_linea": 3,
+                    "hasta_linea": 5,
+                    "sha256": hashlib.sha256(documento.read_bytes()).hexdigest(),
+                },
+            }
+        ],
+    }
+    ruta_plan = tmp_path / "plan.json"
+    ruta_plan.write_text(json.dumps(plan), encoding="utf-8")
+
+    resultado = mcp_servidor.manejar(
+        _peticion(
+            "tools/call",
+            {"name": "migrate_check", "arguments": {"repo": str(tmp_path), "plan": str(ruta_plan)}},
+        )
+    )["result"]
+
+    estructura = _salida_validada("migrate_check", resultado)
+    assert estructura["ok"] is True
+    assert estructura["errores"] == []
+    assert [item["ref"] for item in estructura["crear"]] == ["idea-1"]
 
 
 def test_un_fallo_no_lleva_structured_content(monkeypatch) -> None:

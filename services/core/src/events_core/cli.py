@@ -373,6 +373,9 @@ def _idea(args: argparse.Namespace) -> int:
         parametros["status"] = args.status
     if args.kind:
         parametros["kind"] = args.kind
+    # El listado es un resumen; el cuerpo se pide a propósito, como en la API.
+    if getattr(args, "incluir", None):
+        parametros["incluir"] = args.incluir
     datos, detalle, estado = _get(f"{url}/ideas?{urlencode(parametros)}")
     if detalle:
         return _fallo(detalle, estado)
@@ -970,6 +973,11 @@ def _parser() -> argparse.ArgumentParser:
     listar = acciones_idea.add_parser("list", help="Lista las ideas del mapa")
     listar.add_argument("--status")
     listar.add_argument("--kind")
+    listar.add_argument(
+        "--incluir",
+        choices=["contenido"],
+        help="El cuerpo Markdown de cada fila; por defecto, el listado es un resumen",
+    )
     listar.add_argument("--limit", type=int, default=100)
     listar.add_argument("--offset", type=int, default=0)
     listar.add_argument("--json", action="store_true")

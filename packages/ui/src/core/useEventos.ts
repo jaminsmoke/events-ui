@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { API_BASE } from "./api";
 import type { Evento } from "./api";
@@ -58,9 +58,17 @@ export function resumenEvento(evento: Evento): string {
  *  Un vaciado del almacén (`/reiniciar`) borra el log y los `id:` vuelven a
  *  empezar; el core rebobina su cursor con la misma regla. Aquí la lista se
  *  reinicia igual: un frame que no crece respecto al último es un log nuevo,
- *  no una continuación. Sin repo no hay stream.
+ *  no una continuación. Ese caso cubre el vaciado que no pasa por la ventana
+ *  (CLI, MCP, otro cliente); el que sí pasa por aquí se vacía al momento con
+ *  `limpiar()`, que es lo que llama `App` tras reiniciar: sin eventos nuevos
+ *  el panel enseñaría las filas del almacén que ya no existe. Sin repo no hay
+ *  stream.
  */
-export function useEventos(repo: string | null): { eventos: Evento[]; conectado: boolean } {
+export function useEventos(repo: string | null): {
+  eventos: Evento[];
+  conectado: boolean;
+  limpiar: () => void;
+} {
   // El estado se resetea al cambiar de repo (verificado por repo en el render,
   // sin seteo en el efecto).
   const [estado, setEstado] = useState<{ repo: string | null; eventos: Evento[] }>({
@@ -92,6 +100,13 @@ export function useEventos(repo: string | null): { eventos: Evento[]; conectado:
     return () => fuente.close();
   }, [repo]);
 
+  // El vaciado que hace la propia ventana se cobra al momento: la regla del
+  // stream esperaría al primer evento del log nuevo, y con el log vacío no
+  // llega ninguno.
+  const limpiar = useCallback(() => {
+    setEstado((previo) => ({ repo: previo.repo, eventos: [] }));
+  }, []);
+
   const eventos = estado.repo === repo ? estado.eventos : [];
-  return { eventos, conectado: conectado && repo !== null };
+  return { eventos, conectado: conectado && repo !== null, limpiar };
 }

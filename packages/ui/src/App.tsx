@@ -262,7 +262,7 @@ export default function App({
     };
   }, [ideas, quemas]);
   // F1: el log del repo en vivo (cada `EUI_DATABASE` lleva el suyo).
-  const { eventos, conectado } = useEventos(repo);
+  const { eventos, conectado, limpiar: limpiarLog } = useEventos(repo);
   // Los protocolos de flujo: las uniones permitidas entre carriles. La fila
   // no ofrece traslados prohibidos; el core los rechaza si llegan igual.
   const { puedeIr, exigeFases, exigeFasesListas, exigeFasesCompletas, paso } = useProtocolos(repo);
@@ -280,6 +280,7 @@ export default function App({
     void reiniciar().then(
       () => {
         soltar(repo, pendiente.ejecucion);
+        limpiarLog();
         setAvisoRecuperacion("Se cerró la app durante una prueba: el laboratorio quedó vacío.");
       },
       (err: unknown) => {
@@ -288,7 +289,7 @@ export default function App({
         );
       },
     );
-  }, [repo, puedeProbar, proyeccion?.laboratorio, reiniciar]);
+  }, [repo, puedeProbar, proyeccion?.laboratorio, reiniciar, limpiarLog]);
 
   // Avisos del sistema (F3): solo eventos *nuevos* (ids por encima del último
   // visto) y solo si el usuario lo quiere ver; el primer lote del SSE es el
@@ -737,7 +738,10 @@ export default function App({
           abrirMapa={setMapa}
           commit={commit}
           cambios={proyeccion?.git_cambios.length ?? 0}
-          reiniciar={reiniciar}
+          reiniciar={async () => {
+            await reiniciar();
+            limpiarLog();
+          }}
           onCerrar={() => setPruebasAbiertas(false)}
         />
       )}

@@ -1088,9 +1088,7 @@ def revisar_absorcion(raiz: Path, lote: str, *, parcial: bool = False) -> dict[s
     errores = [error for archivo in archivos for error in archivo["errores"]]
     avisos = [aviso for archivo in archivos for aviso in archivo["avisos"]]
     huecos = [hueco for archivo in archivos for hueco in archivo["sin_migrar"]]
-    marcadores = [
-        marcador for archivo in archivos for marcador in archivo.get("marcadores", [])
-    ]
+    marcadores = [marcador for archivo in archivos for marcador in archivo.get("marcadores", [])]
     if parcial:
         ok = bool(archivos) and not errores and bool(marcadores)
     else:
@@ -1269,10 +1267,11 @@ def _informe_archivo(
 def _marcadores_del_lote(ruta: str, filas_lote: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Un marcador visible por idea del lote, con su rango 1-based."""
     marcadores: list[dict[str, Any]] = []
-    for fila in sorted(
-        filas_lote,
-        key=lambda item: (int(item["desde_linea"]), int(item["hasta_linea"]), str(item["idea_uid"])),
-    ):
+
+    def _clave_rango(item: dict[str, Any]) -> tuple[int, int, str]:
+        return (int(item["desde_linea"]), int(item["hasta_linea"]), str(item["idea_uid"]))
+
+    for fila in sorted(filas_lote, key=_clave_rango):
         uid = str(fila["idea_uid"])
         titulo = str(fila["title"]).strip() or uid
         desde = int(fila["desde_linea"])

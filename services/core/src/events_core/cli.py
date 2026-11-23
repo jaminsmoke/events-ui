@@ -814,7 +814,8 @@ def _migrar_absorb(args: argparse.Namespace) -> int:
         return 0 if informe["ok"] else 1
 
     print(f"repo: {informe['repo']}")
-    print(f"lote: {informe['lote']} · {informe['plan_sha256']} · modo {informe.get('modo', 'total')}")
+    modo = informe.get("modo", "total")
+    print(f"lote: {informe['lote']} · {informe['plan_sha256']} · modo {modo}")
     for archivo in informe["archivos"]:
         print(
             f"{archivo['ruta']}  {archivo['cubiertos']}/{archivo['bloques']} bloques · "
@@ -826,9 +827,7 @@ def _migrar_absorb(args: argparse.Namespace) -> int:
         if parcial:
             print("  reescritura: marcadores [eui:<uid>] por cada rango del lote")
             for marcador in archivo.get("marcadores", [])[:10]:
-                print(
-                    f"  L{marcador['desde']}-{marcador['hasta']}: {marcador['marcador']}"
-                )
+                print(f"  L{marcador['desde']}-{marcador['hasta']}: {marcador['marcador']}")
         else:
             print("  retirada: se elimina el original")
         for hueco in archivo["sin_migrar"][:10]:

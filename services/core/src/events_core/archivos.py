@@ -57,6 +57,8 @@ def _git(carpeta: Path, *args: str) -> subprocess.CompletedProcess[str] | None:
         salida = proceso.run(
             ["git", "-C", str(carpeta), *args],
             capture_output=True,
+            # El texto sale en UTF-8: `proceso.run` ya lo fija, que es donde
+            # estaba el mojibake (cp1252) en todas las copias de `_git`.
             text=True,
             timeout=15,
         )

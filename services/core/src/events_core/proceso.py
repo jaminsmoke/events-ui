@@ -21,7 +21,17 @@ _SIN_VENTANA = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
 
 def run(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[Any]:
-    """Igual que `subprocess.run`, ocultando la consola del hijo en Windows."""
+    """Igual que `subprocess.run`, ocultando la consola del hijo en Windows.
+
+    En modo texto fija UTF-8: los hijos que se leen como texto son Git, que
+    emite UTF-8 también en Windows. Sin `encoding`, `subprocess` decodifica con
+    la del sistema (cp1252) y los acentos llegan rotos (`Ã¡` por `á`, o una ruta
+    que no existe en disco). El `replace` evita que un byte suelto tumbe la
+    lectura. Un llamador puede pedir otra cosa y se respeta.
+    """
     if _SIN_VENTANA and "creationflags" not in kwargs:
         kwargs["creationflags"] = _SIN_VENTANA
+    if (kwargs.get("text") or kwargs.get("universal_newlines")) and "encoding" not in kwargs:
+        kwargs["encoding"] = "utf-8"
+        kwargs.setdefault("errors", "replace")
     return subprocess.run(args, **kwargs)

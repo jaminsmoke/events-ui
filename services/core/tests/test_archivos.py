@@ -599,3 +599,46 @@ def test_el_presupuesto_corta_la_anotacion_y_deja_aviso(client, tmp_path, monkey
     assert fase["archivos"] == []
     # El aviso lleva el uid y el evento que se quedó sin lista.
     assert any(nivel == "aviso" and uid in texto and "fase 1" in texto for nivel, texto in avisos)
+
+
+@pytest.mark.skipif(GIT is None, reason="git no está instalado")
+def test_el_parche_guarda_los_acentos_tal_cual(client, tmp_path):  # noqa: ANN001, ANN202
+    """Git emite UTF-8: decodificarlo en cp1252 guardaría `Ã¡` donde había `á`."""
+    carpeta = tmp_path / "acentos"
+    carpeta.mkdir()
+    (carpeta / "base.txt").write_text("uno\n", encoding="utf-8")
+    _git(carpeta, "init", "-b", "main")
+    _git(carpeta, "config", "user.email", "test@example.com")
+    _git(carpeta, "config", "user.name", "Test")
+    _git(carpeta, "add", "-A")
+    _git(carpeta, "commit", "-m", "inicial")
+    uid = _en_roadmap(client, carpeta)
+
+    (carpeta / "base.txt").write_text("uno\nárbol\n", encoding="utf-8")
+    fase = _cerrar(client, carpeta, uid)
+
+    parche = fase["archivos"][0]["contenido"] or ""
+    assert "árbol" in parche
+    assert "Ã¡" not in parche
+
+
+@pytest.mark.skipif(GIT is None, reason="git no está instalado")
+def test_un_nombre_con_acento_se_anota_con_su_ruta_real(client, tmp_path):  # noqa: ANN001, ANN202
+    """Una ruta mojibake no existe en disco: el archivo nuevo se perdería."""
+    carpeta = tmp_path / "nombres"
+    carpeta.mkdir()
+    (carpeta / "base.txt").write_text("uno\n", encoding="utf-8")
+    _git(carpeta, "init", "-b", "main")
+    _git(carpeta, "config", "user.email", "test@example.com")
+    _git(carpeta, "config", "user.name", "Test")
+    _git(carpeta, "add", "-A")
+    _git(carpeta, "commit", "-m", "inicial")
+    uid = _en_roadmap(client, carpeta)
+
+    (carpeta / "diseño.md").write_text("# canción\n", encoding="utf-8")
+    fase = _cerrar(client, carpeta, uid)
+
+    por_ruta = {archivo["ruta"]: archivo for archivo in fase["archivos"]}
+    assert list(por_ruta) == ["diseño.md"]
+    assert por_ruta["diseño.md"]["estado"] == "nuevo"
+    assert "canción" in (por_ruta["diseño.md"]["contenido"] or "")

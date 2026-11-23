@@ -447,3 +447,17 @@ def test_sin_git_la_proyeccion_no_sabe_si_el_almacen_se_versiona(client, tmp_pat
     carpeta.mkdir()
 
     assert _proyeccion(client, carpeta)["eui_ignorado"] is None
+
+
+def test_un_repo_con_acento_en_la_ruta_se_detecta(client, tmp_path):  # noqa: ANN001, ANN202
+    """`rev-parse` da la ruta en UTF-8: decodificada en cp1252 no era la del disco."""
+    carpeta = tmp_path / "laboratorio año"
+    _inicializar(carpeta)
+    (carpeta / "base.txt").write_text("uno\n", encoding="utf-8")
+    _git(carpeta, "add", "-A")
+    _git(carpeta, "commit", "-m", "inicial")
+
+    datos = _proyeccion(client, carpeta)
+
+    assert datos["git"] is True
+    assert Path(datos["git_root"]).name == "laboratorio año"

@@ -60,7 +60,7 @@ def test_aplicar_crea_el_lote_completo(client, tmp_path) -> None:
     assert respuesta.status_code == 200, respuesta.text
     datos = respuesta.json()
     assert datos["repetido"] is False
-    assert datos["ideas"] == 2
+    assert datos["items"] == 2
     uids = {creada["ref"]: creada["uid"] for creada in datos["creadas"]}
 
     primera = client.get(f"/items/{uids['uno']}", params={"repo": str(tmp_path)}).json()

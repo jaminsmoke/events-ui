@@ -126,12 +126,13 @@ def test_cli_migrate_ruta_invalida(tmp_path, capsys) -> None:
 
 def test_esquema_del_plan_cierra_lo_que_no_se_negocia() -> None:
     esquema = migracion.ESQUEMA_PLAN
-    item = esquema["$defs"]["idea"]
+    item = esquema["$defs"]["work_item"]
     origen = esquema["$defs"]["origen"]
     documento = esquema["$defs"]["documento"]
 
     assert esquema["$id"] == "urn:events-ui:plan-migracion:1"
-    assert set(esquema["required"]) == {"version", "ideas"}
+    assert set(esquema["required"]) == {"version"}
+    assert esquema["anyOf"] == [{"required": ["items"]}, {"required": ["ideas"]}]
     assert esquema["properties"]["version"]["enum"] == [1, 2, 3]
     assert item["required"] == ["ref", "title", "origen"]
     assert set(item["properties"]["status"]["enum"]) == {
@@ -164,7 +165,7 @@ def test_cli_schema_migrate_en_una_linea(capsys) -> None:
     assert cli.main(["schema", "migrate"]) == 0
     salida = capsys.readouterr().out.strip()
     assert "\n" not in salida
-    assert set(json.loads(salida)["$defs"]["idea"]["properties"]["status"]["enum"]) == {
+    assert set(json.loads(salida)["$defs"]["work_item"]["properties"]["status"]["enum"]) == {
         "proposed",
         "draft",
         "historial",
@@ -299,7 +300,7 @@ def test_check_plan_correcto(tmp_path) -> None:
     assert informe["errores"] == []
     assert informe["repo"] == str(tmp_path.resolve())
     assert [item["ref"] for item in informe["crear"]] == ["idea-1"]
-    assert informe["resumen"] == {"ideas": 1, "archivos": 1, "refs": 1}
+    assert informe["resumen"] == {"items": 1, "archivos": 1, "refs": 1}
 
 
 def test_check_ref_repetida(tmp_path) -> None:
@@ -432,7 +433,7 @@ def test_cli_migrate_apply_envia_el_plan(tmp_path, capsys, monkeypatch) -> None:
                 "lote": "lote-1",
                 "plan_sha256": "x",
                 "repetido": False,
-                "ideas": 1,
+                "items": 1,
                 "creadas": [{"ref": "idea-1", "uid": "u1"}],
             },
             None,
@@ -446,6 +447,8 @@ def test_cli_migrate_apply_envia_el_plan(tmp_path, capsys, monkeypatch) -> None:
     assert "lote-1" in salida
     assert "u1" in salida
     assert "/migracion/aplicar" in visto["url"]
+    # El fichero del plan usa el nombre viejo: el CLI lo envía tal cual y el
+    # core lo acepta por el alias.
     assert visto["datos"]["ideas"][0]["ref"] == "idea-1"
 
 
@@ -514,7 +517,7 @@ def test_cli_migrate_apply_repetido_lo_dice(tmp_path, capsys, monkeypatch) -> No
                 "lote": "lote-1",
                 "plan_sha256": "x",
                 "repetido": True,
-                "ideas": 1,
+                "items": 1,
                 "creadas": [],
             },
             None,

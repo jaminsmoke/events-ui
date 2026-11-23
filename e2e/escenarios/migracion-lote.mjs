@@ -74,7 +74,8 @@ export default {
 
     const aplicado = JSON.parse(cli(["migrate", "apply", planPath]));
     expect(aplicado.repetido === false, `el primer apply no creó lote: ${JSON.stringify(aplicado)}`);
-    expect(aplicado.ideas === 2, `el lote no trajo dos ideas: ${JSON.stringify(aplicado)}`);
+    // El plan va con el nombre viejo (`ideas`) a propósito: el core lo acepta.
+    expect(aplicado.items === 2, `el lote no trajo dos ideas: ${JSON.stringify(aplicado)}`);
 
     const repetido = JSON.parse(cli(["migrate", "apply", planPath]));
     expect(repetido.repetido === true, "repetir el plan no devolvió un lote repetido");

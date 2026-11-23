@@ -17,7 +17,7 @@ def test_un_post_de_otra_web_no_se_ejecuta(client, repo):  # noqa: ANN001, ANN20
 
     assert r.status_code == 403, r.json()
     assert r.json() == {"detail": "origen no permitido"}
-    assert client.get("/mapa", params={"repo": repo}).json() == {"ideas": []}
+    assert client.get("/mapa", params={"repo": repo}).json() == {"items": []}
 
 
 def test_la_ui_de_dev_si_puede(client, repo):  # noqa: ANN001, ANN202

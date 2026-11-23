@@ -141,7 +141,8 @@ se puede pedir porque la 0036 lo convirtió en el almacén.
 
 `idea` sigue en el repositorio como historia y como lectura: las migraciones
 `0001`–`0036`, los tipos históricos `adr`/`note` (y el `idea` de los almacenes
-anteriores), la clave `ideas` del plan v1-v3 y de `MapSnapshot`, y los eventos
+anteriores), la clave `ideas` que trae un plan v1-v3 guardado —el contrato la
+acepta como alias de `items` y escribe siempre `items`—, y los eventos
 `idea.*` que ya estén escritos en un log (el lector los pinta y filtra junto a
 los `item.*`).
 

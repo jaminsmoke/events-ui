@@ -724,7 +724,7 @@ def _migrar_check(args: argparse.Namespace) -> int:
             f"{origen['ruta']}:{origen['desde_linea']}-{origen['hasta_linea']}"
         )
     resumen = informe["resumen"]
-    print(f"{resumen['ideas']} items · {resumen['archivos']} archivos · {resumen['refs']} refs")
+    print(f"{resumen['items']} items · {resumen['archivos']} archivos · {resumen['refs']} refs")
     if informe["ok"]:
         print("plan válido: se aplicaría como un lote")
         return 0
@@ -771,7 +771,7 @@ def _migrar_apply(args: argparse.Namespace) -> int:
     if datos["repetido"]:
         print(f"el plan ya se aplicó como lote {datos['lote']}: no se crea nada")
         return 0
-    print(f"lote {datos['lote']}: {datos['ideas']} items creadas")
+    print(f"lote {datos['lote']}: {datos['items']} items creadas")
     for creada in datos["creadas"]:
         print(f"  {creada['ref']}  {creada['uid']}")
     return 0
@@ -838,7 +838,7 @@ def _migrar_absorb(args: argparse.Namespace) -> int:
     for archivo in informe["archivos"]:
         print(
             f"{archivo['ruta']}  {archivo['cubiertos']}/{archivo['bloques']} bloques · "
-            f"{archivo['ideas_lote']} del lote · {archivo['ideas_fichero']} en total"
+            f"{archivo['items_lote']} del lote · {archivo['items_fichero']} en total"
         )
         print(f"  hash: {'ok' if archivo['hash_ok'] else 'no cuadra'}")
         if archivo["copia"]:
@@ -856,7 +856,7 @@ def _migrar_absorb(args: argparse.Namespace) -> int:
 
     resumen = informe["resumen"]
     print(
-        f"{resumen['archivos']} archivos · {resumen['ideas_lote']} items del lote · "
+        f"{resumen['archivos']} archivos · {resumen['items_lote']} items del lote · "
         f"{resumen['cubiertos']}/{resumen['bloques']} bloques cubiertos"
     )
     if informe["ok"] and args.confirmar:

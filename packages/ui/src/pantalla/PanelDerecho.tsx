@@ -204,7 +204,7 @@ function CuerpoResumen({
 
           <div className="resumen-cifras">
             <div className="resumen-cifra">
-              <strong>{proyeccion.ideas}</strong>
+              <strong>{proyeccion.items}</strong>
               <span>ítems</span>
             </div>
             <div className="resumen-cifra">

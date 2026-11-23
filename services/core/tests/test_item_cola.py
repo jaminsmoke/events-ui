@@ -90,7 +90,7 @@ def _esquema_inicial(conn: sqlite3.Connection) -> None:
 def _comprobar_historico(client, repo):  # noqa: ANN001, ANN202
     r = client.get("/mapa", params={"repo": repo})  # <- migra aquí
     assert r.status_code == 200
-    ideas_mapa = {i["uid"]: i for i in r.json()["ideas"]}
+    ideas_mapa = {i["uid"]: i for i in r.json()["items"]}
     assert ideas_mapa["vieja"]["status"] == "proposed"
     assert ideas_mapa["hija"]["status"] == "draft"
     assert ideas_mapa["aceptada"]["status"] == "historial"
@@ -143,7 +143,7 @@ def test_tipos_historicos_se_leen_sin_romper(client, repo):  # noqa: ANN001, ANN
 
     mapa = client.get("/mapa", params={"repo": repo})
     assert mapa.status_code == 200, mapa.json()
-    assert {i["uid"]: i["status"] for i in mapa.json()["ideas"]} == {
+    assert {i["uid"]: i["status"] for i in mapa.json()["items"]} == {
         "adr-1": "draft",
         "nota-1": "draft",
     }
@@ -286,7 +286,7 @@ def test_reiniciar_vacia_todo(client, repo):  # noqa: ANN001, ANN202
         assert r.status_code == 200
         assert r.json() == {
             "repo": repo,
-            "ideas_eliminadas": 7,
+            "items_eliminadas": 7,
             "eventos_eliminados": 7,
         }
         for tabla in (
@@ -369,7 +369,7 @@ def test_migracion_0009_solo_estado_final(client, repo):  # noqa: ANN001, ANN202
     assert revisiones == ["c"]
 
     r = client.get("/mapa", params={"repo": repo})
-    estados = {i["title"]: i["status"] for i in r.json()["ideas"]}
+    estados = {i["title"]: i["status"] for i in r.json()["items"]}
     assert estados == {
         "A": "rejected",
         "B": "proposed",

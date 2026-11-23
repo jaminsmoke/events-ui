@@ -38,7 +38,7 @@ export function useRepo(repo: string | null) {
       try {
         const rev = await unwrap(api.GET("/revision", { params: { query: { repo } } }));
         if (!vivo) return;
-        const actual = `${rev.instance}/${rev.data_version}/${rev.ideas}/${rev.ultimo_evento}`;
+        const actual = `${rev.instance}/${rev.data_version}/${rev.items}/${rev.ultimo_evento}`;
         if (actual !== firma) {
           const mapa: Mapa = await unwrap(api.GET("/mapa", { params: { query: { repo } } }));
           if (!vivo) return;
@@ -248,7 +248,7 @@ export function useRepo(repo: string | null) {
 
   return {
     // `null` = todavía sin respuesta; `[]` = el repo está sembrado pero vacío.
-    ideas: fresco?.mapa.ideas ?? null,
+    ideas: fresco?.mapa.items ?? null,
     error: fallo && fallo.repo === repo ? fallo.mensaje : null,
     proyeccion: repo ? proyeccion : null,
     commits,

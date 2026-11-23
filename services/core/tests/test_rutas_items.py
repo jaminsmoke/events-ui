@@ -29,7 +29,7 @@ def test_listado_y_mapa_por_items(client: TestClient, repo: str) -> None:
     principal = client.get("/items", params={"repo": repo}).json()
 
     assert principal[0]["uid"] == uid
-    assert client.get("/mapa", params={"repo": repo}).json()["ideas"][0]["uid"] == uid
+    assert client.get("/mapa", params={"repo": repo}).json()["items"][0]["uid"] == uid
 
 
 def test_patch_y_delete_por_items(client: TestClient, repo: str) -> None:

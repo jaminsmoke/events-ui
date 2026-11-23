@@ -85,7 +85,9 @@ ESQUEMA_PLAN: dict[str, Any] = {
     ),
     "type": "object",
     "additionalProperties": False,
-    "required": ["version", "ideas"],
+    "required": ["version"],
+    # `items` es el nombre nuevo; `ideas` el de los planes v1-v3 guardados.
+    "anyOf": [{"required": ["items"]}, {"required": ["ideas"]}],
     "properties": {
         "version": {
             "enum": [1, 2, 3],
@@ -94,10 +96,16 @@ ESQUEMA_PLAN: dict[str, Any] = {
                 "3: manifiesto de documentos (allowlist del mapa)."
             ),
         },
+        "items": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"$ref": "#/$defs/work_item"},
+        },
         "ideas": {
             "type": "array",
             "minItems": 1,
-            "items": {"$ref": "#/$defs/idea"},
+            "description": "Nombre antiguo de `items`; se acepta al leer planes v1-v3.",
+            "items": {"$ref": "#/$defs/work_item"},
         },
         "documentos": {
             "type": "array",
@@ -170,7 +178,7 @@ ESQUEMA_PLAN: dict[str, Any] = {
                 },
             },
         },
-        "idea": {
+        "work_item": {
             "type": "object",
             "additionalProperties": False,
             "required": ["ref", "title", "origen"],
@@ -442,6 +450,15 @@ def validar_esquema(datos: Any, esquema: dict[str, Any] | None = None) -> list[s
     return errores
 
 
+def _items_del_plan(plan: dict[str, Any]) -> list[Any]:
+    """Los ítems del plan: `items` manda y `ideas` es el nombre v1-v3."""
+    for clave in ("items", "ideas"):
+        valor = plan.get(clave)
+        if isinstance(valor, list):
+            return valor
+    return []
+
+
 def revisar(raiz: Path, plan: dict[str, Any], *, plan_ruta: str = "plan.json") -> dict[str, Any]:
     """Valida el plan y enseña lo que se crearía, sin escribir nada.
 
@@ -450,7 +467,7 @@ def revisar(raiz: Path, plan: dict[str, Any], *, plan_ruta: str = "plan.json") -
     aquí: seguir con un plan mal formado solo añadiría ruido.
     """
     raiz = raiz.resolve()
-    items = plan.get("ideas") if isinstance(plan.get("ideas"), list) else []
+    items = _items_del_plan(plan)
     resumen = _resumen(items)
     errores = validar_esquema(plan)
     if errores:
@@ -542,7 +559,7 @@ def _errores_de_destino(plan: dict[str, Any]) -> list[str]:
             errores.append("documentos: la versión 3 exige el manifiesto de documentos")
     elif documentos is not None:
         errores.append("documentos: solo vale con version 3")
-    for indice, item in enumerate(plan.get("ideas") or []):
+    for indice, item in enumerate(_items_del_plan(plan)):
         if not isinstance(item, dict):
             continue
         estado = item.get("status") or "proposed"
@@ -718,7 +735,7 @@ def _resumen(items: list[Any]) -> dict[str, int]:
         and isinstance(item.get("origen"), dict)
         and isinstance(item["origen"].get("ruta"), str)
     }
-    return {"ideas": len(items), "archivos": len(archivos), "refs": len(items)}
+    return {"items": len(items), "archivos": len(archivos), "refs": len(items)}
 
 
 def _errores_de_origen(raiz: Path, items: list[dict[str, Any]]) -> list[str]:
@@ -1095,8 +1112,8 @@ def revisar_absorcion(raiz: Path, lote: str, *, parcial: bool = False) -> dict[s
         ok = bool(archivos) and not errores and not huecos
     resumen = {
         "archivos": len(archivos),
-        "ideas_lote": len({str(fila["work_item_uid"]) for fila in filas}),
-        "ideas_fichero": sum(archivo["ideas_fichero"] for archivo in archivos),
+        "items_lote": len({str(fila["work_item_uid"]) for fila in filas}),
+        "items_fichero": sum(archivo["items_fichero"] for archivo in archivos),
         "bloques": sum(archivo["bloques"] for archivo in archivos),
         "cubiertos": sum(archivo["cubiertos"] for archivo in archivos),
         "sin_migrar": len(huecos),
@@ -1142,8 +1159,8 @@ def _informe_absorcion_vacio(
         "avisos": [],
         "resumen": {
             "archivos": 0,
-            "ideas_lote": 0,
-            "ideas_fichero": 0,
+            "items_lote": 0,
+            "items_fichero": 0,
             "bloques": 0,
             "cubiertos": 0,
             "sin_migrar": 0,
@@ -1165,8 +1182,8 @@ def _informe_archivo(
     errores: list[str] = []
     avisos: list[str] = []
     relativa = Path(ruta)
-    ideas_lote = len({str(fila["work_item_uid"]) for fila in filas_lote})
-    ideas_fichero = len({str(fila["work_item_uid"]) for fila in filas_todas})
+    items_lote = len({str(fila["work_item_uid"]) for fila in filas_lote})
+    items_fichero = len({str(fila["work_item_uid"]) for fila in filas_todas})
     lotes = sorted({str(fila["lote_id"]) for fila in filas_todas})
     carriles: dict[str, int] = {}
     for fila in filas_lote:
@@ -1175,8 +1192,8 @@ def _informe_archivo(
 
     informe: dict[str, Any] = {
         "ruta": ruta,
-        "ideas_lote": ideas_lote,
-        "ideas_fichero": ideas_fichero,
+        "items_lote": items_lote,
+        "items_fichero": items_fichero,
         "lotes": lotes,
         "carriles": carriles,
         "sha256": sorted({str(fila["sha256"]) for fila in filas_lote}),
@@ -1344,7 +1361,7 @@ def _solapamientos(filas: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 {
                     "desde": otro_desde,
                     "hasta": min(hasta, otro_hasta),
-                    "ideas": [uid, otro_uid],
+                    "items": [uid, otro_uid],
                 }
             )
             if len(encontrados) >= 20:

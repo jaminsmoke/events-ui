@@ -894,8 +894,8 @@ export interface components {
         };
         /** MapSnapshot */
         MapSnapshot: {
-            /** Ideas */
-            ideas: components["schemas"]["MapWorkItem"][];
+            /** Items */
+            items: components["schemas"]["MapWorkItem"][];
         };
         /** MapWorkItem */
         MapWorkItem: {
@@ -938,8 +938,8 @@ export interface components {
             plan_sha256: string;
             /** Repetido */
             repetido: boolean;
-            /** Ideas */
-            ideas: number;
+            /** Items */
+            items: number;
             /** Creadas */
             creadas?: components["schemas"]["MigracionCreada"][];
         };
@@ -1052,49 +1052,6 @@ export interface components {
             requisitos: components["schemas"]["PlanRequisito"][];
         };
         /**
-         * PlanIdea
-         * @description Un ítem propuesto: `ref` es local al plan, no un uid del almacén.
-         */
-        PlanIdea: {
-            /** Ref */
-            ref: string;
-            /** Title */
-            title: string;
-            /**
-             * Description
-             * @default
-             */
-            description: string;
-            /**
-             * Content
-             * @default
-             */
-            content: string;
-            /**
-             * Kind
-             * @default work_item
-             * @enum {string}
-             */
-            kind: "work_item" | "idea";
-            /**
-             * Status
-             * @default proposed
-             * @enum {string}
-             */
-            status: "proposed" | "draft" | "historial" | "rejected";
-            /** Fecha */
-            fecha?: string | null;
-            /** Motivo */
-            motivo?: string | null;
-            /** Tags */
-            tags?: string[];
-            /** Depende De */
-            depende_de?: string[];
-            /** Fases */
-            fases?: components["schemas"]["PlanFase"][];
-            origen: components["schemas"]["PlanOrigen"];
-        };
-        /**
          * PlanMigracion
          * @description El plan completo que se aplica como un lote.
          *
@@ -1108,8 +1065,8 @@ export interface components {
              * @enum {integer}
              */
             version: 1 | 2 | 3;
-            /** Ideas */
-            ideas: components["schemas"]["PlanIdea"][];
+            /** Items */
+            items: components["schemas"]["PlanWorkItem"][];
             /** Documentos */
             documentos?: components["schemas"]["PlanDocumento"][] | null;
         };
@@ -1150,6 +1107,49 @@ export interface components {
              * @constant
              */
             hecho: false;
+        };
+        /**
+         * PlanWorkItem
+         * @description Un ítem propuesto: `ref` es local al plan, no un uid del almacén.
+         */
+        PlanWorkItem: {
+            /** Ref */
+            ref: string;
+            /** Title */
+            title: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /**
+             * Content
+             * @default
+             */
+            content: string;
+            /**
+             * Kind
+             * @default work_item
+             * @enum {string}
+             */
+            kind: "work_item" | "idea";
+            /**
+             * Status
+             * @default proposed
+             * @enum {string}
+             */
+            status: "proposed" | "draft" | "historial" | "rejected";
+            /** Fecha */
+            fecha?: string | null;
+            /** Motivo */
+            motivo?: string | null;
+            /** Tags */
+            tags?: string[];
+            /** Depende De */
+            depende_de?: string[];
+            /** Fases */
+            fases?: components["schemas"]["PlanFase"][];
+            origen: components["schemas"]["PlanOrigen"];
         };
         /**
          * Protocolo
@@ -1216,8 +1216,8 @@ export interface components {
             git_cambios: components["schemas"]["CambioGit"][];
             /** Eui Ignorado */
             eui_ignorado?: boolean | null;
-            /** Ideas */
-            ideas: number;
+            /** Items */
+            items: number;
             /** Events */
             events: number;
             /** Por Estado */
@@ -1246,8 +1246,8 @@ export interface components {
         Reinicio: {
             /** Repo */
             repo: string;
-            /** Ideas Eliminadas */
-            ideas_eliminadas: number;
+            /** Items Eliminadas */
+            items_eliminadas: number;
             /** Eventos Eliminados */
             eventos_eliminados: number;
         };
@@ -1312,8 +1312,8 @@ export interface components {
             instance: string;
             /** Data Version */
             data_version: number;
-            /** Ideas */
-            ideas: number;
+            /** Items */
+            items: number;
             /** Ultimo Evento */
             ultimo_evento: number;
         };

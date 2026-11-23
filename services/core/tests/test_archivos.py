@@ -195,7 +195,7 @@ def test_el_mapa_lleva_el_recuento_sin_el_parche(client, tmp_path):  # noqa: ANN
     (carpeta / "a.txt").write_text("a", encoding="utf-8")
     _cerrar(client, carpeta, uid)
 
-    item = client.get("/mapa", params={"repo": str(carpeta)}).json()["ideas"][0]
+    item = client.get("/mapa", params={"repo": str(carpeta)}).json()["items"][0]
     assert [archivo["ruta"] for archivo in item["fases"][0]["archivos"]] == ["a.txt"]
     assert all(archivo["contenido"] is None for archivo in item["fases"][0]["archivos"])
 

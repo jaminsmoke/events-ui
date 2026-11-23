@@ -16,8 +16,8 @@ def test_carpeta_con_almohadilla_abre_mapa_y_revision(client):  # noqa: ANN001, 
 
     mapa = client.get("/mapa", params={"repo": str(carpeta)})
     assert mapa.status_code == 200, mapa.json()
-    assert [i["uid"] for i in mapa.json()["ideas"]] == [uid]
+    assert [i["uid"] for i in mapa.json()["items"]] == [uid]
 
     revision = client.get("/revision", params={"repo": str(carpeta)})
     assert revision.status_code == 200, revision.json()
-    assert revision.json()["ideas"] == 1
+    assert revision.json()["items"] == 1

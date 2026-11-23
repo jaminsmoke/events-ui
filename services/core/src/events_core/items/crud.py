@@ -369,6 +369,6 @@ def reiniciar(repo: str) -> dict[str, Any]:
         conn.commit()
     return {
         "repo": repo,
-        "ideas_eliminadas": n_items,
+        "items_eliminadas": n_items,
         "eventos_eliminados": n_eventos,
     }

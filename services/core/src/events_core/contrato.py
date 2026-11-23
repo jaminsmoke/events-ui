@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Annotated, Literal
 
 from fastapi import Query
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 # Se repiten los CHECK de `schema/items.sql` a propÃ³sito: aquÃ­ sirven para que el
 # contrato OpenAPI publique los enums y la UI no tenga que adivinarlos.
@@ -252,8 +252,8 @@ class Protocolo(BaseModel):
 
 
 class MapSnapshot(BaseModel):
-    # Clave del plan y del mapa: dato histórico, se queda `ideas`.
-    ideas: list[MapWorkItem]
+    # Clave del plan y del mapa. El plan viejo seguía llamándola `ideas`.
+    items: list[MapWorkItem]
 
 
 class Revision(BaseModel):
@@ -267,7 +267,7 @@ class Revision(BaseModel):
 
     instance: str
     data_version: int
-    ideas: int
+    items: int
     ultimo_evento: int
 
 
@@ -349,7 +349,7 @@ class ProyeccionRepo(BaseModel):
     # `None` sin Git. `True` si el repo ya ignora `.EUI`; `False` si el binario
     # entraría en el próximo commit.
     eui_ignorado: bool | None = None
-    ideas: int
+    items: int
     events: int
     por_estado: dict[str, int]
     ultima_actividad: str | None = None
@@ -411,7 +411,7 @@ class Reinicio(BaseModel):
     """Respuesta de `POST /reiniciar` (LAB): cuántas filas se vaciaron."""
 
     repo: str
-    ideas_eliminadas: int
+    items_eliminadas: int
     eventos_eliminados: int
 
 
@@ -460,7 +460,7 @@ class PlanFase(BaseModel):
     requisitos: list[PlanRequisito] = Field(min_length=1)
 
 
-class PlanIdea(BaseModel):
+class PlanWorkItem(BaseModel):
     """Un ítem propuesto: `ref` es local al plan, no un uid del almacén."""
 
     ref: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
@@ -511,7 +511,8 @@ class PlanMigracion(BaseModel):
     """
 
     version: Literal[1, 2, 3]
-    ideas: list[PlanIdea] = Field(min_length=1)
+    # Los planes v1-v3 guardados escriben `ideas`; el plan nuevo escribe `items`.
+    items: list[PlanWorkItem] = Field(min_length=1, validation_alias=AliasChoices("items", "ideas"))
     documentos: list[PlanDocumento] | None = None
 
     @model_validator(mode="after")
@@ -542,7 +543,7 @@ class MigracionAplicada(BaseModel):
     lote: str
     plan_sha256: str
     repetido: bool
-    ideas: int
+    items: int
     creadas: list[MigracionCreada] = Field(default_factory=list)
 
 

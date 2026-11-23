@@ -379,7 +379,7 @@ def repo_estado_actual(repo: str) -> dict[str, Any]:
         "commit": _git(carpeta, "rev-parse", "--short", "HEAD") if es_git else None,
         "git_cambios": _git_cambios(carpeta) if es_git else [],
         "eui_ignorado": _almacen_ignorado(carpeta) if es_git else None,
-        "ideas": items,
+        "items": items,
         "events": eventos,
         "por_estado": por_estado,
         "ultima_actividad": ultima,

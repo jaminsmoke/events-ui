@@ -48,7 +48,7 @@ def test_crear_con_fases_en_una_sola_llamada(client, repo):  # noqa: ANN001, ANN
     assert [q["titulo"] for q in ficha["fases"][0]["requisitos"]] == ["Cubre el borde"]
     assert all(f["entered_at"] for f in ficha["fases"])
 
-    mapa = client.get("/mapa", params={"repo": repo}).json()["ideas"]
+    mapa = client.get("/mapa", params={"repo": repo}).json()["items"]
     assert [f["titulo"] for f in mapa[0]["fases"]] == ["Diseño", "Prueba"]
 
 
@@ -106,7 +106,7 @@ def test_entrar_en_roadmap_exige_una_fase(client, repo):  # noqa: ANN001, ANN202
     ]
     assert all(f["entered_at"] for f in ficha["fases"])
 
-    mapa = client.get("/mapa", params={"repo": repo}).json()["ideas"]
+    mapa = client.get("/mapa", params={"repo": repo}).json()["items"]
     assert [f["titulo"] for f in mapa[0]["fases"]] == ["Diseño", "Prueba"]
 
 

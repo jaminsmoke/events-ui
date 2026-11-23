@@ -59,16 +59,16 @@ def test_absorb_cubre_el_fichero_entre_varios_lotes(client, tmp_path) -> None:
     assert informe["retirar"] == ["ROADMAP.md"]
     assert informe["resumen"] == {
         "archivos": 1,
-        "ideas_lote": 1,
-        "ideas_fichero": 3,
+        "items_lote": 1,
+        "items_fichero": 3,
         "bloques": 3,
         "cubiertos": 3,
         "sin_migrar": 0,
         "marcadores": 0,
     }
     (ficha,) = informe["archivos"]
-    assert ficha["ideas_lote"] == 1
-    assert ficha["ideas_fichero"] == 3
+    assert ficha["items_lote"] == 1
+    assert ficha["items_fichero"] == 3
     assert ficha["cubiertos"] == 3
     assert ficha["sin_migrar"] == []
     assert set(ficha["lotes"]) == {primero["lote"], segundo["lote"]}

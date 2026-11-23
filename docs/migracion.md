@@ -99,7 +99,8 @@ plan y el apply, y el lote dejaría de ser repetible.
 
 `eui schema migrate --pretty` publica el JSON Schema (draft 2020-12) del plan;
 sin `--pretty` sale en una línea. La forma v3 es
-`{"version": 3, "documentos": [...], "ideas": [...]}`. La v1 solo admitía
+`{"version": 3, "documentos": [...], "items": [...]}` (cada elemento es un
+`PlanWorkItem`; un plan guardado con `ideas` se sigue aceptando). La v1 solo admitía
 `proposed`; la v2 añade destinos, fechas y motivo; la v3 añade el manifiesto
 de documentos. Las v1/v2 siguen válidas sin `documentos`.
 
@@ -192,10 +193,10 @@ no cambió después. Si la cobertura ya es total, hay que usar absorb sin
 
 ## Histórico `idea`
 
-El plan no cambia: `kind` (un plan v1-v3 escribe `idea` y se guarda como
-`work_item`) y la clave `ideas` se quedan, porque son datos y contrato de esos
-documentos. La API ya solo publica `/items` y el lote vive en `migracion_item`
-(0035).
+El plan ya escribe `items` y su elemento se llama `PlanWorkItem`. `kind` sigue
+aceptando el `idea` de un plan v1-v3 y lo guarda como `work_item`, y la clave
+`ideas` de un plan guardado se acepta como alias de `items` al leer. La API ya
+solo publica `/items` y el lote vive en `migracion_item` (0035).
 
 ## Antes de aplicar
 

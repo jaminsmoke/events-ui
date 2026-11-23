@@ -42,7 +42,7 @@ def aplicar_migracion(repo: str, plan: dict[str, Any], *, plan_sha256: str) -> d
 
         lote = uuid.uuid4().hex
         ts = now_iso()
-        items = plan["ideas"]
+        items = plan["items"] if "items" in plan else plan["ideas"]
         # Los uids se reparten antes de insertar: las dependencias entre items
         # del mismo lote se resuelven sin depender del orden de escritura.
         uids = {item["ref"]: uuid.uuid4().hex for item in items}
@@ -76,7 +76,7 @@ def aplicar_migracion(repo: str, plan: dict[str, Any], *, plan_sha256: str) -> d
             _emitir(
                 conn,
                 "migracion.aplicada",
-                {"lote": lote, "plan_sha256": plan_sha256, "ideas": len(items)},
+                {"lote": lote, "plan_sha256": plan_sha256, "items": len(items)},
             )
             conn.commit()
         except sqlite3.IntegrityError:
@@ -385,7 +385,7 @@ def deshacer_migracion(repo: str, lote: str) -> dict[str, Any]:
             _emitir(
                 conn,
                 "migracion.deshacer",
-                {"lote": lote, "plan_sha256": plan_sha256, "ideas": len(titulos)},
+                {"lote": lote, "plan_sha256": plan_sha256, "items": len(titulos)},
             )
             conn.commit()
         except Exception:
@@ -420,6 +420,6 @@ def _respuesta(
         "lote": lote,
         "plan_sha256": plan_sha256,
         "repetido": repetido,
-        "ideas": len(filas),
+        "items": len(filas),
         "creadas": [{"ref": str(fila[0]), "uid": str(fila[1])} for fila in filas],
     }

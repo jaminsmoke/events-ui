@@ -102,7 +102,7 @@ def _comprobar_migrado(client, repo, esperados=_ESPERADOS):  # noqa: ANN001, ANN
     # La API es la que abre el repo: en el caso del v13 mal migrado, esta
     # lectura es la que tiene que terminar la 0013 antes de leer el mapa.
     mapa = client.get("/mapa", params={"repo": repo}).json()
-    assert {i["uid"]: i["status"] for i in mapa["ideas"]} == {"hecha": "historial"}
+    assert {i["uid"]: i["status"] for i in mapa["items"]} == {"hecha": "historial"}
 
     db = items.db_file_for(repo)
     conn = sqlite3.connect(str(db))

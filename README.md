@@ -417,8 +417,8 @@ renombrado terminó: la API solo publica `/items`, el CLI solo tiene
 
 - las migraciones `0001`–`0036`, que son historia y no se tocan;
 - `kind: "adr"` y `"note"`, tipos históricos que se leen pero no se crean;
-- la clave `ideas` del plan de migración v1-v3 y de `MapSnapshot`, contrato de
-  esos documentos;
+- la clave `ideas` que trae un plan v1-v3 guardado: el contrato la acepta como
+  alias de `items` al leer (`PlanWorkItem`) y escribe siempre `items`;
 - los eventos `idea.*` que ya estén escritos en un log: el lector los sigue
   pintando y filtrando junto a los `item.*`.
 

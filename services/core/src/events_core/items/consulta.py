@@ -310,7 +310,7 @@ def map_snapshot(repo: str) -> dict[str, Any]:
             }
             for row in rows
         ]
-        return {"ideas": items}
+        return {"items": items}
 
 
 # La conexión vigilante vive en `db.vigilante` (es la misma que usa el stream de
@@ -341,7 +341,7 @@ def revision(repo: str) -> dict[str, Any]:
         return {
             "instance": _REVISION_INSTANCE,
             "data_version": data_version(conn),
-            "ideas": conn.execute(f"SELECT count(*) FROM {tabla_item}").fetchone()[0],
+            "items": conn.execute(f"SELECT count(*) FROM {tabla_item}").fetchone()[0],
             # El log se vacía al reiniciar: `coalesce` devuelve 0 y no `NULL`.
             "ultimo_evento": conn.execute("SELECT coalesce(max(id), 0) FROM event").fetchone()[0],
         }

@@ -193,7 +193,7 @@ def test_el_mapa_ordena_la_cola_por_posicion(client, repo):  # noqa: ANN001, ANN
     r = client.get("/items", params={"repo": repo, "status": "proposed"})
     assert [i["uid"] for i in r.json()] == esperado
 
-    mapa = client.get("/mapa", params={"repo": repo}).json()["ideas"]
+    mapa = client.get("/mapa", params={"repo": repo}).json()["items"]
     assert [i["uid"] for i in mapa if i["status"] == "proposed"] == esperado
 
 

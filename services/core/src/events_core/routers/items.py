@@ -92,7 +92,7 @@ def post_reiniciar(repo: RepoParam) -> dict[str, Any]:
     resultado = items.reiniciar(repo)
     registro.escribir(
         "info",
-        f"Reinicio de laboratorio en {repo}: {resultado['ideas_eliminadas']} ítems, "
+        f"Reinicio de laboratorio en {repo}: {resultado['items_eliminadas']} ítems, "
         f"{resultado['eventos_eliminados']} eventos",
         origen="reiniciar",
     )

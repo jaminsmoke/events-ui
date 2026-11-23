@@ -34,7 +34,7 @@ def test_un_evento_mueve_la_firma_sin_tocar_items(client, repo):  # noqa: ANN001
         conn.commit()
 
     despues = _revision(client, repo)
-    assert despues["ideas"] == antes["ideas"] == 0
+    assert despues["items"] == antes["items"] == 0
     assert (antes["ultimo_evento"], despues["ultimo_evento"]) == (0, 1)
 
 

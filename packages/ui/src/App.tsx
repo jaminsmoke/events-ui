@@ -1158,7 +1158,7 @@ export default function App({
               </em>
             )}
             {' · '}
-            {proyeccion.ideas} ítems · {proyeccion.events}{" "}
+            {proyeccion.items} ítems · {proyeccion.events}{" "}
             eventos
             {Object.entries(proyeccion.por_estado).map(([estado, n]) => (
               <span key={estado}>

@@ -350,3 +350,44 @@ def test_idea_requisito_inexistente_sale_con_1(tmp_path, capsys, monkeypatch) ->
 
     assert cli.main(["idea", "requisito", "u1", "1", "1", "--hecho"]) == 1
     assert "no tiene la fase" in capsys.readouterr().err
+
+
+def test_item_y_el_alias_idea_dan_lo_mismo(tmp_path, capsys, monkeypatch) -> None:
+    _con_raiz(tmp_path)
+
+    def falso(url: str):
+        return ([{"uid": "a1", "title": "Hola", "status": "proposed"}], None, 200)
+
+    monkeypatch.setattr(cli, "_get", falso)
+
+    assert cli.main(["item", "list", "--json"]) == 0
+    principal = capsys.readouterr()
+    assert json.loads(principal.out)[0]["uid"] == "a1"
+    assert principal.err == ""
+
+    assert cli.main(["idea", "list", "--json"]) == 0
+    alias = capsys.readouterr()
+    assert alias.out == principal.out
+    assert "alias de `eui item`" in alias.err
+    assert "2027-01-31" in alias.err
+
+
+def test_item_move_y_el_alias_idea_mueven_igual(tmp_path, capsys, monkeypatch) -> None:
+    _con_raiz(tmp_path)
+    visto: list[dict[str, str]] = []
+
+    def falso(url: str, datos: dict[str, str]):
+        visto.append(datos)
+        return ({"uid": "u1", "title": "T", "status": datos["status"]}, None, 200)
+
+    monkeypatch.setattr(cli, "_patch", falso)
+
+    assert cli.main(["item", "move", "u1", "roadmap", "--resultado", "listo"]) == 0
+    assert visto[-1] == {"status": "roadmap", "roadmap_resultado": "listo"}
+    assert "roadmap" in capsys.readouterr().out
+
+    assert cli.main(["idea", "move", "u1", "historial"]) == 0
+    assert visto[-1] == {"status": "historial"}
+    salida = capsys.readouterr()
+    assert "historial" in salida.out
+    assert "alias de `eui item`" in salida.err

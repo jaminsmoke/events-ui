@@ -60,7 +60,7 @@ export default {
     expect(estados["escritura"] === "ok", `la raíz no es escribible: ${salida}`);
 
     // Y la lectura usa esa misma raíz sin `--repo`.
-    const ideas = JSON.parse(cli(["idea", "list", "--url", CORE, "--json"]));
-    expect(Array.isArray(ideas), "`eui idea list --json` debe devolver una lista");
+    const items = JSON.parse(cli(["item", "list", "--url", CORE, "--json"]));
+    expect(Array.isArray(items), "`eui item list --json` debe devolver una lista");
   },
 };

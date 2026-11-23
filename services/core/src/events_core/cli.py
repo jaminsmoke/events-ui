@@ -383,7 +383,7 @@ def _idea(args: argparse.Namespace) -> int:
         print(json.dumps(datos))
         return 0
     if not datos:
-        print("(ninguna idea)")
+        print("(ningún ítem)")
         return 0
     ancho_uid = max(len(idea["uid"]) for idea in datos)
     ancho_estado = max(len(idea["status"]) for idea in datos)
@@ -435,7 +435,7 @@ def _fases_de_fichero(fichero: str) -> tuple[list[Any] | None, tuple[str, int] |
     """La lista de fases del JSON, o el error que la hace ilegible.
 
     Vale una lista o `{"fases": [...]}`: es el mismo fichero que acepta
-    `idea fases`, así que sirve para crear y para reemplazar.
+    `item fases`, así que sirve para crear y para reemplazar.
     """
     try:
         contenido = json.loads(Path(fichero).read_text(encoding="utf-8"))
@@ -556,7 +556,7 @@ def _idea_requisito(args: argparse.Namespace) -> int:
     fases = idea.get("fases") or []
     fase = next((f for f in fases if int(f.get("orden", 0)) == args.fase), None)
     if fase is None:
-        return _error(f"la idea {args.uid} no tiene la fase {args.fase}", 1)
+        return _error(f"el ítem {args.uid} no tiene la fase {args.fase}", 1)
     requisito = next(
         (r for r in fase.get("requisitos") or [] if int(r.get("orden", 0)) == args.requisito),
         None,
@@ -968,9 +968,13 @@ def _parser() -> argparse.ArgumentParser:
     conexion(repos)
     repos.set_defaults(func=_repo)
 
-    ideas = comandos.add_parser("idea", help="Lee y escribe las ideas del repo")
-    acciones_idea = ideas.add_subparsers(dest="accion", required=True)
-    listar = acciones_idea.add_parser("list", help="Lista las ideas del mapa")
+    items = comandos.add_parser(
+        "item",
+        aliases=["idea"],
+        help="Lee y escribe los ítems del repo",
+    )
+    acciones_item = items.add_subparsers(dest="accion", required=True)
+    listar = acciones_item.add_parser("list", help="Lista los ítems del mapa")
     listar.add_argument("--status")
     listar.add_argument("--kind")
     listar.add_argument(
@@ -983,13 +987,13 @@ def _parser() -> argparse.ArgumentParser:
     listar.add_argument("--json", action="store_true")
     conexion(listar)
     listar.set_defaults(func=_idea)
-    ver = acciones_idea.add_parser("get", help="La ficha completa de una idea")
+    ver = acciones_item.add_parser("get", help="La ficha completa de un ítem")
     ver.add_argument("uid")
     ver.add_argument("--json", action="store_true")
     conexion(ver)
     ver.set_defaults(func=_idea)
 
-    crear = acciones_idea.add_parser("create", help="Crea una idea en la cola de entrada")
+    crear = acciones_item.add_parser("create", help="Crea un ítem en la cola de entrada")
     crear.add_argument("--title", required=True)
     crear.add_argument("--description", default="")
     crear.add_argument("--content", default="")
@@ -1004,7 +1008,7 @@ def _parser() -> argparse.ArgumentParser:
     conexion(crear)
     crear.set_defaults(func=_idea_create)
 
-    editar = acciones_idea.add_parser("edit", help="Edita los campos dados de una idea")
+    editar = acciones_item.add_parser("edit", help="Edita los campos dados de un ítem")
     editar.add_argument("uid")
     editar.add_argument("--title")
     editar.add_argument("--description")
@@ -1017,8 +1021,8 @@ def _parser() -> argparse.ArgumentParser:
     conexion(editar)
     editar.set_defaults(func=_idea_edit)
 
-    mover = acciones_idea.add_parser(
-        "move", help="Mueve una idea de carril con los datos de su ficha"
+    mover = acciones_item.add_parser(
+        "move", help="Mueve un ítem de carril con los datos de su ficha"
     )
     mover.add_argument("uid")
     mover.add_argument("status", choices=ESTADOS)
@@ -1030,19 +1034,19 @@ def _parser() -> argparse.ArgumentParser:
     mover.add_argument("--nota", help="Nota de la aprobación")
     mover.add_argument("--motivo", help="Motivo del descarte")
     mover.add_argument("--descartado-por", choices=["usuario", "agente", "sistema"])
-    mover.add_argument("--sustituye-a", help="uid de la idea que releva")
+    mover.add_argument("--sustituye-a", help="uid del ítem que releva")
     mover.add_argument("--json", action="store_true")
     conexion(mover)
     mover.set_defaults(func=_idea_move)
 
-    fases = acciones_idea.add_parser("fases", help="Reemplaza las fases desde un JSON")
+    fases = acciones_item.add_parser("fases", help="Reemplaza las fases desde un JSON")
     fases.add_argument("uid")
     fases.add_argument("fichero", help='Lista de fases o {"fases": [...]}')
     fases.add_argument("--json", action="store_true")
     conexion(fases)
     fases.set_defaults(func=_idea_fases)
 
-    requisito = acciones_idea.add_parser("requisito", help="Marca o desmarca un requisito")
+    requisito = acciones_item.add_parser("requisito", help="Marca o desmarca un requisito")
     requisito.add_argument("uid")
     requisito.add_argument("fase", type=int)
     requisito.add_argument("requisito", type=int)
@@ -1152,8 +1156,14 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
+# El alias se retira el 2027-01-31: hasta entonces avisa y hace lo mismo.
+AVISO_ALIAS = "aviso: `eui idea` es un alias de `eui item`; caduca el 2027-01-31"
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    if args.comando == "idea":
+        print(AVISO_ALIAS, file=sys.stderr)
     return int(args.func(args))
 
 

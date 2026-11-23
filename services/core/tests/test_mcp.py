@@ -161,6 +161,21 @@ def test_tipo_incorrecto_es_invalid_params() -> None:
     assert "limit" in respuesta["error"]["message"]
 
 
+def test_tools_list_anuncia_additional_properties_false() -> None:
+    """El esquema promete `additionalProperties: false`: el validador lo cumple."""
+    for permitir_escritura in (False, True):
+        herramientas = mcp_servidor.manejar(
+            _peticion("tools/list"), permitir_escritura=permitir_escritura
+        )["result"]["tools"]
+        for herramienta in herramientas:
+            esquema = herramienta["inputSchema"]
+            assert esquema["type"] == "object", herramienta["name"]
+            assert esquema["additionalProperties"] is False, herramienta["name"]
+            assert set(esquema.get("required", [])) <= set(esquema["properties"]), herramienta[
+                "name"
+            ]
+
+
 def test_idea_fases_usa_un_temporal_y_lo_borra(monkeypatch) -> None:
     visto = {}
 

@@ -19,6 +19,8 @@ import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { pidsEnPuerto } from "./puertos.mjs";
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CORE = path.join(ROOT, "services", "core");
 const SRC_TAURI = path.join(ROOT, "apps", "desktop", "src-tauri");
@@ -30,6 +32,18 @@ function puertoLibre(puerto, host = "127.0.0.1") {
     const sonda = net.createServer();
     sonda.once("error", () => resolve(false));
     sonda.listen(puerto, host, () => sonda.close(() => resolve(true)));
+  });
+}
+
+/** Un puerto que el sistema acaba de dar por libre, o 0 si no hay. */
+function puertoEfimero(host = "127.0.0.1") {
+  return new Promise((resolve) => {
+    const sonda = net.createServer();
+    sonda.once("error", () => resolve(0));
+    sonda.listen(0, host, () => {
+      const { port } = sonda.address();
+      sonda.close(() => resolve(port));
+    });
   });
 }
 
@@ -86,11 +100,37 @@ if (!versionCli.startsWith("eui ")) {
 }
 console.log(`Copiado a ${destinoCli} (${versionCli})`);
 
-// Prueba en frío: arranca en el puerto de verdad (18765) y responde /health.
-if (!(await puertoLibre(18765))) {
-  throw new Error("El puerto 18765 ya está ocupado: no se puede probar el sidecar.");
+// Prueba en frío: arranca el binario y comprueba que responde a /health.
+//
+// Se prefiere el puerto de verdad (18765), que es el que usa la app. Si lo
+// tiene ocupado un core ya vivo (tu app abierta, un `pnpm dev`), la prueba va
+// a un puerto libre: el binario es el mismo y lo que se comprueba es que
+// arranca y sirve. Antes se abortaba el release entero por eso, después de
+// haber compilado todo.
+const PUERTO_REAL = 18765;
+let puertoPrueba = PUERTO_REAL;
+if (!(await puertoLibre(PUERTO_REAL))) {
+  puertoPrueba = await puertoEfimero();
+  if (!puertoPrueba) {
+    const quien = pidsEnPuerto(PUERTO_REAL);
+    throw new Error(
+      `El puerto ${PUERTO_REAL} está ocupado` +
+        (quien.length ? ` (PID ${quien.join(", ")})` : "") +
+        " y no se encontró otro libre para la prueba en frío del sidecar." +
+        " Para liberarlo: cierra la app o `taskkill /PID <pid> /T /F`.",
+    );
+  }
+  const quien = pidsEnPuerto(PUERTO_REAL);
+  console.warn(
+    `El puerto ${PUERTO_REAL} está ocupado` +
+      (quien.length ? ` (PID ${quien.join(", ")})` : "") +
+      `: la prueba en frío del sidecar usa el ${puertoPrueba}.`,
+  );
 }
-const proceso = spawn(congelado, [], { stdio: ["ignore", "pipe", "pipe"] });
+const proceso = spawn(congelado, [], {
+  stdio: ["ignore", "pipe", "pipe"],
+  env: { ...process.env, EUI_PORT: String(puertoPrueba) },
+});
 let salida = "";
 proceso.stdout.on("data", (d) => (salida += d.toString()));
 proceso.stderr.on("data", (d) => (salida += d.toString()));
@@ -99,7 +139,7 @@ async function esperarHealth() {
   const limite = Date.now() + 30_000;
   while (Date.now() < limite) {
     try {
-      const res = await fetch("http://127.0.0.1:18765/health", {
+      const res = await fetch(`http://127.0.0.1:${puertoPrueba}/health`, {
         signal: AbortSignal.timeout(1_000),
       });
       if (res.ok) return true;
@@ -113,9 +153,15 @@ async function esperarHealth() {
 
 try {
   if (await esperarHealth()) {
-    console.log("Sidecar congelado responde a /health en 127.0.0.1:18765. OK");
+    console.log(`Sidecar congelado responde a /health en 127.0.0.1:${puertoPrueba}. OK`);
   } else {
-    throw new Error(`El sidecar no respondió a /health en 30 s. Salida:\n${salida.slice(-2000)}`);
+    throw new Error(
+      `El sidecar no respondió a /health en 127.0.0.1:${puertoPrueba} en 30 s.` +
+        (puertoPrueba === PUERTO_REAL
+          ? " Puede que otro proceso se lo haya llevado mientras arrancaba."
+          : "") +
+        ` Salida:\n${salida.slice(-2000)}`,
+    );
   }
 } finally {
   // El proceso puede haber muerto ya (p. ej. porque /health no respondió y

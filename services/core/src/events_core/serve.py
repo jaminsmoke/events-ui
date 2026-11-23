@@ -15,15 +15,36 @@ cambios, se para (Ctrl+C) y se vuelve a arrancar; son dos segundos.
 
 from __future__ import annotations
 
+import os
 import socket
 import sys
 
 import uvicorn
 
 from . import registro
+from .config import PUERTO_POR_DEFECTO
 
 HOST = "127.0.0.1"
-PORT = 18765
+
+
+def _puerto_de_entorno() -> int:
+    """El puerto del core: `EUI_PORT` si trae uno válido, si no el de siempre.
+
+    La app, el dev y los clientes hablan en 18765; el override existe para
+    arrancar un core de prueba en un puerto libre sin tocar el de verdad (la
+    prueba en frío del sidecar lo usa cuando la app abierta tiene el 18765).
+    """
+    crudo = os.environ.get("EUI_PORT", "").strip()
+    if not crudo:
+        return PUERTO_POR_DEFECTO
+    try:
+        puerto = int(crudo)
+    except ValueError:
+        return PUERTO_POR_DEFECTO
+    return puerto if 1 <= puerto <= 65535 else PUERTO_POR_DEFECTO
+
+
+PORT = _puerto_de_entorno()
 
 
 def puerto_libre(host: str, port: int) -> bool:

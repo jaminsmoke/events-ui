@@ -65,6 +65,42 @@ def test_escritura_sin_permiso_devuelve_is_error() -> None:
     assert "escritura desactivada" in respuesta["result"]["content"][0]["text"]
 
 
+def test_tools_list_anuncia_fases_en_idea_create() -> None:
+    herramientas = mcp_servidor.manejar(_peticion("tools/list"), permitir_escritura=True)["result"][
+        "tools"
+    ]
+    crear = next(h for h in herramientas if h["name"] == "idea_create")
+
+    assert crear["inputSchema"]["properties"]["fases"]["type"] == "array"
+
+
+def test_idea_create_con_fases_usa_un_temporal_y_lo_borra(monkeypatch) -> None:
+    """Las fases inline viajan al CLI como fichero, igual que en `idea_fases`."""
+    visto: dict = {}
+
+    def falso(argv):  # noqa: ANN001, ANN202
+        ruta = Path(argv[argv.index("--fases") + 1])
+        visto["fases"] = json.loads(ruta.read_text(encoding="utf-8"))
+        visto["ruta"] = ruta
+        print(json.dumps({"uid": "u1"}))
+        return 0
+
+    monkeypatch.setattr(mcp_servidor.cli, "main", falso)
+    fases = [{"titulo": "Diseño", "requisitos": [{"titulo": "Cubre el borde"}]}]
+
+    respuesta = mcp_servidor.manejar(
+        _peticion(
+            "tools/call",
+            {"name": "idea_create", "arguments": {"title": "A", "fases": fases}},
+        ),
+        permitir_escritura=True,
+    )
+
+    assert respuesta["result"].get("isError") is None
+    assert visto["fases"] == fases
+    assert not visto["ruta"].exists()
+
+
 def test_tools_call_reutiliza_el_cli(monkeypatch) -> None:
     visto = {}
 

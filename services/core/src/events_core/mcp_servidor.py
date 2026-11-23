@@ -138,6 +138,7 @@ _ESCRITURA: tuple[dict[str, Any], ...] = (
                 "status": {"type": "string", "enum": list(cli.ESTADOS)},
                 "tags": {"type": "array", "items": {"type": "string"}},
                 "depende_de": {"type": "array", "items": {"type": "string"}},
+                "fases": {"type": "array", "items": {"type": "object"}},
             },
             ["title"],
         ),
@@ -386,6 +387,16 @@ def _orden(nombre: str, a: dict[str, Any]) -> tuple[list[str], str | None]:
             argv += ["--tag", str(tag)]
         for dep in a.get("depende_de") or []:
             argv += ["--dep", str(dep)]
+        if a.get("fases") is not None:
+            fases = a["fases"]
+            if not isinstance(fases, list):
+                raise ValueError("`fases` tiene que ser una lista")
+            with tempfile.NamedTemporaryFile(
+                "w", suffix=".json", delete=False, encoding="utf-8"
+            ) as fichero:
+                json.dump(fases, fichero, ensure_ascii=False)
+                temporal = fichero.name
+            argv += ["--fases", temporal]
     elif nombre == "idea_edit":
         argv = ["idea", "edit", str(a["uid"])]
         for clave, bandera in (

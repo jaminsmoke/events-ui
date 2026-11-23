@@ -428,22 +428,45 @@ def _mostrar(idea: dict[str, Any], como_json: bool) -> int:
     return 0
 
 
+def _fases_de_fichero(fichero: str) -> tuple[list[Any] | None, tuple[str, int] | None]:
+    """La lista de fases del JSON, o el error que la hace ilegible.
+
+    Vale una lista o `{"fases": [...]}`: es el mismo fichero que acepta
+    `idea fases`, así que sirve para crear y para reemplazar.
+    """
+    try:
+        contenido = json.loads(Path(fichero).read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None, (f"no existe {fichero}", 1)
+    except (OSError, ValueError) as exc:
+        return None, (f"fases ilegibles: {exc}", 2)
+    if isinstance(contenido, dict):
+        contenido = contenido.get("fases")
+    if not isinstance(contenido, list):
+        return None, ('el fichero debe ser una lista de fases o {"fases": [...]}', 2)
+    return contenido, None
+
+
 def _idea_create(args: argparse.Namespace) -> int:
     raiz, url = _con_raiz(args)
     if raiz is None:
         return 2
-    datos, detalle, estado = _post(
-        _url_idea(url, raiz),
-        {
-            "title": args.title,
-            "description": args.description,
-            "content": args.content,
-            "kind": args.kind,
-            "status": args.status,
-            "tags": args.tag,
-            "depende_de": args.dep,
-        },
-    )
+    cuerpo: dict[str, Any] = {
+        "title": args.title,
+        "description": args.description,
+        "content": args.content,
+        "kind": args.kind,
+        "status": args.status,
+        "tags": args.tag,
+        "depende_de": args.dep,
+    }
+    # Sin `--fases` el cuerpo va como siempre: el desglose solo viaja si se pide.
+    if args.fases:
+        fases, fallo = _fases_de_fichero(args.fases)
+        if fallo is not None:
+            return _error(*fallo)
+        cuerpo["fases"] = fases
+    datos, detalle, estado = _post(_url_idea(url, raiz), cuerpo)
     if detalle:
         return _fallo(detalle, estado)
     return _mostrar(datos, args.json)
@@ -510,16 +533,9 @@ def _idea_fases(args: argparse.Namespace) -> int:
     raiz, url = _con_raiz(args)
     if raiz is None:
         return 2
-    try:
-        contenido = json.loads(Path(args.fichero).read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return _error(f"no existe {args.fichero}", 1)
-    except (OSError, ValueError) as exc:
-        return _error(f"fases ilegibles: {exc}", 2)
-    if isinstance(contenido, dict):
-        contenido = contenido.get("fases")
-    if not isinstance(contenido, list):
-        return _error('el fichero debe ser una lista de fases o {"fases": [...]}', 2)
+    contenido, fallo = _fases_de_fichero(args.fichero)
+    if fallo is not None:
+        return _error(*fallo)
     datos, detalle, estado = _patch(_url_idea(url, raiz, args.uid), {"fases": contenido})
     if detalle:
         return _fallo(detalle, estado)
@@ -973,6 +989,9 @@ def _parser() -> argparse.ArgumentParser:
     crear.add_argument("--status", choices=ESTADOS, default="draft")
     crear.add_argument("--tag", action="append", default=[], help="Etiqueta (repetible)")
     crear.add_argument("--dep", action="append", default=[], help="uid del que depende")
+    crear.add_argument(
+        "--fases", metavar="FICHERO", help='Lista de fases o {"fases": [...]} para el alta'
+    )
     crear.add_argument("--json", action="store_true")
     conexion(crear)
     crear.set_defaults(func=_idea_create)

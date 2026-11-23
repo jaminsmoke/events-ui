@@ -187,6 +187,43 @@ def test_idea_create_manda_el_cuerpo(tmp_path, capsys, monkeypatch) -> None:
     assert "/ideas?repo=" in visto["url"]
 
 
+def test_idea_create_con_fases_lee_el_fichero(tmp_path, capsys, monkeypatch) -> None:
+    _con_raiz(tmp_path)
+    visto: dict = {}
+
+    def falso(url, datos):  # noqa: ANN001, ANN202
+        visto["datos"] = datos
+        return ({"uid": "u1", "title": datos["title"], "status": datos["status"]}, None, 201)
+
+    monkeypatch.setattr(cli, "_post", falso)
+    fases = [{"titulo": "Diseño", "requisitos": [{"titulo": "Cubre el borde"}]}]
+    fichero = tmp_path / "fases.json"
+
+    fichero.write_text(json.dumps(fases), encoding="utf-8")
+    assert cli.main(["idea", "create", "--title", "A", "--fases", str(fichero), "--json"]) == 0
+    assert visto["datos"]["fases"] == fases
+
+    # `{"fases": [...]}` vale igual: es el mismo formato que `idea fases`.
+    fichero.write_text(json.dumps({"fases": fases}), encoding="utf-8")
+    assert cli.main(["idea", "create", "--title", "A", "--fases", str(fichero), "--json"]) == 0
+    assert visto["datos"]["fases"] == fases
+
+
+def test_idea_create_con_fases_ilegibles_no_crea(tmp_path, capsys, monkeypatch) -> None:
+    _con_raiz(tmp_path)
+    monkeypatch.setattr(
+        cli, "_post", lambda url, datos: (_ for _ in ()).throw(AssertionError("no debería crear"))
+    )
+    fichero = tmp_path / "fases.json"
+
+    fichero.write_text("{}", encoding="utf-8")
+    assert cli.main(["idea", "create", "--title", "A", "--fases", str(fichero)]) == 2
+    assert "lista de fases" in capsys.readouterr().err
+
+    assert cli.main(["idea", "create", "--title", "A", "--fases", str(tmp_path / "no.json")]) == 1
+    assert "no existe" in capsys.readouterr().err
+
+
 def test_idea_edit_solo_los_campos_dados(tmp_path, capsys, monkeypatch) -> None:
     _con_raiz(tmp_path)
     visto = {}

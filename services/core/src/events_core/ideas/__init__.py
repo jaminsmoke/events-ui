@@ -23,7 +23,7 @@ Este `__init__` es la fachada: fuera se sigue importando `ideas.*`, como antes.
 
 from __future__ import annotations
 
-from .base.comun import InvalidInput, _columna, _existe, now_iso
+from .base.comun import AlmacenMasNuevo, InvalidInput, _columna, _existe, now_iso
 from .base.esquema import (
     SCHEMA_DIR,
     SCHEMA_VERSION,
@@ -42,6 +42,7 @@ __all__ = [
     "DB_FILENAME",
     "_columna",
     "_existe",
+    "AlmacenMasNuevo",
     "EUI_DIR",
     "InvalidInput",
     "MIGRATIONS_DIR",

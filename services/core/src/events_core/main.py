@@ -101,6 +101,16 @@ def _peticion_invalida(_request: Request, exc: ideas.InvalidInput) -> JSONRespon
     return JSONResponse(status_code=400, content={"detail": str(exc)})
 
 
+@app.exception_handler(ideas.AlmacenMasNuevo)
+def _almacen_mas_nuevo(_request: Request, exc: ideas.AlmacenMasNuevo) -> JSONResponse:
+    """409, no 400: no es un dato mal puesto, es un almacén de otra versión.
+
+    Starlette busca el handler por la MRO de la excepción, así que este gana al
+    de `InvalidInput` aunque esté después. El mensaje pide actualizar la app.
+    """
+    return JSONResponse(status_code=409, content={"detail": str(exc)})
+
+
 @app.exception_handler(KeyError)
 def _sin_idea(_request: Request, exc: KeyError) -> JSONResponse:
     return JSONResponse(status_code=404, content={"detail": f"no existe la idea {exc.args[0]}"})

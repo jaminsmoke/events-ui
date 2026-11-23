@@ -15,7 +15,7 @@ from contextlib import closing, suppress
 from pathlib import Path
 
 from ...db import uri_lectura
-from .comun import _columna, _existe
+from .comun import AlmacenMasNuevo, _columna, _existe
 from .esquema import SCHEMA_VERSION, aplicar_esquema, connect
 from .rutas import DB_FILENAME, LEGACY_DB_FILENAME
 
@@ -118,6 +118,16 @@ def _migrar_esquema(db_file: Path) -> None:
 def _llevar_al_dia(conn: sqlite3.Connection) -> None:
     """Aplica los pasos que le falten al almacén ya abierto."""
     version = int(conn.execute("PRAGMA user_version").fetchone()[0])
+    # Dos casos distintos que antes caían en el mismo `return` en silencio:
+    # «está al día» y «lo migró un core más nuevo». El segundo no se puede
+    # poner al día hacia atrás: se nombra y no se escribe ni una fila. Va antes
+    # que las comprobaciones de la 0013/0018, que asumen un almacén viejo.
+    if version > SCHEMA_VERSION:
+        raise AlmacenMasNuevo(
+            f"el almacén está en la versión de esquema {version} y este core entiende"
+            f" hasta la {SCHEMA_VERSION}: lo migró una versión más nueva de Events UI."
+            " Actualiza la aplicación; el almacén no se ha tocado."
+        )
     # Un almacén firmado por el `core:seed` anterior no pasó por la
     # migración 0013: `aplicar_esquema` marcó la versión sin copiar
     # `idea_completada` ni ampliar los protocolos. Si ese esquema

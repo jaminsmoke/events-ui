@@ -15,6 +15,15 @@ class InvalidInput(ValueError):
     """Petición inválida: no es un fallo del servidor, es un dato mal puesto."""
 
 
+class AlmacenMasNuevo(InvalidInput):
+    """El almacén lo migró un core posterior: se nombra y no se toca.
+
+    Hereda de `InvalidInput` para que el CLI y el MCP ya lo cuenten con
+    `error: …` sin tocar cada comando; la API le da su propio 409 (no es un
+    dato mal puesto, es una versión que este core no entiende).
+    """
+
+
 def now_iso() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
 

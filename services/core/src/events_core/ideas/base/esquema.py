@@ -26,7 +26,7 @@ SCHEMA_DIR = Path(__file__).resolve().parents[2] / "schema"
 # La versión que firma `schema/`: un almacén que nace hoy se queda en esta y no
 # ejecuta ningún paso. Los que suben uno viejo van en `migraciones/`, de uno en
 # uno, hasta esta misma cifra.
-SCHEMA_VERSION = 31
+SCHEMA_VERSION = 32
 
 
 BUSY_TIMEOUT_MS = 5_000

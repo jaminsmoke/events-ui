@@ -55,7 +55,10 @@ MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migraciones"
 # al entrar en roadmap y al cerrar una fase; la 0029 añade los archivos de cada
 # requisito de la fase; la 0030 añade los lotes de la migración de Markdown
 # (`migracion_lote`, `migracion_idea`), para aplicar un plan entero en una
-# transacción, no repetirlo y saber de dónde salió cada idea.
+# transacción, no repetirlo y saber de dónde salió cada idea; la 0031 guarda
+# en esa procedencia el carril con el que nació cada idea, para deshacer un plan
+# que archiva o descarta; la 0032 pone índice en `idea_node (estado, posicion)`,
+# que es el filtro del mapa y el orden de la cola.
 
 # Marca en la cabecera de una migración que reconstruye una tabla con claves
 # foráneas apuntándole (ver `_aplicar_paso`).

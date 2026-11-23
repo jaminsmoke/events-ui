@@ -88,6 +88,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS idea_cola_orden
 CREATE UNIQUE INDEX IF NOT EXISTS idea_roadmap_unico
     ON idea_node (estado) WHERE estado = 'roadmap';
 
+-- El filtro del mapa (`/ideas?status=...`) y el del CLI: sin índice, cada
+-- listado por estado recorría la tabla entera. Compuesto porque la cola ordena
+-- por `posicion`: el prefijo sirve para el filtro y el par para el orden.
+CREATE INDEX IF NOT EXISTS idea_node_estado ON idea_node (estado, posicion);
+
 -- El detalle de la estancia en roadmap: el resultado y la referencia del
 -- trabajo. Vive solo mientras dura: al pasar a verificación se retira y la
 -- fecha de completado queda en el detalle de la verificación.

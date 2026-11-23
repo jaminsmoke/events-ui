@@ -231,7 +231,7 @@ corepack pnpm core:dev           # Swagger en http://127.0.0.1:18765/docs
 | GET / PUT | `/config` — raíz por defecto y puerto compartidos con el CLI |
 | GET | `/archivo?repo=<ruta>&ruta=<relativa>` — texto de un archivo (512 KiB, 415 si es binario) |
 | GET | `/archivo-bytes?repo=<ruta>&ruta=<relativa>` — bytes de una imagen (12 MiB, solo `image/*`) |
-| GET | `/items?repo=<ruta>` (filtros `status`, `kind`, `limit`, `offset`) |
+| GET | `/items?repo=<ruta>` (filtros `status`, `kind` — `work_item`, `adr`, `note` —, `limit`, `offset`) |
 | POST | `/items?repo=<ruta>` |
 | GET / PATCH / DELETE | `/items/{uid}?repo=<ruta>` |
 | GET | `/mapa?repo=<ruta>` — los ítems del mapa en una sola lectura |

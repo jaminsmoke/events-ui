@@ -1619,7 +1619,7 @@ export interface operations {
                 /** @description Carpeta del repo: ruta absoluta o nombre en el lab */
                 repo: string;
                 status?: ("draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "historial" | "rejected" | "superseded") | null;
-                kind?: ("work_item" | "idea" | "adr" | "note") | null;
+                kind?: ("work_item" | "adr" | "note") | null;
                 incluir?: "contenido" | null;
                 limit?: number;
                 offset?: number;

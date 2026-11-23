@@ -972,7 +972,7 @@ def _parser() -> argparse.ArgumentParser:
     acciones_item = items.add_subparsers(dest="accion", required=True)
     listar = acciones_item.add_parser("list", help="Lista los ítems del mapa")
     listar.add_argument("--status")
-    listar.add_argument("--kind")
+    listar.add_argument("--kind", choices=["work_item", "adr", "note"])
     listar.add_argument(
         "--incluir",
         choices=["contenido"],

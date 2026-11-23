@@ -135,7 +135,9 @@ Fuentes del modelo: [ítems y protocolos](../services/core/src/events_core/schem
 
 El renombrado terminó: la 0034 dejó las tablas `work_item_*` y la columna
 `work_item_uid`, la 0035 renombró el lote a `migracion_item` y la 0036 pasó el
-`kind` del dato a `work_item`. No quedan alias de API ni de herramientas.
+`kind` del dato a `work_item`. No quedan alias de API ni de herramientas, y el
+filtro `kind` del listado solo acepta `work_item`, `adr` y `note`: `idea` ya no
+se puede pedir porque la 0036 lo convirtió en el almacén.
 
 `idea` sigue en el repositorio como historia y como lectura: las migraciones
 `0001`–`0036`, los tipos históricos `adr`/`note` (y el `idea` de los almacenes

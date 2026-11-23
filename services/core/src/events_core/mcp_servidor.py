@@ -89,7 +89,7 @@ _LECTURA: tuple[dict[str, Any], ...] = (
             {
                 **_COMUNES,
                 "status": {"type": "string"},
-                "kind": {"type": "string", "enum": ["work_item", "idea", "adr", "note"]},
+                "kind": {"type": "string", "enum": ["work_item", "adr", "note"]},
                 "limit": {"type": "integer", "minimum": 1, "maximum": 500},
                 "offset": {"type": "integer", "minimum": 0},
             }

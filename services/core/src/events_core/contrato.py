@@ -19,6 +19,10 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 # el listado ni la ficha.
 Kind = Literal["work_item"]
 KindLeido = Literal["work_item", "idea", "adr", "note"]
+# El filtro del listado no ofrece `idea`: la 0036 ya lo convirtió en el almacén,
+# así que no hay filas que consultar con ese valor. `KindLeido` lo sigue
+# admitiendo para leer un almacén que aún no ha pasado por la migración.
+KindFiltro = Literal["work_item", "adr", "note"]
 Status = Literal[
     "draft",
     "proposed",

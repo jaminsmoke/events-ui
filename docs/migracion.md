@@ -38,7 +38,10 @@ aplica**. Nadie escribe el almacén a mano ni llama a la API cruda.
 8. `eui migrate absorb <lote> --dry-run` prepara la retirada del origen, pero
    **no escribe**: comprueba la cobertura por fichero, los hashes y la copia que
    se generaría. `--confirmar` copia el origen, deja el manifiesto y **elimina**
-   el Markdown; `undo` restaura la copia si el hash sigue.
+   el Markdown; `undo` restaura la copia si el hash sigue. Con `--parcial`
+   (nunca por defecto) se permiten huecos: exige rangos sin solapar, retira
+   solo los bloques del lote y deja un marcador visible `- [eui:<uid>] …` en
+   el origen.
 9. `eui migrate export <ruta>` reconstruye el Markdown actual desde SQLite,
    agrupado por carril y ordenado por la procedencia. Es la vista del documento
    una vez retirado, sin duplicar el contenido en el repo.
@@ -162,12 +165,20 @@ en verde: copia el origen en `.EUI/migracion/<lote>/`, deja un manifiesto
 antes de borrar las ideas del lote, y `migrate export` genera la vista Markdown
 desde `migracion_idea` + `idea_data`.
 
+`--parcial` es opt-in. Sirve cuando aún quedan bloques sin migrar: el informe
+exige rangos de procedencia sin solapar, planea un marcador `- [eui:<uid>]`
+por cada idea del lote y deja el resto del fichero. `--confirmar --parcial`
+copia el original, reescribe el origen con esos marcadores y guarda
+`sha256_stub` en el manifiesto para que `undo` pueda restaurar si el fichero
+no cambió después. Si la cobertura ya es total, hay que usar absorb sin
+`--parcial`.
+
 ## Lo que no se hace
 
 - No editar, mover ni borrar el Markdown de origen durante `scan`, `check` o
   `apply`. `absorb --dry-run` solo informa; la retirada con copia exige
-  `--confirmar` explícito. La migración es un alta, no una reescritura del
-  repo.
+  `--confirmar` explícito. La absorción parcial tampoco es automática: hace
+  falta `--parcial`. La migración es un alta, no una reescritura del repo.
 - No inventar ideas, estados, fechas, responsables ni uids.
 - No importar bloques de código, tablas de ejemplo ni citas como ideas: son
   contenido, no trabajo.

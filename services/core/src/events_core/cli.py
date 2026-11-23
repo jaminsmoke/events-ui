@@ -796,11 +796,12 @@ def _migrar_absorb(args: argparse.Namespace) -> int:
             "no hay raíz: elige una carpeta en la app, usa --repo o `eui config set repo`"
         )
 
+    parcial = bool(getattr(args, "parcial", False))
     try:
         if args.confirmar:
-            informe = migracion.confirmar_absorcion(Path(raiz), args.lote)
+            informe = migracion.confirmar_absorcion(Path(raiz), args.lote, parcial=parcial)
         else:
-            informe = migracion.revisar_absorcion(Path(raiz), args.lote)
+            informe = migracion.revisar_absorcion(Path(raiz), args.lote, parcial=parcial)
     except KeyError:
         return _error(f"no existe el lote {args.lote}", 1)
     except InvalidInput as exc:
@@ -813,7 +814,7 @@ def _migrar_absorb(args: argparse.Namespace) -> int:
         return 0 if informe["ok"] else 1
 
     print(f"repo: {informe['repo']}")
-    print(f"lote: {informe['lote']} · {informe['plan_sha256']}")
+    print(f"lote: {informe['lote']} · {informe['plan_sha256']} · modo {informe.get('modo', 'total')}")
     for archivo in informe["archivos"]:
         print(
             f"{archivo['ruta']}  {archivo['cubiertos']}/{archivo['bloques']} bloques · "
@@ -822,7 +823,14 @@ def _migrar_absorb(args: argparse.Namespace) -> int:
         print(f"  hash: {'ok' if archivo['hash_ok'] else 'no cuadra'}")
         if archivo["copia"]:
             print(f"  copia: {archivo['copia']['destino']}")
-        print("  retirada: se elimina el original")
+        if parcial:
+            print("  reescritura: marcadores [eui:<uid>] por cada rango del lote")
+            for marcador in archivo.get("marcadores", [])[:10]:
+                print(
+                    f"  L{marcador['desde']}-{marcador['hasta']}: {marcador['marcador']}"
+                )
+        else:
+            print("  retirada: se elimina el original")
         for hueco in archivo["sin_migrar"][:10]:
             print(f"  sin migrar L{hueco['linea']}: {hueco['texto']}")
         if archivo["recortado"]:
@@ -835,14 +843,23 @@ def _migrar_absorb(args: argparse.Namespace) -> int:
     )
     if informe["ok"] and args.confirmar:
         print(f"absorbido: {informe['manifest']}")
-        print("documentos retirados; `eui migrate export <ruta>` genera su Markdown actual")
+        if parcial:
+            print("rangos del lote sustituidos por marcadores; la copia queda en .EUI/migracion/")
+        else:
+            print("documentos retirados; `eui migrate export <ruta>` genera su Markdown actual")
         return 0
     if informe["ok"]:
-        print("absorción posible: se copiaría y se retiraría el origen; no se ha escrito nada")
+        if parcial:
+            print(
+                "absorción parcial posible: se copiaría el origen y se dejarían marcadores;"
+                " no se ha escrito nada"
+            )
+        else:
+            print("absorción posible: se copiaría y se retiraría el origen; no se ha escrito nada")
         return 0
     for error in informe["errores"]:
         print(f"error  {error}", file=sys.stderr)
-    if resumen["sin_migrar"]:
+    if not parcial and resumen["sin_migrar"]:
         print(f"{resumen['sin_migrar']} bloques sin migrar: no se absorbe", file=sys.stderr)
     return 1
 
@@ -1076,7 +1093,15 @@ def _parser() -> argparse.ArgumentParser:
     modo.add_argument(
         "--confirmar",
         action="store_true",
-        help="Copia el origen y lo elimina",
+        help="Copia el origen y lo elimina (o reescribe con --parcial)",
+    )
+    absorber.add_argument(
+        "--parcial",
+        action="store_true",
+        help=(
+            "Absorción parcial: exige rangos sin solapar, deja marcadores "
+            "[eui:<uid>] y no es el comportamiento por defecto"
+        ),
     )
     absorber.add_argument("--json", action="store_true")
     conexion(absorber)

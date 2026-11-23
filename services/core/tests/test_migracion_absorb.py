@@ -64,6 +64,7 @@ def test_absorb_cubre_el_fichero_entre_varios_lotes(client, tmp_path) -> None:
         "bloques": 3,
         "cubiertos": 3,
         "sin_migrar": 0,
+        "marcadores": 0,
     }
     (ficha,) = informe["archivos"]
     assert ficha["ideas_lote"] == 1
@@ -275,3 +276,125 @@ def test_api_documentos_inexistente(client, tmp_path) -> None:
 
     assert respuesta.status_code == 404
     assert "no hay un documento absorbido" in respuesta.json()["detail"]
+
+
+def test_absorb_parcial_dry_run_deja_marcadores_y_no_escribe(client, tmp_path) -> None:
+    texto = "# ROADMAP\n\n- **Uno.** Hecho.\n- **Dos.** Pendiente.\n"
+    archivo = _documento(tmp_path, texto)
+    lote = _aplicar(client, archivo, [("uno", "Uno", 3)])
+
+    informe = migracion.revisar_absorcion(tmp_path, lote["lote"], parcial=True)
+
+    assert informe["ok"] is True
+    assert informe["modo"] == "parcial"
+    assert informe["retirar"] == []
+    assert informe["reescribir"] == ["ROADMAP.md"]
+    (marcador,) = informe["marcadores"]
+    assert marcador["desde"] == 3
+    assert marcador["hasta"] == 3
+    assert marcador["marcador"].startswith("- [eui:")
+    assert "Uno" in marcador["marcador"]
+    assert archivo.read_text(encoding="utf-8") == texto
+    assert not (tmp_path / ".EUI" / "migracion").exists()
+
+
+def test_absorb_parcial_exige_huecos(client, tmp_path) -> None:
+    archivo = _documento(tmp_path, "# ROADMAP\n\n- **Uno.** Hecho.\n")
+    lote = _aplicar(client, archivo, [("uno", "Uno", 3)])
+
+    informe = migracion.revisar_absorcion(tmp_path, lote["lote"], parcial=True)
+
+    assert informe["ok"] is False
+    assert any("sin --parcial" in error for error in informe["errores"])
+
+
+def test_absorb_parcial_rechaza_solapes(client, tmp_path) -> None:
+    archivo = _documento(tmp_path, "# ROADMAP\n\n- **Uno.** Hecho.\n- **Dos.** Pendiente.\n")
+    sha = hashlib.sha256(archivo.read_bytes()).hexdigest()
+    plan = {
+        "version": 1,
+        "ideas": [
+            {
+                "ref": "uno",
+                "title": "Uno",
+                "origen": {
+                    "ruta": "ROADMAP.md",
+                    "desde_linea": 3,
+                    "hasta_linea": 4,
+                    "sha256": sha,
+                },
+            },
+            {
+                "ref": "dos",
+                "title": "Dos",
+                "origen": {
+                    "ruta": "ROADMAP.md",
+                    "desde_linea": 4,
+                    "hasta_linea": 4,
+                    "sha256": sha,
+                },
+            },
+        ],
+    }
+    respuesta = client.post(
+        "/migracion/aplicar",
+        params={"repo": str(tmp_path)},
+        json=plan,
+    )
+    assert respuesta.status_code == 200, respuesta.text
+    lote = respuesta.json()["lote"]
+
+    informe = migracion.revisar_absorcion(tmp_path, lote, parcial=True)
+
+    assert informe["ok"] is False
+    assert any("solapados" in error for error in informe["errores"])
+
+
+def test_absorb_parcial_confirmar_reescribe_y_undo_restaura(client, tmp_path) -> None:
+    texto = "# ROADMAP\n\n- **Uno.** Hecho.\n- **Dos.** Pendiente.\n"
+    archivo = _documento(tmp_path, texto)
+    lote = _aplicar(client, archivo, [("uno", "Uno", 3)])
+    uid = client.get("/ideas", params={"repo": str(tmp_path)}).json()[0]["uid"]
+
+    informe = migracion.confirmar_absorcion(tmp_path, lote["lote"], parcial=True)
+
+    assert informe["absorbido"] is True
+    assert informe["modo"] == "parcial"
+    reescrito = archivo.read_text(encoding="utf-8")
+    assert f"- [eui:{uid}] Uno" in reescrito
+    assert "- **Dos.** Pendiente." in reescrito
+    assert "- **Uno.** Hecho." not in reescrito
+    copia = tmp_path / ".EUI" / "migracion" / lote["lote"] / "ROADMAP.md"
+    assert copia.read_text(encoding="utf-8") == texto
+    manifiesto = json.loads(
+        (tmp_path / ".EUI" / "migracion" / lote["lote"] / "absorcion.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert manifiesto["modo"] == "parcial"
+    assert manifiesto["archivos"][0]["sha256_stub"]
+
+    # La parcial no alimenta el pane de documentos absorbidos.
+    assert client.get("/documentos", params={"repo": str(tmp_path)}).json() == []
+
+    respuesta = client.delete(f"/migracion/lotes/{lote['lote']}", params={"repo": str(tmp_path)})
+    assert respuesta.status_code == 200, respuesta.text
+    assert archivo.read_text(encoding="utf-8") == texto
+    assert not (tmp_path / ".EUI" / "migracion" / lote["lote"]).exists()
+
+
+def test_cli_absorb_parcial_no_es_por_defecto(client, tmp_path, capsys) -> None:
+    archivo = _documento(tmp_path, "# ROADMAP\n\n- **Uno.** Hecho.\n- **Dos.** Pendiente.\n")
+    lote = _aplicar(client, archivo, [("uno", "Uno", 3)])
+    config.guardar(repo=str(tmp_path))
+
+    assert cli.main(["migrate", "absorb", lote["lote"], "--json"]) == 1
+    total = json.loads(capsys.readouterr().out)
+    assert total["modo"] == "total"
+    assert total["ok"] is False
+
+    assert cli.main(["migrate", "absorb", lote["lote"], "--parcial", "--json"]) == 0
+    parcial = json.loads(capsys.readouterr().out)
+    assert parcial["modo"] == "parcial"
+    assert parcial["ok"] is True
+    assert parcial["marcadores"]

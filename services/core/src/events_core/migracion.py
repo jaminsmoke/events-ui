@@ -1004,15 +1004,20 @@ def _tareas(texto: str, desde: int) -> tuple[int, int]:
     return total, hechas
 
 
-def revisar_absorcion(raiz: Path, lote: str) -> dict[str, Any]:
+def revisar_absorcion(raiz: Path, lote: str, *, parcial: bool = False) -> dict[str, Any]:
     """Informe seco para absorber un lote: no escribe ni borra nada.
 
     La cobertura se calcula **por fichero**, no solo por el lote: un ROADMAP
-    puede haberse importado en varias tandas y la absorción tiene que contar
-    todas. Cada viñeta de nivel superior fuera de bloques de código es un
-    bloque; las anidadas van con su padre. Se compara además el hash actual
+    puede haberse importado en varias tandas y la absorción total tiene que
+    contar todas. Cada viñeta de nivel superior fuera de bloques de código es
+    un bloque; las anidadas van con su padre. Se compara además el hash actual
     con el que guardó la procedencia: si el fichero cambió, el informe no es
     seguro y no se propone retirar nada.
+
+    Con `parcial=True` (nunca el valor por defecto) se permiten huecos: solo
+    se planea sustituir los rangos del lote por marcadores visibles con uid,
+    y los rangos no pueden solaparse. Si no queda ningún hueco, hay que usar
+    la absorción total.
     """
     raiz = raiz.resolve()
     db_file = db_file_for(str(raiz))
@@ -1042,7 +1047,11 @@ def revisar_absorcion(raiz: Path, lote: str) -> dict[str, Any]:
         ).fetchall()
         if not filas:
             return _informe_absorcion_vacio(
-                raiz, lote, str(cabecera["plan_sha256"]), "el lote no tiene ideas"
+                raiz,
+                lote,
+                str(cabecera["plan_sha256"]),
+                "el lote no tiene ideas",
+                parcial=parcial,
             )
 
         por_ruta: dict[str, list[dict[str, Any]]] = {}
@@ -1065,14 +1074,27 @@ def revisar_absorcion(raiz: Path, lote: str) -> dict[str, Any]:
             todas_por_ruta.setdefault(str(fila["ruta"]), []).append(dict(fila))
 
         archivos = [
-            _informe_archivo(raiz, lote, ruta, por_ruta[ruta], todas_por_ruta[ruta])
+            _informe_archivo(
+                raiz,
+                lote,
+                ruta,
+                por_ruta[ruta],
+                todas_por_ruta[ruta],
+                parcial=parcial,
+            )
             for ruta in sorted(por_ruta)
         ]
 
     errores = [error for archivo in archivos for error in archivo["errores"]]
     avisos = [aviso for archivo in archivos for aviso in archivo["avisos"]]
     huecos = [hueco for archivo in archivos for hueco in archivo["sin_migrar"]]
-    ok = bool(archivos) and not errores and not huecos
+    marcadores = [
+        marcador for archivo in archivos for marcador in archivo.get("marcadores", [])
+    ]
+    if parcial:
+        ok = bool(archivos) and not errores and bool(marcadores)
+    else:
+        ok = bool(archivos) and not errores and not huecos
     resumen = {
         "archivos": len(archivos),
         "ideas_lote": len({str(fila["idea_uid"]) for fila in filas}),
@@ -1080,30 +1102,44 @@ def revisar_absorcion(raiz: Path, lote: str) -> dict[str, Any]:
         "bloques": sum(archivo["bloques"] for archivo in archivos),
         "cubiertos": sum(archivo["cubiertos"] for archivo in archivos),
         "sin_migrar": len(huecos),
+        "marcadores": len(marcadores),
     }
     return {
         "repo": str(raiz),
         "lote": lote,
         "plan_sha256": str(cabecera["plan_sha256"]),
         "dry_run": True,
+        "modo": "parcial" if parcial else "total",
         "ok": ok,
         "archivos": archivos,
-        "retirar": [archivo["ruta"] for archivo in archivos] if ok else [],
+        "retirar": [archivo["ruta"] for archivo in archivos] if ok and not parcial else [],
+        "reescribir": [archivo["ruta"] for archivo in archivos] if ok and parcial else [],
+        "marcadores": marcadores if ok and parcial else [],
         "errores": errores,
         "avisos": avisos,
         "resumen": resumen,
     }
 
 
-def _informe_absorcion_vacio(raiz: Path, lote: str, plan_sha256: str, error: str) -> dict[str, Any]:
+def _informe_absorcion_vacio(
+    raiz: Path,
+    lote: str,
+    plan_sha256: str,
+    error: str,
+    *,
+    parcial: bool = False,
+) -> dict[str, Any]:
     return {
         "repo": str(raiz),
         "lote": lote,
         "plan_sha256": plan_sha256,
         "dry_run": True,
+        "modo": "parcial" if parcial else "total",
         "ok": False,
         "archivos": [],
         "retirar": [],
+        "reescribir": [],
+        "marcadores": [],
         "errores": [error],
         "avisos": [],
         "resumen": {
@@ -1113,6 +1149,7 @@ def _informe_absorcion_vacio(raiz: Path, lote: str, plan_sha256: str, error: str
             "bloques": 0,
             "cubiertos": 0,
             "sin_migrar": 0,
+            "marcadores": 0,
         },
     }
 
@@ -1123,8 +1160,10 @@ def _informe_archivo(
     ruta: str,
     filas_lote: list[dict[str, Any]],
     filas_todas: list[dict[str, Any]],
+    *,
+    parcial: bool = False,
 ) -> dict[str, Any]:
-    """Cobertura y plan de copia y retirada de un fichero, sin tocar el disco."""
+    """Cobertura y plan de copia y retirada/reescritura de un fichero."""
     errores: list[str] = []
     avisos: list[str] = []
     relativa = Path(ruta)
@@ -1151,6 +1190,7 @@ def _informe_archivo(
         "recortado": False,
         "rangos": [],
         "solapamientos": [],
+        "marcadores": [],
         "copia": None,
         "errores": errores,
         "avisos": avisos,
@@ -1189,7 +1229,11 @@ def _informe_archivo(
     informe["rangos"] = [{"desde": desde, "hasta": hasta} for desde, hasta in _fusionar(intervalos)]
     informe["solapamientos"] = _solapamientos(filas_todas)
     if informe["solapamientos"]:
-        avisos.append(f"{ruta}: hay rangos de procedencia solapados")
+        mensaje = f"{ruta}: hay rangos de procedencia solapados"
+        if parcial:
+            errores.append(mensaje)
+        else:
+            avisos.append(mensaje)
 
     texto = crudo.decode("utf-8", errors="replace").lstrip("\ufeff")
     bloques = _bloques_markdown(texto)
@@ -1206,6 +1250,13 @@ def _informe_archivo(
     informe["sin_migrar"] = sin_migrar[:MAX_HUECOS]
     informe["recortado"] = len(sin_migrar) > MAX_HUECOS
 
+    if parcial:
+        if not sin_migrar:
+            errores.append(f"{ruta}: cobertura total; usa absorb sin --parcial")
+        informe["marcadores"] = _marcadores_del_lote(ruta, filas_lote)
+        if not informe["marcadores"] and not errores:
+            errores.append(f"{ruta}: el lote no tiene rangos que retirar")
+
     copia = Path(EUI_DIR) / "migracion" / lote / relativa
     informe["copia"] = {
         "destino": copia.as_posix(),
@@ -1213,6 +1264,61 @@ def _informe_archivo(
         "bytes": len(crudo),
     }
     return informe
+
+
+def _marcadores_del_lote(ruta: str, filas_lote: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Un marcador visible por idea del lote, con su rango 1-based."""
+    marcadores: list[dict[str, Any]] = []
+    for fila in sorted(
+        filas_lote,
+        key=lambda item: (int(item["desde_linea"]), int(item["hasta_linea"]), str(item["idea_uid"])),
+    ):
+        uid = str(fila["idea_uid"])
+        titulo = str(fila["title"]).strip() or uid
+        desde = int(fila["desde_linea"])
+        hasta = int(fila["hasta_linea"])
+        marcadores.append(
+            {
+                "ruta": ruta,
+                "uid": uid,
+                "title": titulo,
+                "desde": desde,
+                "hasta": hasta,
+                "marcador": _texto_marcador(uid, titulo),
+            }
+        )
+    return marcadores
+
+
+def _texto_marcador(uid: str, titulo: str) -> str:
+    """Línea visible que queda en el Markdown tras la absorción parcial."""
+    limpio = " ".join(titulo.split())
+    return f"- [eui:{uid}] {limpio}"
+
+
+def _aplicar_marcadores(texto: str, marcadores: list[dict[str, Any]]) -> str:
+    """Sustituye cada rango por su marcador, de abajo arriba."""
+    newline = "\r\n" if "\r\n" in texto else "\n"
+    termina = texto.endswith("\n") or texto.endswith("\r")
+    lineas = texto.splitlines()
+    tramos = sorted(
+        (
+            int(item["desde"]),
+            int(item["hasta"]),
+            str(item["marcador"]),
+        )
+        for item in marcadores
+    )
+    for desde, hasta, marcador in reversed(tramos):
+        if desde < 1 or hasta < desde or hasta > len(lineas):
+            raise InvalidInput(
+                f"rango de marcador fuera del fichero: {desde}-{hasta} (líneas={len(lineas)})"
+            )
+        lineas[desde - 1 : hasta] = [marcador]
+    cuerpo = newline.join(lineas)
+    if termina and (not cuerpo.endswith("\n") and not cuerpo.endswith("\r")):
+        cuerpo += newline
+    return cuerpo
 
 
 def _fusionar(intervalos: list[tuple[int, int]]) -> list[tuple[int, int]]:
@@ -1306,26 +1412,31 @@ def _ruta_en_repo(raiz: Path, ruta: str) -> Path:
     return destino
 
 
-def confirmar_absorcion(raiz: Path, lote: str) -> dict[str, Any]:
-    """Copia los documentos y los retira del repo.
+def confirmar_absorcion(raiz: Path, lote: str, *, parcial: bool = False) -> dict[str, Any]:
+    """Copia los documentos y retira (total) o reescribe con marcadores (parcial).
 
     La validación es la misma que la del dry-run. Primero copia y verifica
-    todos los ficheros, después escribe el manifiesto y solo entonces borra los
-    originales. Si algo falla, deja los documentos como estaban. La vista
-    posterior se genera con `migrate export`; no queda un stub en la ruta.
+    todos los ficheros, después escribe el manifiesto y solo entonces toca los
+    originales. Si algo falla, deja los documentos como estaban. En modo total
+    la vista posterior se genera con `migrate export`; en parcial el origen
+    sigue en el repo con marcadores visibles `[eui:<uid>]`.
     """
     from .ideas.migracion import escribir_absorcion, leer_absorcion
 
     raiz = raiz.resolve()
-    informe = revisar_absorcion(raiz, lote)
+    informe = revisar_absorcion(raiz, lote, parcial=parcial)
     if not informe["ok"]:
         raise InvalidInput("; ".join(informe["errores"]) or "la absorción no está completa")
-    if not informe["retirar"]:
+    if parcial:
+        if not informe["reescribir"]:
+            raise InvalidInput("no hay documentos que reescribir")
+    elif not informe["retirar"]:
         raise InvalidInput("no hay documentos que absorber")
     if leer_absorcion(str(raiz), lote) is not None:
         raise InvalidInput(f"el lote {lote} ya está absorbido")
 
     originales: dict[str, bytes] = {}
+    reescritos: dict[str, bytes] = {}
     copias: list[Path] = []
     archivos: list[dict[str, Any]] = []
     manifiesto_ruta = raiz / ".EUI" / "migracion" / lote / "absorcion.json"
@@ -1346,18 +1457,26 @@ def confirmar_absorcion(raiz: Path, lote: str) -> dict[str, Any]:
 
             originales[ruta] = crudo
             copias.append(copia)
-            archivos.append(
-                {
-                    "ruta": ruta,
-                    "copia": copia_rel,
-                    "sha256_origen": sha,
-                    "sha256_copia": sha,
-                }
-            )
+            entrada: dict[str, Any] = {
+                "ruta": ruta,
+                "copia": copia_rel,
+                "sha256_origen": sha,
+                "sha256_copia": sha,
+            }
+            if parcial:
+                texto = crudo.decode("utf-8-sig")
+                reescrito = _aplicar_marcadores(texto, archivo["marcadores"])
+                reescrito_bytes = reescrito.encode("utf-8")
+                reescritos[ruta] = reescrito_bytes
+                entrada["sha256_stub"] = hashlib.sha256(reescrito_bytes).hexdigest()
+                entrada["marcadores"] = archivo["marcadores"]
+                entrada["modo"] = "parcial"
+            archivos.append(entrada)
 
         manifiesto = {
             "version": 1,
             "lote": lote,
+            "modo": "parcial" if parcial else "total",
             "absorbido_at": now_iso(),
             "estado": "copiado",
             "archivos": archivos,
@@ -1365,8 +1484,12 @@ def confirmar_absorcion(raiz: Path, lote: str) -> dict[str, Any]:
         escribir_absorcion(str(raiz), lote, manifiesto)
         manifiesto_ruta = raiz / ".EUI" / "migracion" / lote / "absorcion.json"
 
-        for archivo in informe["archivos"]:
-            _ruta_en_repo(raiz, str(archivo["ruta"])).unlink()
+        if parcial:
+            for ruta, contenido in reescritos.items():
+                escribir_atomico(_ruta_en_repo(raiz, ruta), contenido)
+        else:
+            for archivo in informe["archivos"]:
+                _ruta_en_repo(raiz, str(archivo["ruta"])).unlink()
 
         manifiesto["estado"] = "absorbido"
         escribir_absorcion(str(raiz), lote, manifiesto)
@@ -1420,9 +1543,15 @@ def listar_documentos_absorbidos(raiz: Path) -> list[dict[str, Any]]:
                 continue
             if not manifiesto or manifiesto.get("estado") != "absorbido":
                 continue
+            # La parcial deja el Markdown en el repo con marcadores; no es un
+            # documento que solo viva en Events UI.
+            if manifiesto.get("modo") == "parcial":
+                continue
             absorbido_at = str(manifiesto.get("absorbido_at") or "")
             for archivo in manifiesto.get("archivos", []):
                 if not isinstance(archivo, dict) or not isinstance(archivo.get("ruta"), str):
+                    continue
+                if archivo.get("modo") == "parcial":
                     continue
                 ruta = archivo["ruta"]
                 fila = conn.execute(

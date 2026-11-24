@@ -4,6 +4,22 @@ Pautas para el agente que convierte roadmaps, backlogs y notas en Markdown en
 ítems de Events UI. La regla corta: **el agente propone, el importador decide y
 aplica**. Nadie escribe el almacén a mano ni llama a la API cruda.
 
+## Quién crea un documento
+
+Un documento es un Markdown que la migración leyó, clasificó e importó: sus
+ítems viven en el almacén y su vista se genera con `eui migrate export`. No hay
+otra forma de crear uno.
+
+- **Solo la CLI o el MCP.** `eui migrate absorb <lote> --confirmar` copia el
+  origen a `.EUI/migracion/<lote>/` y lo retira; la herramienta `migrate_absorb`
+  del MCP hace lo mismo. Nada más escribe un documento.
+- **Nunca a mano en el repo.** Un Markdown escrito a mano no entra en
+  `/documentos` ni en `export`: no tiene lote, ni procedencia, ni copia. Si
+  tiene que contar, se pasa por `scan` → `plan` → `apply` → `absorb`.
+- **Nunca directamente dentro de `.EUI`.** Esa carpeta solo admite el almacén,
+  su `.gitignore` y las copias `migracion/<lote>/…`. Un Markdown suelto ahí no
+  es un documento: se rechaza al escribirlo y se purga al abrir el almacén.
+
 ## Flujo
 
 1. `eui migrate scan <ruta>` lee la carpeta (o un Markdown suelto) y devuelve

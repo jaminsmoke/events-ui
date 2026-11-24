@@ -1,0 +1,17 @@
+#!/bin/sh
+# Guarda del flujo antes de commitear: documentos fuera del flujo y puertas.
+# Se instala una vez con `git config core.hooksPath .githooks`.
+raiz=$(git rev-parse --show-toplevel) || exit 0
+cd "$raiz" || exit 0
+
+# El intérprete del proyecto, sin depender de uv en cada commit.
+if [ -x services/core/.venv/Scripts/python.exe ]; then
+  interprete=services/core/.venv/Scripts/python.exe
+elif [ -x services/core/.venv/bin/python ]; then
+  interprete=services/core/.venv/bin/python
+else
+  echo "aviso: sin entorno de Python en services/core; la guarda no se ejecuta" >&2
+  exit 0
+fi
+
+PYTHONPATH=services/core/src "$interprete" -m events_core.cli guard --repo "$raiz"

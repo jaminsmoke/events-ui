@@ -105,6 +105,7 @@ uv run --directory services/core python -m events_core.cli config --json
 uv run --directory services/core python -m events_core.cli repo
 uv run --directory services/core python -m events_core.cli mapa --json
 uv run --directory services/core python -m events_core.cli puertas --json
+uv run --directory services/core python -m events_core.cli guard
 uv run --directory services/core python -m events_core.cli item list --status proposed
 uv run --directory services/core python -m events_core.cli schema --pretty
 uv run --directory services/core python -m events_core.cli schema migrate --pretty
@@ -127,6 +128,19 @@ aplica el MCP) e `item list|get` leen, mientras `create|edit|move|fases|requisit
 contrato que la UI, y `schema` vuelca el OpenAPI del core (`schema puertas`
 valida el archivo de la política). Todos aceptan `--repo`/`--url`/`--port` para pisar la configuración y
 `--json` de una línea; salen con 0 bien, 1 no encontrado y 2 fallo o mal uso.
+
+### La guarda del flujo
+
+`.EUI/protocolos.json` es la política del repo: enumera las puertas que aplican
+(`eui schema puertas` publica su esquema) y, sin archivo, valen los presets del
+core. Se versiona: `.gitignore` excluye `.EUI/*` y reincorpora ese archivo.
+`eui guard` comprueba los documentos fuera del flujo y enseña las puertas
+activas —sale con 1 solo si hay documentos—, y `eui guard --hook` lee
+`{tool, ruta}` por stdin y sale 0 o 2, que es lo que se enchufa al
+pre-herramienta de un agente o al pre-commit (`.githooks/pre-commit`, con
+`git config core.hooksPath .githooks`). El paquete no puede impedir que alguien
+escriba con su editor: la guarda detecta y el hook del host decide; lo que sí
+cierra son las herramientas del MCP.
 
 La migración de Markdown empieza por `migrate scan`, que solo lee: recorre una
 carpeta del repo y devuelve cada `.md` con su `sha256`, frontmatter, títulos y

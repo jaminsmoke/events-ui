@@ -72,6 +72,13 @@ jobs:
       - name: check completo
         run: corepack pnpm check
 
+      # La guarda del flujo: documentos fuera del flujo y puertas activas. Es la
+      # misma salida que deja el pre-commit en local, y sale con 1 si hay algo.
+      - name: Guarda del flujo
+        run: >-
+          uv run --directory services/core python -m events_core.cli guard
+          --repo "$GITHUB_WORKSPACE"
+
   windows:
     # El desarrollo es Windows: aquí lo que depende de la plataforma y Ubuntu
     # no cubre (rutas con unidad, `#` en el nombre del repo, venv de otra

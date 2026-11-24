@@ -16,6 +16,7 @@ import argparse
 import json
 import os
 import sys
+from contextlib import closing
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -26,7 +27,10 @@ from . import __version__, migracion
 from . import config as configuracion
 from .contrato import FichaError, InformeDoctor, RepoActual
 from .items.base.comun import InvalidInput, escribir_atomico
-from .items.base.rutas import resolve_repo
+from .items.base.esquema import connect, ensure_repo
+from .items.base.eui_fs import es_permitida_en_eui, relativa_bajo_eui
+from .items.base.rutas import EUI_DIR, db_file_for, resolve_repo
+from .items.modelo import puertas as modelo_puertas
 
 TIMEOUT_S = 2.0
 # Aplicar un lote escribe en el almacén: no cabe en el tiempo de un sondeo.
@@ -415,6 +419,104 @@ def _mapa(args: argparse.Namespace) -> int:
         print(f"{carril}: {total}")
     print(f"{len(items)} ítems")
     return 0
+
+
+def _puertas_del_repo(raiz: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Los documentos ajenos y las puertas activas, sin pasar por el core.
+
+    La guarda corre en CI y en el hook de Git, donde no hay servidor: lee el
+    almacén en proceso, con las mismas funciones que la API, y una sola vez.
+    """
+    ensure_repo(str(raiz))
+    ajenos = migracion.documentos_ajenos(raiz)
+    with closing(connect(db_file_for(str(raiz)))) as conn:
+        activas = modelo_puertas.activas(raiz, conn, documentos=len(ajenos))
+    return ajenos, activas
+
+
+def _guard_hook(raiz: Path) -> int:
+    """Veredicto para un hook: lee `{tool, ruta}` por stdin; 0 permite, 2 deniega.
+
+    Es el adaptador para el hook de pre-herramienta de un agente y para el
+    pre-commit: la misma política que el MCP, sin protocolo que hablar. Sin
+    `ruta` no se toca el almacén; sin `tool` tampoco.
+    """
+    try:
+        evento = json.loads(sys.stdin.read() or "{}")
+    except ValueError:
+        return _error("el hook no recibió JSON válido")
+    if not isinstance(evento, dict):
+        return _error("el hook espera un objeto JSON")
+
+    ruta = str(evento.get("ruta") or "")
+    if ruta:
+        destino = Path(ruta)
+        if not destino.is_absolute():
+            destino = raiz / destino
+        relativa = relativa_bajo_eui(destino)
+        if relativa is not None and not es_permitida_en_eui(relativa):
+            return _error(f"ruta no permitida dentro de {EUI_DIR}: {relativa or '(raíz)'}")
+
+    herramienta = str(evento.get("tool") or "")
+    if herramienta:
+        _, activas = _puertas_del_repo(raiz)
+        for puerta in activas:
+            if herramienta in puerta["cierra"]:
+                return _error(f"puerta cerrada: {puerta['motivo']}")
+    return 0
+
+
+def _guard(args: argparse.Namespace) -> int:
+    """La guarda del flujo: documentos fuera del flujo y puertas activas.
+
+    Sale con 1 solo cuando hay documentos fuera del flujo: una puerta activa
+    puede ser el estado normal del repo (sin ficha en roadmap, por ejemplo), así
+    que informarla no puede teñir de rojo todos los commits.
+    """
+    ajustes = configuracion.leer_segura()
+    try:
+        raiz = _raiz(args, ajustes)
+    except InvalidInput as exc:
+        return _error(str(exc))
+    if raiz is None:
+        return _error(
+            "no hay raíz: elige una carpeta en la app, usa --repo o `eui config set repo`"
+        )
+
+    if args.hook:
+        return _guard_hook(Path(raiz))
+
+    try:
+        ajenos, activas = _puertas_del_repo(Path(raiz))
+    except (InvalidInput, FileNotFoundError) as exc:
+        return _error(str(exc), 1)
+
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "repo": raiz,
+                    "ok": not ajenos,
+                    "documentos": ajenos,
+                    "puertas": activas,
+                },
+                ensure_ascii=False,
+            )
+        )
+        return 1 if ajenos else 0
+
+    if ajenos:
+        print("documentos fuera del flujo:")
+        for documento in ajenos:
+            print(f"  {documento['ruta']}  {documento['motivo']}")
+    else:
+        print("sin documentos fuera del flujo")
+    if activas:
+        print("puertas activas:")
+        for puerta in activas:
+            cierra = ", ".join(puerta["cierra"]) or "informativa"
+            print(f"  {puerta['id']}  {puerta['motivo']}  ({cierra})")
+    return 1 if ajenos else 0
 
 
 def _puertas(args: argparse.Namespace) -> int:
@@ -1055,6 +1157,18 @@ def _parser() -> argparse.ArgumentParser:
     puertas.add_argument("--json", action="store_true")
     conexion(puertas)
     puertas.set_defaults(func=_puertas)
+
+    guardia = comandos.add_parser(
+        "guard", help="Documentos fuera del flujo y puertas; o el veredicto de un hook"
+    )
+    guardia.add_argument(
+        "--hook",
+        action="store_true",
+        help="Lee {tool, ruta} por stdin: sale 0 si permite y 2 si deniega",
+    )
+    guardia.add_argument("--json", action="store_true")
+    conexion(guardia)
+    guardia.set_defaults(func=_guard)
 
     items = comandos.add_parser("item", help="Lee y escribe los ítems del repo")
     acciones_item = items.add_subparsers(dest="accion", required=True)

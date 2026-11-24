@@ -395,3 +395,49 @@ def test_item_move_no_avisa_por_stderr(tmp_path, capsys, monkeypatch) -> None:
     salida = capsys.readouterr()
     assert "historial" in salida.out
     assert salida.err == ""
+
+
+def test_mapa_json_pide_el_mapa_del_core(tmp_path, capsys, monkeypatch) -> None:
+    _con_raiz(tmp_path)
+    visto: dict[str, str] = {}
+
+    def falso(url: str):
+        visto["url"] = url
+        return ({"items": [{"uid": "u1", "status": "roadmap", "title": "Hola"}]}, None, 200)
+
+    monkeypatch.setattr(cli, "_get", falso)
+
+    assert cli.main(["mapa", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["items"][0]["uid"] == "u1"
+    assert "/mapa?" in visto["url"]
+    assert "repo=" in visto["url"]
+
+
+def test_mapa_sin_json_resume_por_carril(tmp_path, capsys, monkeypatch) -> None:
+    _con_raiz(tmp_path)
+    monkeypatch.setattr(
+        cli,
+        "_get",
+        lambda url: (
+            {
+                "items": [
+                    {"uid": "u1", "status": "roadmap", "title": "A"},
+                    {"uid": "u2", "status": "draft", "title": "B"},
+                    {"uid": "u3", "status": "draft", "title": "C"},
+                ]
+            },
+            None,
+            200,
+        ),
+    )
+
+    assert cli.main(["mapa"]) == 0
+    salida = capsys.readouterr().out
+    assert "roadmap: 1" in salida
+    assert "draft: 2" in salida
+    assert "3 ítems" in salida
+
+
+def test_mapa_sin_raiz_sale_con_2(capsys) -> None:
+    assert cli.main(["mapa"]) == 2
+    assert "no hay raíz" in capsys.readouterr().err

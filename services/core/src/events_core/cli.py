@@ -392,6 +392,31 @@ def _item(args: argparse.Namespace) -> int:
     return 0
 
 
+def _mapa(args: argparse.Namespace) -> int:
+    """El mapa entero tal como lo lee la UI: una sola lectura del almacén."""
+    raiz, url = _con_raiz(args)
+    if raiz is None:
+        return 2
+    datos, detalle, estado = _get(f"{url}/mapa?repo={quote(raiz, safe='')}")
+    if detalle:
+        return _fallo(detalle, estado)
+    if args.json:
+        print(json.dumps(datos))
+        return 0
+    items = datos.get("items") or []
+    if not items:
+        print("(mapa vacío)")
+        return 0
+    # El core ya entrega los carriles en su orden: se cuentan sin reordenar.
+    por_carril: dict[str, int] = {}
+    for item in items:
+        por_carril[item["status"]] = por_carril.get(item["status"], 0) + 1
+    for carril, total in por_carril.items():
+        print(f"{carril}: {total}")
+    print(f"{len(items)} ítems")
+    return 0
+
+
 ESTADOS = (
     "draft",
     "proposed",
@@ -992,6 +1017,13 @@ def _parser() -> argparse.ArgumentParser:
     repos.add_argument("--json", action="store_true")
     conexion(repos)
     repos.set_defaults(func=_repo)
+
+    mapa = comandos.add_parser(
+        "mapa", help="El mapa entero en una lectura: carriles, dependencias y fases"
+    )
+    mapa.add_argument("--json", action="store_true")
+    conexion(mapa)
+    mapa.set_defaults(func=_mapa)
 
     items = comandos.add_parser("item", help="Lee y escribe los ítems del repo")
     acciones_item = items.add_subparsers(dest="accion", required=True)

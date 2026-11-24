@@ -273,3 +273,52 @@ def test_el_protocolo_del_repo_queda_versionado() -> None:
         capture_output=True,
     )
     assert resultado.returncode == 1, resultado.stderr.decode("utf-8", "replace")
+
+
+def test_las_cinco_puertas_abren_y_cierran(client, repo) -> None:  # noqa: ANN001, ANN202
+    """Cada puerta de la v1 se enciende con su estado y se apaga al deshacerlo."""
+
+    def ids() -> set[str]:
+        return {p["id"] for p in client.get("/puertas", params={"repo": repo}).json()}
+
+    # sin-ficha-activa: abierta sin ficha, cerrada al entrar una.
+    assert "sin-ficha-activa" in ids()
+    uid = client.post(
+        "/items", params={"repo": repo}, json={"title": "A", "status": "roadmap"}
+    ).json()["uid"]
+    assert "sin-ficha-activa" not in ids()
+
+    # ficha-sin-fases: se apaga al escribir el desglose.
+    assert "ficha-sin-fases" in ids()
+    desglose = [{"titulo": "Una", "requisitos": [{"titulo": "Criterio"}]}]
+    r = client.patch(f"/items/{uid}", params={"repo": repo}, json={"fases": desglose})
+    assert r.status_code == 200, r.json()
+    assert "ficha-sin-fases" not in ids()
+
+    # una-ficha-a-la-vez: se apaga al vaciar roadmap.
+    assert "una-ficha-a-la-vez" in ids()
+    completas = [
+        {
+            "titulo": "Una",
+            "estado": "completada",
+            "requisitos": [{"titulo": "Criterio", "hecho": True}],
+        }
+    ]
+    r = client.patch(f"/items/{uid}", params={"repo": repo}, json={"fases": completas})
+    assert r.status_code == 200, r.json()
+    r = client.patch(f"/items/{uid}", params={"repo": repo}, json={"status": "verificacion"})
+    assert r.status_code == 200, r.json()
+    assert "una-ficha-a-la-vez" not in ids()
+
+    # verificando-no-se-toca: se apaga al volver a roadmap.
+    assert "verificando-no-se-toca" in ids()
+    r = client.patch(f"/items/{uid}", params={"repo": repo}, json={"status": "roadmap"})
+    assert r.status_code == 200, r.json()
+    assert "verificando-no-se-toca" not in ids()
+
+    # documentos-fuera-del-flujo: se apaga al retirar el documento.
+    parcial = resolve_repo(repo) / "PARCIAL.md"
+    parcial.write_text("- [eui:0123456789abcdef0123456789abcdef] Uno\n", encoding="utf-8")
+    assert "documentos-fuera-del-flujo" in ids()
+    parcial.unlink()
+    assert "documentos-fuera-del-flujo" not in ids()

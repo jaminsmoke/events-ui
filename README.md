@@ -179,7 +179,10 @@ se suman `item_create`, `item_edit`, `item_move`, `item_fases`,
 `item_requisito`, `migrate_apply` y `migrate_undo`. El esquema del plan se lee
 en el recurso `eui://schema/plan-migracion`, y el mapa en `eui://mapa` (mismo
 JSON que `GET /mapa`, con la raíz configurada). stdout es solo protocolo; los
-errores del CLI vuelven como `isError: true` y los logs van a stderr.
+errores del CLI vuelven como `isError: true` y los logs van a stderr. Las
+puertas del flujo retiran herramientas según el mapa: `tools/list` no anuncia
+las que una puerta cierra y `tools/call` las rechaza con su motivo, así que la
+política de `.EUI/protocolos.json` se aplica también al agente.
 
 El registro operativo de la app (arranques, errores y operaciones) vive en su
 propio SQLite, `data/registro.sqlite` en la raíz del repo (`EVENTSUI_REGISTRO_DB` para cambiarlo);

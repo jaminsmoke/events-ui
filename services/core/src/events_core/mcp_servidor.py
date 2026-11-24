@@ -10,6 +10,10 @@ Lectura por defecto. Las herramientas que escriben (`item_create`, `item_edit`,
 `item_move`, `item_fases`, `item_requisito`, `migrate_apply`, `migrate_undo`)
 solo se anuncian y se ejecutan con `--permitir-escritura` o
 `EVENTSUI_MCP_ESCRITURA=1`.
+
+Las puertas del flujo (`.EUI/protocolos.json` y el mapa) retiran herramientas de
+`tools/list` y rechazan su `tools/call` con el motivo. La política se pregunta
+por el CLI, no se reimplementa: es la misma que ve un humano.
 """
 
 from __future__ import annotations
@@ -56,7 +60,8 @@ INSTRUCCIONES = (
     "Cliente de Events UI. Lee con doctor, repo_actual, repo_list, item_list, "
     "item_get, mapa, migrate_scan, migrate_classify y migrate_check. Las "
     "herramientas que escriben solo aparecen si el servidor arrancó con "
-    "--permitir-escritura o EVENTSUI_MCP_ESCRITURA=1."
+    "--permitir-escritura o EVENTSUI_MCP_ESCRITURA=1. Las puertas del flujo "
+    "retiran herramientas según el mapa; `eui puertas` dice cuáles están cerradas."
 )
 
 _REPO = {
@@ -370,10 +375,48 @@ def _herramienta_publica(herramienta: dict[str, Any]) -> dict[str, Any]:
     return publica
 
 
-def _lista_herramientas(permitir_escritura: bool) -> list[dict[str, Any]]:
-    """Las herramientas a la vista, con sus anotaciones y su salida."""
+def _puertas_cerradas(argumentos: dict[str, Any]) -> dict[str, str]:
+    """Las herramientas que una puerta cierra ahora, con su motivo.
+
+    Se pregunta al CLI, no al almacén: el MCP es un cliente del core y la
+    política tiene que ser la misma que ve un humano. Si la consulta falla se
+    devuelve vacío y se anuncia todo: sin core no hay nada que cerrar, y la
+    herramienta fallará por su cuenta con el error de verdad. Un fallo de la
+    consulta no puede dejar al agente sin herramientas.
+    """
+    codigo, salida, _ = _cli(["puertas", "--json", *_comunes(argumentos)])
+    if codigo != 0:
+        return {}
+    try:
+        datos = json.loads(salida)
+    except (TypeError, ValueError):
+        return {}
+    cerradas: dict[str, str] = {}
+    for puerta in datos if isinstance(datos, list) else ():
+        if not isinstance(puerta, dict):
+            continue
+        motivo = str(puerta.get("motivo") or puerta.get("id") or "puerta cerrada")
+        for nombre in puerta.get("cierra") or ():
+            cerradas.setdefault(str(nombre), motivo)
+    return cerradas
+
+
+def _lista_herramientas(
+    permitir_escritura: bool, cerradas: dict[str, str] | None = None
+) -> list[dict[str, Any]]:
+    """Las herramientas a la vista, con sus anotaciones y su salida.
+
+    Las que una puerta cierra ahora no se anuncian: el cliente no las ofrece y
+    el agente no las intenta. `tools/call` las rechaza igual, porque la lista
+    puede venir de antes del cambio de mapa.
+    """
     disponibles = [*_LECTURA, *_ESCRITURA] if permitir_escritura else [*_LECTURA]
-    return [_herramienta_publica(herramienta) for herramienta in disponibles]
+    fuera = cerradas or {}
+    return [
+        _herramienta_publica(herramienta)
+        for herramienta in disponibles
+        if herramienta["name"] not in fuera
+    ]
 
 
 # Campos que no son de una herramienta pero sí de otra: el error dice dónde
@@ -694,7 +737,10 @@ def manejar(mensaje: Any, *, permitir_escritura: bool = False) -> dict[str, Any]
         if metodo == "ping":
             return _ok(ident, {})
         if metodo == "tools/list":
-            return _ok(ident, {"tools": _lista_herramientas(permitir_escritura)})
+            return _ok(
+                ident,
+                {"tools": _lista_herramientas(permitir_escritura, _puertas_cerradas({}))},
+            )
         if metodo == "tools/call":
             nombre = params.get("name")
             argumentos = params.get("arguments") or {}
@@ -705,6 +751,20 @@ def manejar(mensaje: Any, *, permitir_escritura: bool = False) -> dict[str, Any]
             problema = _validar_entrada(nombre, argumentos)
             if problema is not None:
                 return _error(ident, -32602, problema)
+            # La lista pudo quedarse vieja: la llamada se vuelve a comprobar, y
+            # el rechazo es un resultado con `isError`, no un error de protocolo:
+            # el agente tiene que poder leer el motivo y corregir.
+            cerradas = _puertas_cerradas(argumentos)
+            if nombre in cerradas:
+                return _ok(
+                    ident,
+                    {
+                        "content": [
+                            {"type": "text", "text": f"puerta cerrada: {cerradas[nombre]}"}
+                        ],
+                        "isError": True,
+                    },
+                )
             return _ok(ident, _ejecutar(nombre, argumentos, permitir_escritura))
         if metodo == "resources/list":
             return _ok(

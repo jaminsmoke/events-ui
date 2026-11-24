@@ -8,6 +8,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from events_core import mcp_servidor, migracion
 
 
@@ -16,6 +18,148 @@ def _peticion(metodo: str, params: dict | None = None, ident: int = 1) -> dict:
     if params is not None:
         mensaje["params"] = params
     return mensaje
+
+
+_ORIGINAL_PUERTAS = mcp_servidor._puertas_cerradas
+
+
+@pytest.fixture(autouse=True)
+def _sin_puertas(monkeypatch) -> None:  # noqa: ANN001
+    """Las pruebas de herramientas no pagan la consulta de puertas."""
+    monkeypatch.setattr(mcp_servidor, "_puertas_cerradas", lambda argumentos: {})
+
+
+@pytest.fixture()
+def con_puertas(monkeypatch) -> None:  # noqa: ANN001
+    """Devuelve la consulta real de puertas; el CLI se finge en cada test."""
+    monkeypatch.setattr(mcp_servidor, "_puertas_cerradas", _ORIGINAL_PUERTAS)
+
+
+def _cli_con(puertas: list[dict], salida: dict | None = None):
+    """Un `cli.main` que contesta a `puertas` y, para lo demás, con `salida`."""
+
+    def main(argv: list[str]) -> int:
+        if argv[0] == "puertas":
+            print(json.dumps(puertas))
+            return 0
+        print(json.dumps(salida if salida is not None else {"uid": "u1"}))
+        return 0
+
+    return main
+
+
+def test_tools_list_omite_lo_que_una_puerta_cierra(con_puertas, monkeypatch) -> None:  # noqa: ANN001
+    monkeypatch.setattr(
+        mcp_servidor.cli,
+        "main",
+        _cli_con([{"id": "sin-ficha-activa", "motivo": "Mueve una.", "cierra": ["item_fases"]}]),
+    )
+
+    herramientas = mcp_servidor.manejar(_peticion("tools/list"), permitir_escritura=True)["result"][
+        "tools"
+    ]
+    nombres = {herramienta["name"] for herramienta in herramientas}
+
+    assert "item_fases" not in nombres
+    assert len(nombres) == len(mcp_servidor.HERRAMIENTAS) - 1
+    # La puerta no cierra lo que la abre: `item_move` sigue a la vista.
+    assert "item_move" in nombres
+
+
+def test_tools_call_rechaza_lo_cerrado_con_el_motivo(con_puertas, monkeypatch) -> None:  # noqa: ANN001
+    llamadas: list[list[str]] = []
+
+    def main(argv: list[str]) -> int:
+        if argv[0] == "puertas":
+            print(
+                json.dumps(
+                    [
+                        {
+                            "id": "sin-ficha-activa",
+                            "motivo": "Mueve una ficha a roadmap.",
+                            "cierra": ["item_fases"],
+                        }
+                    ]
+                )
+            )
+            return 0
+        llamadas.append(argv)
+        return 0
+
+    monkeypatch.setattr(mcp_servidor.cli, "main", main)
+
+    respuesta = mcp_servidor.manejar(
+        _peticion("tools/call", {"name": "item_fases", "arguments": {"uid": "u1", "fases": []}}),
+        permitir_escritura=True,
+    )["result"]
+
+    assert respuesta["isError"] is True
+    assert "Mueve una ficha a roadmap." in respuesta["content"][0]["text"]
+    assert llamadas == []
+
+
+def test_la_lista_cambia_con_el_mapa_sin_reiniciar(con_puertas, monkeypatch) -> None:  # noqa: ANN001
+    cierra = {"valor": ["item_fases"]}
+
+    def main(argv: list[str]) -> int:
+        if argv[0] == "puertas":
+            print(json.dumps([{"id": "x", "motivo": "m", "cierra": cierra["valor"]}]))
+            return 0
+        return 0
+
+    monkeypatch.setattr(mcp_servidor.cli, "main", main)
+
+    antes = {
+        herramienta["name"]
+        for herramienta in mcp_servidor.manejar(_peticion("tools/list"), permitir_escritura=True)[
+            "result"
+        ]["tools"]
+    }
+    cierra["valor"] = []
+    despues = {
+        herramienta["name"]
+        for herramienta in mcp_servidor.manejar(_peticion("tools/list"), permitir_escritura=True)[
+            "result"
+        ]["tools"]
+    }
+
+    assert "item_fases" not in antes
+    assert "item_fases" in despues
+
+
+def test_si_las_puertas_no_se_pueden_leer_se_anuncia_todo(con_puertas, monkeypatch) -> None:  # noqa: ANN001
+    def main(argv: list[str]) -> int:
+        print("error: no hay raíz", file=sys.stderr)
+        return 2
+
+    monkeypatch.setattr(mcp_servidor.cli, "main", main)
+
+    nombres = {
+        herramienta["name"]
+        for herramienta in mcp_servidor.manejar(_peticion("tools/list"))["result"]["tools"]
+    }
+
+    assert "item_list" in nombres
+
+
+def test_las_puertas_se_preguntan_por_el_repo_de_la_llamada(con_puertas, monkeypatch) -> None:  # noqa: ANN001
+    visto: list[list[str]] = []
+
+    def main(argv: list[str]) -> int:
+        if argv[0] == "puertas":
+            visto.append(argv)
+            print("[]")
+            return 0
+        return 0
+
+    monkeypatch.setattr(mcp_servidor.cli, "main", main)
+
+    mcp_servidor.manejar(
+        _peticion("tools/call", {"name": "item_get", "arguments": {"uid": "u1", "repo": "/x"}})
+    )
+
+    assert "--repo" in visto[0]
+    assert "/x" in visto[0]
 
 
 def test_initialize_negocia_version_y_capacidades() -> None:

@@ -20,6 +20,12 @@ otra forma de crear uno.
   su `.gitignore` y las copias `migracion/<lote>/…`. Un Markdown suelto ahí no
   es un documento: se rechaza al escribirlo y se purga al abrir el almacén.
 
+`eui migrate guard` revisa las tres señales de suplantación: un Markdown suelto
+dentro de `.EUI`, una ruta que la absorción retiró y ha vuelto, y un marcador
+`[eui:<uid>]` cuyo uid no está en el almacén. Lista lo que encuentra y sale con
+1 si hay algo; no escribe ni borra. Un README o una guía a mano no salen: no
+pretenden ser documentos de Events UI.
+
 ## Flujo
 
 1. `eui migrate scan <ruta>` lee la carpeta (o un Markdown suelto) y devuelve

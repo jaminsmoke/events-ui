@@ -30,7 +30,7 @@ from .contrato import (
 )
 from .db import open_read_only
 from .items.base.comun import InvalidInput, escribir_atomico, fecha_iso, now_iso
-from .items.base.eui_fs import relativa_bajo_eui
+from .items.base.eui_fs import es_permitida_en_eui, relativa_bajo_eui
 from .items.base.rutas import EUI_DIR, db_file_for
 
 EXTENSIONES = {".md", ".markdown"}
@@ -1440,6 +1440,9 @@ def _bloques_markdown(texto: str) -> list[dict[str, Any]]:
     return bloques
 
 
+# Un marcador de absorción parcial: `- [eui:<uid>] Título`.
+_MARCADOR_EUI = re.compile(r"\[eui:([0-9a-f]{32})\]")
+
 SECCIONES_EXPORT = (
     ("draft", "Entrada"),
     ("proposed", "Backlog"),
@@ -1616,6 +1619,96 @@ def listar_documentos_absorbidos(raiz: Path) -> list[dict[str, Any]]:
                     documentos[ruta] = documento
 
     return sorted(documentos.values(), key=lambda documento: documento["ruta"].casefold())
+
+
+def documentos_ajenos(raiz: Path) -> list[dict[str, Any]]:
+    """Documentos que se hacen pasar por parte del flujo sin haber pasado.
+
+    Un README o una guía escritos a mano no salen aquí: no pretenden ser
+    documentos de Events UI. Lo que se busca es la suplantación, en tres
+    formas, y solo se informa de ella: no se escribe ni se borra nada.
+
+    - un Markdown suelto dentro de `.EUI` que no es copia de absorción;
+    - una ruta que un manifiesto dio por retirada y ha vuelto al repo;
+    - un marcador `[eui:<uid>]` cuyo uid no conoce el almacén.
+    """
+    raiz = raiz.resolve()
+    try:
+        absorbidos = {documento["ruta"] for documento in listar_documentos_absorbidos(raiz)}
+    except FileNotFoundError:
+        # Sin almacén no hay nada absorbido que pueda reaparecer.
+        absorbidos = set()
+    ajenos: dict[str, dict[str, Any]] = {}
+    marcados: dict[str, list[str]] = {}
+
+    for archivo in _markdowns_en_eui(raiz):
+        relativa = _relativa(archivo, raiz)
+        ajenos[relativa] = {
+            "ruta": relativa,
+            "motivo": f"Markdown dentro de {EUI_DIR}: no es una copia de absorción",
+        }
+
+    for archivo in _markdowns(raiz):
+        relativa = _relativa(archivo, raiz)
+        if relativa in absorbidos:
+            ajenos[relativa] = {
+                "ruta": relativa,
+                "motivo": "reaparece una ruta que la absorción retiró",
+            }
+            continue
+        try:
+            texto = archivo.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        uids = sorted(set(_MARCADOR_EUI.findall(texto)))
+        if uids:
+            marcados[relativa] = uids
+
+    if marcados:
+        desconocidos = _uids_desconocidos(raiz, {uid for uids in marcados.values() for uid in uids})
+        for relativa, uids in marcados.items():
+            faltan = [uid for uid in uids if uid in desconocidos]
+            if faltan:
+                ajenos[relativa] = {
+                    "ruta": relativa,
+                    "motivo": (
+                        f"marcador [eui:…] que el almacén no conoce ({', '.join(faltan[:3])})"
+                    ),
+                }
+
+    return sorted(ajenos.values(), key=lambda documento: documento["ruta"].casefold())
+
+
+def _uids_desconocidos(raiz: Path, uids: set[str]) -> set[str]:
+    """De los uids citados en marcadores, los que el almacén no tiene.
+
+    Sin almacén no hay nada que conozca: todos los marcadores son ajenos, que
+    es lo que la guarda quiere decir en un repo que aún no ha migrado.
+    """
+    try:
+        conn = open_read_only(db_file_for(str(raiz)))
+    except FileNotFoundError:
+        return uids
+    with closing(conn):
+        marcas = ",".join("?" for _ in uids)
+        filas = conn.execute(
+            f"SELECT uid FROM work_item_data WHERE uid IN ({marcas})", tuple(uids)
+        ).fetchall()
+    return uids - {str(fila[0]) for fila in filas}
+
+
+def _markdowns_en_eui(raiz: Path) -> list[Path]:
+    """Los Markdown de `.EUI` que el contrato no permite (no son copias)."""
+    eui = raiz / EUI_DIR
+    if not eui.is_dir():
+        return []
+    ajenos: list[Path] = []
+    for archivo in sorted(eui.rglob("*")):
+        if not archivo.is_file() or archivo.suffix.lower() not in EXTENSIONES:
+            continue
+        if not es_permitida_en_eui(archivo.relative_to(eui).as_posix()):
+            ajenos.append(archivo)
+    return ajenos
 
 
 def exportar_documento(raiz: Path, ruta: str) -> str:

@@ -909,6 +909,35 @@ def _migrar_export(args: argparse.Namespace) -> int:
     return 0
 
 
+def _migrar_guard(args: argparse.Namespace) -> int:
+    ajustes = configuracion.leer_segura()
+    try:
+        raiz = _raiz(args, ajustes)
+    except InvalidInput as exc:
+        return _error(str(exc))
+    if raiz is None:
+        return _error(
+            "no hay raíz: elige una carpeta en la app, usa --repo o `eui config set repo`"
+        )
+    try:
+        ajenos = migracion.documentos_ajenos(Path(raiz))
+    except InvalidInput as exc:
+        return _error(str(exc))
+    except FileNotFoundError as exc:
+        return _error(str(exc), 1)
+
+    if args.json:
+        print(
+            json.dumps({"repo": raiz, "ajenos": ajenos, "total": len(ajenos)}, ensure_ascii=False)
+        )
+    elif not ajenos:
+        print("sin documentos fuera del flujo")
+    else:
+        for documento in ajenos:
+            print(f"{documento['ruta']}  {documento['motivo']}")
+    return 1 if ajenos else 0
+
+
 def _mcp(args: argparse.Namespace) -> int:
     # Import perezoso: el CLI normal no carga el servidor ni su protocolo.
     from .mcp_servidor import permite_escritura, servir
@@ -1136,6 +1165,13 @@ def _parser() -> argparse.ArgumentParser:
     exportar.add_argument("--salida", help="Fichero de salida; por defecto, stdout")
     conexion(exportar)
     exportar.set_defaults(func=_migrar_export)
+
+    guarda = acciones_migrar.add_parser(
+        "guard", help="Lista los documentos creados fuera del flujo; no escribe"
+    )
+    guarda.add_argument("--json", action="store_true")
+    conexion(guarda)
+    guarda.set_defaults(func=_migrar_guard)
 
     mcp = comandos.add_parser("mcp", help="Servidor MCP por stdio para agentes")
     mcp.add_argument(

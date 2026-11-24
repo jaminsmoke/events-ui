@@ -32,6 +32,7 @@ from .contrato import (
     InformeDoctor,
     InformeRevision,
     InformeScan,
+    MapSnapshot,
     MigracionAplicada,
     MigracionDeshecha,
     Repo,
@@ -49,9 +50,9 @@ URI_ESQUEMA = "eui://schema/plan-migracion"
 
 INSTRUCCIONES = (
     "Cliente de Events UI. Lee con doctor, repo_actual, repo_list, item_list, "
-    "item_get, migrate_scan, migrate_classify y migrate_check. Las herramientas que escriben solo "
-    "aparecen si el servidor arrancó con --permitir-escritura o "
-    "EVENTSUI_MCP_ESCRITURA=1."
+    "item_get, mapa, migrate_scan, migrate_classify y migrate_check. Las "
+    "herramientas que escriben solo aparecen si el servidor arrancó con "
+    "--permitir-escritura o EVENTSUI_MCP_ESCRITURA=1."
 )
 
 _REPO = {
@@ -113,6 +114,13 @@ _LECTURA: tuple[dict[str, Any], ...] = (
         "name": "item_get",
         "description": "La ficha completa de un ítem: campos, fases, requisitos y procedencia.",
         "inputSchema": _esquema({**_COMUNES, "uid": {"type": "string"}}, ["uid"]),
+    },
+    {
+        "name": "mapa",
+        "description": (
+            "El mapa entero en una lectura: cada ítem con su carril, sus dependencias y sus fases."
+        ),
+        "inputSchema": _esquema(_COMUNES),
     },
     {
         "name": "migrate_scan",
@@ -258,6 +266,7 @@ _TITULOS = {
     "repo_list": "Repos del laboratorio",
     "item_list": "Listar ítems",
     "item_get": "Leer un ítem",
+    "mapa": "Mapa",
     "migrate_scan": "Escanear documentos",
     "migrate_classify": "Clasificar documentos",
     "migrate_check": "Validar un plan",
@@ -325,7 +334,7 @@ def _envoltura(clave: str, tipo: Any) -> dict[str, Any]:
 
 
 # Las herramientas cuyo `--json` es un modelo del contrato: el esquema sale del
-# modelo, así que no puede quedarse atrás. Las quince lo son: los informes de
+# modelo, así que no puede quedarse atrás. Las dieciséis lo son: los informes de
 # `doctor`, `repo_actual`, `migrate_scan`, `migrate_classify` y `migrate_check`
 # también son modelos (ficha `19c47c02`).
 _SALIDAS: dict[str, dict[str, Any]] = {
@@ -334,6 +343,7 @@ _SALIDAS: dict[str, dict[str, Any]] = {
     "repo_list": _envoltura("repos", list[Repo]),
     "item_list": _envoltura("items", list[WorkItemResumen] | list[WorkItem]),
     "item_get": TypeAdapter(WorkItem).json_schema(),
+    "mapa": TypeAdapter(MapSnapshot).json_schema(),
     "item_create": TypeAdapter(WorkItem).json_schema(),
     "item_edit": TypeAdapter(WorkItem).json_schema(),
     "item_move": TypeAdapter(WorkItem).json_schema(),
@@ -479,6 +489,8 @@ def _orden(nombre: str, a: dict[str, Any]) -> tuple[list[str], str | None]:
             argv += ["--offset", str(int(a["offset"]))]
     elif nombre == "item_get":
         argv = ["item", "get", str(a["uid"])]
+    elif nombre == "mapa":
+        argv = ["mapa"]
     elif nombre == "item_create":
         argv = ["item", "create", "--title", str(a["title"])]
         for clave, bandera in (

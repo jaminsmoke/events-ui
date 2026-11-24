@@ -427,12 +427,12 @@ def test_item_get_devuelve_structured_content_y_su_esquema(monkeypatch) -> None:
 
 
 def test_todas_las_herramientas_publican_su_salida() -> None:
-    """Las quince herramientas anuncian `outputSchema`: su `--json` es un modelo."""
+    """Las dieciséis herramientas anuncian `outputSchema`: su `--json` es un modelo."""
     herramientas = mcp_servidor.manejar(_peticion("tools/list"), permitir_escritura=True)["result"][
         "tools"
     ]
 
-    assert len(herramientas) == len(mcp_servidor.HERRAMIENTAS) == 15
+    assert len(herramientas) == len(mcp_servidor.HERRAMIENTAS) == 16
     for herramienta in herramientas:
         esquema = herramienta["outputSchema"]
         assert esquema["type"] == "object", herramienta["name"]
@@ -554,3 +554,47 @@ def test_un_fallo_no_lleva_structured_content(monkeypatch) -> None:
     assert resultado["isError"] is True
     assert "structuredContent" not in resultado
     assert "no existe el ítem" in resultado["content"][0]["text"]
+
+
+def test_mapa_es_una_herramienta_de_lectura() -> None:
+    lectura = mcp_servidor.manejar(_peticion("tools/list"))["result"]["tools"]
+    mapa = next(herramienta for herramienta in lectura if herramienta["name"] == "mapa")
+
+    assert mapa["annotations"]["readOnlyHint"] is True
+    assert mapa["annotations"]["destructiveHint"] is False
+    assert mapa["annotations"]["openWorldHint"] is False
+    assert mapa["outputSchema"]["properties"]["items"]["type"] == "array"
+
+
+def test_mapa_arma_el_comando_y_devuelve_el_snapshot(monkeypatch) -> None:
+    visto: dict[str, list[str]] = {}
+    snapshot = {
+        "items": [
+            {
+                "uid": "u1",
+                "title": "Hola",
+                "description": "",
+                "status": "roadmap",
+                "depende_de": [],
+                "fases": [],
+            }
+        ]
+    }
+
+    def falso(argv):  # noqa: ANN001, ANN202
+        visto["argv"] = argv
+        print(json.dumps(snapshot))
+        return 0
+
+    monkeypatch.setattr(mcp_servidor.cli, "main", falso)
+
+    resultado = mcp_servidor.manejar(
+        _peticion("tools/call", {"name": "mapa", "arguments": {"repo": "lab"}})
+    )["result"]
+
+    assert resultado["structuredContent"] == snapshot
+    assert visto["argv"][0] == "mapa"
+    assert "--json" in visto["argv"]
+    assert visto["argv"][visto["argv"].index("--repo") + 1] == "lab"
+    esquema = _herramienta("mapa")["outputSchema"]
+    assert migracion.validar_esquema(resultado["structuredContent"], esquema) == []

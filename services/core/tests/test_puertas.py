@@ -325,7 +325,7 @@ def test_las_cinco_puertas_abren_y_cierran(client, repo) -> None:  # noqa: ANN00
 
 
 def test_el_paquete_lleva_el_esquema_y_los_presets() -> None:
-    """`@jaminsmokedevs/protocols` no puede quedarse atrás del modelo.
+    """`events-ui-protocols` no puede quedarse atrás del modelo.
 
     El paquete publica una copia del esquema y de los presets: si el core cambia
     una descripción o añade una puerta y no se regenera, el que lo adopte ve un

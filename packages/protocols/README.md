@@ -1,4 +1,4 @@
-# @jaminsmokedevs/protocols
+# events-ui-protocols
 
 Las puertas del flujo de [Events UI](https://github.com/jaminsmoke/events-ui):
 el esquema de `.EUI/protocolos.json`, la política de partida y un `eui-guard`
@@ -14,9 +14,9 @@ que delega en el CLI.
 ## Cómo se adopta
 
 ```sh
-npm install --save-dev @jaminsmokedevs/protocols
+npm install --save-dev events-ui-protocols
 mkdir -p .EUI
-cp node_modules/@jaminsmokedevs/protocols/protocolos.json .EUI/protocolos.json
+cp node_modules/events-ui-protocols/protocolos.json .EUI/protocolos.json
 ```
 
 En `.gitignore`, para versionar solo la política:
@@ -32,7 +32,7 @@ Y en el pre-commit, o en el pre-herramienta del agente:
 npx eui-guard --repo .
 ```
 
-`eui-guard` necesita el CLI `eui` en el PATH (`@events-ui/webapp`).
+`eui-guard` necesita el CLI `eui` en el PATH (lo instala la app Events UI).
 
 ## Qué no hace
 

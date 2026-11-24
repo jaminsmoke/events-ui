@@ -1,5 +1,5 @@
 {
-  "name": "@jaminsmokedevs/protocols",
+  "name": "events-ui-protocols",
   "version": "0.5.5",
   "description": "Las puertas del flujo de Events UI: esquema, política de partida y la guarda para el repo.",
   "license": "MIT",

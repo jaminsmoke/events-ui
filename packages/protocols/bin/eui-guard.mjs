@@ -10,7 +10,7 @@ const resultado = spawnSync("eui", ["guard", ...process.argv.slice(2)], {
 
 if (resultado.error) {
   console.error(
-    "eui-guard necesita el CLI `eui` en el PATH (paquete @events-ui/webapp).",
+    "eui-guard necesita el CLI `eui` en el PATH (lo instala la app Events UI).",
   );
   process.exit(2);
 }

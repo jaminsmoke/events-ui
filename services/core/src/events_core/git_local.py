@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
+from typing import Any
 
 from . import proceso
 from .items.base.rutas import EUI_DIR
@@ -42,6 +43,22 @@ def texto(carpeta: Path, *args: str, timeout: float = TIMEOUT) -> str | None:
     if salida is None:
         return None
     return salida.stdout.strip() or None
+
+
+def ejecutar(
+    carpeta: Path, *args: str, timeout: float = TIMEOUT, errors: str | None = None
+) -> subprocess.CompletedProcess[str]:
+    """El proceso de Git tal cual, sin exigir éxito.
+
+    `_git` es para las consultas que fallan en silencio (sin repo, sin commits);
+    las acciones —inicializar, commitear, listar— necesitan el código de salida
+    y el `stderr` para decirle al usuario qué pasó. `errors` permite el
+    `surrogateescape` de los asuntos que no llegan en UTF-8.
+    """
+    opciones: dict[str, Any] = {"capture_output": True, "text": True, "timeout": timeout}
+    if errors is not None:
+        opciones["errors"] = errors
+    return proceso.run(["git", "-C", str(carpeta), *args], **opciones)
 
 
 def _git_repo(carpeta: Path) -> tuple[bool, Path | None]:

@@ -26,9 +26,8 @@ from contextlib import closing
 from pathlib import Path
 from typing import Any
 
-from . import proceso
 from .db import open_read_only
-from .git_local import _git_repo, cambios, texto
+from .git_local import _git_repo, cambios, ejecutar, texto
 from .items import InvalidInput, _existe, ensure_repo, repos_root, resolve_repo
 from .items.base.rutas import DB_FILENAME, EUI_DIR
 
@@ -42,18 +41,8 @@ def _almacen_ignorado(carpeta: Path) -> bool | None:
     binario entra en el próximo commit.
     """
     try:
-        salida = proceso.run(
-            [
-                "git",
-                "-C",
-                str(carpeta),
-                "check-ignore",
-                "-q",
-                "--",
-                f"{EUI_DIR}/{DB_FILENAME}",
-            ],
-            capture_output=True,
-            timeout=5,
+        salida = ejecutar(
+            carpeta, "check-ignore", "-q", "--", f"{EUI_DIR}/{DB_FILENAME}", timeout=5
         )
     except (OSError, subprocess.SubprocessError):
         return None
@@ -108,20 +97,14 @@ def historial(carpeta: Path, limite: int = 20) -> list[dict[str, str]]:
     if not es_git or git_root is None:
         return []
     try:
-        salida = proceso.run(
-            [
-                "git",
-                "-C",
-                str(git_root),
-                "log",
-                f"-n{limite}",
-                "--no-show-signature",
-                "--format=%h%x1f%s%x1f%an%x1f%aI",
-            ],
-            capture_output=True,
-            encoding="utf-8",
-            errors="surrogateescape",
+        salida = ejecutar(
+            git_root,
+            "log",
+            f"-n{limite}",
+            "--no-show-signature",
+            "--format=%h%x1f%s%x1f%an%x1f%aI",
             timeout=5,
+            errors="surrogateescape",
         )
     except (OSError, subprocess.SubprocessError):
         return []
@@ -152,12 +135,7 @@ def inicializar_repo(carpeta: Path) -> None:
     if es_git:
         raise InvalidInput(f"Ya pertenece al repositorio {git_root}; no se anida otro")
     try:
-        salida = proceso.run(
-            ["git", "-C", str(carpeta), "init", "-b", "main"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
+        salida = ejecutar(carpeta, "init", "-b", "main", timeout=10)
     except (OSError, subprocess.SubprocessError) as exc:
         raise InvalidInput("No se pudo ejecutar git init") from exc
     if salida.returncode != 0:
@@ -214,12 +192,7 @@ def commit(carpeta: Path, mensaje: str) -> None:
         ("commit", "-m", texto),
     ):
         try:
-            salida = proceso.run(
-                ["git", "-C", str(carpeta), *argumentos],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
+            salida = ejecutar(carpeta, *argumentos, timeout=10)
         except (OSError, subprocess.SubprocessError) as exc:
             raise InvalidInput("No se pudo ejecutar git") from exc
         if salida.returncode != 0:

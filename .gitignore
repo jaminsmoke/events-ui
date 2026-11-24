@@ -7,8 +7,11 @@ binaries/
 __pycache__/
 *.pyc
 data/
-# Almacén local de Events UI: vive en cada repo, no se versiona.
-.EUI/
+# Almacén local de Events UI: vive en cada repo, no se versiona. La política de
+# puertas sí: es la que revisa el repo y la que aplica el MCP, así que viaja con
+# él. La negación va después de la exclusión y no puede ser `.EUI/` entera.
+.EUI/*
+!.EUI/protocolos.json
 *.db
 *.db-wal
 *.db-shm

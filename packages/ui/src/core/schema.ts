@@ -134,6 +134,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/puertas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Puertas
+         * @description Las puertas activas del repo: qué está cerrado ahora y por qué.
+         *
+         *     La política sale de `.EUI/protocolos.json` (o de los presets si no hay
+         *     archivo) y la condición se evalúa contra el mapa, así que la respuesta
+         *     cambia con el trabajo, no con la configuración. El MCP la lee para no
+         *     anunciar lo que la puerta cierra.
+         */
+        get: operations["get_puertas_puertas_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/mapa": {
         parameters: {
             query?: never;
@@ -1228,6 +1253,28 @@ export interface components {
             ultima_actividad?: string | null;
         };
         /**
+         * Puerta
+         * @description Una puerta activa del flujo (`GET /puertas`).
+         *
+         *     `desde` dice de dónde sale la definición: el preset del core o el
+         *     `.EUI/protocolos.json` del repo. `cierra` son las herramientas del MCP que
+         *     la puerta deja fuera; va vacía en las informativas, que solo avisan de un
+         *     estado (roadmap ocupado).
+         */
+        Puerta: {
+            /** Id */
+            id: string;
+            /** Motivo */
+            motivo: string;
+            /**
+             * Desde
+             * @enum {string}
+             */
+            desde: "preset" | "repo";
+            /** Cierra */
+            cierra?: string[];
+        };
+        /**
          * RegistroPurgado
          * @description Respuesta de `POST /log/purgar`: qué se llevó la retención.
          *
@@ -1949,6 +1996,56 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Protocolo"][];
+                };
+            };
+            /** @description Petición inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description No existe el repo o el ítem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_puertas_puertas_get: {
+        parameters: {
+            query: {
+                /** @description Carpeta del repo: ruta absoluta o nombre en el lab */
+                repo: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Puerta"][];
                 };
             };
             /** @description Petición inválida */

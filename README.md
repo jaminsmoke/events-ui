@@ -104,6 +104,7 @@ uv run --directory services/core python -m events_core.cli doctor
 uv run --directory services/core python -m events_core.cli config --json
 uv run --directory services/core python -m events_core.cli repo
 uv run --directory services/core python -m events_core.cli mapa --json
+uv run --directory services/core python -m events_core.cli puertas --json
 uv run --directory services/core python -m events_core.cli item list --status proposed
 uv run --directory services/core python -m events_core.cli schema --pretty
 uv run --directory services/core python -m events_core.cli schema migrate --pretty
@@ -120,9 +121,11 @@ uv run --directory services/core python -m events_core.cli item requisito <uid> 
 ```
 
 `repo` enseña la raíz configurada (`repo list`, las del laboratorio), `mapa`
-trae el mapa entero de una lectura (el mismo `GET /mapa` que pinta la UI) e
-`item list|get` leen, mientras `create|edit|move|fases|requisito` escriben con el mismo
-contrato que la UI, y `schema` vuelca el OpenAPI del core. Todos aceptan `--repo`/`--url`/`--port` para pisar la configuración y
+trae el mapa entero de una lectura (el mismo `GET /mapa` que pinta la UI),
+`puertas` dice qué está cerrado ahora y por qué (`GET /puertas`, la política que
+aplica el MCP) e `item list|get` leen, mientras `create|edit|move|fases|requisito` escriben con el mismo
+contrato que la UI, y `schema` vuelca el OpenAPI del core (`schema puertas`
+valida el archivo de la política). Todos aceptan `--repo`/`--url`/`--port` para pisar la configuración y
 `--json` de una línea; salen con 0 bien, 1 no encontrado y 2 fallo o mal uso.
 
 La migración de Markdown empieza por `migrate scan`, que solo lee: recorre una

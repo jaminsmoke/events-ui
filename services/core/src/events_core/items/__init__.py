@@ -34,7 +34,15 @@ from .base.esquema import (
 )
 from .base.migraciones import MIGRATIONS_DIR, comprobar_version
 from .base.rutas import DB_FILENAME, EUI_DIR, db_file_for, repos_root, resolve_repo
-from .consulta import get_item, list_items, list_repos, listar_protocolos, map_snapshot, revision
+from .consulta import (
+    get_item,
+    list_items,
+    list_repos,
+    listar_protocolos,
+    listar_puertas,
+    map_snapshot,
+    revision,
+)
 from .crud import create_item, delete_item, reiniciar, update_item
 from .migracion import MigracionEnConflicto, aplicar_migracion, deshacer_migracion
 
@@ -62,6 +70,7 @@ __all__ = [
     "list_items",
     "list_repos",
     "listar_protocolos",
+    "listar_puertas",
     "map_snapshot",
     "MigracionEnConflicto",
     "now_iso",

@@ -1,4 +1,4 @@
-"""Contrato del directorio `.EUI`: solo almacén, gitignore y migraciones.
+"""Contrato del directorio `.EUI`: almacén, gitignore, política y migraciones.
 
 `.EUI` es configuración del producto, no un cajón de logs, claves, instaladores
 ni scripts de prueba. Cualquier otra cosa se considera ajena: no se puede
@@ -12,7 +12,7 @@ import shutil
 from pathlib import Path
 
 from .comun import InvalidInput
-from .rutas import DB_FILENAME, EUI_DIR, LEGACY_DB_FILENAME
+from .rutas import DB_FILENAME, EUI_DIR, LEGACY_DB_FILENAME, PROTOCOLOS_FILENAME
 
 # Un lote de migración es `uuid.uuid4().hex` (32 hex en minúsculas).
 _LOTE_RE = re.compile(r"^[0-9a-f]{32}$")
@@ -21,6 +21,7 @@ _PERMITIDOS_RAIZ = frozenset(
     {
         ".gitignore",
         DB_FILENAME,
+        PROTOCOLOS_FILENAME,
         f"{DB_FILENAME}-wal",
         f"{DB_FILENAME}-shm",
         f"{DB_FILENAME}-journal",
@@ -84,7 +85,7 @@ def asegurar_destino_eui(destino: Path) -> None:
     if relativa == "" or not es_permitida_en_eui(relativa):
         raise InvalidInput(
             f"ruta no permitida dentro de {EUI_DIR}: {relativa or '(raíz)'}; "
-            f"solo {DB_FILENAME}, .gitignore y migracion/<lote>/…"
+            f"solo {DB_FILENAME}, {PROTOCOLOS_FILENAME}, .gitignore y migracion/<lote>/…"
         )
 
 

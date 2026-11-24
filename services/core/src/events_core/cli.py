@@ -417,6 +417,26 @@ def _mapa(args: argparse.Namespace) -> int:
     return 0
 
 
+def _puertas(args: argparse.Namespace) -> int:
+    """Las puertas activas del flujo, con el mismo dato que ve el MCP."""
+    raiz, url = _con_raiz(args)
+    if raiz is None:
+        return 2
+    datos, detalle, estado = _get(f"{url}/puertas?repo={quote(raiz, safe='')}")
+    if detalle:
+        return _fallo(detalle, estado)
+    if args.json:
+        print(json.dumps(datos))
+        return 0
+    if not datos:
+        print("ninguna puerta activa")
+        return 0
+    for puerta in datos:
+        cierra = ", ".join(puerta["cierra"]) or "informativa"
+        print(f"{puerta['id']}  {puerta['motivo']}  ({cierra})")
+    return 0
+
+
 ESTADOS = (
     "draft",
     "proposed",
@@ -971,6 +991,12 @@ def _mcp(args: argparse.Namespace) -> int:
 
 
 def _schema(args: argparse.Namespace) -> int:
+    if args.tema == "puertas":
+        # El esquema del archivo es local: no hace falta core ni raíz.
+        from .items.modelo.puertas import ESQUEMA_PUERTAS
+
+        print(json.dumps(ESQUEMA_PUERTAS, indent=2 if args.pretty else None))
+        return 0
     if args.tema == "migrate":
         # El esquema del plan es local: no hace falta core ni raíz.
         print(json.dumps(migracion.ESQUEMA_PLAN, indent=2 if args.pretty else None))
@@ -1024,6 +1050,11 @@ def _parser() -> argparse.ArgumentParser:
     mapa.add_argument("--json", action="store_true")
     conexion(mapa)
     mapa.set_defaults(func=_mapa)
+
+    puertas = comandos.add_parser("puertas", help="Las puertas activas del flujo")
+    puertas.add_argument("--json", action="store_true")
+    conexion(puertas)
+    puertas.set_defaults(func=_puertas)
 
     items = comandos.add_parser("item", help="Lee y escribe los ítems del repo")
     acciones_item = items.add_subparsers(dest="accion", required=True)
@@ -1116,8 +1147,8 @@ def _parser() -> argparse.ArgumentParser:
     esquema.add_argument(
         "tema",
         nargs="?",
-        choices=["migrate"],
-        help="`migrate`: el esquema del plan que propone el agente",
+        choices=["migrate", "puertas"],
+        help="`migrate`: el plan de migración; `puertas`: `.EUI/protocolos.json`",
     )
     esquema.add_argument("--pretty", action="store_true", help="Indentado para leerlo")
     conexion(esquema, con_repo=False)

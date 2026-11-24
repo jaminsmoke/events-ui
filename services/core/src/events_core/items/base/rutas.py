@@ -14,6 +14,11 @@ EUI_DIR = ".EUI"
 
 DB_FILENAME = "EUI_DATABASE.sqlite"
 
+# La política de puertas del repo. Vive en `.EUI` porque es la única carpeta que
+# el producto controla, pero se versiona: `.gitignore` la excluye de la purga y
+# la reincorpora al repo.
+PROTOCOLOS_FILENAME = "protocolos.json"
+
 LEGACY_DB_FILENAME = "EUI_DATABASE"
 
 REPOS_ROOT_ENV_VAR = "EVENTSUI_REPOS_ROOT"

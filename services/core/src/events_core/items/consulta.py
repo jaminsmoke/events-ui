@@ -10,7 +10,8 @@ from typing import Any
 from ..db import con_vigilante, data_version, open_read_only
 from .base.comun import _COLUMNAS, _COLUMNAS_RESUMEN, _existe, _tags_json
 from .base.esquema import connect, ensure_repo
-from .base.rutas import DB_FILENAME, EUI_DIR, repos_root
+from .base.rutas import DB_FILENAME, EUI_DIR, repos_root, resolve_repo
+from .modelo import puertas
 from .modelo.estados import _grupo, _rechazo, _revision, _roadmap, _verificacion
 from .trabajo.fases import _fases, _fases_en_lote
 
@@ -265,6 +266,22 @@ def listar_protocolos(repo: str) -> list[dict[str, Any]]:
         }
         for fila in filas
     ]
+
+
+def listar_puertas(repo: str) -> list[dict[str, Any]]:
+    """Las puertas activas del repo: qué está cerrado ahora y por qué.
+
+    La de documentos camina el árbol (`documentos_ajenos`), así que esta lectura
+    es más cara que las demás y el MCP la cachea en vez de pedirla por cada
+    herramienta. El import va dentro de la función porque `migracion` ya importa
+    `items`: arriba sería un ciclo.
+    """
+    from ..migracion import documentos_ajenos
+
+    raiz = resolve_repo(repo)
+    with closing(connect(ensure_repo(repo))) as conn:
+        ajenos = documentos_ajenos(raiz)
+        return puertas.activas(raiz, conn, documentos=len(ajenos))
 
 
 def map_snapshot(repo: str) -> dict[str, Any]:

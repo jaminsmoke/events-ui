@@ -12,6 +12,7 @@ from ..contrato import (
     KindFiltro,
     MapSnapshot,
     Protocolo,
+    Puerta,
     Reinicio,
     Repo,
     RepoParam,
@@ -109,6 +110,18 @@ def get_protocolos(repo: RepoParam) -> list[dict[str, Any]]:
     es el PATCH, que responde 400 cuando la unión no está listada. Es
     configuración del almacén: el reinicio de laboratorio no la toca."""
     return items.listar_protocolos(repo)
+
+
+@router.get("/puertas", response_model=list[Puerta], tags=["items"], responses=RESPUESTAS_ERROR)
+def get_puertas(repo: RepoParam) -> list[dict[str, Any]]:
+    """Las puertas activas del repo: qué está cerrado ahora y por qué.
+
+    La política sale de `.EUI/protocolos.json` (o de los presets si no hay
+    archivo) y la condición se evalúa contra el mapa, así que la respuesta
+    cambia con el trabajo, no con la configuración. El MCP la lee para no
+    anunciar lo que la puerta cierra.
+    """
+    return items.listar_puertas(repo)
 
 
 @router.get("/mapa", response_model=MapSnapshot, tags=["items"], responses=RESPUESTAS_ERROR)

@@ -253,6 +253,21 @@ class Protocolo(BaseModel):
     exige_fases_completas: bool = False
 
 
+class Puerta(BaseModel):
+    """Una puerta activa del flujo (`GET /puertas`).
+
+    `desde` dice de dónde sale la definición: el preset del core o el
+    `.EUI/protocolos.json` del repo. `cierra` son las herramientas del MCP que
+    la puerta deja fuera; va vacía en las informativas, que solo avisan de un
+    estado (roadmap ocupado).
+    """
+
+    id: str
+    motivo: str
+    desde: Literal["preset", "repo"]
+    cierra: list[str] = Field(default_factory=list)
+
+
 class MapSnapshot(BaseModel):
     # Clave del plan y del mapa. El plan viejo seguía llamándola `ideas`.
     items: list[MapWorkItem]

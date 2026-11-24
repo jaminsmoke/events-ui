@@ -103,6 +103,7 @@ agentes y sale con 1 si algo falla:
 uv run --directory services/core python -m events_core.cli doctor
 uv run --directory services/core python -m events_core.cli config --json
 uv run --directory services/core python -m events_core.cli repo
+uv run --directory services/core python -m events_core.cli mapa --json
 uv run --directory services/core python -m events_core.cli item list --status proposed
 uv run --directory services/core python -m events_core.cli schema --pretty
 uv run --directory services/core python -m events_core.cli schema migrate --pretty
@@ -118,8 +119,9 @@ uv run --directory services/core python -m events_core.cli item fases <uid> fase
 uv run --directory services/core python -m events_core.cli item requisito <uid> 1 1 --hecho
 ```
 
-`repo` enseña la raíz configurada (`repo list`, las del laboratorio), `item
-list|get` leen y `create|edit|move|fases|requisito` escriben con el mismo
+`repo` enseña la raíz configurada (`repo list`, las del laboratorio), `mapa`
+trae el mapa entero de una lectura (el mismo `GET /mapa` que pinta la UI) e
+`item list|get` leen, mientras `create|edit|move|fases|requisito` escriben con el mismo
 contrato que la UI, y `schema` vuelca el OpenAPI del core. Todos aceptan `--repo`/`--url`/`--port` para pisar la configuración y
 `--json` de una línea; salen con 0 bien, 1 no encontrado y 2 fallo o mal uso.
 
@@ -169,10 +171,11 @@ solo se anuncian con `--permitir-escritura` o `EVENTSUI_MCP_ESCRITURA=1`.
 ```
 
 Herramientas de lectura: `doctor`, `repo_actual`, `repo_list`, `item_list`,
-`item_get`, `migrate_scan`, `migrate_classify` y `migrate_check`. Con escritura
+`item_get`, `mapa`, `migrate_scan`, `migrate_classify` y `migrate_check`. Con escritura
 se suman `item_create`, `item_edit`, `item_move`, `item_fases`,
 `item_requisito`, `migrate_apply` y `migrate_undo`. El esquema del plan se lee
-en el recurso `eui://schema/plan-migracion`. stdout es solo protocolo; los
+en el recurso `eui://schema/plan-migracion`, y el mapa en `eui://mapa` (mismo
+JSON que `GET /mapa`, con la raíz configurada). stdout es solo protocolo; los
 errores del CLI vuelven como `isError: true` y los logs van a stderr.
 
 El registro operativo de la app (arranques, errores y operaciones) vive en su

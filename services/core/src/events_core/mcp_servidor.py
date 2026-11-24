@@ -48,6 +48,10 @@ PROTOCOLO = PROTOCOLOS[-1]
 
 URI_ESQUEMA = "eui://schema/plan-migracion"
 
+# El mapa no lleva parámetros: un recurso se pide por URI, así que lee la raíz
+# configurada, la misma que usa `eui mapa` sin `--repo`.
+URI_MAPA = "eui://mapa"
+
 INSTRUCCIONES = (
     "Cliente de Events UI. Lee con doctor, repo_actual, repo_list, item_list, "
     "item_get, mapa, migrate_scan, migrate_classify y migrate_check. Las "
@@ -715,27 +719,56 @@ def manejar(mensaje: Any, *, permitir_escritura: bool = False) -> dict[str, Any]
                                 "para `migrate check` y `migrate apply`."
                             ),
                             "mimeType": "application/schema+json",
-                        }
+                        },
+                        {
+                            "uri": URI_MAPA,
+                            "name": "Mapa",
+                            "description": (
+                                "El mapa entero en una lectura, con el mismo JSON que "
+                                "`GET /mapa`: carriles, dependencias y fases."
+                            ),
+                            "mimeType": "application/json",
+                        },
                     ]
                 },
             )
         if metodo == "resources/templates/list":
             return _ok(ident, {"resourceTemplates": []})
         if metodo == "resources/read":
-            if params.get("uri") != URI_ESQUEMA:
-                return _error(ident, -32602, f"recurso desconocido: {params.get('uri')!r}")
-            return _ok(
-                ident,
-                {
-                    "contents": [
-                        {
-                            "uri": URI_ESQUEMA,
-                            "mimeType": "application/schema+json",
-                            "text": json.dumps(migracion.ESQUEMA_PLAN, indent=2),
-                        }
-                    ]
-                },
-            )
+            uri = params.get("uri")
+            if uri == URI_ESQUEMA:
+                return _ok(
+                    ident,
+                    {
+                        "contents": [
+                            {
+                                "uri": URI_ESQUEMA,
+                                "mimeType": "application/schema+json",
+                                "text": json.dumps(migracion.ESQUEMA_PLAN, indent=2),
+                            }
+                        ]
+                    },
+                )
+            if uri == URI_MAPA:
+                # El recurso pasa por el CLI como las herramientas: una sola
+                # fuente para el snapshot y los mismos errores que un humano ve.
+                codigo, salida, error = _cli(["mapa", "--json"])
+                if codigo != 0:
+                    texto = salida.strip() or error.strip() or f"exit {codigo}"
+                    return _error(ident, -32603, f"no se pudo leer el mapa: {texto}")
+                return _ok(
+                    ident,
+                    {
+                        "contents": [
+                            {
+                                "uri": URI_MAPA,
+                                "mimeType": "application/json",
+                                "text": salida.strip(),
+                            }
+                        ]
+                    },
+                )
+            return _error(ident, -32602, f"recurso desconocido: {uri!r}")
         return _error(ident, -32601, f"método desconocido: {metodo}")
     except Exception as exc:  # noqa: BLE001 - el bucle no puede caerse
         return _error(ident, -32603, f"error interno: {exc}")

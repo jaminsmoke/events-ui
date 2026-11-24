@@ -598,3 +598,54 @@ def test_mapa_arma_el_comando_y_devuelve_el_snapshot(monkeypatch) -> None:
     assert visto["argv"][visto["argv"].index("--repo") + 1] == "lab"
     esquema = _herramienta("mapa")["outputSchema"]
     assert migracion.validar_esquema(resultado["structuredContent"], esquema) == []
+
+
+def test_resources_list_anuncia_el_mapa() -> None:
+    recursos = mcp_servidor.manejar(_peticion("resources/list"))["result"]["resources"]
+    mapa = next(recurso for recurso in recursos if recurso["uri"] == mcp_servidor.URI_MAPA)
+
+    assert mapa["mimeType"] == "application/json"
+    assert mapa["name"]
+    assert mapa["description"]
+
+
+def test_resources_read_del_mapa_usa_el_cli(monkeypatch) -> None:
+    snapshot = {"items": [{"uid": "u1", "title": "Hola", "description": "", "status": "draft"}]}
+    visto: dict[str, list[str]] = {}
+
+    def falso(argv):  # noqa: ANN001, ANN202
+        visto["argv"] = argv
+        print(json.dumps(snapshot))
+        return 0
+
+    monkeypatch.setattr(mcp_servidor.cli, "main", falso)
+
+    respuesta = mcp_servidor.manejar(_peticion("resources/read", {"uri": mcp_servidor.URI_MAPA}))
+    contenido = respuesta["result"]["contents"][0]
+
+    assert contenido["uri"] == mcp_servidor.URI_MAPA
+    assert contenido["mimeType"] == "application/json"
+    assert json.loads(contenido["text"]) == snapshot
+    # Sin `--repo`: el recurso lee la raíz configurada, como `eui mapa`.
+    assert visto["argv"][:2] == ["mapa", "--json"]
+    assert "--repo" not in visto["argv"]
+
+
+def test_resources_read_de_un_uri_desconocido_es_error() -> None:
+    respuesta = mcp_servidor.manejar(_peticion("resources/read", {"uri": "eui://no-existe"}))
+
+    assert respuesta["error"]["code"] == -32602
+    assert "recurso desconocido" in respuesta["error"]["message"]
+
+
+def test_resources_read_del_mapa_sin_raiz_es_error(monkeypatch) -> None:
+    def falso(_argv):  # noqa: ANN001, ANN202
+        print("error: no hay raíz: elige una carpeta en la app", file=sys.stderr)
+        return 2
+
+    monkeypatch.setattr(mcp_servidor.cli, "main", falso)
+
+    respuesta = mcp_servidor.manejar(_peticion("resources/read", {"uri": mcp_servidor.URI_MAPA}))
+
+    assert respuesta["error"]["code"] == -32603
+    assert "no hay raíz" in respuesta["error"]["message"]

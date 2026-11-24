@@ -14,6 +14,8 @@ from pathlib import Path
 
 import pytest
 
+from events_core import archivos, git_local
+
 GIT = shutil.which("git")
 
 
@@ -113,6 +115,33 @@ def test_subcarpeta_de_un_repo_hereda_el_work_tree(client, tmp_path):  # noqa: A
     assert Path(datos["git_root"]).resolve() == raiz.resolve()
     assert datos["branch"] == "main"
     assert datos["commit"] is not None
+
+
+def test_la_foto_de_fase_solo_acepta_el_repo_propio(tmp_path):  # noqa: ANN001, ANN202
+    """La proyección acepta el repo contenedor; el parche de una fase, no.
+
+    Una subcarpeta de otro repo forma parte de él para la identidad del mapa,
+    pero sus archivos no son trabajo de el ítem: sin repo propio la foto se
+    queda en rutas y estado, como decidió el producto. Las dos reglas salen de
+    `git_local._git_repo`, así que un cambio en el repo contenedor llega a las
+    dos a la vez.
+    """
+    raiz = tmp_path / "contenedor"
+    _inicializar(raiz)
+    (raiz / "nota.txt").write_text("hola", encoding="utf-8")
+    _git(raiz, "add", "nota.txt")
+    _git(raiz, "commit", "-m", "inicial")
+    sub = raiz / "sub"
+    sub.mkdir()
+
+    es_git, git_root = git_local._git_repo(sub)
+    assert es_git is True
+    assert Path(git_root).resolve() == raiz.resolve()
+    assert archivos.hay_git(sub) is False
+
+    propio = tmp_path / "propio"
+    _inicializar(propio)
+    assert archivos.hay_git(propio) is True
 
 
 def test_carpeta_ignorada_por_el_repo_contenedor_no_cuenta(client, tmp_path):  # noqa: ANN001, ANN202

@@ -16,11 +16,10 @@ PATCH.
 from __future__ import annotations
 
 import os
-import subprocess
 from pathlib import Path
 from typing import Any
 
-from . import proceso
+from .git_local import _git, hay_git, parches
 
 # Tope de archivos por foto. Por encima se anota lo que quepa en orden
 # alfabético: el árbol de un ítem no suele acercarse, pero un `vendor/` suelto
@@ -49,39 +48,6 @@ PODA = {
     ".ruff_cache",
     "coverage",
 }
-
-
-def _git(carpeta: Path, *args: str) -> subprocess.CompletedProcess[str] | None:
-    """Un comando de Git en la carpeta, o `None` si no hay repo o falla."""
-    try:
-        salida = proceso.run(
-            ["git", "-C", str(carpeta), *args],
-            capture_output=True,
-            # El texto sale en UTF-8: `proceso.run` ya lo fija, que es donde
-            # estaba el mojibake (cp1252) en todas las copias de `_git`.
-            text=True,
-            timeout=15,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return None
-    return salida if salida.returncode == 0 else None
-
-
-def hay_git(carpeta: Path) -> bool:
-    """¿La carpeta es la raíz de su propio work tree?
-
-    Es el mismo criterio que la proyección: una subcarpeta de otro repo no
-    cuenta (sus archivos son del contenedor) y una carpeta ignorada por él
-    tampoco. Solo con un repo propio se pide el parche: sin él no se guarda
-    contenido, como decidió el producto.
-    """
-    salida = _git(carpeta, "rev-parse", "--show-toplevel")
-    if salida is None:
-        return False
-    try:
-        return Path(salida.stdout.strip()).resolve() == carpeta.resolve()
-    except (OSError, RuntimeError):
-        return False
 
 
 def _nombres(carpeta: Path) -> list[str]:
@@ -196,29 +162,6 @@ def _juntar_renombrados(
     return [cambio for cambio in juntados if str(cambio["ruta"]) not in anulados]
 
 
-def _partir_diff(texto: str, rutas: set[str]) -> dict[str, str]:
-    """Reparte la salida de un `git diff` de varias rutas en un parche por ruta.
-
-    Cada bloque empieza por `diff --git a/… b/…`; el nombre del final es el que
-    identifica el archivo, así que se busca cuál de las rutas pedidas encaja.
-    """
-    parches: dict[str, str] = {}
-    actual: str | None = None
-    bloque: list[str] = []
-    for linea in texto.splitlines(keepends=True):
-        if linea.startswith("diff --git "):
-            if actual is not None:
-                parches[actual] = "".join(bloque)
-            cabeza = linea.rstrip("\n")
-            actual = next((ruta for ruta in rutas if cabeza.endswith(f" b/{ruta}")), None)
-            bloque = [linea] if actual is not None else []
-        elif actual is not None:
-            bloque.append(linea)
-    if actual is not None:
-        parches[actual] = "".join(bloque)
-    return parches
-
-
 def _leer_texto(fichero: Path) -> str | None:
     """El texto de un archivo nuevo, si es texto y cabe en el tope.
 
@@ -247,28 +190,14 @@ def contenidos(carpeta: Path, cambios: list[dict[str, Any]]) -> None:
     if not cambios or not hay_git(carpeta):
         return
     con_diff = {str(cambio["ruta"]) for cambio in cambios if cambio["estado"] != "nuevo"}
-    parches: dict[str, str] = {}
-    if con_diff:
-        salida = _git(
-            carpeta,
-            "-c",
-            "core.quotepath=false",
-            "diff",
-            "--no-color",
-            "--no-ext-diff",
-            "HEAD",
-            "--",
-            *sorted(con_diff),
-        )
-        if salida is not None:
-            parches = _partir_diff(salida.stdout, con_diff)
+    parcheado = parches(carpeta, con_diff)
 
     total = 0
     for cambio in cambios:
         if cambio["estado"] == "nuevo":
             texto = _leer_texto(carpeta / str(cambio["ruta"]))
         else:
-            texto = parches.get(str(cambio["ruta"]))
+            texto = parcheado.get(str(cambio["ruta"]))
         if texto is None:
             continue
         tamano = len(texto.encode("utf-8"))

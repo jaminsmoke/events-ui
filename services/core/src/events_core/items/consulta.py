@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import sqlite3
-import threading
 import uuid
 from contextlib import closing
 from typing import Any
 
-from ..db import data_version, open_read_only, vigilante
+from ..db import con_vigilante, data_version, open_read_only
 from .base.comun import _COLUMNAS, _COLUMNAS_RESUMEN, _existe, _tags_json
 from .base.esquema import connect, ensure_repo
 from .base.rutas import DB_FILENAME, EUI_DIR, repos_root
@@ -312,11 +311,11 @@ def map_snapshot(repo: str) -> dict[str, Any]:
         return {"items": items}
 
 
-# La conexión vigilante vive en `db.vigilante` (es la misma que usa el stream de
-# eventos): `data_version` solo sube en una conexión que **ya existía** cuando
-# otra escribe. Se comparte entre los hilos del pool de uvicorn, así que las
-# lecturas se serializan aquí para no mezclarlas.
-_VIGILANTES_LOCK = threading.RLock()
+# La conexión vigilante y su lock viven en `db` (es la misma conexión que usa el
+# stream de eventos): `data_version` solo sube en una conexión que **ya existía**
+# cuando otra escribe. Se comparte entre los hilos del pool de uvicorn, así que
+# `con_vigilante` mantiene el lock tomado mientras se leen sus datos y dos hilos
+# no mezclan sus consultas.
 # Un vigilante nuevo puede empezar por la misma versión aunque cambió el mapa.
 
 _REVISION_INSTANCE = uuid.uuid4().hex
@@ -333,8 +332,7 @@ def revision(repo: str) -> dict[str, Any]:
     escribe eventos sin tocar items.
     """
     db_file = ensure_repo(repo)
-    with _VIGILANTES_LOCK:
-        conn = vigilante(db_file, compartida=True)
+    with con_vigilante(db_file, compartida=True) as conn:
         # La tabla vive como `work_item_data` desde la 0020; antes, `idea_entry`.
         tabla_item = "work_item_data" if _existe(conn, "work_item_data") else "ideas"
         return {

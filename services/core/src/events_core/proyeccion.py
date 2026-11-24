@@ -28,84 +28,9 @@ from typing import Any
 
 from . import proceso
 from .db import open_read_only
+from .git_local import _git_repo, cambios, texto
 from .items import InvalidInput, _existe, ensure_repo, repos_root, resolve_repo
 from .items.base.rutas import DB_FILENAME, EUI_DIR
-
-
-def _git(carpeta: Path, *args: str) -> str | None:
-    """Un dato de git en la carpeta, o `None` si no hay repo git o falla."""
-    try:
-        salida = proceso.run(
-            ["git", "-C", str(carpeta), *args],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return None
-    if salida.returncode != 0:
-        return None
-    valor = salida.stdout.strip()
-    return valor or None
-
-
-def _git_cambios(carpeta: Path) -> list[dict[str, str]]:
-    """Los cambios sin commit, tal como los resume `git status --porcelain`.
-
-    Se incluyen staged, unstaged y sin seguimiento. Se pide `-z` porque en ese
-    formato Git no entrecomilla ni escapa las rutas: un nombre con espacios,
-    acentos o comillas llega tal cual. En un renombrado o una copia, el campo
-    siguiente es el origen, que se devuelve aparte (`origen`) para no perder de
-    dónde vino. No se usa `_git` porque `strip()` se comería el espacio del
-    primer estado (` M archivo`) y el recorte de la primera línea dejaría el
-    código de dos letras mal alineado.
-    """
-    try:
-        salida = proceso.run(
-            [
-                "git",
-                "-C",
-                str(carpeta),
-                "status",
-                "--porcelain=v1",
-                "-z",
-                "--untracked-files=all",
-            ],
-            capture_output=True,
-            encoding="utf-8",
-            errors="surrogateescape",
-            timeout=5,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return []
-    if salida.returncode != 0:
-        return []
-    campos = salida.stdout.split(chr(0))
-    cambios: list[dict[str, str]] = []
-    i = 0
-    while i < len(campos):
-        linea = campos[i]
-        i += 1
-        if len(linea) < 4:
-            continue
-        estado = linea[:2].strip() or "?"
-        ruta = linea[3:]
-        if not ruta:
-            continue
-        cambio = {"estado": estado, "ruta": ruta}
-        # Renombrado o copia: el origen viene en el campo siguiente.
-        if "R" in estado or "C" in estado:
-            if i < len(campos) and campos[i]:
-                cambio["origen"] = campos[i]
-            i += 1
-        # El almacén de la app no es trabajo del repo: se escribe solo con cada
-        # item, así que enseñarlo dejaría la lista de cambios siempre con algo
-        # y «nada sin commit» no llegaría nunca. Mismo criterio que
-        # `archivos._nombres`.
-        if ruta == EUI_DIR or ruta.startswith(f"{EUI_DIR}/"):
-            continue
-        cambios.append(cambio)
-    return cambios
 
 
 def _almacen_ignorado(carpeta: Path) -> bool | None:
@@ -212,36 +137,6 @@ def historial(carpeta: Path, limite: int = 20) -> list[dict[str, str]]:
     return commits
 
 
-def _git_repo(carpeta: Path) -> tuple[bool, Path | None]:
-    """La carpeta y el work tree Git que la contiene, si de verdad lo hay.
-
-    `rev-parse --show-toplevel` responde tanto para un repo propio como para
-    una subcarpeta de otro repo. Una carpeta ignorada por el repo contenedor
-    no cuenta: el laboratorio vive dentro del repo del proyecto, pero su
-    contenido no forma parte de él. Un `git init` propio siempre gana, porque
-    el toplevel pasa a ser la propia carpeta.
-    """
-    salida = _git(carpeta, "rev-parse", "--show-toplevel")
-    if not salida:
-        return False, None
-    try:
-        raiz = Path(salida).resolve()
-        resuelta = carpeta.resolve()
-    except (OSError, RuntimeError):
-        return False, None
-    if raiz == resuelta:
-        return True, raiz
-    try:
-        relativa = resuelta.relative_to(raiz).as_posix()
-    except ValueError:
-        return False, None
-    if not relativa:
-        return True, raiz
-    if _git(raiz, "check-ignore", "--", relativa):
-        return False, None
-    return True, raiz
-
-
 def inicializar_repo(carpeta: Path) -> None:
     """`git init` en la carpeta del repo, con las protecciones del laboratorio.
 
@@ -306,7 +201,7 @@ def commit(carpeta: Path, mensaje: str) -> None:
     texto = mensaje.strip()
     if not texto:
         raise InvalidInput("El mensaje del commit está vacío")
-    if not _git_cambios(carpeta):
+    if not cambios(carpeta):
         raise InvalidInput("No hay cambios que commitear")
     for argumentos in (
         # Todo, y luego el almacén propio fuera del índice: se actualiza solo y
@@ -375,9 +270,9 @@ def repo_estado_actual(repo: str) -> dict[str, Any]:
         # `symbolic-ref` funciona en un repo recién inicializado, antes del
         # primer commit; `rev-parse --abbrev-ref HEAD` no. El commit sí puede
         # faltar y se queda en `None`.
-        "branch": _git(carpeta, "symbolic-ref", "--short", "HEAD") if es_git else None,
-        "commit": _git(carpeta, "rev-parse", "--short", "HEAD") if es_git else None,
-        "git_cambios": _git_cambios(carpeta) if es_git else [],
+        "branch": texto(carpeta, "symbolic-ref", "--short", "HEAD", timeout=5) if es_git else None,
+        "commit": texto(carpeta, "rev-parse", "--short", "HEAD", timeout=5) if es_git else None,
+        "git_cambios": cambios(carpeta) if es_git else [],
         "eui_ignorado": _almacen_ignorado(carpeta) if es_git else None,
         "items": items,
         "events": eventos,

@@ -12,6 +12,7 @@ import os
 import sqlite3
 import threading
 import time
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -141,6 +142,19 @@ def vigilante(db_file: Path, *, compartida: bool = False) -> sqlite3.Connection:
             _VIGILANTES[clave] = entrada
         entrada.usado = ahora
         return entrada.conn
+
+
+@contextlib.contextmanager
+def con_vigilante(db_file: Path, *, compartida: bool = False) -> Iterator[sqlite3.Connection]:
+    """El vigilante con su lock tomado mientras dura el bloque.
+
+    `vigilante` suelta el lock al devolver la conexión: quien encadena varias
+    lecturas sobre ella —la firma de `/revision`, que corre en el pool de hilos
+    de uvicorn— las quiere dentro, para que dos hilos no mezclen sus consultas
+    en la misma conexión compartida.
+    """
+    with _VIGILANTES_LOCK:
+        yield vigilante(db_file, compartida=compartida)
 
 
 def barridos_retencion(

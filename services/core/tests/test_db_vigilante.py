@@ -8,6 +8,7 @@ quedarse para siempre.
 from __future__ import annotations
 
 import sqlite3
+import threading
 from contextlib import closing
 from pathlib import Path
 from types import SimpleNamespace
@@ -70,6 +71,32 @@ def test_la_conexion_caduca_por_inactividad(tmp_path, monkeypatch):  # noqa: ANN
     nueva = db.vigilante(ruta)
 
     assert nueva is not vieja
+
+
+def test_con_vigilante_retiene_el_lock_hasta_salir_del_bloque(tmp_path):  # noqa: ANN001, ANN202
+    """La firma de `/revision` lee dentro del lock: otro hilo no entra a la vez.
+
+    `vigilante` suelta el lock al devolver la conexión, así que sin el bloque el
+    registro y las lecturas se pisarían en la conexión compartida.
+    """
+    ruta = _almacen(tmp_path)
+    libre = []
+
+    def intenta_entrar():  # noqa: ANN202
+        libre.append(db._VIGILANTES_LOCK.acquire(timeout=0.2))
+        if libre[-1]:
+            db._VIGILANTES_LOCK.release()
+
+    with db.con_vigilante(ruta, compartida=True) as conn:
+        assert conn is db.vigilante(ruta, compartida=True)
+        hilo = threading.Thread(target=intenta_entrar)
+        hilo.start()
+        hilo.join()
+
+    # Dentro del bloque el lock está tomado; al salir, libre otra vez.
+    assert libre == [False]
+    assert db._VIGILANTES_LOCK.acquire(timeout=0)
+    db._VIGILANTES_LOCK.release()
 
 
 def test_cerrar_vigilantes_las_suelta_todas(tmp_path):  # noqa: ANN001, ANN202

@@ -60,7 +60,8 @@ MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migraciones"
 # que archiva o descarta; la 0032 pone índice en `work_item_node (estado, posicion)`,
 # que es el filtro del mapa y el orden de la cola; la 0033 copia `created_at` al
 # nodo e indexa `(estado, created_at, uid)` para que el listado por estado no
-# tenga que ordenar en un B-tree temporal.
+# tenga que ordenar en un B-tree temporal; la 0037 abre la vuelta del historial
+# a verificación, para reverificar una ficha archivada sin desarchivarla a mano.
 
 # Marca en la cabecera de una migración que reconstruye una tabla con claves
 # foráneas apuntándole (ver `_aplicar_paso`).

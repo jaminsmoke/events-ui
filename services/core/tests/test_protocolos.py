@@ -2,7 +2,8 @@
 
 La tabla `protocolo_flujo` es una allowlist sembrada con el esquema: lo que
 no está listado se prohíbe (las descartadas y la revisión aprobada son
-terminales, y la cola no se deshace a la entrada). El PATCH impone;
+terminales, la cola no se deshace a la entrada y del historial solo se sale
+reabriendo la verificación). El PATCH impone;
 `GET /protocolos` las expone para que la UI no ofrezca lo prohibido.
 """
 
@@ -25,6 +26,8 @@ def test_protocolos_sembrados(client, repo):  # noqa: ANN001, ANN202
         ("verificacion", "roadmap"),
         ("verificacion", "rejected"),
         ("verificacion", "revision_aprobada"),
+        # Reabrir una ficha archivada para reverificarla (0037).
+        ("historial", "verificacion"),
     }
     # `superseded` comparte grupo con `rejected`: no lleva filas propias.
     assert all("superseded" not in par for par in pares)

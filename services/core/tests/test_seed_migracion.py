@@ -25,6 +25,8 @@ _ESPERADOS = {
     ("verificacion", "roadmap"),
     ("verificacion", "rejected"),
     ("verificacion", "revision_aprobada"),
+    # La 0037 abre la vuelta del historial a verificación.
+    ("historial", "verificacion"),
 }
 
 

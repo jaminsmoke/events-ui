@@ -242,17 +242,19 @@ CREATE TABLE IF NOT EXISTS work_item_fase_archivo (
 
 -- Los protocolos de flujo: qué carriles pueden unirse a cuáles. Una allowlist:
 -- solo las parejas listadas están permitidas; el resto se prohíbe. Las
--- descartadas y el historial son terminales: no hay fila que salga de ellas.
+-- descartadas son terminales: no hay fila que salga de ellas. El historial solo
+-- tiene una salida, reabrir la verificación (0037).
 -- Revisión aprobada no retiene ítems: al aprobar se archivan en historial, así
 -- que su única salida es automática y no se ofrece como traslado.
 -- `superseded` comparte grupo con `rejected` para mover (el detalle lo
 -- distingue, el carril no), así que no lleva filas propias: el grupo manda.
 -- Se siembra aquí para los almacenes nuevos; a los existentes les llega por
--- la migración 0011, se amplía en la 0013 y la 0027 añade los retornos de
--- verificación a roadmap y a descartadas.
+-- la migración 0011, se amplía en la 0013, la 0027 añade los retornos de
+-- verificación a roadmap y a descartadas y la 0037 reabre la verificación de
+-- una ficha archivada.
 CREATE TABLE IF NOT EXISTS protocolo_flujo (
-    origen  TEXT NOT NULL CHECK (origen IN ('draft', 'proposed', 'roadmap', 'verificacion', 'revision_aprobada', 'rejected')),
-    destino TEXT NOT NULL CHECK (destino IN ('draft', 'proposed', 'roadmap', 'verificacion', 'revision_aprobada', 'rejected')),
+    origen  TEXT NOT NULL CHECK (origen IN ('draft', 'proposed', 'roadmap', 'verificacion', 'revision_aprobada', 'historial', 'rejected')),
+    destino TEXT NOT NULL CHECK (destino IN ('draft', 'proposed', 'roadmap', 'verificacion', 'revision_aprobada', 'historial', 'rejected')),
     -- ¿Exige al menos una fase al cruzar por esta unión? (0021). Es dato del
     -- protocolo, no un `if` del core: la UI lo lee y el PATCH lo impone.
     exige_fases INTEGER NOT NULL DEFAULT 0 CHECK (exige_fases IN (0, 1)),
@@ -276,4 +278,5 @@ INSERT OR IGNORE INTO protocolo_flujo
     ('verificacion', 'proposed', 0, 0, 0),
     ('verificacion', 'roadmap', 0, 0, 0),
     ('verificacion', 'rejected', 0, 0, 0),
-    ('verificacion', 'revision_aprobada', 1, 0, 1);
+    ('verificacion', 'revision_aprobada', 1, 0, 1),
+    ('historial', 'verificacion', 0, 0, 0);

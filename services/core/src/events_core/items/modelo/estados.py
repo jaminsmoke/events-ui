@@ -98,6 +98,11 @@ def _escribir_estado(
     nodo más: llegar a ella también deja fila, no es una ausencia. Mover a
     donde ya está no escribe nada; re-descartar con detalle nuevo sí actualiza
     el descarte (upsert de `_escribir_rechazo`).
+
+    El detalle de roadmap y el de verificación se conservan al avanzar: la ficha
+    cuenta con qué resultado y referencia se cerró el trabajo y cómo se verificó.
+    Se retiran al volver a la cola (`draft`/`proposed`), que reinicia el plan. El
+    contador `verificacion_intentos` no es de ese detalle: vive en `work_item_data`.
     """
     anterior = _estado(conn, uid)
     if _grupo(estado) == _grupo(anterior) and not (
@@ -110,7 +115,7 @@ def _escribir_estado(
         ).fetchone()[0]
         if activo:
             raise InvalidInput("roadmap solo admite un item activo: ya hay uno en curso")
-    roadmap_previo = _roadmap(conn, uid)
+    viene_de_roadmap = anterior == "roadmap"
     ts = now_iso()
     posicion = None
     if estado == "proposed":
@@ -139,14 +144,27 @@ def _escribir_estado(
         # El trabajo se rehace desde cero: lo que anotaron los cierres ya no
         # describe estas fases (el próximo cierre vuelve a medir).
         conn.execute("DELETE FROM work_item_fase_archivo WHERE work_item_uid = ?", (uid,))
-    conn.execute("DELETE FROM roadmap_node WHERE uid = ?", (uid,))
-    conn.execute("DELETE FROM verificacion_node WHERE uid = ?", (uid,))
+    # El detalle de roadmap se conserva al avanzar: la ficha archivada cuenta con
+    # qué resultado y referencia se cerró el trabajo (ficha 6dda6382). Se retira
+    # al volver a la entrada o la cola, que reinicia el plan; al reentrar en
+    # roadmap la estancia se reescribe (upsert) para no chocar con la PK.
+    if estado in ("draft", "proposed"):
+        conn.execute("DELETE FROM roadmap_node WHERE uid = ?", (uid,))
+    # El detalle de verificación se conserva al aprobar: la ficha archivada
+    # cuenta cómo se verificó (ficha 7188737b). En cualquier otro movimiento se
+    # retira, como antes, y al entrar en verificación se borra la estancia
+    # anterior para que la nueva no choque con la PK.
+    if estado not in ("revision_aprobada", "historial"):
+        conn.execute("DELETE FROM verificacion_node WHERE uid = ?", (uid,))
     conn.execute("DELETE FROM revision_node WHERE uid = ?", (uid,))
     if estado not in ("rejected", "superseded"):
         conn.execute("DELETE FROM rejected_node WHERE uid = ?", (uid,))
     if estado == "roadmap":
         conn.execute(
-            "INSERT INTO roadmap_node (uid, resultado, referencia) VALUES (?, ?, ?)",
+            "INSERT INTO roadmap_node (uid, resultado, referencia) VALUES (?, ?, ?)"
+            " ON CONFLICT(uid) DO UPDATE SET"
+            "   resultado = excluded.resultado,"
+            "   referencia = excluded.referencia",
             (
                 uid,
                 detalle.get("roadmap_resultado") or "",
@@ -177,7 +195,7 @@ def _escribir_estado(
                 intentos,
                 detalle.get("verificacion_resultado") or "",
                 detalle.get("verificacion_comentario") or "",
-                ts if roadmap_previo is not None else None,
+                ts if viene_de_roadmap else None,
             ),
         )
     elif estado == "revision_aprobada":

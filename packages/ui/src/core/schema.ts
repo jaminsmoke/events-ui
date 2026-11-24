@@ -1164,12 +1164,12 @@ export interface components {
              * Origen
              * @enum {string}
              */
-            origen: "draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "rejected";
+            origen: "draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "historial" | "rejected";
             /**
              * Destino
              * @enum {string}
              */
-            destino: "draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "rejected";
+            destino: "draft" | "proposed" | "roadmap" | "verificacion" | "revision_aprobada" | "historial" | "rejected";
             /**
              * Exige Fases
              * @default false

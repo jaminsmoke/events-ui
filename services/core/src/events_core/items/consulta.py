@@ -41,8 +41,9 @@ def _fila(
     """Arma el dict de un ítem con su nodo y el detalle ya resueltos.
 
     `row` trae el ítem y su nodo (`work_item_data.*` + `estado`, `entered_at`).
-    Quien lista muchas items no lee cada detalle por fila (eso era un N+1),
-    sino que los trae en lote con `_en_lote` y ensambla aquí.
+    Los detalles llegan ya cargados en lote (`_en_lote`); aquí solo se ensamblan.
+    `verificacion_intentos` sale siempre de `row` (`work_item_data`), exista o no
+    detalle de verificación.
     """
     item = dict(row)
     estado = str(item.pop("estado"))
@@ -58,9 +59,7 @@ def _fila(
     item["roadmap_resultado"] = roadmap["resultado"] if roadmap else ""
     item["roadmap_referencia"] = roadmap["referencia"] if roadmap else ""
     item["verificacion_started_at"] = entrada if estado == "verificacion" else None
-    # Los intentos acumulados viven en el ítem (0014): el detalle solo existe
-    # mientras dura la estancia.
-    item["verificacion_intentos"] = int(row["verificacion_intentos"]) if verificacion else 0
+    item["verificacion_intentos"] = int(row["verificacion_intentos"])
     item["verificacion_ultimo_resultado"] = verificacion["ultimo_resultado"] if verificacion else ""
     item["verificacion_comentario"] = verificacion["comentario"] if verificacion else ""
     # La firma vive en `revision_node`; el historial la conserva al archivar.

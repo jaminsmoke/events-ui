@@ -14,6 +14,7 @@ from contextlib import closing
 import pytest
 
 from events_core import items
+from events_core.items.base.esquema import SCHEMA_VERSION
 
 
 def _kinds(conn: sqlite3.Connection) -> dict[str, str]:
@@ -51,7 +52,7 @@ def test_la_0036_convierte_idea_en_work_item_y_respeta_adr_y_note(
     items.ensure_repo(repo)
 
     with closing(sqlite3.connect(str(db))) as conn:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 36
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         assert _kinds(conn) == {uid: "work_item", "adr-1": "adr"}
         # El `id` sigue siendo el mismo: `work_item_node.id` lo copia.
         assert (

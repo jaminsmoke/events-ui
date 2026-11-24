@@ -93,14 +93,195 @@ def test_flujo_completo_con_campos_y_regreso_a_cola(client, repo):  # noqa: ANN0
     assert aprobada["fases"][0]["requisitos"][0]["hecho"] is True
 
     conn = sqlite3.connect(str(items.db_file_for(repo)))
-    for tabla in ("roadmap_node", "verificacion_node"):
-        conteo = conn.execute(f"SELECT count(*) FROM {tabla} WHERE uid = ?", (uid,)).fetchone()[0]
-        assert conteo == 0
+    # El detalle de roadmap y el de verificación se conservan: la ficha archivada
+    # cuenta con qué resultado se cerró roadmap (6dda6382) y cómo se verificó
+    # (7188737b).
+    roadmap_nodos = conn.execute(
+        "SELECT count(*) FROM roadmap_node WHERE uid = ?", (uid,)
+    ).fetchone()[0]
+    verificacion_nodos = conn.execute(
+        "SELECT count(*) FROM verificacion_node WHERE uid = ?", (uid,)
+    ).fetchone()[0]
+    assert roadmap_nodos == 1
+    assert verificacion_nodos == 1
     revision = conn.execute("SELECT count(*) FROM revision_node WHERE uid = ?", (uid,)).fetchone()[
         0
     ]
     assert revision == 1
     conn.close()
+
+
+def test_aprobar_conserva_el_detalle_de_verificacion(client, repo):  # noqa: ANN001, ANN202
+    """La ficha archivada guarda cómo se verificó, no solo la firma."""
+    uid = _crear(client, repo, status="proposed")
+    _paso(client, repo, uid, "roadmap", roadmap_resultado="Hecho")
+    _paso(
+        client,
+        repo,
+        uid,
+        "verificacion",
+        verificacion_resultado="ok",
+        verificacion_comentario="Revisado a mano",
+    )
+
+    archivada = _paso(
+        client, repo, uid, "revision_aprobada", approved_by="usuario", revision_nota="Vale"
+    )
+
+    assert archivada["status"] == "historial"
+    assert archivada["verificacion_ultimo_resultado"] == "ok"
+    assert archivada["verificacion_comentario"] == "Revisado a mano"
+    assert archivada["verificacion_intentos"] == 1
+    assert archivada["roadmap_completed_at"] is not None
+    # Las fechas de estancia no se rellenan fuera de su carril.
+    assert archivada["verificacion_started_at"] is None
+
+    # El listado con cuerpo trae la misma ficha que el detalle.
+    listado = client.get(
+        "/items", params={"repo": repo, "status": "historial", "incluir": "contenido"}
+    ).json()
+    (fila,) = [item for item in listado if item["uid"] == uid]
+    assert fila["verificacion_ultimo_resultado"] == "ok"
+    assert fila["verificacion_comentario"] == "Revisado a mano"
+
+
+def test_aprobar_conserva_el_detalle_de_roadmap(client, repo):  # noqa: ANN001, ANN202
+    """El resultado y la referencia con los que se cerró roadmap no se pierden al
+    avanzar: la ficha archivada los conserva (6dda6382)."""
+    uid = _crear(client, repo, status="proposed")
+    _paso(
+        client,
+        repo,
+        uid,
+        "roadmap",
+        roadmap_resultado="Hecho",
+        roadmap_referencia="commit abc",
+    )
+
+    verificacion = _paso(client, repo, uid, "verificacion", verificacion_resultado="ok")
+    assert verificacion["roadmap_resultado"] == "Hecho"
+    assert verificacion["roadmap_referencia"] == "commit abc"
+    assert verificacion["roadmap_completed_at"] is not None
+
+    archivada = _paso(client, repo, uid, "revision_aprobada", approved_by="usuario")
+    assert archivada["status"] == "historial"
+    assert archivada["roadmap_resultado"] == "Hecho"
+    assert archivada["roadmap_referencia"] == "commit abc"
+
+    conn = sqlite3.connect(str(items.db_file_for(repo)))
+    try:
+        fila = conn.execute(
+            "SELECT resultado, referencia FROM roadmap_node WHERE uid = ?", (uid,)
+        ).fetchone()
+    finally:
+        conn.close()
+    assert fila == ("Hecho", "commit abc")
+
+
+def test_volver_a_la_cola_retira_el_detalle_de_roadmap(client, repo):  # noqa: ANN001, ANN202
+    """Volver a la cola reinicia el plan: el detalle de roadmap se retira."""
+    uid = _crear(client, repo, status="proposed")
+    _paso(
+        client,
+        repo,
+        uid,
+        "roadmap",
+        roadmap_resultado="Hecho",
+        roadmap_referencia="commit abc",
+    )
+    _paso(client, repo, uid, "verificacion", verificacion_resultado="ok")
+
+    en_cola = _paso(client, repo, uid, "proposed")
+    assert en_cola["roadmap_resultado"] == ""
+    assert en_cola["roadmap_referencia"] == ""
+
+    conn = sqlite3.connect(str(items.db_file_for(repo)))
+    try:
+        nodos = conn.execute("SELECT count(*) FROM roadmap_node WHERE uid = ?", (uid,)).fetchone()
+    finally:
+        conn.close()
+    assert nodos[0] == 0
+
+
+def test_reentrar_en_roadmap_reescribe_la_estancia(client, repo):  # noqa: ANN001, ANN202
+    """De verificación se puede volver a roadmap; la estancia nueva sustituye a la
+    anterior en vez de chocar con su clave ni acumular detalle."""
+    uid = _crear(client, repo, status="proposed")
+    _paso(
+        client,
+        repo,
+        uid,
+        "roadmap",
+        roadmap_resultado="Hecho",
+        roadmap_referencia="commit abc",
+    )
+    _paso(client, repo, uid, "verificacion", verificacion_resultado="Necesita ajuste")
+
+    segunda = _paso(
+        client,
+        repo,
+        uid,
+        "roadmap",
+        roadmap_resultado="Hecho otra vez",
+        roadmap_referencia="commit def",
+    )
+    assert segunda["roadmap_resultado"] == "Hecho otra vez"
+    assert segunda["roadmap_referencia"] == "commit def"
+
+    conn = sqlite3.connect(str(items.db_file_for(repo)))
+    try:
+        filas = conn.execute(
+            "SELECT resultado, referencia FROM roadmap_node WHERE uid = ?", (uid,)
+        ).fetchall()
+    finally:
+        conn.close()
+    assert filas == [("Hecho otra vez", "commit def")]
+
+
+def test_historial_puede_reabrir_la_verificacion(client, repo):  # noqa: ANN001, ANN202
+    """Reverificar una ficha archivada no la desarchiva a mano: vuelve a
+    verificación, suma una vuelta y escribe su propio resultado."""
+    uid = _crear(client, repo, status="proposed")
+    _paso(client, repo, uid, "roadmap")
+    _paso(
+        client,
+        repo,
+        uid,
+        "verificacion",
+        verificacion_resultado="ok",
+        verificacion_comentario="Revisado a mano",
+    )
+    archivada = _paso(client, repo, uid, "revision_aprobada", approved_by="usuario")
+    assert archivada["status"] == "historial"
+    assert archivada["verificacion_intentos"] == 1
+
+    # Las fases no se reenvían: sobrevivieron al archivo y reabrir no las toca.
+    r = client.patch(
+        f"/items/{uid}",
+        params={"repo": repo},
+        json={
+            "status": "verificacion",
+            "verificacion_resultado": "Repetida",
+            "verificacion_comentario": "Segunda pasada",
+        },
+    )
+    assert r.status_code == 200, r.json()
+    reabierta = r.json()
+    assert reabierta["status"] == "verificacion"
+    assert reabierta["verificacion_started_at"] is not None
+    assert reabierta["verificacion_intentos"] == 2
+    assert reabierta["verificacion_ultimo_resultado"] == "Repetida"
+    assert reabierta["verificacion_comentario"] == "Segunda pasada"
+    # La firma anterior ya no vale: la revisión está abierta otra vez.
+    assert reabierta["revision_approved_at"] is None
+    assert reabierta["fases"][0]["estado"] == "completada"
+
+    # Se vuelve a aprobar por el camino de siempre, conservando la cuenta.
+    segunda = _paso(client, repo, uid, "revision_aprobada", approved_by="agente")
+    assert segunda["status"] == "historial"
+    assert segunda["verificacion_intentos"] == 2
+    assert segunda["verificacion_ultimo_resultado"] == "Repetida"
+    assert segunda["revision_approved_by"] == "agente"
 
 
 def test_aprobar_exige_todos_los_requisitos(client, repo):  # noqa: ANN001, ANN202
@@ -137,9 +318,57 @@ def test_intentos_cuentan_las_vueltas(client, repo):  # noqa: ANN001, ANN202
     segunda = _paso(client, repo, uid, "verificacion")
     assert segunda["verificacion_intentos"] == 2
 
-    # La ficha se va al aprobar: el contador vive con ella.
+    # Al aprobar el detalle se conserva, y el contador viaja con él.
     aprobada = _paso(client, repo, uid, "revision_aprobada")
-    assert aprobada["verificacion_intentos"] == 0
+    assert aprobada["verificacion_intentos"] == 2
+
+
+def test_intentos_no_se_inventan_ceros_fuera_de_verificacion(client, repo):  # noqa: ANN001, ANN202
+    """El contador es del ítem: una vuelta a cola no lo pone a cero en la lectura."""
+    uid = _crear(client, repo, status="proposed")
+    _paso(client, repo, uid, "roadmap")
+    _paso(client, repo, uid, "verificacion")
+
+    en_cola = _paso(client, repo, uid, "proposed")
+    assert en_cola["verificacion_intentos"] == 1
+    assert en_cola["verificacion_started_at"] is None
+
+    leida = client.get(f"/items/{uid}", params={"repo": repo}).json()
+    assert leida["verificacion_intentos"] == 1
+
+
+def test_volver_a_cola_retira_resultado_y_conserva_intentos(client, repo):  # noqa: ANN001, ANN202
+    """Documentado: al volver a `draft`/`proposed` se retiran resultado y
+    comentario de la verificación, pero el contador de intentos se mantiene."""
+    uid = _crear(client, repo, status="proposed")
+    _paso(client, repo, uid, "roadmap")
+    _paso(
+        client,
+        repo,
+        uid,
+        "verificacion",
+        verificacion_resultado="Necesita ajuste",
+        verificacion_comentario="Retocar el texto",
+    )
+
+    en_cola = _paso(client, repo, uid, "proposed")
+    assert en_cola["verificacion_ultimo_resultado"] == ""
+    assert en_cola["verificacion_comentario"] == ""
+    assert en_cola["verificacion_intentos"] == 1
+
+    _paso(client, repo, uid, "roadmap")
+    _paso(
+        client,
+        repo,
+        uid,
+        "verificacion",
+        verificacion_resultado="ok",
+        verificacion_comentario="Vale",
+    )
+    de_nuevo = _paso(client, repo, uid, "proposed")
+    assert de_nuevo["verificacion_ultimo_resultado"] == ""
+    assert de_nuevo["verificacion_comentario"] == ""
+    assert de_nuevo["verificacion_intentos"] == 2
 
 
 def test_editar_ficha_activa_sin_cambiar_estado(client, repo):  # noqa: ANN001, ANN202

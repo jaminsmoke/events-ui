@@ -232,6 +232,7 @@ class Protocolo(BaseModel):
         "roadmap",
         "verificacion",
         "revision_aprobada",
+        "historial",
         "rejected",
     ]
     destino: Literal[
@@ -240,6 +241,7 @@ class Protocolo(BaseModel):
         "roadmap",
         "verificacion",
         "revision_aprobada",
+        "historial",
         "rejected",
     ]
     # ¿Pide esta unión al menos una fase? (0021). La UI lo usa para no ofrecer

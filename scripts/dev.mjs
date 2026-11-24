@@ -132,7 +132,7 @@ async function main() {
 
   const comando =
     modo === "web"
-      ? "corepack pnpm --filter web dev"
+      ? "corepack pnpm --filter events-ui-webapp dev"
       : "corepack pnpm --filter desktop tauri dev";
   if (modo === "tauri") asegurarBinariosTauri();
   const ui = arrancarComando(comando);

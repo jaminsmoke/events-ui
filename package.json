@@ -8,8 +8,8 @@
     "dev:web": "node scripts/dev.mjs web",
     "dev:ui": "node scripts/dev.mjs web",
     "build": "corepack pnpm --filter desktop tauri build",
-    "build:web": "corepack pnpm --filter web build",
-    "build:ui": "corepack pnpm --filter web build",
+    "build:web": "corepack pnpm --filter events-ui-webapp build",
+    "build:ui": "corepack pnpm --filter events-ui-webapp build",
     "core:dev": "uv run --directory services/core python -m events_core.serve",
     "core:seed": "uv run --directory services/core python -m events_core.seed",
     "gen:api": "corepack pnpm --filter @events-ui/ui gen:api",
@@ -22,10 +22,10 @@
     "check:test": "uv run --directory services/core pytest -q",
     "check:versions": "node scripts/bump.mjs",
     "check:contract": "corepack pnpm --filter @events-ui/ui check:contract",
-    "check:ui": "corepack pnpm --filter desktop check && corepack pnpm --filter web check && corepack pnpm --filter @events-ui/ui check",
+    "check:ui": "corepack pnpm --filter desktop check && corepack pnpm --filter events-ui-webapp check && corepack pnpm --filter @events-ui/ui check",
     "check:py": "uv run --directory services/core ruff check . && uv run --directory services/core ruff format --check .",
     "check:rust": "cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml",
-    "fix": "uv run --directory services/core ruff check --fix . && uv run --directory services/core ruff format . && corepack pnpm --filter desktop exec eslint . --fix && corepack pnpm --filter web exec eslint . --fix && corepack pnpm --filter @events-ui/ui exec eslint . --fix"
+    "fix": "uv run --directory services/core ruff check --fix . && uv run --directory services/core ruff format . && corepack pnpm --filter desktop exec eslint . --fix && corepack pnpm --filter events-ui-webapp exec eslint . --fix && corepack pnpm --filter @events-ui/ui exec eslint . --fix"
   },
   "devDependencies": {
     "playwright-core": "^1.65.1"

@@ -25,7 +25,7 @@ from urllib.request import Request, urlopen
 from . import __version__, migracion
 from . import config as configuracion
 from .contrato import FichaError, InformeDoctor, RepoActual
-from .items.base.comun import InvalidInput
+from .items.base.comun import InvalidInput, escribir_atomico
 from .items.base.rutas import resolve_repo
 
 TIMEOUT_S = 2.0
@@ -898,8 +898,11 @@ def _migrar_export(args: argparse.Namespace) -> int:
         destino = Path(args.salida).expanduser()
         if not destino.is_absolute():
             destino = Path(raiz) / destino
-        destino.parent.mkdir(parents=True, exist_ok=True)
-        destino.write_text(texto, encoding="utf-8")
+        # Por `escribir_atomico`, como el resto: `--salida .EUI/x.md` no escribe.
+        try:
+            escribir_atomico(destino, texto.encode("utf-8"))
+        except InvalidInput as exc:
+            return _error(str(exc))
         print(destino)
     else:
         sys.stdout.write(texto)

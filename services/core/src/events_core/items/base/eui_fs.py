@@ -88,6 +88,22 @@ def asegurar_destino_eui(destino: Path) -> None:
         )
 
 
+def asegurar_directorio_eui(destino: Path) -> None:
+    """Rechaza crear una carpeta dentro de `.EUI` fuera del contrato.
+
+    `asegurar_destino_eui` mira el fichero que se va a escribir; esto mira la
+    carpeta que hay que crear antes. `.EUI` y `migracion/<lote>` sí se crean:
+    forman parte del contrato.
+    """
+    relativa = relativa_bajo_eui(destino)
+    if relativa is None or relativa == "":
+        return
+    if not _directorio_permitido(relativa):
+        raise InvalidInput(
+            f"carpeta no permitida dentro de {EUI_DIR}: {relativa}; solo migracion/<lote>/…"
+        )
+
+
 def inventariar_ajenos(eui_dir: Path) -> list[str]:
     """Rutas relativas (archivos y carpetas) ajenas al contrato, sin borrarlas."""
     if not eui_dir.is_dir():

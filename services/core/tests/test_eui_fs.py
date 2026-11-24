@@ -9,6 +9,7 @@ import pytest
 from events_core.items.base.comun import InvalidInput, escribir_atomico
 from events_core.items.base.esquema import ensure_repo
 from events_core.items.base.eui_fs import (
+    asegurar_directorio_eui,
     es_permitida_en_eui,
     inventariar_ajenos,
     purgar_eui,
@@ -85,3 +86,49 @@ def test_ensure_repo_purga_ajenos(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     ensure_repo(str(repo))
     assert not (eui / "ruido.txt").exists()
     assert (eui / "EUI_DATABASE.sqlite").is_file()
+
+
+def test_asegurar_directorio_eui_solo_abre_el_contrato(tmp_path: Path) -> None:
+    eui = tmp_path / ".EUI"
+    asegurar_directorio_eui(eui)
+    asegurar_directorio_eui(eui / "migracion" / "a6af1c1d088044beb519fee2ad38c794")
+
+    with pytest.raises(InvalidInput, match="carpeta no permitida"):
+        asegurar_directorio_eui(eui / "updater")
+    with pytest.raises(InvalidInput, match="carpeta no permitida"):
+        asegurar_directorio_eui(eui / "migracion" / "plan")
+
+
+def test_escribir_atomico_no_crea_carpetas_ajenas(tmp_path: Path) -> None:
+    eui = tmp_path / ".EUI"
+    eui.mkdir()
+
+    with pytest.raises(InvalidInput, match="no permitida"):
+        escribir_atomico(eui / "updater" / "events-ui.key", b"secreto")
+
+    assert not (eui / "updater").exists()
+
+
+def test_export_no_escribe_dentro_de_eui(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from events_core import cli, migracion
+
+    (tmp_path / ".EUI").mkdir()
+    monkeypatch.setattr(migracion, "exportar_documento", lambda raiz, ruta: "# x\n")
+
+    codigo = cli.main(
+        [
+            "migrate",
+            "export",
+            "ROADMAP.md",
+            "--repo",
+            str(tmp_path),
+            "--salida",
+            ".EUI/ROADMAP.md",
+        ]
+    )
+
+    assert codigo != 0
+    assert not (tmp_path / ".EUI" / "ROADMAP.md").exists()
+    assert "no permitida dentro de .EUI" in capsys.readouterr().err

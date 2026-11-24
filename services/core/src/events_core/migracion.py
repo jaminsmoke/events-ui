@@ -30,6 +30,7 @@ from .contrato import (
 )
 from .db import open_read_only
 from .items.base.comun import InvalidInput, escribir_atomico, fecha_iso, now_iso
+from .items.base.eui_fs import relativa_bajo_eui
 from .items.base.rutas import EUI_DIR, db_file_for
 
 EXTENSIONES = {".md", ".markdown"}
@@ -323,6 +324,10 @@ def resolver(raiz: Path, ruta: str | None) -> Path:
     destino = candidata.resolve()
     if not destino.is_relative_to(raiz):
         raise InvalidInput(f"la ruta tiene que estar dentro del repo: {destino}")
+    # `.EUI` guarda copias de absorción, no documentos que se puedan escanear
+    # o importar: un Markdown suelto ahí no viene del flujo.
+    if relativa_bajo_eui(destino) is not None:
+        raise InvalidInput(f"{EUI_DIR} no admite documentos: {destino}; solo copias de absorción")
     if not destino.exists():
         raise FileNotFoundError(f"no existe: {destino}")
     if destino.is_file() and destino.suffix.lower() not in EXTENSIONES:

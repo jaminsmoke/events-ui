@@ -659,3 +659,32 @@ def test_parcial_exige_rangos_y_cubre_items(tmp_path) -> None:
 
     plan["documentos"][0]["rangos"] = [{"desde": 1, "hasta": 5}]
     assert migracion.revisar(tmp_path, plan).ok is True
+
+
+def test_aplicar_no_acepta_un_documento_dentro_de_eui(client, tmp_path) -> None:
+    import hashlib
+
+    eui = tmp_path / ".EUI"
+    eui.mkdir()
+    documento = eui / "ROADMAP.md"
+    documento.write_text("# ROADMAP\n\n- Uno.\n", encoding="utf-8")
+    plan = {
+        "version": 1,
+        "ideas": [
+            {
+                "ref": "uno",
+                "title": "Uno",
+                "origen": {
+                    "ruta": ".EUI/ROADMAP.md",
+                    "desde_linea": 3,
+                    "hasta_linea": 3,
+                    "sha256": hashlib.sha256(documento.read_bytes()).hexdigest(),
+                },
+            }
+        ],
+    }
+
+    respuesta = client.post("/migracion/aplicar", params={"repo": str(tmp_path)}, json=plan)
+
+    assert respuesta.status_code == 400
+    assert ".EUI" in respuesta.json()["detail"]

@@ -1,7 +1,7 @@
 // Una sola versión para todo el producto: la raíz manda y el resto copian.
 //
 // `node scripts/bump.mjs 0.2.0` deja la versión en:
-// - los `package.json` (raíz, UI, desktop, web) —la raíz es la fuente—
+// - los `package.json` (raíz, UI, protocols, desktop, web) —la raíz es la fuente—
 // - `tauri.conf.json` y `Cargo.toml`
 // - `__version__` del core (`__init__.py`), que publican Swagger, `/health`
 //   y el CLI (`eui --version`).
@@ -39,6 +39,7 @@ function conVersionDeCore(texto, version) {
 const ARCHIVOS = [
   { ruta: "package.json", clave: "version" },
   { ruta: "packages/ui/package.json", clave: "version" },
+  { ruta: "packages/protocols/package.json", clave: "version" },
   { ruta: "apps/desktop/package.json", clave: "version" },
   { ruta: "apps/web/package.json", clave: "version" },
   { ruta: "apps/desktop/src-tauri/tauri.conf.json", clave: "version" },

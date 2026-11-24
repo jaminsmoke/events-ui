@@ -1,0 +1,37 @@
+{
+  "name": "@jaminsmokedevs/protocols",
+  "version": "0.5.5",
+  "description": "Las puertas del flujo de Events UI: esquema, política de partida y la guarda para el repo.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jaminsmoke/events-ui.git",
+    "directory": "packages/protocols"
+  },
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./schema.json": "./schema.json",
+    "./protocolos.json": "./protocolos.json"
+  },
+  "bin": {
+    "eui-guard": "bin/eui-guard.mjs"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "schema.json",
+    "protocolos.json",
+    "bin/",
+    "README.md"
+  ]
+}

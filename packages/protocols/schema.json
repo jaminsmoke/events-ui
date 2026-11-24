@@ -1,0 +1,58 @@
+{
+  "$defs": {
+    "PuertaArchivo": {
+      "additionalProperties": false,
+      "description": "Una puerta en `.EUI/protocolos.json`: se apaga o se le cambia el motivo.\n\n`motivo` ausente o vacío deja el del preset: el archivo no tiene que repetir\nel texto del core para decir que la puerta está puesta.",
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "activa": {
+          "default": true,
+          "title": "Activa",
+          "type": "boolean"
+        },
+        "motivo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Motivo"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "PuertaArchivo",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "El archivo entero. La versión 1 es la única que este core entiende.",
+  "properties": {
+    "version": {
+      "const": 1,
+      "title": "Version",
+      "type": "integer"
+    },
+    "puertas": {
+      "items": {
+        "$ref": "#/$defs/PuertaArchivo"
+      },
+      "title": "Puertas",
+      "type": "array"
+    }
+  },
+  "required": [
+    "version"
+  ],
+  "title": "ProtocolosArchivo",
+  "type": "object"
+}

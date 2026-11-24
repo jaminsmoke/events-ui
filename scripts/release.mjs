@@ -5,7 +5,7 @@
 // comprueba la release publicada (`scripts/release-verificar.mjs`): sin el
 // flag nada cambia, porque el tag tiene que llegar al remoto antes de que
 // exista el run. Orden de los pasos y por qué cada uno existe:
-//   1. `bump <versión>` — las 7 versiones pasan a ser las mismas.
+//   1. `bump <versión>` — las 8 versiones pasan a ser las mismas.
 //   2. `gen:api` — el core ya dice la versión nueva en `/openapi.json`,
 //      el cliente generado se regenera (si falla, el contrato cambió).
 //   3. `check` completo —contract, versiones, UI, py, rust— en verde.
@@ -67,6 +67,7 @@ const FICHEROS_RELEASE = [
   "package.json",
   "pnpm-lock.yaml",
   "packages/ui/package.json",
+  "packages/protocols/package.json",
   "apps/desktop/package.json",
   "apps/web/package.json",
   "apps/desktop/src-tauri/tauri.conf.json",

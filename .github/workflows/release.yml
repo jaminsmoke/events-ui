@@ -186,3 +186,49 @@ jobs:
             --notes "$notes" \
             --output latest.json
           gh release upload "$TAG" latest.json --clobber
+
+  # El paquete de npm va en su propio job: no depende de Windows ni de Tauri,
+  # así que un fallo de firma no impide publicar el esquema. Sin token guardado:
+  # npm valida el OIDC del runner contra el trusted publisher del paquete (repo
+  # `jaminsmoke/events-ui` y este workflow, `release.yml`). El primer publish
+  # fue manual porque el publisher solo se puede registrar sobre un paquete que
+  # ya existe.
+  npm:
+    # Solo en el push del tag. Un `workflow_dispatch` reconstruye una release ya
+    # publicada, y esa versión ya está en el registro: `npm publish` fallaría.
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+
+      # Node 24 trae npm 11, pero el OIDC con trusted publishing necesita
+      # 11.5.1+: se actualiza en vez de confiar en el que venga en la imagen.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+
+      - name: npm con trusted publishing
+        run: npm install -g npm@latest
+
+      - name: Comprobar el tag contra la versión del paquete
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version=$(node -p "require('./packages/protocols/package.json').version")
+          echo "tag=$TAG versión=$version"
+          if [ "$TAG" != "v$version" ]; then
+            echo "::error::El tag $TAG no coincide con la versión $version de @jaminsmokedevs/protocols."
+            exit 1
+          fi
+
+      # `publishConfig.access` del paquete ya dice `public`: el scope no es de
+      # pago y sin eso npm lo tomaría como restringido.
+      - name: Publicar @jaminsmokedevs/protocols
+        working-directory: packages/protocols
+        run: npm publish

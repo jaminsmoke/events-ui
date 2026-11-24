@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "puertas": [
+    { "id": "sin-ficha-activa" },
+    { "id": "ficha-sin-fases" },
+    { "id": "verificando-no-se-toca" },
+    { "id": "documentos-fuera-del-flujo" },
+    { "id": "una-ficha-a-la-vez" }
+  ]
+}

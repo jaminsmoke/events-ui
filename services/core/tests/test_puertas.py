@@ -322,3 +322,21 @@ def test_las_cinco_puertas_abren_y_cierran(client, repo) -> None:  # noqa: ANN00
     assert "documentos-fuera-del-flujo" in ids()
     parcial.unlink()
     assert "documentos-fuera-del-flujo" not in ids()
+
+
+def test_el_paquete_lleva_el_esquema_y_los_presets() -> None:
+    """`@jaminsmokedevs/protocols` no puede quedarse atrás del modelo.
+
+    El paquete publica una copia del esquema y de los presets: si el core cambia
+    una descripción o añade una puerta y no se regenera, el que lo adopte ve un
+    esquema que no es el que aplica la guarda. Se compara el JSON parseado, no
+    el texto, para que el formato del fichero sea libre.
+    """
+    paquete = RAIZ / "packages" / "protocols"
+
+    esquema = json.loads((paquete / "schema.json").read_text(encoding="utf-8"))
+    assert esquema == puertas.ESQUEMA_PUERTAS
+
+    politica = json.loads((paquete / "protocolos.json").read_text(encoding="utf-8"))
+    assert politica["version"] == 1
+    assert [p["id"] for p in politica["puertas"]] == [p.id for p in puertas.PRESETS]

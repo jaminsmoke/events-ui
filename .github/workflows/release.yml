@@ -232,3 +232,79 @@ jobs:
       - name: Publicar events-ui-protocols
         working-directory: packages/protocols
         run: npm publish
+  # El paquete web va en su propio job, aparte del de protocols: publica otra
+  # cosa y comprueba otra versión. Igual que aquel, sin token guardado: npm
+  # valida el OIDC del runner contra el trusted publisher del paquete (repo
+  # `jaminsmoke/events-ui`, este workflow). El primer publish es manual, porque
+  # el trusted publisher solo se registra sobre un paquete que ya existe.
+  #
+  # Va en Windows porque el paquete lleva dentro sus binarios
+  # (`apps/web/native/<os>-<arch>/`) y hoy solo se compilan para Windows x64:
+  # publicado desde Linux, el tarball saldría sin `eui` y sin core.
+  npm-webapp:
+    if: ${{ github.event_name == 'push' }}
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 12
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          registry-url: "https://registry.npmjs.org"
+          cache: pnpm
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: 3.12
+
+      - name: uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Rust (estable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: npm con trusted publishing
+        run: npm install -g npm@latest
+
+      - name: Comprobar el tag contra la versión del paquete
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version=$(node -p "require('./apps/web/package.json').version")
+          echo "tag=$TAG versión=$version"
+          if [ "$TAG" != "v$version" ]; then
+            echo "::error::El tag $TAG no coincide con la versión $version de events-ui-webapp."
+            exit 1
+          fi
+
+      - name: pnpm install
+        run: corepack pnpm install --frozen-lockfile
+
+      # Los binarios no se commitean: `build:sidecar` los compila y los deja en
+      # `apps/web/native/<os>-<arch>/`, que es lo que empaqueta `files`.
+      - name: Sidecar (PyInstaller)
+        run: corepack pnpm build:sidecar
+
+      - name: Comprobar que los binarios viajan en el paquete
+        shell: bash
+        run: |
+          for f in eui.exe events-core.exe; do
+            if [ ! -f "apps/web/native/win32-x64/$f" ]; then
+              echo "::error::Falta apps/web/native/win32-x64/$f: el paquete saldría sin binarios."
+              exit 1
+            fi
+          done
+
+      # `publishConfig.access` del paquete ya dice `public`; `prepack` compila
+      # `dist`, y las devDependencies (con `workspace:*`) las resuelve pnpm.
+      - name: Publicar events-ui-webapp
+        working-directory: apps/web
+        run: npm publish

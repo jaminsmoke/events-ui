@@ -99,6 +99,24 @@ if (!versionCli.startsWith("eui ")) {
   throw new Error(`El CLI empaquetado no responde: ${versionCli}`);
 }
 console.log(`Copiado a ${destinoCli} (${versionCli})`);
+// El paquete npm de la web lleva dentro los binarios de su plataforma, en
+// `apps/web/native/<os>-<arch>/`. Se copian aquí para que el tarball no dependa
+// de una copia a mano: así no puede quedarse con un binario viejo.
+const [cpu, , sistema] = triple.split("-");
+const NATIVO = path.join(
+  ROOT,
+  "apps",
+  "web",
+  "native",
+  `${sistema.startsWith("windows") ? "win32" : sistema.startsWith("darwin") ? "darwin" : "linux"}-${
+    { x86_64: "x64", aarch64: "arm64" }[cpu] ?? cpu
+  }`,
+);
+mkdirSync(NATIVO, { recursive: true });
+cpSync(destino, path.join(NATIVO, nombreBinario));
+cpSync(destinoCli, path.join(NATIVO, `eui${sufijo}`));
+console.log(`Copiado a ${NATIVO} (binarios del paquete web)`);
+
 
 // Prueba en frío: arranca el binario y comprueba que responde a /health.
 //

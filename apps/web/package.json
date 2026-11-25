@@ -1,20 +1,31 @@
 {
-  "name": "events-ui-webapp",
-  "private": true,
-  "version": "0.5.6",
+  "name": "@jaminsmoke/events-ui-webapp",
+  "version": "0.5.7",
   "type": "module",
+  "bin": {
+    "eui": "bin/eui.mjs"
+  },
+  "files": [
+    "bin/",
+    "dist",
+    "native/"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "prepack": "npm run build",
     "check": "tsc --noEmit && eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
-    "@events-ui/ui": "workspace:*",
     "react": "^19",
     "react-dom": "^19"
   },
   "devDependencies": {
+    "@events-ui/ui": "workspace:*",
     "@eslint/js": "^10.0.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",

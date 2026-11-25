@@ -13,13 +13,17 @@ saldrán los tipos TS del cliente.
 
 from __future__ import annotations
 
+import os
+import time
 from contextlib import closing
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from . import __version__, items, registro
 from . import config as configuracion
@@ -170,3 +174,30 @@ app.include_router(rutas_git.router)
 app.include_router(rutas_arbol.router)
 app.include_router(rutas_config.router)
 app.include_router(rutas_migracion.router)
+
+# La web compilada se sirve desde el mismo origen que la API. La UI llama a
+# `/api/...` (en dev lo hace el proxy de Vite, que quita el prefijo): aquí se
+# quita igual. Solo se monta si la carpeta `dist` existe (checkout sin compilar).
+# `EUI_WEB_DIST` la fija el envoltorio del paquete npm (el binario congelado no tiene
+# el checkout alrededor).
+DIST_WEB = Path(
+    os.environ.get("EUI_WEB_DIST") or Path(__file__).resolve().parents[4] / "apps" / "web" / "dist"
+)
+
+
+ULTIMA_ACTIVIDAD = [time.monotonic()]
+
+
+@app.middleware("http")
+async def _quitar_prefijo_api(request: Request, call_next):
+    ruta = request.scope["path"]
+    if ruta == "/api" or ruta.startswith("/api/"):
+        request.scope["path"] = ruta[len("/api") :] or "/"
+    # Lo que cuenta como uso para el apagado: todo menos el sondeo de `/health`.
+    if request.scope["path"] != "/health":
+        ULTIMA_ACTIVIDAD[0] = time.monotonic()
+    return await call_next(request)
+
+
+if DIST_WEB.is_dir():
+    app.mount("/", StaticFiles(directory=DIST_WEB, html=True), name="web")

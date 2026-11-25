@@ -1085,6 +1085,53 @@ def _migrar_guard(args: argparse.Namespace) -> int:
     return 1 if ajenos else 0
 
 
+def _web(args: argparse.Namespace) -> int:
+    """Enciende el core si no responde, y abre la web servida por él.
+
+    El core se lanza como proceso aparte con `EUI_IDLE_MINUTES`, así se apaga solo
+    cuando nadie lo usa. Si ya responde (otra app o un `eui web` anterior), no se
+    toca. El binario es `events-core` si está junto a `eui`; en desarrollo se usa
+    `python -m events_core.serve`.
+    """
+    import subprocess  # noqa: PLC0415
+    import time  # noqa: PLC0415
+    import webbrowser  # noqa: PLC0415
+
+    puerto = args.port or configuracion.leer_segura().port
+    url = f"http://127.0.0.1:{puerto}"
+    datos, _, _ = _get(f"{url}/health")
+    if datos is None:
+        entorno = {
+            **os.environ,
+            "EUI_PORT": str(puerto),
+            "EUI_IDLE_MINUTES": str(args.idle_minutes),
+        }
+        sufijo = ".exe" if os.name == "nt" else ""
+        junto_a_eui = Path(sys.executable).with_name(f"events-core{sufijo}")
+        orden = (
+            [str(junto_a_eui)]
+            if junto_a_eui.exists()
+            else [sys.executable, "-m", "events_core.serve"]
+        )
+        subprocess.Popen(orden, env=entorno, stdin=subprocess.DEVNULL, creationflags=_SIN_CONSOLA)
+        limite = time.monotonic() + 15
+        while time.monotonic() < limite:
+            datos, _, _ = _get(f"{url}/health")
+            if datos is not None:
+                break
+            time.sleep(0.25)
+        if datos is None:
+            print(f"El core no respondió en {url}. Revisa el registro de eventos.", file=sys.stderr)
+            return 1
+    print(f"Core en {url} (se apaga tras {args.idle_minutes:g} min sin uso)")
+    if not args.no_open:
+        webbrowser.open(url)
+    return 0
+
+
+_SIN_CONSOLA = 0x08000000 if os.name == "nt" else 0
+
+
 def _mcp(args: argparse.Namespace) -> int:
     # Import perezoso: el CLI normal no carga el servidor ni su protocolo.
     from .mcp_servidor import permite_escritura, servir
@@ -1349,6 +1396,17 @@ def _parser() -> argparse.ArgumentParser:
     guarda.add_argument("--json", action="store_true")
     conexion(guarda)
     guarda.set_defaults(func=_migrar_guard)
+
+    web = comandos.add_parser("web", help="Enciende el core y abre la web")
+    web.add_argument("--port", type=int, help="Puerto del core si no es el configurado")
+    web.add_argument(
+        "--idle-minutes",
+        type=float,
+        default=10.0,
+        help="Minutos sin peticiones antes de que el core se apague (0 = no apagar)",
+    )
+    web.add_argument("--no-open", action="store_true", help="No abrir el navegador")
+    web.set_defaults(func=_web)
 
     mcp = comandos.add_parser("mcp", help="Servidor MCP por stdio para agentes")
     mcp.add_argument(

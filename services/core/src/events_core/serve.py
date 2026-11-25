@@ -18,6 +18,8 @@ from __future__ import annotations
 import os
 import socket
 import sys
+import threading
+import time
 
 import uvicorn
 
@@ -70,8 +72,37 @@ def main() -> int:
         return 1
 
     registro.escribir("info", "Core arrancado")
+    minutos = _minutos_de_inactividad()
+    if minutos:
+        threading.Thread(target=_vigilar_inactividad, args=(minutos,), daemon=True).start()
     uvicorn.run("events_core.main:app", host=HOST, port=PORT, reload=False)
     return 0
+
+
+def _minutos_de_inactividad() -> float:
+    """`EUI_IDLE_MINUTES` (lo pone `eui web`); 0 si no hay apagado por inactividad."""
+    try:
+        return max(0.0, float(os.environ.get("EUI_IDLE_MINUTES", "0")))
+    except ValueError:
+        return 0.0
+
+
+def _vigilar_inactividad(minutos: float) -> None:
+    """Para el core cuando lleva `minutos` sin peticiones de API.
+
+    Sin clientes el proceso no debe quedarse vivo: `eui web` lo vuelve a encender
+    en la siguiente llamada. El corte usa `os._exit` porque uvicorn no expone un
+    apagado limpio desde un hilo; la base de datos no tiene escrituras pendientes
+    en este punto, cada petición confirma las suyas.
+    """
+    from . import main  # noqa: PLC0415 (import tardío: `main` ya está cargado por uvicorn)
+
+    limite = minutos * 60
+    while True:
+        time.sleep(15)
+        if time.monotonic() - main.ULTIMA_ACTIVIDAD[0] >= limite:
+            registro.escribir("info", f"Core apagado por inactividad ({minutos:g} min)")
+            os._exit(0)
 
 
 if __name__ == "__main__":

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 
@@ -11,8 +13,22 @@ def _crear(client: TestClient, repo: str, **campos: object) -> dict:
     return r.json()
 
 
-def test_las_rutas_viejas_responden_404(client: TestClient, repo: str) -> None:
+def _montar_web(client: TestClient, tmp_path: Path) -> None:
+    """Monta un `dist` mínimo.
+
+    Sin web, un GET a una ruta vieja no lo atiende nadie (el catch-all es solo
+    de escritura) y devuelve 405: el 404 de las rutas viejas se comprueba con
+    la web montada, que es el caso real.
+    """
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    (dist / "index.html").write_text("<!doctype html>", encoding="utf-8")
+    assert client.post("/webapp", json={"dist": str(dist)}).status_code == 200
+
+
+def test_las_rutas_viejas_responden_404(client: TestClient, repo: str, tmp_path: Path) -> None:
     uid = _crear(client, repo)["uid"]
+    _montar_web(client, tmp_path)
 
     assert client.get("/ideas", params={"repo": repo}).status_code == 404
     assert client.post("/ideas", params={"repo": repo}, json={"title": "B"}).status_code == 404

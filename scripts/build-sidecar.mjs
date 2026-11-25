@@ -165,6 +165,10 @@ const proceso = spawn(congelaCore, [], {
 let salida = "";
 proceso.stdout.on("data", (d) => (salida += d.toString()));
 proceso.stderr.on("data", (d) => (salida += d.toString()));
+// Se crea antes de cualquier `kill`: si el hijo muere antes de que el `finally`
+// llegue a esperarlo, el evento `exit` no se repite y el `await` se queda
+// colgado; Node saldría por «unsettled top-level await» y taparía el error real.
+const terminado = new Promise((listo) => proceso.on("exit", listo));
 
 async function esperarHealth() {
   const limite = Date.now() + 30_000;
@@ -207,7 +211,7 @@ try {
   } catch {
     // ya no vivía
   }
-  await new Promise((r) => proceso.on("exit", r));
+  await terminado;
   // En Windows el exe puede seguir bloqueado un instante tras el exit:
   // sin reintento, `rmSync(dist)` revienta con EPERM aunque el health OK.
   const borrar = (ruta) => {

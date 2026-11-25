@@ -220,18 +220,29 @@ def _dist_web_instalada() -> Path | None:
     return next((ruta for ruta in candidatos if (ruta / "index.html").is_file()), None)
 
 
-def _dist_web_inicial() -> Path:
+def _dist_web_del_checkout() -> Path | None:
+    """El `dist` del checkout, si el core corre desde las fuentes.
+
+    En el binario congelado de Linux la ruta es corta (`/tmp/_MEI…/events_core/
+    main.py`) y no hay quinto padre: indexarlo revienta al importar y el core no
+    llega a arrancar. Sin checkout, manda el paquete npm.
+    """
+    padres = Path(__file__).resolve().parents
+    if len(padres) < 5:
+        return None
+    source = padres[4] / "apps" / "web" / "dist"
+    return source if (source / "index.html").is_file() else None
+
+
+def _dist_web_inicial() -> Path | None:
     """El `dist` con el que arranca el core: entorno, checkout o paquete npm."""
     fijado = os.environ.get("EUI_WEB_DIST", "").strip()
     if fijado:
         return Path(fijado)
-    source = Path(__file__).resolve().parents[4] / "apps" / "web" / "dist"
-    if (source / "index.html").is_file():
-        return source
-    return _dist_web_instalada() or source
+    return _dist_web_del_checkout() or _dist_web_instalada()
 
 
-DIST_WEB = _dist_web_inicial()
+DIST_WEB: Path | None = _dist_web_inicial()
 WEB_STATIC: StaticFiles | None = None
 
 
@@ -309,5 +320,5 @@ def _ruta_inexistente(ruta: str) -> None:
     raise HTTPException(status_code=404, detail=f"No existe /{ruta}")
 
 
-if (DIST_WEB / "index.html").is_file():
+if DIST_WEB is not None and (DIST_WEB / "index.html").is_file():
     _montar_web(DIST_WEB)

@@ -22,6 +22,10 @@ export function useRepo(repo: string | null) {
   const [cargado, setCargado] = useState<Cargado | null>(null);
   const [fallo, setFallo] = useState<Fallo | null>(null);
 
+  // Cada empujón del SSE suma un latido y vuelve a ejecutar el efecto: la
+  // lectura es inmediata en vez de esperar al sondeo de 2 s.
+  const [latido, setLatido] = useState(0);
+
   // Los `setState` van en continuaciones async, nunca en el cuerpo del efecto;
   // si se cambia de repo a mitad, `vivo` descarta lo que llegue tarde.
   //
@@ -71,7 +75,12 @@ export function useRepo(repo: string | null) {
       vivo = false;
       baja();
     };
-  }, [repo]);
+  }, [repo, latido]);
+
+  // El SSE avisa al instante de una escritura; el sondeo sigue siendo la red
+  // de seguridad para lo que no pasa por el core. Re-ejecutar el efecto
+  // reinicia la firma, así que la lectura es inmediata y no se duplica.
+  const refrescar = useCallback(() => setLatido((n) => n + 1), []);
 
   // Escrituras por la API tipada: no hace falta refrescar a mano, el sondeo
   // de `/revision` ve el cambio (`data_version` sube o `ultimo_evento` crece)
@@ -249,6 +258,7 @@ export function useRepo(repo: string | null) {
   return {
     // `null` = todavía sin respuesta; `[]` = el repo está sembrado pero vacío.
     ideas: fresco?.mapa.items ?? null,
+    refrescar,
     error: fallo && fallo.repo === repo ? fallo.mensaje : null,
     proyeccion: repo ? proyeccion : null,
     commits,

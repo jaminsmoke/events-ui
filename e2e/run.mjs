@@ -6,10 +6,11 @@
 //  node e2e/run.mjs --ayuda
 //
 // El runner levanta su propio core (con su temporal propio de repos y de
-// registro) y su Vite de desktop. Por defecto usa el puerto de `puerto.json` y
-// :15175; si están
+// registro) y sus dos Vites: el de desktop y el de la web. Por defecto usa el
+// puerto de `puerto.json`, :15175 y :15174; si están
 // ocupados —la app abierta, por ejemplo— elige otros libres y lo dice, sin
-// matar nunca lo ajeno. `--core-port` y `--ui-port` fijan los puertos.
+// matar nunca lo ajeno. `--core-port`, `--ui-port` y `--web-port` fijan los
+// puertos.
 // Al terminar (pase, falle o se interrumpa con Ctrl+C) se cierra lo que el
 // runner levantó y se comprueba que los puertos quedan libres: si algo
 // nuestro sobrevivió, se remata y se avisa. Si algo falla, el resumen sale
@@ -32,6 +33,7 @@ const RESULTADOS_DIR = path.join(ROOT, "e2e", "resultados");
 
 const PUERTO_CORE = PUERTO_CORE_POR_DEFECTO;
 const PUERTO_UI = 15175;
+const PUERTO_WEB = 15174;
 const TIMEOUT_MS = 45_000;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -92,16 +94,20 @@ function arrancarCore(tmp, puerto) {
   );
 }
 
-function arrancarVite(puertoUi, puertoCore) {
+function arrancarVite(filtro, puertoUi, puertoCore) {
   // El puerto va por la CLI de Vite (pisa `server.port`) y el destino del
   // proxy por entorno, que `vite.config.ts` lee con `loadEnv`.
   // pnpm reenvía lo que sigue al script tal cual: con `--` Vite lo recibía
   // como argumento propio y arrancaba en su puerto por defecto.
-  return spawn(`corepack pnpm --filter desktop dev --port ${puertoUi}`, {
+  return spawn(`corepack pnpm --filter ${filtro} dev --port ${puertoUi}`, {
     cwd: ROOT,
     shell: true,
     detached: process.platform !== "win32",
-    env: { ...process.env, EVENTSUI_CORE_URL: `http://127.0.0.1:${puertoCore}` },
+    env: {
+      ...process.env,
+      EVENTSUI_UI_PORT: String(puertoUi),
+      EVENTSUI_CORE_URL: `http://127.0.0.1:${puertoCore}`,
+    },
   });
 }
 
@@ -143,13 +149,14 @@ async function elegirPuerto(pedido, explicito, etiqueta) {
 
 /** `--core-port N`, `--ui-port N` y el nombre del escenario, en cualquier orden. */
 function leerOpciones(argv) {
-  const opciones = { filtro: null, core: null, ui: null, ayuda: false };
+  const opciones = { filtro: null, core: null, ui: null, web: null, ayuda: false };
   const args = argv.slice(2).filter((a) => a !== "--");
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === "--ayuda" || arg === "-h") opciones.ayuda = true;
     else if (arg === "--core-port") opciones.core = Number(args[++i]);
     else if (arg === "--ui-port") opciones.ui = Number(args[++i]);
+    else if (arg === "--web-port") opciones.web = Number(args[++i]);
     else if (!arg.startsWith("--")) opciones.filtro ??= arg;
     else {
       console.error(`Opción desconocida: ${arg}`);
@@ -159,6 +166,7 @@ function leerOpciones(argv) {
   for (const [nombre, valor] of [
     ["core", opciones.core],
     ["ui", opciones.ui],
+    ["web", opciones.web],
   ]) {
     if (valor !== null && !(Number.isInteger(valor) && valor >= 1 && valor <= 65535)) {
       console.error(`--${nombre}-port espera un puerto entre 1 y 65535.`);
@@ -192,7 +200,7 @@ async function main() {
     console.log("Uso: node e2e/run.mjs [escenario] [--core-port N] [--ui-port N]\n");
     for (const e of todos) console.log(`  ${e.nombre}  — ${e.descripcion ?? ""}`);
     console.log(
-      `\nLos puertos por defecto (${PUERTO_CORE} y ${PUERTO_UI}) se cambian solos si están` +
+      `\nLos puertos por defecto (${PUERTO_CORE}, ${PUERTO_UI} y ${PUERTO_WEB}) se cambian solos si están` +
         " ocupados, así que la batería corre con la app abierta.",
     );
     return;
@@ -216,13 +224,16 @@ async function main() {
   // respetan: si están ocupados, se avisa y se sale.
   const puertoCore = await elegirPuerto(PUERTO_CORE, opciones.core !== null, "del core");
   const puertoUi = await elegirPuerto(PUERTO_UI, opciones.ui !== null, "de la UI");
+  const puertoWeb = await elegirPuerto(PUERTO_WEB, opciones.web !== null, "de la web");
   const CORE = `http://127.0.0.1:${puertoCore}`;
   const UI = `http://localhost:${puertoUi}`;
-  const puertos = [puertoCore, puertoUi];
-  console.log(`Core en ${CORE}, UI en ${UI}.`);
+  const WEB = `http://localhost:${puertoWeb}`;
+  const puertos = [puertoCore, puertoUi, puertoWeb];
+  console.log(`Core en ${CORE}, UI en ${UI} y web en ${WEB}.`);
 
-  const core = arrancarCore(tmp, puertoCore);
-  const vite = arrancarVite(puertoUi, puertoCore);
+  let core = arrancarCore(tmp, puertoCore);
+  const vite = arrancarVite("desktop", puertoUi, puertoCore);
+  const viteWeb = arrancarVite("events-ui-webapp", puertoWeb, puertoCore);
   let browser = null;
   const resultados = [];
 
@@ -237,6 +248,7 @@ async function main() {
     await browser?.close().catch(() => {});
     matar(core);
     matar(vite);
+    matar(viteWeb);
     for (const puerto of puertos) {
       if (await esperarPuertoLibre(puerto, 5_000)) continue;
       const restos = matarEnPuerto(puerto);
@@ -272,6 +284,7 @@ async function main() {
   try {
     core.on("error", (err) => console.error(`core: ${err.message}`));
     vite.on("error", (err) => console.error(`vite: ${err.message}`));
+    viteWeb.on("error", (err) => console.error(`vite web: ${err.message}`));
     if (!(await esperarUrl(`${CORE}/health`))) throw new Error("el core no respondió /health");
     // La lista de la UI (`/repos`) solo enseña carpetas ya sembradas: el
     // escenario clásico abre `lab`, así que se siembra aquí mismo para que
@@ -279,10 +292,13 @@ async function main() {
     // con el almacén: el runner no crea tablas a mano.
     await fetch(`${CORE}/mapa?repo=lab`).catch(() => {});
     if (!(await esperarUrl(`${UI}/`))) throw new Error(`Vite no respondió en ${UI}`);
+    if (!(await esperarUrl(`${WEB}/`))) throw new Error(`Vite web no respondió en ${WEB}`);
 
     browser = await chromium.launch();
     const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
     page.on("dialog", async (d) => d.accept());
+    const web = await browser.newPage({ viewport: { width: 1500, height: 950 } });
+    web.on("dialog", async (d) => d.accept());
 
     const api = async (ruta, opciones = {}) => {
       const res = await fetch(`${CORE}${ruta}`, opciones);
@@ -300,7 +316,36 @@ async function main() {
     const expect = (cond, mensaje) => {
       if (!cond) throw new Error(mensaje);
     };
-    const ctx = { CORE, UI, api, esperar, expect, page, tmp, resultado: (n) => path.join(RESULTADOS_DIR, n) };
+    // El escenario de core caído mata el proceso y lo vuelve a levantar en el
+    // mismo puerto: los repos son de disco, así que no se pierde nada. `core`
+    // es `let` para que el cierre mate el que quede vivo.
+    const matarCore = async () => {
+      matar(core);
+      if (!(await esperarPuertoLibre(puertoCore, 5_000))) {
+        throw new Error(`el core no soltó el puerto ${puertoCore}`);
+      }
+    };
+    const levantarCore = async () => {
+      core = arrancarCore(tmp, puertoCore);
+      core.on("error", (err) => console.error(`core: ${err.message}`));
+      if (!(await esperarUrl(`${CORE}/health`))) {
+        throw new Error("el core no volvió a responder /health");
+      }
+    };
+    const ctx = {
+      CORE,
+      UI,
+      WEB,
+      api,
+      esperar,
+      expect,
+      page,
+      web,
+      tmp,
+      matarCore,
+      levantarCore,
+      resultado: (n) => path.join(RESULTADOS_DIR, n),
+    };
 
     for (const escenario of lista) {
       const inicio = Date.now();

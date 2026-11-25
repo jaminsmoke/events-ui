@@ -63,6 +63,18 @@ const ANCHO_RESUMEN = 272;
  *  vez de encoger. Ahí los paneles se turnan, y manda el Explorador. */
 const ANCHO_MINIMO_PANELES = 1400;
 
+/** Eventos que cambian la estructura del mapa y merecen una lectura inmediata.
+ *  Las ediciones de ficha y de fases (`item.updated`) siguen el sondeo de 2 s:
+ *  refrescarlas a media edición remontaba la ficha y podía pisar el borrador. */
+const EVENTOS_QUE_EMPUJAN = new Set([
+  "item.created",
+  "item.deleted",
+  "item.status",
+  "idea.created",
+  "idea.deleted",
+  "idea.status",
+]);
+
 /* *  El mapa: se pliega, se encuadra y se mueve; el almacén se toca solo por
  *  la API del core (crear, mover, editar y borrar ideas).
  *
@@ -234,6 +246,7 @@ export default function App({
     crearRepoGit,
     eliminarRepoGit,
     commit,
+    refrescar,
   } = useRepo(repo);
   // Filas que cruzan Descartadas→Eliminadas: solo UI, se queman y luego
   // se borra el dato. No hay status `eliminadas` en el almacén.
@@ -263,6 +276,29 @@ export default function App({
   }, [ideas, quemas]);
   // F1: el log del repo en vivo (cada `EUI_DATABASE` lleva el suyo).
   const { eventos, conectado, limpiar: limpiarLog } = useEventos(repo);
+  // El SSE de un cambio pide releer el mapa al instante: el sondeo de 2 s
+  // sigue de red de seguridad, pero un alta hecha en el otro cliente se ve
+  // muy por debajo del tope. El primer lote es el historial y no empuja.
+  const ultimoParaMapa = useRef<number | null>(null);
+  const refrescoParaMapa = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => {
+    if (eventos.length === 0) {
+      ultimoParaMapa.current = null;
+      return;
+    }
+    const ultimo = eventos[eventos.length - 1];
+    if (!ultimo) return;
+    const previo = ultimoParaMapa.current;
+    ultimoParaMapa.current = ultimo.id;
+    // Un id que no crece es un vaciado del log: no hay nada nuevo que leer.
+    if (previo !== null && ultimo.id <= previo) return;
+    if (!EVENTOS_QUE_EMPUJAN.has(ultimo.type)) return;
+    // El backfill de la conexión trae varios seguidos: se agrupan en una sola
+    // lectura. El primer evento de un log vacío también es un cambio real.
+    clearTimeout(refrescoParaMapa.current);
+    refrescoParaMapa.current = setTimeout(() => refrescar(), 100);
+    return () => clearTimeout(refrescoParaMapa.current);
+  }, [eventos, refrescar]);
   // Los protocolos de flujo: las uniones permitidas entre carriles. La fila
   // no ofrece traslados prohibidos; el core los rechaza si llegan igual.
   const { puedeIr, exigeFases, exigeFasesListas, exigeFasesCompletas, paso } = useProtocolos(repo);
@@ -792,7 +828,7 @@ export default function App({
           >
             {error && (
               <p className="aviso-refresco" role="status" title={error}>
-                No se pudo actualizar. Reintentando…
+                Sin conexión con el core: se reintenta solo. Si cerraste el desktop que lo arrancó, vuelve a abrirlo o lanza <code>eui web</code>.
               </p>
             )}
             {avisoRecuperacion && (

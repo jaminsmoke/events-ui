@@ -79,10 +79,10 @@ Ubuntu; el job `windows` repite allí `check:py` y `check:ui`.
 
 Los **e2e** van aparte porque levantan procesos (no entran en `check`):
 `pnpm e2e` corre todos los escenarios de `e2e/escenarios/` y
-`pnpm e2e -- <nombre>` solo uno. Cada corrida levanta su core y su Vite
-temporales: si 18765 o 15175 están ocupados (p. ej. tu `pnpm dev`), el runner
-elige otros libres y lo dice, sin matar lo ajeno; `--core-port` y `--ui-port`
-los fijan, y un explícito ocupado avisa y no arranca. Al terminar
+`pnpm e2e -- <nombre>` solo uno. Cada corrida levanta su core y sus dos Vites (desktop y web) temporales: si
+18765, 15175 o 15174 están ocupados (p. ej. tu `pnpm dev`), el runner elige
+otros libres y lo dice, sin matar lo ajeno; `--core-port`, `--ui-port` y
+`--web-port` los fijan, y un explícito ocupado avisa y no arranca. Al terminar
 —pase, falle o se interrumpa con Ctrl+C— cierra lo que levantó y comprueba
 que los puertos quedan libres. Las capturas de cada corrida quedan en
 `e2e/resultados/`.

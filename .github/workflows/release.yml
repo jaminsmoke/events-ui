@@ -271,9 +271,12 @@ jobs:
             plataforma: win32-x64
           - os: ubuntu-latest
             plataforma: linux-x64
-          - os: macos-14
+          # `macos-14` y `macos-13` ya no existen en Actions (retirados el 2 de
+          # noviembre y en diciembre de 2025): el job ni siquiera arrancaba.
+          # `macos-15` es arm64 y `macos-15-intel` el ultimo Intel.
+          - os: macos-15
             plataforma: darwin-arm64
-          - os: macos-13
+          - os: macos-15-intel
             plataforma: darwin-x64
     steps:
       - uses: actions/checkout@v7

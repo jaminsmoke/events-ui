@@ -229,9 +229,23 @@ jobs:
 
       # `publishConfig.access` del paquete ya dice `public`: el scope no es de
       # pago y sin eso npm lo tomaría como restringido.
+      # Un re-run del tag no puede republicar: npm rechaza una versión que ya
+      # está en el registro. Si ya está, se salta el publish y el job queda verde.
+      - name: ¿Ya está publicada la versión?
+        id: publicado
+        shell: bash
+        run: |
+          version=$(node -p "require('./packages/protocols/package.json').version")
+          if npm view "events-ui-protocols@$version" version >/dev/null 2>&1; then
+            echo "saltar=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::events-ui-protocols@$version ya está en el registro: no se republica."
+          fi
+
       - name: Publicar events-ui-protocols
+        if: ${{ steps.publicado.outputs.saltar != 'true' }}
         working-directory: packages/protocols
         run: npm publish
+
   # El paquete web va en su propio job, aparte del de protocols: publica otra
   # cosa y comprueba otra versión. Igual que aquel, sin token guardado: npm
   # valida el OIDC del runner contra el trusted publisher del paquete (repo
@@ -305,6 +319,19 @@ jobs:
 
       # `publishConfig.access` del paquete ya dice `public`; `prepack` compila
       # `dist`, y las devDependencies (con `workspace:*`) las resuelve pnpm.
-      - name: Publicar events-ui-webapp
+      # Un re-run del tag no puede republicar: npm rechaza una versión que ya
+      # está en el registro. Si ya está, se salta el publish y el job queda verde.
+      - name: ¿Ya está publicada la versión?
+        id: publicado
+        shell: bash
+        run: |
+          version=$(node -p "require('./apps/web/package.json').version")
+          if npm view "@jaminsmoke/events-ui-webapp@$version" version >/dev/null 2>&1; then
+            echo "saltar=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::@jaminsmoke/events-ui-webapp@$version ya está en el registro: no se republica."
+          fi
+
+      - name: Publicar @jaminsmoke/events-ui-webapp
+        if: ${{ steps.publicado.outputs.saltar != 'true' }}
         working-directory: apps/web
         run: npm publish

@@ -2,6 +2,11 @@
   "name": "@jaminsmoke/events-ui-webapp",
   "version": "0.5.7",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jaminsmoke/events-ui.git",
+    "directory": "apps/web"
+  },
   "bin": {
     "eui": "bin/eui.mjs"
   },

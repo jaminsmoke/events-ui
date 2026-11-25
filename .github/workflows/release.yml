@@ -1,5 +1,6 @@
-# Release: al empujar un tag `vX.Y.Z`, construye el sidecar y los dos
-# instaladores en Windows y los adjunta a la GitHub Release del tag.
+# Release: al empujar un tag `vX.Y.Z`, construye el sidecar, los dos
+# instaladores de Windows y los paquetes deb/AppImage de Linux, y los adjunta
+# a la GitHub Release del tag.
 #
 # El flujo local (`corepack pnpm release`) sigue siendo el que sube la versión,
 # commitea y etiqueta; este workflow solo empaqueta y publica. Así el tag no
@@ -194,6 +195,140 @@ jobs:
             --notes "$notes" \
             --output latest.json
           gh release upload "$TAG" latest.json --clobber
+
+  # El desktop también se empaqueta para Linux: deb y AppImage, con los dos
+  # binarios dentro por `externalBin`, igual que en Windows. Va después del
+  # job `windows` porque es él quien crea la release del tag; aquí solo se
+  # suben los paquetes.
+  #
+  # Sin firma de updater: `latest.json` sigue siendo el de Windows (ficha
+  # 171f0821, fase 2). Si algún día el AppImage se actualiza solo, este job
+  # tendrá que publicar su `.AppImage.tar.gz` firmado y el manifiesto pasará a
+  # llevar las dos plataformas.
+  #
+  # `ubuntu-22.04` y no `ubuntu-latest`: el deb y el AppImage enlazan contra la
+  # glibc de la máquina que los construye, y 22.04 (glibc 2.35) es la base más
+  # antigua que trae WebKitGTK 4.1 en sus repos. Ojo: GitHub retira ese runner
+  # el 17 de abril de 2027 (deprecado desde el 17 de septiembre de 2026), con
+  # parones en marzo y abril; cuando toque, el relevo es un contenedor
+  # `debian:12` sobre un runner soportado, que conserva la misma base.
+  linux:
+    needs: [windows]
+    runs-on: ubuntu-22.04
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      # WebKitGTK para compilar, `patchelf` para el AppImage y `libfuse2` para
+      # que linuxdeploy (que es un AppImage) pueda ejecutarse al empaquetar.
+      - name: Tauri deps (Linux)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libfuse2
+
+      # Los nombres de los paquetes salen de `tauri.conf.json`, no del tag: si
+      # no coinciden se publicaría un deb con una versión que no es la suya.
+      - name: Comprobar el tag contra la versión de Tauri
+        shell: bash
+        run: |
+          version=$(node -p "require('./apps/desktop/src-tauri/tauri.conf.json').version")
+          echo "tag=$TAG versión=$version"
+          if [ "$TAG" != "v$version" ]; then
+            echo "::error::El tag $TAG no coincide con la versión $version de tauri.conf.json."
+            exit 1
+          fi
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 12
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: 3.12
+
+      - name: uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Rust (estable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: pnpm install
+        run: corepack pnpm install --frozen-lockfile
+
+      # `tauri build` falla si falta el `externalBin`. El script deja
+      # `binaries/events-core-x86_64-unknown-linux-gnu` y `eui-…`: los dos van
+      # dentro del deb y del AppImage, no como paquete aparte.
+      - name: Sidecar (PyInstaller)
+        run: corepack pnpm build:sidecar
+
+      # Sin `createUpdaterArtifacts`: el updater de Linux no se activa en esta
+      # fase, así que no hay `.AppImage.tar.gz` ni `.sig` que publicar.
+      - name: Bundles (deb y AppImage)
+        run: corepack pnpm --filter desktop exec tauri build --bundles deb,appimage
+
+      - name: Paquetes y hashes
+        id: paquetes
+        shell: bash
+        run: |
+          deb=$(ls apps/desktop/src-tauri/target/release/bundle/deb/*.deb | head -1)
+          appimage=$(ls apps/desktop/src-tauri/target/release/bundle/appimage/*.AppImage | head -1)
+          if [ ! -f "$deb" ] || [ ! -f "$appimage" ]; then
+            echo "::error::Faltan el deb o el AppImage: el release saldría sin Linux."
+            exit 1
+          fi
+          # El hash va con el paquete: quien lo baje puede comprobarlo, igual
+          # que con los instaladores de Windows.
+          sha256sum "$deb" | cut -d' ' -f1 > "$deb.sha256"
+          sha256sum "$appimage" | cut -d' ' -f1 > "$appimage.sha256"
+          echo "deb=$deb" >> "$GITHUB_OUTPUT"
+          echo "appimage=$appimage" >> "$GITHUB_OUTPUT"
+          ls -l "$deb" "$appimage" "$deb.sha256" "$appimage.sha256"
+
+      - name: Artefactos del run (sin publicar)
+        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.publicar }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: paquetes-linux-${{ env.TAG }}
+          path: |
+            ${{ steps.paquetes.outputs.deb }}
+            ${{ steps.paquetes.outputs.deb }}.sha256
+            ${{ steps.paquetes.outputs.appimage }}
+            ${{ steps.paquetes.outputs.appimage }}.sha256
+          if-no-files-found: error
+
+      # La release ya existe: la creó `windows`, que va antes por `needs`.
+      - name: Publicar paquetes en GitHub Releases
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.publicar }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "$TAG" \
+            "${{ steps.paquetes.outputs.deb }}" \
+            "${{ steps.paquetes.outputs.deb }}.sha256" \
+            "${{ steps.paquetes.outputs.appimage }}" \
+            "${{ steps.paquetes.outputs.appimage }}.sha256" \
+            --clobber
 
   # El paquete de npm va en su propio job: no depende de Windows ni de Tauri,
   # así que un fallo de firma no impide publicar el esquema. Sin token guardado:

@@ -295,5 +295,19 @@ async def _quitar_prefijo_api(request: Request, call_next):
     return await call_next(request)
 
 
+@app.api_route(
+    "/{ruta:path}",
+    methods=["POST", "PUT", "PATCH", "DELETE"],
+    include_in_schema=False,
+)
+def _ruta_inexistente(ruta: str) -> None:
+    """Una ruta desconocida es 404 también con la web montada.
+
+    `StaticFiles` en `/` solo atiende GET/HEAD; sin esto, un POST a un alias
+    viejo devolvía 405 y parecía una ruta existente con otro método.
+    """
+    raise HTTPException(status_code=404, detail=f"No existe /{ruta}")
+
+
 if (DIST_WEB / "index.html").is_file():
     _montar_web(DIST_WEB)

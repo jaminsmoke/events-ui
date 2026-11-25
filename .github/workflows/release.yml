@@ -347,8 +347,10 @@ jobs:
             case "$f" in *.sha256) continue ;; esac
             sha256sum "$f" > "$f.sha256"
           done
-          gh release view "$TAG" > /dev/null
-          gh release upload "$TAG" eui-* --clobber
+          # Este job no hace `checkout`: dentro de `binarios/` no hay `.git` y
+          # `gh` no puede deducir el repo, así que se le pasa explícito.
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null
+          gh release upload "$TAG" eui-* --clobber --repo "$GITHUB_REPOSITORY"
 
   # El paquete web no lleva binarios (`files: bin/, dist`): es la web, el
   # envoltorio `eui` y nada más. Sin token guardado: npm valida el OIDC del

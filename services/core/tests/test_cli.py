@@ -20,7 +20,7 @@ def test_evaluar_en_verde(tmp_path) -> None:
     comprobaciones = cli.evaluar(
         ajustes=config.Config(repo=raiz),
         problema=None,
-        url="http://127.0.0.1:18765",
+        url=f"http://127.0.0.1:{config.PUERTO_POR_DEFECTO}",
         health={"status": "ok", "version": __version__, "repo": str(raiz)},
         fallo=None,
         raiz=raiz,
@@ -41,7 +41,7 @@ def test_evaluar_sin_raiz_avisa() -> None:
     comprobaciones = cli.evaluar(
         ajustes=config.Config(),
         problema=None,
-        url="http://127.0.0.1:18765",
+        url=f"http://127.0.0.1:{config.PUERTO_POR_DEFECTO}",
         health={"status": "degraded", "version": __version__, "repo": None},
         fallo=None,
         raiz=None,
@@ -60,7 +60,7 @@ def test_evaluar_version_distinta_es_error(tmp_path) -> None:
     comprobaciones = cli.evaluar(
         ajustes=config.Config(repo=raiz),
         problema=None,
-        url="http://127.0.0.1:18765",
+        url=f"http://127.0.0.1:{config.PUERTO_POR_DEFECTO}",
         health={"status": "ok", "version": "9.9.9", "repo": str(raiz)},
         fallo=None,
         raiz=raiz,

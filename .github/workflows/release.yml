@@ -120,10 +120,16 @@ jobs:
             echo "::error::El build no generó $exe_sig: revisa la clave de firma."
             exit 1
           fi
+          # El hash va con el instalador: `eui --desktop` no ejecuta nada que no
+          # pueda comprobar contra lo que publica el release.
+          sha256sum "$msi" | cut -d' ' -f1 > "$msi.sha256"
+          sha256sum "$exe" | cut -d' ' -f1 > "$exe.sha256"
           echo "msi=$msi" >> "$GITHUB_OUTPUT"
           echo "exe=$exe" >> "$GITHUB_OUTPUT"
           echo "exe_sig=$exe_sig" >> "$GITHUB_OUTPUT"
-          ls -l "$msi" "$exe" "$exe_sig"
+          echo "exe_sha=$exe.sha256" >> "$GITHUB_OUTPUT"
+          echo "msi_sha=$msi.sha256" >> "$GITHUB_OUTPUT"
+          ls -l "$msi" "$exe" "$exe_sig" "$msi.sha256" "$exe.sha256"
 
       # `inputs` solo existe en `workflow_dispatch`: en un push de tag queda
       # vacío y GitHub lo compara como `false`, así que las condiciones miran
@@ -137,6 +143,8 @@ jobs:
             ${{ steps.instaladores.outputs.msi }}
             ${{ steps.instaladores.outputs.exe }}
             ${{ steps.instaladores.outputs.exe_sig }}
+            ${{ steps.instaladores.outputs.msi_sha }}
+            ${{ steps.instaladores.outputs.exe_sha }}
           if-no-files-found: error
 
       - name: Publicar instaladores en GitHub Releases
@@ -151,7 +159,7 @@ jobs:
           # El MSI no se usa para actualizar (el updater va por NSIS), pero si
           # Tauri también lo firmó se adjunta: no estorba y sirve al que baje
           # el MSI a mano.
-          adjuntos=("$msi" "$exe" "$exe_sig")
+          adjuntos=("$msi" "$exe" "$exe_sig" "$exe.sha256" "$msi.sha256")
           if [ -f "$msi.sig" ]; then adjuntos+=("$msi.sig"); fi
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "La release $TAG ya existe: se reemplazan los instaladores."
@@ -246,18 +254,109 @@ jobs:
         working-directory: packages/protocols
         run: npm publish
 
-  # El paquete web va en su propio job, aparte del de protocols: publica otra
-  # cosa y comprueba otra versión. Igual que aquel, sin token guardado: npm
-  # valida el OIDC del runner contra el trusted publisher del paquete (repo
-  # `jaminsmoke/events-ui`, este workflow). El primer publish es manual, porque
-  # el trusted publisher solo se registra sobre un paquete que ya existe.
+  # Los binarios del core se compilan en su plataforma y se adjuntan al release
+  # de GitHub: en npm solo hay dos paquetes (protocolos y la web). El paquete
+  # web se baja su core de aquí la primera vez, verificando el sha256.
   #
-  # Va en Windows porque el paquete lleva dentro sus binarios
-  # (`apps/web/native/<os>-<arch>/`) y hoy solo se compilan para Windows x64:
-  # publicado desde Linux, el tarball saldría sin `eui` y sin core.
+  # Un solo binario por plataforma: `eui` también sirve el core (`eui serve`).
+  # El desktop, que solo se empaqueta en Windows, sigue con su par en `windows`.
+  binarios:
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            plataforma: win32-x64
+          - os: ubuntu-latest
+            plataforma: linux-x64
+          - os: macos-14
+            plataforma: darwin-arm64
+          - os: macos-13
+            plataforma: darwin-x64
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: 3.12
+
+      - name: uv
+        uses: astral-sh/setup-uv@v7
+
+      # No necesita pnpm ni el monorepo: compila `eui` con PyInstaller.
+      - name: eui (PyInstaller)
+        run: node scripts/build-sidecar.mjs --solo-eui
+
+      - name: Preparar el adjunto del release
+        shell: bash
+        run: |
+          set -euo pipefail
+          nombre="eui-${{ matrix.plataforma }}"
+          origen="services/core/dist/eui"
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            origen="$origen.exe"
+            nombre="$nombre.exe"
+          fi
+          if [ ! -f "$origen" ]; then
+            echo "::error::Falta $origen: el release saldría sin binario para ${{ matrix.plataforma }}."
+            exit 1
+          fi
+          mkdir -p entrega
+          cp "$origen" "entrega/$nombre"
+          ls -l "entrega/$nombre"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: eui-${{ matrix.plataforma }}
+          path: entrega/eui-*
+          if-no-files-found: error
+          retention-days: 1
+
+  # Adjunta los cuatro binarios al release del tag, cada uno con su `.sha256` al
+  # lado: es lo que el paquete web verifica antes de ejecutar nada. Va después
+  # de `windows` porque es ese job el que crea la release.
+  release-binarios:
+    if: ${{ github.event_name == 'push' }}
+    needs: [binarios, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: eui-*
+          path: binarios
+          merge-multiple: true
+
+      - name: sha256 y adjuntar al release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cd binarios
+          ls -l
+          for f in eui-*; do
+            case "$f" in *.sha256) continue ;; esac
+            sha256sum "$f" > "$f.sha256"
+          done
+          gh release view "$TAG" > /dev/null
+          gh release upload "$TAG" eui-* --clobber
+
+  # El paquete web no lleva binarios (`files: bin/, dist`): es la web, el
+  # envoltorio `eui` y nada más. Sin token guardado: npm valida el OIDC del
+  # runner contra el trusted publisher del paquete (repo `jaminsmoke/events-ui`,
+  # este workflow).
   npm-webapp:
     if: ${{ github.event_name == 'push' }}
-    runs-on: windows-latest
+    # Después de `release-binarios`: el paquete que se publica aquí descarga su
+    # core del release, así que los adjuntos tienen que existir ya.
+    needs: [release-binarios]
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
@@ -274,16 +373,6 @@ jobs:
           registry-url: "https://registry.npmjs.org"
           cache: pnpm
 
-      - uses: actions/setup-python@v7
-        with:
-          python-version: 3.12
-
-      - name: uv
-        uses: astral-sh/setup-uv@v7
-
-      - name: Rust (estable)
-        uses: dtolnay/rust-toolchain@stable
-
       - name: npm con trusted publishing
         run: npm install -g npm@latest
 
@@ -299,26 +388,11 @@ jobs:
             exit 1
           fi
 
+      # `prepack` compila `dist` y las devDependencies traen `workspace:*`, que
+      # resuelve pnpm.
       - name: pnpm install
         run: corepack pnpm install --frozen-lockfile
 
-      # Los binarios no se commitean: `build:sidecar` los compila y los deja en
-      # `apps/web/native/<os>-<arch>/`, que es lo que empaqueta `files`.
-      - name: Sidecar (PyInstaller)
-        run: corepack pnpm build:sidecar
-
-      - name: Comprobar que los binarios viajan en el paquete
-        shell: bash
-        run: |
-          for f in eui.exe events-core.exe; do
-            if [ ! -f "apps/web/native/win32-x64/$f" ]; then
-              echo "::error::Falta apps/web/native/win32-x64/$f: el paquete saldría sin binarios."
-              exit 1
-            fi
-          done
-
-      # `publishConfig.access` del paquete ya dice `public`; `prepack` compila
-      # `dist`, y las devDependencies (con `workspace:*`) las resuelve pnpm.
       # Un re-run del tag no puede republicar: npm rechaza una versión que ya
       # está en el registro. Si ya está, se salta el publish y el job queda verde.
       - name: ¿Ya está publicada la versión?

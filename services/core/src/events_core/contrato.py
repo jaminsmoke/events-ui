@@ -11,6 +11,8 @@ from typing import Annotated, Literal
 from fastapi import Query
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from .config import PUERTO_POR_DEFECTO
+
 # Se repiten los CHECK de `schema/items.sql` a propÃ³sito: aquÃ­ sirven para que el
 # contrato OpenAPI publique los enums y la UI no tenga que adivinarlos.
 # Al crear y editar solo se admite `work_item`: nota/ADR no están pensados
@@ -657,7 +659,7 @@ class Config(BaseModel):
     """
 
     repo: str | None = None
-    port: int = Field(default=18765, ge=1, le=65535)
+    port: int = Field(default=PUERTO_POR_DEFECTO, ge=1, le=65535)
 
 
 class ConfigEntrada(BaseModel):

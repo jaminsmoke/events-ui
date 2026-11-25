@@ -29,8 +29,23 @@ from .items.base.rutas import resolve_repo
 from .registro import raiz_datos_usuario
 
 CONFIG_ENV_VAR = "EVENTSUI_CONFIG"
-PUERTO_POR_DEFECTO = 18765
 FICHERO = "config.json"
+
+# El puerto del core tiene una sola copia: `puerto.json`, aquí al lado. Lo leen
+# también el desktop (su `build.rs`, que genera la constante de Rust) y los
+# guiones y configs de Vite. Si se cambia ahí, cambia en todos.
+PUERTO_JSON = Path(__file__).with_name("puerto.json")
+
+
+def _puerto_por_defecto() -> int:
+    """El puerto del core, leído de `puerto.json` (la única copia del número)."""
+    try:
+        return int(json.loads(PUERTO_JSON.read_text(encoding="utf-8"))["core"])
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise RuntimeError(f"no se pudo leer el puerto del core en {PUERTO_JSON}: {exc}") from exc
+
+
+PUERTO_POR_DEFECTO = _puerto_por_defecto()
 
 
 class ConfigInvalida(ValueError):

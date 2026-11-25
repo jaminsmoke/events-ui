@@ -1,11 +1,11 @@
 // Arranque en desarrollo: core + UI en un solo comando.
 //
-// La UI no habla con el core directamente: Vite le pasa `/api` por proxy a
-// 127.0.0.1:18765. Si el core no está, Vite escupe
-// `http proxy error: connect ECONNREFUSED 127.0.0.1:18765` cada dos segundos
-// (lo que pide `useRepo`) y la ventana se queda en "Cargando…".
+// La UI no habla con el core directamente: Vite le pasa `/api` por proxy al
+// puerto de `puerto.json` (la única copia del número). Si el core no está,
+// Vite escupe `http proxy error: connect ECONNREFUSED` cada dos segundos (lo
+// que pide `useRepo`) y la ventana se queda en "Cargando…".
 //
-// Siempre en limpio: antes de arrancar, quien escuchaba en 18765 y en el
+// Siempre en limpio: antes de arrancar, quien escuchaba en ese puerto y en el
 // puerto de la UI es un resto de una sesión anterior (core o Vite, incluso un
 // zombie) y muere; el core se levanta siempre de nuevo con el código de hoy.
 // Reutilizarlo a ciegas ya costó una mañana: ayer atendía el código de
@@ -21,9 +21,10 @@ import path from "node:path";
 import process from "node:process";
 
 import { esperarPuertoLibre, matarEnPuerto } from "./puertos.mjs";
+import { PUERTO_CORE } from "./puerto.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const CORE = "http://127.0.0.1:18765";
+const CORE = `http://127.0.0.1:${PUERTO_CORE}`;
 const TIMEOUT_MS = 20_000;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -103,7 +104,7 @@ async function main() {
 
   // En limpio: los restos de sesiones anteriores no estorban ni reutilizan.
   const puertoUi = modo === "web" ? 15174 : 15175;
-  for (const puerto of [18765, puertoUi]) {
+  for (const puerto of [PUERTO_CORE, puertoUi]) {
     const muertos = matarEnPuerto(puerto);
     if (muertos.length > 0) {
       console.log(
@@ -113,7 +114,7 @@ async function main() {
     await esperarPuertoLibre(puerto);
   }
 
-  console.log("Levantando el core en 127.0.0.1:18765…");
+  console.log(`Levantando el core en 127.0.0.1:${PUERTO_CORE}…`);
   const core = arrancarCore();
   core.on("error", (err) => {
     console.error(`No se pudo arrancar el core: ${err.message}`);

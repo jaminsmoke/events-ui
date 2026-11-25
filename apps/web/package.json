@@ -1,6 +1,6 @@
 {
   "name": "@jaminsmoke/events-ui-webapp",
-  "version": "0.5.7",
+  "version": "0.5.8",
   "type": "module",
   "repository": {
     "type": "git",
@@ -12,8 +12,7 @@
   },
   "files": [
     "bin/",
-    "dist",
-    "native/"
+    "dist"
   ],
   "publishConfig": {
     "access": "public"

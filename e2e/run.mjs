@@ -6,7 +6,8 @@
 //  node e2e/run.mjs --ayuda
 //
 // El runner levanta su propio core (con su temporal propio de repos y de
-// registro) y su Vite de desktop. Por defecto usa :18765 y :15175; si están
+// registro) y su Vite de desktop. Por defecto usa el puerto de `puerto.json` y
+// :15175; si están
 // ocupados —la app abierta, por ejemplo— elige otros libres y lo dice, sin
 // matar nunca lo ajeno. `--core-port` y `--ui-port` fijan los puertos.
 // Al terminar (pase, falle o se interrumpa con Ctrl+C) se cierra lo que el
@@ -23,12 +24,13 @@ import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { esperarPuertoLibre, matarEnPuerto, pidsEnPuerto } from "../scripts/puertos.mjs";
+import { PUERTO_CORE as PUERTO_CORE_POR_DEFECTO } from "../scripts/puerto.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ESCENARIOS_DIR = path.join(ROOT, "e2e", "escenarios");
 const RESULTADOS_DIR = path.join(ROOT, "e2e", "resultados");
 
-const PUERTO_CORE = 18765;
+const PUERTO_CORE = PUERTO_CORE_POR_DEFECTO;
 const PUERTO_UI = 15175;
 const TIMEOUT_MS = 45_000;
 
@@ -190,8 +192,8 @@ async function main() {
     console.log("Uso: node e2e/run.mjs [escenario] [--core-port N] [--ui-port N]\n");
     for (const e of todos) console.log(`  ${e.nombre}  — ${e.descripcion ?? ""}`);
     console.log(
-      "\nLos puertos por defecto (18765 y 15175) se cambian solos si están ocupados," +
-        " así que la batería corre con la app abierta.",
+      `\nLos puertos por defecto (${PUERTO_CORE} y ${PUERTO_UI}) se cambian solos si están` +
+        " ocupados, así que la batería corre con la app abierta.",
     );
     return;
   }

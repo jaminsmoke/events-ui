@@ -1,12 +1,14 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
+import puertoCore from "../../services/core/src/events_core/puerto.json";
 
 // Este envoltorio solo aporta Tauri y el diálogo nativo; la UI vive en
 // `@events-ui/ui` (compartida con la web, que escucha en 15174).
-// El core Python escucha en 127.0.0.1:18765. En dev la UI lo alcanza por el proxy
-// de Vite, así que no hay CORS ni puerto expuesto en el frontend.
-// En producción (F3) Tauri arranca el sidecar y sirve la UI desde su propio origen.
-// 18765 y no 8000: en esta máquina el 8000 lo tiene ocupado otro proceso.
+// El core Python escucha en el puerto de `puerto.json` (la única copia del
+// número). En dev la UI lo alcanza por el proxy de Vite, así que no hay CORS ni
+// puerto expuesto en el frontend. En producción Tauri arranca el sidecar y
+// sirve la UI desde su propio origen. Ese puerto y no el 8000: en esta máquina
+// el 8000 lo tiene ocupado otro proceso.
 //
 // Puerto y destino se pueden pisar por entorno (`EVENTSUI_UI_PORT` y
 // `EVENTSUI_CORE_URL`): el runner de e2e levanta su Vite y su core en otros
@@ -14,7 +16,7 @@ import react from "@vitejs/plugin-react";
 // `loadEnv` con prefijo vacío también recoge las variables del proceso.
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, ".", "");
-  const core = env.EVENTSUI_CORE_URL ?? "http://127.0.0.1:18765";
+  const core = env.EVENTSUI_CORE_URL ?? `http://127.0.0.1:${puertoCore.core}`;
   const puerto = Number(env.EVENTSUI_UI_PORT ?? 15175);
 
   return {

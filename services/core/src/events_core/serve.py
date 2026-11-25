@@ -32,9 +32,10 @@ HOST = "127.0.0.1"
 def _puerto_de_entorno() -> int:
     """El puerto del core: `EUI_PORT` si trae uno válido, si no el de siempre.
 
-    La app, el dev y los clientes hablan en 18765; el override existe para
+    La app, el dev y los clientes hablan en el puerto de `puerto.json`; el
+    override existe para
     arrancar un core de prueba en un puerto libre sin tocar el de verdad (la
-    prueba en frío del sidecar lo usa cuando la app abierta tiene el 18765).
+    prueba en frío del sidecar lo usa cuando la app abierta tiene ese puerto).
     """
     crudo = os.environ.get("EUI_PORT", "").strip()
     if not crudo:

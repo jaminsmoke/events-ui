@@ -20,9 +20,6 @@ data/
 .vite/
 *.log
 
-# Binarios del paquete web: los genera `pnpm build:sidecar` y viajan dentro del
-# propio paquete npm, una carpeta por plataforma. No se commitean.
-apps/web/native/
 
 # Capturas de las corridas e2e (se generan al correr la batería)
 e2e/resultados/

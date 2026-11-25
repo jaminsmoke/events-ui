@@ -1,6 +1,6 @@
 {
   "name": "events-ui-protocols",
-  "version": "0.5.7",
+  "version": "0.5.8",
   "description": "Las puertas del flujo de Events UI: esquema, política de partida y la guarda para el repo.",
   "license": "MIT",
   "type": "module",

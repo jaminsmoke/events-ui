@@ -403,6 +403,32 @@ class ProyeccionRepo(BaseModel):
     ultima_actividad: str | None = None
 
 
+class FsEntrada(BaseModel):
+    """Una entrada del explorador de carpetas (`GET /fs`).
+
+    `es_repo` solo tiene sentido en una carpeta: dice si ya tiene `.EUI`, que
+    es lo que la UI marca para no abrir una carpeta cualquiera por error.
+    """
+
+    nombre: str
+    tipo: Literal["carpeta", "archivo"]
+    es_repo: bool = False
+
+
+class FsListado(BaseModel):
+    """Un nivel del explorador: la carpeta actual, su padre y sus entradas.
+
+    `ruta` y `padre` son absolutas; `padre` es `None` en la raíz, que es el
+    único sitio desde el que no se puede subir. `recortado` avisa de que el
+    nivel tiene más entradas de las que caben en la respuesta.
+    """
+
+    ruta: str
+    padre: str | None = None
+    entradas: list[FsEntrada] = Field(default_factory=list)
+    recortado: bool = False
+
+
 class NodoArbol(BaseModel):
     """Una entrada del árbol de archivos: carpeta o archivo, con su ruta.
 

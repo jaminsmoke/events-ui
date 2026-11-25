@@ -22,6 +22,9 @@ export type Revision = Schemas["Revision"];
 /** Una carpeta del laboratorio ya sembrada, tal como la devuelve GET /repos. */
 export type RepoListado = Schemas["Repo"];
 
+/** Un nivel del explorador de carpetas (`GET /fs`). */
+export type FsListado = Schemas["FsListado"];
+
 /** Cuerpo de POST /items y de PATCH /items/{uid}, del contrato generado. */
 export type WorkItemCreate = Schemas["WorkItemCreate"];
 export type WorkItemUpdate = Schemas["WorkItemUpdate"];
@@ -31,6 +34,9 @@ export type Evento = Schemas["Evento"];
 
 /** F2: la proyección `repo_state` con su identidad de repo. */
 export type ProyeccionRepo = Schemas["ProyeccionRepo"];
+
+/** Una puerta activa del flujo (`GET /puertas`). */
+export type Puerta = Schemas["Puerta"];
 
 /** Un commit del historial de la rama (GET /git/commits), para el nodo del
  *  Mapa de Git. */

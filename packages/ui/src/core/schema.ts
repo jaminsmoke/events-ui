@@ -493,6 +493,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/fs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Fs
+         * @description Las carpetas y archivos de un nivel, ordenados y sin contenido.
+         *
+         *     La web pinta solo las carpetas; los archivos viajan con su tipo para que el
+         *     contrato no mienta si algún día el explorador también los muestra.
+         */
+        get: operations["get_fs_fs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/config": {
         parameters: {
             query?: never;
@@ -888,6 +911,48 @@ export interface components {
             nota: string;
             /** Requisitos */
             requisitos?: components["schemas"]["RequisitoEntrada"][] | null;
+        };
+        /**
+         * FsEntrada
+         * @description Una entrada del explorador de carpetas (`GET /fs`).
+         *
+         *     `es_repo` solo tiene sentido en una carpeta: dice si ya tiene `.EUI`, que
+         *     es lo que la UI marca para no abrir una carpeta cualquiera por error.
+         */
+        FsEntrada: {
+            /** Nombre */
+            nombre: string;
+            /**
+             * Tipo
+             * @enum {string}
+             */
+            tipo: "carpeta" | "archivo";
+            /**
+             * Es Repo
+             * @default false
+             */
+            es_repo: boolean;
+        };
+        /**
+         * FsListado
+         * @description Un nivel del explorador: la carpeta actual, su padre y sus entradas.
+         *
+         *     `ruta` y `padre` son absolutas; `padre` es `None` en la raíz, que es el
+         *     único sitio desde el que no se puede subir. `recortado` avisa de que el
+         *     nivel tiene más entradas de las que caben en la respuesta.
+         */
+        FsListado: {
+            /** Ruta */
+            ruta: string;
+            /** Padre */
+            padre?: string | null;
+            /** Entradas */
+            entradas?: components["schemas"]["FsEntrada"][];
+            /**
+             * Recortado
+             * @default false
+             */
+            recortado: boolean;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -2860,6 +2925,56 @@ export interface operations {
             };
             /** @description El archivo no es una imagen */
             415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_fs_fs_get: {
+        parameters: {
+            query?: {
+                /** @description Carpeta a listar, absoluta o relativa a la raíz */
+                path?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FsListado"];
+                };
+            };
+            /** @description Petición inválida */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorDetail"];
+                };
+            };
+            /** @description No existe el repo o el ítem */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

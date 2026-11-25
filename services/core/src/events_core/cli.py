@@ -16,10 +16,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import shutil
+import statistics
 import sys
 import tempfile
+import time
 from contextlib import closing
 from pathlib import Path
 from typing import Any
@@ -242,6 +245,36 @@ def _doctor(args: argparse.Namespace) -> int:
         raiz=raiz,
         version=__version__,
     )
+
+    # Las puertas se evalúan contra el almacén en cada lectura: medimos cinco
+    # para saber cuánto cuesta de verdad, sin caché todavía.
+    if raiz is not None:
+        consulta = f"{url}/puertas?{urlencode({'repo': str(raiz)})}"
+        tiempos: list[float] = []
+        ultimo_fallo: str | None = None
+        for _ in range(5):
+            inicio = time.perf_counter()
+            _, detalle, estado = _get(consulta)
+            if detalle is None and estado == 200:
+                tiempos.append((time.perf_counter() - inicio) * 1000)
+            else:
+                ultimo_fallo = detalle or f"HTTP {estado}"
+        if tiempos:
+            ordenados = sorted(tiempos)
+            p50 = statistics.median(ordenados)
+            p95 = ordenados[max(0, math.ceil(0.95 * len(ordenados)) - 1)]
+            comprobaciones.append(
+                _comprobacion(
+                    "puertas",
+                    "ok",
+                    f"{len(tiempos)}/5 · p50 {p50:.1f} ms · p95 {p95:.1f} ms",
+                )
+            )
+        else:
+            comprobaciones.append(
+                _comprobacion("puertas", "aviso", f"sin respuesta: {ultimo_fallo or '?'}")
+            )
+
     ok = all(c["estado"] != "error" for c in comprobaciones)
 
     if args.json:
@@ -1093,8 +1126,9 @@ def _web(args: argparse.Namespace) -> int:
     """Enciende el core si no responde, y abre la web servida por él.
 
     El core se lanza como proceso aparte con `EUI_IDLE_MINUTES`, así se apaga solo
-    cuando nadie lo usa. Si ya responde (otra app o un `eui web` anterior), no se
-    toca. El binario es el de la máquina si el envoltorio lo encontró
+    cuando nadie lo usa. Si ya responde (otra app o un `eui web` anterior), se le
+    añade la web instalada en caliente (`POST /webapp`) y se comprueba que la
+    sirve. El binario es el de la máquina si el envoltorio lo encontró
     (`EUI_CORE_BIN`: el `events-core` que publicó el desktop, sin consola); si
     no, `eui` se sirve a sí mismo, y en desarrollo se usa
     `python -m events_core.serve`.
@@ -1105,6 +1139,10 @@ def _web(args: argparse.Namespace) -> int:
 
     puerto = args.port or configuracion.leer_segura().port
     url = f"http://127.0.0.1:{puerto}"
+    dist_texto = os.environ.get("EUI_WEB_DIST", "").strip()
+    if not dist_texto:
+        encontrado = _dist_de_la_webapp()
+        dist_texto = str(encontrado) if encontrado else ""
     datos, _, _ = _get(f"{url}/health")
     if datos is None:
         # Sin las `_PYI_*`: el hijo reutilizaría la carpeta temporal del padre
@@ -1114,6 +1152,8 @@ def _web(args: argparse.Namespace) -> int:
             "EUI_PORT": str(puerto),
             "EUI_IDLE_MINUTES": str(args.idle_minutes),
         }
+        if dist_texto:
+            entorno["EUI_WEB_DIST"] = dist_texto
         # El core de la máquina si el envoltorio encontró uno (el del desktop,
         # que no trae CLI); si no, `eui` se sirve a sí mismo (`eui serve`), y
         # en desarrollo se arranca el módulo.
@@ -1143,8 +1183,27 @@ def _web(args: argparse.Namespace) -> int:
         if datos is None:
             print(f"El core no respondió en {url}. Revisa el registro de eventos.", file=sys.stderr)
             return 1
+    if dist_texto:
+        _, detalle_web, estado_web = _post(f"{url}/webapp", {"dist": dist_texto})
+        if estado_web == 404:
+            print(
+                f"El core que ya está en {url} no sabe montar la web en caliente "
+                "(es anterior). Ciérralo y vuelve a lanzar `eui web`.",
+                file=sys.stderr,
+            )
+            return 1
+        if estado_web != 200:
+            problema = detalle_web or f"HTTP {estado_web}"
+            print(f"No pude montar la web en {url}: {problema}", file=sys.stderr)
+            return 1
     print(f"Core en {url} (se apaga tras {args.idle_minutes:g} min sin uso)")
     if not args.no_open:
+        if _estado(f"{url}/") != 200:
+            print(
+                f"El core en {url} no sirve la web app; revisa el `dist` o reinícialo.",
+                file=sys.stderr,
+            )
+            return 1
         webbrowser.open(url)
     return 0
 
@@ -1405,8 +1464,7 @@ def _webapp(args: argparse.Namespace) -> int:
     if _estado(f"{url}/") != 200:
         print(
             f"El core que ya estaba en marcha en {url} no sirve la web app\n"
-            "(lo encendió el desktop, que no trae la web). Ciérralo o espera a que\n"
-            "se apague y vuelve a lanzar `eui --webapp`.",
+            "(puede ser una versión anterior). Ciérralo y vuelve a lanzar `eui --webapp`.",
             file=sys.stderr,
         )
         return 1

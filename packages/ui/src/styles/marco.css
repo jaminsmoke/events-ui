@@ -805,6 +805,48 @@ button.arbol-fila:hover {
   white-space: nowrap;
 }
 
+/* Puertas activas en la ficha de la idea. */
+.inspector-puerta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.inspector-puerta:last-child {
+  border-bottom: 0;
+}
+
+.inspector-puerta-cabecera {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.inspector-puerta-cabecera code {
+  color: var(--accent);
+  font-size: 10.5px;
+}
+
+.inspector-puerta-desde {
+  flex: none;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.inspector-puerta-motivo {
+  color: #b7c0cc;
+  font-size: 10.5px;
+  line-height: 1.35;
+}
+
+.inspector-puerta-cierra {
+  color: var(--muted);
+  font-size: 9.5px;
+}
+
 .inspector-acciones {
   display: flex;
   flex-wrap: wrap;

@@ -131,6 +131,7 @@ export function PanelDerecho({
         />
       ) : (
         <CuerpoInspector
+          repo={repo}
           proyeccion={proyeccion}
           commits={commits}
           seleccion={seleccion}
@@ -463,6 +464,7 @@ function CuerpoCarril({
  *  nodo de Git, historial y nudo. El contrato del historial solo trae `hash`
  *  abreviado, asunto, autor y fecha; lo que no llega, no se inventa. */
 function CuerpoInspector({
+  repo,
   proyeccion,
   commits,
   seleccion,
@@ -474,6 +476,7 @@ function CuerpoInspector({
   onSeleccionar,
   onAbrirArchivo,
 }: {
+  repo: string;
   proyeccion: ProyeccionRepo | null | undefined;
   commits: readonly CommitGit[];
   seleccion: Seleccion | null;
@@ -555,7 +558,9 @@ function CuerpoInspector({
     const idea = ideas.find((candidata) => candidata.uid === seleccion.uid);
     return idea ? (
       <CuerpoItem
+        key={idea.uid}
         idea={idea}
+        repo={repo}
         catalogo={ideas}
         acciones={acciones}
         onSeleccionar={onSeleccionar}

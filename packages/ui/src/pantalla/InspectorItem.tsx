@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
-import type { WorkItem, WorkItemUpdate } from "../core/api";
+import { api, unwrap } from "../core/api";
+import type { Puerta, WorkItem, WorkItemUpdate } from "../core/api";
 import type { PuedeIr } from "../core/useProtocolos";
 import { ACCIONES_ESTADO, motivoBloqueo } from "../mapa/acciones";
 import { ETIQUETA_ESTADO, LANES, laneOf, sePuedeEliminar } from "../mapa/carriles";
@@ -29,11 +30,14 @@ export type AccionesItem = {
  *  acciones, con el bloqueo del protocolo a la vista. */
 export function CuerpoItem({
   idea,
+  repo,
   catalogo,
   acciones,
   onSeleccionar,
 }: {
   idea: WorkItem;
+  /** La raíz del repo: las puertas se evalúan contra su estado. */
+  repo: string;
   /** Todas las ideas del repo: resuelve los títulos de las dependencias. */
   catalogo: readonly WorkItem[];
   acciones: AccionesItem;
@@ -43,6 +47,8 @@ export function CuerpoItem({
   const [fallo, setFallo] = useState<string | null>(null);
   const [confirmando, setConfirmando] = useState(false);
   const [descartando, setDescartando] = useState(false);
+  const [puertas, setPuertas] = useState<Puerta[] | null>(null);
+  const [falloPuertas, setFalloPuertas] = useState<string | null>(null);
   const fases = idea.fases ?? [];
   const deps = idea.depende_de ?? [];
   const hechas = fases.filter((fase) => fase.estado === "completada").length;
@@ -50,6 +56,20 @@ export function CuerpoItem({
   const carril = lane ? LANES.find((l) => l.id === lane)?.title : "Entrada";
   // El historial es un archivo: ni se edita, ni se mueve, ni se borra.
   const enHistorial = idea.status === "historial";
+
+  useEffect(() => {
+    const controller = new AbortController();
+    unwrap(api.GET("/puertas", { params: { query: { repo } }, signal: controller.signal }))
+      .then((lista) => {
+        if (!controller.signal.aborted) setPuertas(lista);
+      })
+      .catch((err) => {
+        if (!controller.signal.aborted) {
+          setFalloPuertas(err instanceof Error ? err.message : String(err));
+        }
+      });
+    return () => controller.abort();
+  }, [repo]);
 
   const hacer = (fn: () => Promise<void>, alOk?: () => void) => {
     setTrabajando(true);
@@ -142,6 +162,43 @@ export function CuerpoItem({
             );
           })}
         </ul>
+      )}
+
+      <p className="pane-rotulo">Puertas</p>
+      {falloPuertas ? (
+        <p className="hint error">No se pudieron leer: {falloPuertas}</p>
+      ) : puertas === null ? (
+        <p className="hint">Leyendo…</p>
+      ) : puertas.length === 0 ? (
+        <p className="hint">Ninguna puerta activa.</p>
+      ) : (
+        <>
+          <ul className="inspector-lista">
+            {puertas.map((puerta) => (
+              <li key={puerta.id} className="inspector-puerta">
+                <span className="inspector-puerta-cabecera">
+                  <code>{puerta.id}</code>
+                  <span className="inspector-puerta-desde">
+                    {puerta.desde === "repo" ? "repo" : "preset"}
+                  </span>
+                </span>
+                <span className="inspector-puerta-motivo">{puerta.motivo}</span>
+                {puerta.cierra && puerta.cierra.length > 0 && (
+                  <span className="inspector-puerta-cierra">
+                    cierra: {puerta.cierra.join(", ")}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+          {puertas.some(
+            (puerta) => puerta.id === "item_fases" || puerta.id === "item_requisito",
+          ) && (
+            <p className="hint">
+              Hay fases o requisitos cerrados: completarlos abre esas puertas.
+            </p>
+          )}
+        </>
       )}
 
       {!enHistorial && (

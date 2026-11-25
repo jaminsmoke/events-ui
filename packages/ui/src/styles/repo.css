@@ -117,6 +117,62 @@
   color: var(--accent);
 }
 
+/* Explorador de carpetas de la web (el desktop usa el diálogo nativo). */
+.explorador {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 560px;
+}
+
+.explorador-ruta {
+  font-size: 11px;
+  color: var(--muted);
+  word-break: break-all;
+}
+
+.explorador-acciones {
+  display: flex;
+  gap: 8px;
+}
+
+.explorador-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 220px;
+  overflow: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.explorador-lista .btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+}
+
+.explorador-nombre {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.explorador-repo {
+  flex: none;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
 .selector-card {
   max-width: 720px;
   margin: 0 auto 16px;

@@ -20,10 +20,11 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 from . import __version__, items, registro
 from . import config as configuracion
@@ -32,6 +33,7 @@ from .db import data_version, db_path, journal_mode, open_read_only
 from .routers import arbol as rutas_arbol
 from .routers import config as rutas_config
 from .routers import eventos as rutas_eventos
+from .routers import fs as rutas_fs
 from .routers import git as rutas_git
 from .routers import items as rutas_items
 from .routers import log as rutas_log
@@ -172,17 +174,111 @@ app.include_router(rutas_eventos.router)
 app.include_router(rutas_log.router)
 app.include_router(rutas_git.router)
 app.include_router(rutas_arbol.router)
+app.include_router(rutas_fs.router)
 app.include_router(rutas_config.router)
 app.include_router(rutas_migracion.router)
 
+
 # La web compilada se sirve desde el mismo origen que la API. La UI llama a
 # `/api/...` (en dev lo hace el proxy de Vite, que quita el prefijo): aquí se
-# quita igual. Solo se monta si la carpeta `dist` existe (checkout sin compilar).
-# `EUI_WEB_DIST` la fija el envoltorio del paquete npm (el binario congelado no tiene
-# el checkout alrededor).
-DIST_WEB = Path(
-    os.environ.get("EUI_WEB_DIST") or Path(__file__).resolve().parents[4] / "apps" / "web" / "dist"
-)
+# quita igual. El `dist` se busca en el entorno, en el checkout y en el paquete
+# npm; el core congelado del desktop no tiene el checkout alrededor, así que sin
+# esta última búsqueda su `/` sería un 404 aunque la web estuviera instalada.
+def _dist_web_instalada() -> Path | None:
+    """El `dist` del paquete npm de la web, si está instalado.
+
+    Se miran las rutas habituales de npm sin lanzar Node: el core no debe
+    depender de `npm` para arrancar. `eui web` puede añadir una ruta no habitual
+    con `POST /webapp`.
+    """
+    candidatos: list[Path] = []
+    if os.name == "nt":
+        for base in (os.environ.get("APPDATA"), os.environ.get("LOCALAPPDATA")):
+            if base:
+                candidatos.append(
+                    Path(base)
+                    / "npm"
+                    / "node_modules"
+                    / "@jaminsmoke"
+                    / "events-ui-webapp"
+                    / "dist"
+                )
+    else:
+        candidatos.extend(
+            [
+                Path.home()
+                / ".npm-global"
+                / "lib"
+                / "node_modules"
+                / "@jaminsmoke"
+                / "events-ui-webapp"
+                / "dist",
+                Path("/usr/local/lib/node_modules/@jaminsmoke/events-ui-webapp/dist"),
+                Path("/usr/lib/node_modules/@jaminsmoke/events-ui-webapp/dist"),
+            ]
+        )
+    return next((ruta for ruta in candidatos if (ruta / "index.html").is_file()), None)
+
+
+def _dist_web_inicial() -> Path:
+    """El `dist` con el que arranca el core: entorno, checkout o paquete npm."""
+    fijado = os.environ.get("EUI_WEB_DIST", "").strip()
+    if fijado:
+        return Path(fijado)
+    source = Path(__file__).resolve().parents[4] / "apps" / "web" / "dist"
+    if (source / "index.html").is_file():
+        return source
+    return _dist_web_instalada() or source
+
+
+DIST_WEB = _dist_web_inicial()
+WEB_STATIC: StaticFiles | None = None
+
+
+def _montar_web(ruta: Path) -> None:
+    """Sirve `ruta` en `/`, o cambia el `dist` si ya estaba montado.
+
+    Se llama al arrancar (si hay `dist`) y desde `POST /webapp` cuando `eui web`
+    encuentra un core ya vivo. El montaje va al final: las rutas de la API van
+    antes, y el middleware de `/api` reescribe el camino antes de enrutar.
+    """
+    global DIST_WEB, WEB_STATIC
+    DIST_WEB = ruta
+    if WEB_STATIC is None:
+        WEB_STATIC = StaticFiles(directory=str(ruta), html=True)
+        app.mount("/", WEB_STATIC, name="web")
+        return
+    WEB_STATIC.directory = str(ruta)
+    WEB_STATIC.all_directories = [str(ruta)]
+
+
+class _WebappEntrada(BaseModel):
+    dist: str
+
+
+@app.post("/webapp", include_in_schema=False)
+@app.post("/webapp/", include_in_schema=False)
+def _montar_web_en_caliente(entrada: _WebappEntrada) -> dict[str, Any]:
+    """Añade la web instalada a un core que ya está vivo.
+
+    Lo llama `eui web` cuando el desktop encendió el core sin `EUI_WEB_DIST`.
+    Solo acepta una carpeta que parezca un `dist` (con `index.html`): el core
+    escucha en bucle local, pero tampoco sirve un directorio cualquiera.
+    """
+    ruta = Path(entrada.dist).expanduser()
+    try:
+        ruta = ruta.resolve()
+    except OSError as exc:
+        raise HTTPException(
+            status_code=400, detail=f"no pude resolver {entrada.dist}: {exc}"
+        ) from exc
+    if not ruta.is_dir() or not (ruta / "index.html").is_file():
+        raise HTTPException(
+            status_code=400, detail=f"{ruta} no es un dist de la web (falta index.html)"
+        )
+    _montar_web(ruta)
+    registro.escribir("info", f"Web montada desde {ruta}")
+    return {"dist": str(ruta)}
 
 
 ULTIMA_ACTIVIDAD = [time.monotonic()]
@@ -199,5 +295,5 @@ async def _quitar_prefijo_api(request: Request, call_next):
     return await call_next(request)
 
 
-if DIST_WEB.is_dir():
-    app.mount("/", StaticFiles(directory=DIST_WEB, html=True), name="web")
+if (DIST_WEB / "index.html").is_file():
+    _montar_web(DIST_WEB)

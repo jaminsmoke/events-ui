@@ -6,6 +6,7 @@ Los pasos que suben un almacén viejo hasta este esquema viven en
 
 from __future__ import annotations
 
+import os
 import sqlite3
 from contextlib import closing
 from pathlib import Path
@@ -77,8 +78,7 @@ def init_repo(repo: str) -> Path:
             conn.commit()
 
     registro.escribir("info", f"Almacén sembrado en {directory}", origen="seed")
-    _ignorar_auxiliares(db_file)
-    _purgar_ajenos(db_file.parent)
+    _ordenar_eui(db_file)
     return db_file
 
 
@@ -110,9 +110,63 @@ def ensure_repo(repo: str) -> Path:
     if not db_file.is_file():
         return init_repo(repo)
     migraciones._migrar_esquema(db_file)
-    _ignorar_auxiliares(db_file)
-    _purgar_ajenos(db_file.parent)
+    _ordenar_eui(db_file)
     return db_file
+
+
+# `.EUI` que este proceso ya ordenó: `Ruta -> huella`. Poner al día el
+# `.gitignore` y purgar lo ajeno corre en cada lectura, y la purga recorre el
+# árbol: sin que nada haya cambiado es trabajo de escritorio repetido (el
+# sondeo de `/revision` pasa por aquí cada 2 s por cliente).
+_ORDENADOS: dict[Path, tuple[object, ...]] = {}
+
+# Auxiliares que SQLite crea y borra al abrir y cerrar conexiones: no cuentan
+# como cambio de la carpeta, o la huella no pararía de moverse.
+_VOLATILES = frozenset({f"{DB_FILENAME}-wal", f"{DB_FILENAME}-shm", f"{DB_FILENAME}-journal"})
+
+
+def _entradas(carpeta: Path) -> tuple[str, ...] | None:
+    """Los nombres de una carpeta, sin los auxiliares del almacén."""
+    try:
+        return tuple(sorted(nombre for nombre in os.listdir(carpeta) if nombre not in _VOLATILES))
+    except OSError:
+        return None
+
+
+def _huella_eui(eui: Path) -> tuple[object, ...] | None:
+    """Lo que decide si hay algo que ordenar, sin recorrer el árbol.
+
+    Los nombres de `.EUI` y de su `migracion/` —lo único que la purga puede
+    ver— y la firma del `.gitignore`, que se reescribe si cambió su contenido.
+    """
+    raiz = _entradas(eui)
+    if raiz is None:
+        return None
+    try:
+        info = (eui / ".gitignore").stat()
+        firma: tuple[int, int] | None = (info.st_mtime_ns, info.st_size)
+    except OSError:
+        firma = None
+    return raiz, _entradas(eui / "migracion"), firma
+
+
+def _ordenar_eui(db_file: Path) -> None:
+    """Pone al día el `.gitignore` de `.EUI` y purga lo ajeno, una vez.
+
+    Solo trabaja si la carpeta cambió desde la última vez que este proceso la
+    ordenó: nada puede aparecer en `.EUI` sin que cambien sus nombres, y un
+    `.EUI` recreado trae otros. La huella se guarda después de ordenar, que es
+    cuando la purga ya borró lo suyo. Idempotente: dos hilos a la vez hacen lo
+    mismo y dejan la misma carpeta.
+    """
+    eui = db_file.parent
+    huella = _huella_eui(eui)
+    if huella is not None and _ORDENADOS.get(eui) == huella:
+        return
+    _ignorar_auxiliares(db_file)
+    _purgar_ajenos(eui)
+    if (nueva := _huella_eui(eui)) is not None:
+        _ORDENADOS[eui] = nueva
 
 
 def _purgar_ajenos(eui_dir: Path) -> None:

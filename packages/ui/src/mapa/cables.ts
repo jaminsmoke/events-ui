@@ -17,7 +17,7 @@ import type { Union } from "./protocolos";
 export { CELDA, duracionChispa } from "./geometria";
 export type { Nudo, Punto } from "./geometria";
 
-/** El nodo Git cierra la línea, pero no es un carril de ideas: solo aporta
+/** El nodo Git cierra la línea, pero no es un carril de items: solo aporta
  *  su color y su cable. */
 export type DestinoCable = LaneId | "git";
 
@@ -61,7 +61,7 @@ export type Cable = {
 };
 
 /** El nodo de «Revisión rechazada»: una bifurcación, no un carril. No guarda
- *  ideas; solo dice por dónde puede volver una revisión que no se aprueba.
+ *  items; solo dice por dónde puede volver una revisión que no se aprueba.
  *  Sus nudos —el de arriba y los del tronco— viven en la lista de nudos del
  *  mapa, como los demás. */
 export type RamaRechazo = {
@@ -331,7 +331,7 @@ export function useCables({
 
       const cola = cajas.get("cola");
       const descartadas = cajas.get("descartadas");
-      /* Una idea se descarta lo mismo desde la entrada que desde la cola: el
+      /* Una item se descarta lo mismo desde la entrada que desde la cola: el
        * cable Entrada↔En cola va en los dos sentidos, así que la rama no sale
        * del canto de un nodo sino de un nudo en su punto medio. */
       const entrada = cajas.get("root");

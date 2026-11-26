@@ -10,12 +10,12 @@ import { STORAGE_KEY } from "./repo";
 type Cargado = { repo: string; mapa: Mapa };
 type Fallo = { repo: string; mensaje: string };
 
-/** Ideas del repo, refrescadas solas.
+/** Ítems del repo, refrescadas solas.
  *
  *  El refresco no es un watcher de ficheros: se pregunta `GET /revision`, cuya
- *  firma sale de `PRAGMA data_version` del almacén, del conteo de ideas y del
+ *  firma sale de `PRAGMA data_version` del almacén, del conteo de items y del
  *  `max(id)` del log. Si cambia, se relee el mapa: un evento nuevo del
- *  productor mueve la firma aunque no toque ninguna idea.
+ *  productor mueve la firma aunque no toque ninguna item.
  *  El ritmo lo marca `sondeo`: un latido común cada 2 s que se para con la
  *  ventana oculta; si un turno llega con una lectura en vuelo, se salta. */
 export function useItems(repo: string | null) {
@@ -98,7 +98,7 @@ export function useItems(repo: string | null) {
   // Escrituras por la API tipada: no hace falta refrescar a mano, el sondeo
   // de `/revision` ve el cambio (`data_version` sube o `ultimo_evento` crece)
   // y relee el mapa solo.
-  // `crear` devuelve la idea recién creada (con su `uid`): el lanzador de
+  // `crear` devuelve el ítem recién creada (con su `uid`): el lanzador de
   // pruebas lo necesita para mover lo que acaba de crear.
   const crear = useCallback(
     async (body: WorkItemCreate) => {
@@ -118,9 +118,9 @@ export function useItems(repo: string | null) {
     [repo],
   );
 
-  // La idea completa (`tags`…): el mapa no los trae, así que el editor de
+  // La item completa (`tags`…): el mapa no los trae, así que el editor de
   // la fila la pide al abrirse.
-  const cargarIdea = useCallback(
+  const cargarItem = useCallback(
     async (uid: string) => {
       if (!repo) return null;
       return unwrap(
@@ -146,8 +146,8 @@ export function useItems(repo: string | null) {
     [repo],
   );
 
-  // LAB (solo Pruebas): vacía el almacén entero (ideas, cola, fichas y
-  // eventos). No borra una idea: deja el proyecto limpio.
+  // LAB (solo Pruebas): vacía el almacén entero (items, cola, fichas y
+  // eventos). No borra un ítem: deja el proyecto limpio.
   const reiniciar = useCallback(
     async (): Promise<Reinicio | null> => {
       if (!repo) return null;
@@ -160,14 +160,14 @@ export function useItems(repo: string | null) {
 
   return {
     // `null` = todavía sin respuesta; `[]` = el repo está sembrado pero vacío.
-    ideas: fresco?.mapa.items ?? null,
+    items: fresco?.mapa.items ?? null,
     refrescar,
     error: fallo && fallo.repo === repo ? fallo.mensaje : null,
     crear,
     mover,
     editar,
     borrar,
-    cargarIdea,
+    cargarItem,
     reiniciar,
   };
 }

@@ -6,7 +6,7 @@ import type { PropsVista } from "./vista";
  *  en el de trabajo su sitio lo ocupa el puente Documentos, para que el cable
  *  de archivo lo mida igual. */
 export function nodoDeCarril(
-  { cerrados, onToggle, refs, seleccion, onSeleccionar, animacion, acciones, ideas }: PropsVista,
+  { cerrados, onToggle, refs, seleccion, onSeleccionar, animacion, acciones, items }: PropsVista,
   lane: TreeNode,
 ) {
   return (
@@ -26,12 +26,12 @@ export function nodoDeCarril(
       onPideEditar={acciones.onPideEditar}
       onEditar={acciones.onEditar}
       onBorrar={acciones.onBorrar}
-      onCargarIdea={acciones.onCargar}
+      onCargarItem={acciones.onCargar}
       puedeIr={acciones.puedeIr}
       exigeFases={acciones.exigeFases}
       exigeFasesListas={acciones.exigeFasesListas}
       exigeFasesCompletas={acciones.exigeFasesCompletas}
-      catalogo={ideas}
+      catalogo={items}
       seleccion={seleccion}
       onSeleccionar={onSeleccionar}
     />

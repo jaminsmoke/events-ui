@@ -636,7 +636,7 @@
   background: #16233a;
 }
 
-/* Una idea seleccionada: la banda de su cabecera y la marca en el canto. */
+/* Una ítem seleccionada: la banda de su cabecera y la marca en el canto. */
 .row.seleccionada > .row-head {
   background: #1f6feb2b;
   box-shadow: inset 2px 0 0 var(--accent);

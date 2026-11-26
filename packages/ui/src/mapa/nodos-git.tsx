@@ -9,7 +9,7 @@ import type { Seleccion } from "./seleccion";
 import type { FilaVueloCommit } from "./vuelos-git";
 
 /** El primer nodo del Mapa de Git: los cambios que aún no tienen commit.
- *  No es un carril de ideas; solo enseña lo que Git ve en el árbol de trabajo. */
+ *  No es un carril de items; solo enseña lo que Git ve en el árbol de trabajo. */
 /** «viejo → nuevo» para un renombrado; la ruta sola en el resto. */
 function rutaVisible(cambio: { ruta: string; origen?: string | null }): string {
   return cambio.origen ? `${cambio.origen} → ${cambio.ruta}` : cambio.ruta;
@@ -176,7 +176,7 @@ export function NodoCommits({
   );
 }
 
-/** El nodo terminal de Git: no es un carril ni guarda ideas. Solo enseña si
+/** El nodo terminal de Git: no es un carril ni guarda items. Solo enseña si
  *  la carpeta pertenece a un work tree y, cuando lo hace, su rama y commit. */
 export function NodoGit({
   activo,
@@ -273,8 +273,8 @@ export function NodoPuenteDocumentos({
   );
 }
 
-/** El puente al Mapa de Git: cierra el flujo de Ideas y solo se activa con
- *  work tree. No guarda ideas; abre la vista de Control de versiones. Sin
+/** El puente al Mapa de Git: cierra el flujo de Ítems y solo se activa con
+ *  work tree. No guarda items; abre la vista de Control de versiones. Sin
  *  repo ofrece crearlo y con repo, eliminarlo (con confirmación). */
 export function NodoPuenteGit({
   activo,

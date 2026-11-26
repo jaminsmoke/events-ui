@@ -46,7 +46,7 @@ export function PanelDerecho({
   onIgnorarAlmacen,
   commits,
   seleccion,
-  ideas,
+  items,
   cables,
   nudos,
   paso,
@@ -68,17 +68,17 @@ export function PanelDerecho({
   commits: readonly CommitGit[];
   /** Lo seleccionado en el lienzo; `null`, nada. */
   seleccion: Seleccion | null;
-  /** Las ideas del mapa: la ficha de un carril las lista por estado. */
-  ideas: readonly WorkItem[];
+  /** Las items del mapa: la ficha de un carril las lista por estado. */
+  items: readonly WorkItem[];
   /** Los cables medidos: la ficha de un cable explica su compuerta. */
   cables: readonly Cable[];
   /** Los nudos del mapa: agrupan las compuertas de sus cables. */
   nudos: readonly Nudo[];
   /** El protocolo del repo: qué salidas hay y qué exige cada unión. */
   paso: (origen: Status, destino: Status) => Paso | null;
-  /** Lo que la ficha de idea puede hacer con la idea seleccionada. */
+  /** Lo que la ficha de item puede hacer con el ítem seleccionada. */
   acciones: AccionesItem;
-  /** Pulsar una idea en la ficha la selecciona en el lienzo. */
+  /** Pulsar un ítem en la ficha la selecciona en el lienzo. */
   onSeleccionar: (seleccion: Seleccion) => void;
   /** Abrir un archivo de una ficha (cambio) en la vista Archivo. */
   onAbrirArchivo: (ruta: string) => void;
@@ -141,7 +141,7 @@ export function PanelDerecho({
           proyeccion={proyeccion}
           commits={commits}
           seleccion={seleccion}
-          ideas={ideas}
+          items={items}
           cables={cables}
           nudos={nudos}
           paso={paso}
@@ -329,30 +329,30 @@ function CuerpoResumen({
   );
 }
 
-/** La ficha de un carril: qué ideas lo pueblan, cómo se reparten y por dónde
+/** La ficha de un carril: qué items lo pueblan, cómo se reparten y por dónde
  *  puede seguir cada estado según el protocolo del repo. Las salidas no se
  *  inventan: son las uniones que `paso` da por abiertas, con lo que piden. */
 function CuerpoCarril({
   titulo,
   estados,
-  ideas,
+  items,
   paso,
   onSeleccionar,
 }: {
   titulo: string;
   estados: readonly Status[];
-  ideas: readonly WorkItem[];
+  items: readonly WorkItem[];
   paso: (origen: Status, destino: Status) => Paso | null;
   onSeleccionar: (seleccion: Seleccion) => void;
 }) {
-  const delCarril = ideas.filter((idea) => estados.includes(idea.status));
+  const delCarril = items.filter((item) => estados.includes(item.status));
   const salidas = estados.flatMap((origen) =>
     ESTADOS.filter((destino) => !estados.includes(destino))
       .map((destino) => ({ origen, destino, paso: paso(origen, destino) }))
       .filter((union) => union.paso?.abierta),
   );
 
-  // Eliminadas no guarda ideas: es el paso visual antes del borrado definitivo.
+  // Eliminadas no guarda items: es el paso visual antes del borrado definitivo.
   if (estados.length === 0) {
     return (
       <div className="panel-cuerpo inspector-cuerpo">
@@ -378,7 +378,7 @@ function CuerpoCarril({
           {estados.map((estado) => (
             <Fragment key={estado}>
               <dt>{ETIQUETA_ESTADO[estado] ?? estado}</dt>
-              <dd>{delCarril.filter((idea) => idea.status === estado).length}</dd>
+              <dd>{delCarril.filter((item) => item.status === estado).length}</dd>
             </Fragment>
           ))}
         </dl>
@@ -389,16 +389,16 @@ function CuerpoCarril({
         <p className="hint">Este carril está vacío.</p>
       ) : (
         <ul className="inspector-lista">
-          {delCarril.map((idea) => (
-            <li key={idea.uid}>
+          {delCarril.map((item) => (
+            <li key={item.uid}>
               <button
                 type="button"
                 className="inspector-item"
-                onClick={() => onSeleccionar({ tipo: "item", uid: idea.uid })}
+                onClick={() => onSeleccionar({ tipo: "item", uid: item.uid })}
               >
-                <span className="inspector-item-titulo">{idea.title}</span>
+                <span className="inspector-item-titulo">{item.title}</span>
                 <span className="inspector-item-estado">
-                  {ETIQUETA_ESTADO[idea.status] ?? idea.status}
+                  {ETIQUETA_ESTADO[item.status] ?? item.status}
                 </span>
               </button>
             </li>
@@ -439,7 +439,7 @@ function CuerpoCarril({
 }
 
 /** La ficha de lo seleccionado en el lienzo. Todo lo que se puede pulsar en
- *  el mapa tiene su cuerpo aquí: carril, idea, commit, cambio, cable, puente,
+ *  el mapa tiene su cuerpo aquí: carril, item, commit, cambio, cable, puente,
  *  nodo de Git, historial y nudo. El contrato del historial solo trae `hash`
  *  abreviado, asunto, autor y fecha; lo que no llega, no se inventa. */
 function CuerpoInspector({
@@ -447,7 +447,7 @@ function CuerpoInspector({
   proyeccion,
   commits,
   seleccion,
-  ideas,
+  items,
   cables,
   nudos,
   paso,
@@ -459,7 +459,7 @@ function CuerpoInspector({
   proyeccion: ProyeccionRepo | null | undefined;
   commits: readonly CommitGit[];
   seleccion: Seleccion | null;
-  ideas: readonly WorkItem[];
+  items: readonly WorkItem[];
   cables: readonly Cable[];
   nudos: readonly Nudo[];
   paso: (origen: Status, destino: Status) => Paso | null;
@@ -490,7 +490,7 @@ function CuerpoInspector({
       <CuerpoCarril
         titulo={meta?.title ?? "Entrada"}
         estados={meta ? ESTADOS_POR_CARRIL[meta.id] : ESTADOS_ENTRADA}
-        ideas={ideas}
+        items={items}
         paso={paso}
         onSeleccionar={onSeleccionar}
       />
@@ -548,13 +548,13 @@ function CuerpoInspector({
   }
 
     case "item": {
-    const idea = ideas.find((candidata) => candidata.uid === seleccion.uid);
-    return idea ? (
+    const item = items.find((candidata) => candidata.uid === seleccion.uid);
+    return item ? (
       <CuerpoItem
-        key={idea.uid}
-        idea={idea}
+        key={item.uid}
+        item={item}
         repo={repo}
-        catalogo={ideas}
+        catalogo={items}
         acciones={acciones}
         onSeleccionar={onSeleccionar}
       />

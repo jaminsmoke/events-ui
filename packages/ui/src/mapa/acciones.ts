@@ -1,6 +1,6 @@
 /** Qué traslados ofrece cada estado y por qué uno puede estar frenado.
  *
- *  Lo comparten la fila del mapa y el inspector de idea: si cambia una acción
+ *  Lo comparten la fila del mapa y el inspector de item: si cambia una acción
  *  o un requisito del protocolo, cambia en los dos sitios a la vez. */
 import type { PuedeIr } from "../core/useProtocolos";
 import type { Status } from "./carriles";
@@ -37,7 +37,7 @@ export const ACCIONES_ESTADO: Record<Status, readonly AccionEstado[]> = {
 };
 
 /** Motivo por el que un traslado no se ofrece, o `null` si se puede probar.
- *  Sale de las fases de la idea y del protocolo del repo, como en la fila. */
+ *  Sale de las fases de el ítem y del protocolo del repo, como en la fila. */
 export function motivoBloqueo(
   estado: Status | undefined,
   fases: readonly Fase[],

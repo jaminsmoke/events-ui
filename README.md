@@ -445,7 +445,9 @@ La primera versión llamó «idea» a lo que hoy es un ítem de implementación.
 renombrado terminó: la API solo publica `/items`, el CLI solo tiene
 `eui item …`, el MCP solo anuncia `item_*`, el almacén habla `work_item_*`
 (0034), el lote vive en `migracion_item` (0035) y el tipo del dato se llama
-`work_item` (0036).
+`work_item` (0036). La UI también: sus componentes (`NuevoItem`, `EditorItem`,
+`DescartaItem`), variables (`items`, `cargarItem`) y copy dicen ítem; «Work
+Item» queda para el dominio.
 
 `idea` sigue apareciendo en cuatro sitios, y ninguno es un alias vivo:
 

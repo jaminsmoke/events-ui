@@ -1,9 +1,9 @@
 import { useState } from "react";
 
-/** Diálogo al descartar: el motivo del rechazo se guarda en `idea_rejected`,
- *  junto con la fecha. Es opcional —descartar sin motivo sigue descartando—,
+/** Diálogo al descartar: el motivo del rechazo se guarda en la tabla de
+ *  descartes, junto con la fecha. Es opcional —descartar sin motivo sigue descartando—,
  *  pero sin él la ficha queda con la descripción vacía. */
-export function DescartaIdea({
+export function DescartaItem({
   titulo,
   onDescartar,
   onCerrar,

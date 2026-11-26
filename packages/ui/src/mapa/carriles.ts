@@ -5,12 +5,12 @@ export type Status = WorkItem["status"];
 
 /** Los carriles del nivel siguiente.
  *
- *  No son tablas: son una vista sobre `ideas.status`. `draft` es la entrada,
+ *  No son tablas: son una vista sobre `items.status`. `draft` es la entrada,
  *  donde se crea; `proposed` está en cola; `roadmap`, `verificacion` y
  *  `revision_aprobada` son las fichas del flujo completo; y
  *  `rejected`/`superseded` cierran la rama en Descartadas. `eliminadas` es
  *  solo representación en el mapa: no hay status persistido; las filas que
- *  llegan ahí se queman y desaparecen. En cuanto una idea recibe carril,
+ *  llegan ahí se queman y desaparecen. En cuanto un ítem recibe carril,
  *  deja la entrada: no se ve en los dos sitios a la vez. Un carril de verdad
  *  solo hará falta cuando las columnas sean datos (nombre, orden, por repo),
  *  no constantes.
@@ -104,7 +104,7 @@ export const ETIQUETA_ESTADO: Record<string, string> = {
 };
 
 /** El título legible de un carril o de un extremo de cable: `root` es la
- *  Entrada y `git` no es un carril de ideas. */
+ *  Entrada y `git` no es un carril de items. */
 export function tituloCarril(lane: string): string {
   if (lane === "root") return "Entrada";
   return LANES.find((carril) => carril.id === lane)?.title ?? (lane === "git" ? "Git" : lane);

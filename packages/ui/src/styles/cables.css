@@ -224,7 +224,7 @@
 /* Chispa que recorre el cable: la animación dura más que el cambio en el
  * almacén, que es instantáneo, y así se ve llegar el elemento al carril. */
 /* Nudo del cable Entrada↔En cola: de ahí sale la rama de Descartadas, porque
- * una idea se descarta tanto antes como después de entrar en la cola. */
+ * una ítem se descarta tanto antes como después de entrar en la cola. */
 .nudo {
   fill: #0d1117;
   stroke: #7d8590;

@@ -178,7 +178,7 @@
   margin: 0 auto 16px;
 }
 
-/* Nueva idea: dos campos y las acciones, como el selector. */
+/* Nuevo ítem: dos campos y las acciones, como el selector. */
 .nueva {
   display: flex;
   flex-direction: column;

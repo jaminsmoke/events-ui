@@ -85,19 +85,19 @@ export function FichaFases({
   titulo,
   fases,
   alGuardar,
-  cargarIdea,
+  cargarItem,
   onCerrar,
 }: {
   uid?: string;
-  /** El carril de la idea: el motivo se toca en roadmap, como en la fila. */
+  /** El carril de el ítem: el motivo se toca en roadmap, como en la fila. */
   estado: Status;
   titulo: string;
   fases: readonly Fase[];
   /** La copia optimista vive en la fila; sin él, la ficha es de lectura. */
   alGuardar?: (siguientes: readonly Fase[]) => Promise<void>;
-  /** La idea completa: el mapa no trae el parche de cada archivo, solo el
+  /** La item completa: el mapa no trae el parche de cada archivo, solo el
    *  recuento. Sin esto, la ficha enseña rutas y estado, que ya vienen. */
-  cargarIdea?: (uid: string) => Promise<WorkItem | null>;
+  cargarItem?: (uid: string) => Promise<WorkItem | null>;
   onCerrar: () => void;
 }) {
   const { guardando, fallo, guardar } = useGuardarFases(alGuardar);
@@ -110,13 +110,13 @@ export function FichaFases({
   const { hechas } = progreso(vista);
 
   useEffect(() => {
-    if (!cargarIdea || !uid) return;
+    if (!cargarItem || !uid) return;
     let vivo = true;
-    void cargarIdea(uid)
-      .then((idea) => {
-        if (!vivo || !idea) return;
+    void cargarItem(uid)
+      .then((item) => {
+        if (!vivo || !item) return;
         const mapa = new Map<string, string>();
-        for (const fase of idea.fases ?? []) {
+        for (const fase of item.fases ?? []) {
           for (const archivo of fase.archivos ?? []) {
             if (archivo.contenido) mapa.set(`${fase.orden}:0:${archivo.ruta}`, archivo.contenido);
           }
@@ -136,7 +136,7 @@ export function FichaFases({
     return () => {
       vivo = false;
     };
-  }, [cargarIdea, uid]);
+  }, [cargarItem, uid]);
 
   return createPortal(
     <div

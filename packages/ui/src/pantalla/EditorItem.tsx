@@ -2,14 +2,14 @@ import { useEffect, useRef, useState } from "react";
 
 import type { WorkItemUpdate } from "../core/api";
 
-/** Diálogo de edición de una idea: título, descripción y `tags`.
+/** Diálogo de edición de un ítem: título, descripción y `tags`.
  *
- *  Solo hay un tipo —la idea—: no hay selector de tipo (nota/ADR no han
+ *  Solo hay un tipo —el ítem—: no hay selector de tipo (nota/ADR no han
  *  sido pensados). Las `tags` no vienen en el mapa, así que al abrirse se
- *  pide la idea completa (`onCargar`) y se precargan. Cerrar es cancelar:
+ *  pide el ítem completa (`onCargar`) y se precargan. Cerrar es cancelar:
  *  sin guardar no se toca nada.
  */
-export function EditorIdea({
+export function EditorItem({
   titulo,
   descripcion,
   onCargar,
@@ -32,7 +32,7 @@ export function EditorIdea({
   // El mapa se refresca cada dos segundos y `onCargar`/`onGuardar` son
   // funciones nuevas en cada render del padre. La carga de tags se hace una
   // sola vez al abrirse: si dependiera de esas funciones, cada refresco
-  // volvería a pedir la idea y pisaría el borrador mientras se escribe.
+  // volvería a pedir el ítem y pisaría el borrador mientras se escribe.
   const cargarRef = useRef(onCargar);
   const tagsModificadosRef = useRef(false);
   useEffect(() => {
@@ -80,7 +80,7 @@ export function EditorIdea({
       };
       // Si la lectura de las etiquetas falló (o aún no volvió) y el campo no
       // se tocó, no hay que enviar `tags`: hacerlo con el input vacío
-      // borraría las que la idea ya tuviera. Si el campo sí se tocó, se
+      // borraría las que el ítem ya tuviera. Si el campo sí se tocó, se
       // respeta lo escrito, aunque sea quitar todas las etiquetas.
       if (estadoCarga === "lista" || tagsModificadosRef.current) {
         cambios.tags = tags

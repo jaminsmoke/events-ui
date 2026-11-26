@@ -1,4 +1,4 @@
-/** Fases de una idea: la lista que se edita en la fila. */
+/** Fases de un ítem: la lista que se edita en la fila. */
 
 import { useState } from "react";
 
@@ -17,17 +17,17 @@ import {
 } from "./fasesModelo";
 import { useGuardarFases } from "./useGuardarFases";
 
-/** Las fases de una idea: lista corta con su estado, sin salir de la fila.
+/** Las fases de un ítem: lista corta con su estado, sin salir de la fila.
  *  Cada cambio reenvía la lista entera: el PATCH la reemplaza en una
  *  transacción, así que marcar una casilla no pisa el carril. */
-export function FasesIdea({
+export function FasesItem({
   fases,
   estado,
   alGuardar,
   soloLectura,
 }: {
   fases: readonly Fase[];
-  /** El carril de la idea: el estado de una fase solo se toca en roadmap. */
+  /** El carril de el ítem: el estado de una fase solo se toca en roadmap. */
   estado: Status;
   /** La copia optimista vive en la fila: así la ficha y la fila no se pisan. */
   alGuardar: (siguientes: readonly Fase[]) => Promise<void>;

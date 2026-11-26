@@ -12,13 +12,13 @@ export type Quema = { id: number; uid: string; title: string };
  *  No hay status `eliminadas` en el almacén: esas filas se inyectan aquí
  *  mientras dura la animación y desaparecen cuando el borrado termina. */
 export function useArbolMapa(
-  ideas: WorkItem[] | null,
+  items: WorkItem[] | null,
   quemas: readonly Quema[],
 ): Tree | null {
   return useMemo(() => {
-    if (!ideas) return null;
+    if (!items) return null;
     const ocultas = new Set(quemas.map((quema) => quema.uid));
-    const base = buildTree(ideas.filter((idea) => !ocultas.has(idea.uid)));
+    const base = buildTree(items.filter((item) => !ocultas.has(item.uid)));
     if (quemas.length === 0) return base;
     return {
       ...base,
@@ -36,5 +36,5 @@ export function useArbolMapa(
         };
       }),
     };
-  }, [ideas, quemas]);
+  }, [items, quemas]);
 }

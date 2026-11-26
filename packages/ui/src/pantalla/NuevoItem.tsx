@@ -6,7 +6,7 @@ import type { WorkItemCreate } from "../core/api";
 /** Nuevo ítem: título obligatorio, descripción opcional. El `body` se
  *  compone contra `WorkItemCreate` del contrato generado, así que un enum mal
  *  puesto no compila. */
-export function NuevaIdea({
+export function NuevoItem({
   onCrear,
   onCerrar,
 }: {

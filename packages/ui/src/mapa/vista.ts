@@ -33,7 +33,7 @@ export type AccionesLienzo = {
 export type PropsVista = {
   mapa: MapaLienzo;
   tree: Tree;
-  ideas: readonly WorkItem[];
+  items: readonly WorkItem[];
   commits: readonly CommitGit[];
   cerrados: ReadonlySet<string>;
   onToggle: (key: string) => void;

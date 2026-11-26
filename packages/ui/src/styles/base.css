@@ -9,7 +9,7 @@
   --warn: #d29922;
   --bad: #f85149;
   --accent: #58a6ff;
-  /* Escala de la ficha: título de idea, título de fila, subtítulo, cuerpo y
+  /* Escala de la ficha: título de ítem, título de fila, subtítulo, cuerpo y
    * rótulos. Los tamaños bajan en ese orden para que la jerarquía se lea de
    * un vistazo y los controles no compitan con el contenido. */
   --t-titulo: 14px;

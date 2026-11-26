@@ -22,20 +22,20 @@ export type Vuelo = {
   funde: boolean;
 };
 
-/** El vuelo: si una idea cambia de carril, su fila no aparece de golpe en el
+/** El vuelo: si un ítem cambia de carril, su fila no aparece de golpe en el
  *  nodo nuevo — se va volando desde donde estaba, y el destino la espera oculta
  *  hasta que aterriza. El dato llega en un instante; el viaje no. */
 export function useVuelos({
   repo,
   mapa,
-  ideas,
+  items,
   cerrados,
   vista,
   mapRef,
 }: {
   repo: string | null;
   mapa: string;
-  ideas: WorkItem[] | null;
+  items: WorkItem[] | null;
   cerrados: ReadonlySet<string>;
   vista: Vista;
   mapRef: RefObject<HTMLDivElement | null>;
@@ -53,7 +53,7 @@ export function useVuelos({
     // En el Mapa de Git no hay filas que medir.
     if (mapa !== "items") return;
     const map = mapRef.current;
-    if (!repo || !map || !ideas) return;
+    if (!repo || !map || !items) return;
 
     const caja = map.getBoundingClientRect();
     const ahora = new Map<string, Rect>();
@@ -61,7 +61,7 @@ export function useVuelos({
       const uid = fila.dataset.uid;
       const nodo = fila.dataset.nodo;
       // Las filas del cajón también se miden: son el origen del vuelo cuando
-      // una idea recibe carril (deja Ideas para ir a En cola).
+      // un ítem recibe carril (deja Ítems para ir a En cola).
       const cabecera = fila.firstElementChild;
       if (!uid || !nodo || !cabecera) continue;
       const r = cabecera.getBoundingClientRect();
@@ -90,14 +90,14 @@ export function useVuelos({
     }
 
     const carriles = new Map<string, LaneId | "root">(
-      ideas.map((idea) => [idea.uid, laneOf(idea.status) ?? ("root" as const)]),
+      items.map((item) => [item.uid, laneOf(item.status) ?? ("root" as const)]),
     );
     const previo = anterior.current;
     anterior.current = { repo, carriles, rects: ahora };
     if (previo?.repo !== repo) return;
 
     const nuevos: Vuelo[] = [];
-    for (const { uid, title, status } of ideas) {
+    for (const { uid, title, status } of items) {
       const lane = laneOf(status);
       const antes = previo.carriles.get(uid);
       if (antes === undefined || antes === lane) continue;
@@ -127,7 +127,7 @@ export function useVuelos({
     // puede entrar en cascada con el render que acaba de pintar las filas.
     const raf = requestAnimationFrame(() => setVuelos(nuevos));
     return () => cancelAnimationFrame(raf);
-  }, [repo, mapa, ideas, cerrados, k, mapRef]);
+  }, [repo, mapa, items, cerrados, k, mapRef]);
 
   // Solo se oculta la fila del carril de destino: la del cajón no se mueve.
   const volando = useCallback(

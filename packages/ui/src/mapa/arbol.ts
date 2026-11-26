@@ -9,7 +9,7 @@ import type { LaneId } from "./carriles";
  *  igual que un nodo de Unreal enseña sus opciones. Nada de un nodo por item ni
  *  de tarjetas dentro de tarjetas.
  *
- *  La entrada (`draft`) es donde se crean las ideas; en cuanto reciben carril
+ *  La entrada (`draft`) es donde se crean los ítems; en cuanto reciben carril
  *  desaparecen de ahí —no se ven en dos sitios a la vez— y para bajar de
  *  nivel se pasa por la disyuntiva de carriles. Cada carril es un nodo con su
  *  lista plana: la jerarquía que importa son las fases de cada ítem, que viven
@@ -17,9 +17,9 @@ import type { LaneId } from "./carriles";
  *  filas efímeras mientras se queman.
  *
  *  Plegar y desplegar cambia solo lo que se ve; mover, crear, editar y
- *  borrar ideas entra por la API, nunca tocando el árbol a mano.
+ *  borrar items entra por la API, nunca tocando el árbol a mano.
  */
-/** Lo que se pinta: la entrada con las ideas sin carril y los carriles. */
+/** Lo que se pinta: la entrada con los ítems sin carril y los carriles. */
 export type Tree = { cajon: TreeNode; carriles: TreeNode[] };
 
 export type TreeNode = {

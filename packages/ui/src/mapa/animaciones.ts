@@ -6,26 +6,26 @@ import type { LaneId } from "./carriles";
 
 export type Animacion = { lane: LaneId; id: number; desde?: LaneId | null };
 
-/** Dónde puede pulsar un nodo: un carril, o el cajón de Ideas (`"cajon"`).
- *  El cajón contiene las ideas sin carril (recién creadas), así que pulsa
+/** Dónde puede pulsar un nodo: un carril, o el cajón de Ítems (`"cajon"`).
+ *  El cajón contiene los ítems sin carril (recién creadas), así que pulsa
  *  cuando entra alguna y cuando una lo deja hacia un carril. */
 export type NodoId = LaneId | "cajon";
 
 /** Código de colores del pulso de borde de cada nodo:
- *  - `azul`: una idea **entra** (se crea o llega a un carril);
- *  - `rojo`: una idea **sale** (se borra, se descarta o deja un carril);
- *  - `verde`: una idea llega a **revisión aprobada** o al **historial**.
+ *  - `azul`: un ítem **entra** (se crea o llega a un carril);
+ *  - `rojo`: un ítem **sale** (se borra, se descarta o deja un carril);
+ *  - `verde`: un ítem llega a **revisión aprobada** o al **historial**.
  *  Verde queda reservado al estado final, no a entradas normales. */
 export type TonoPulso = "azul" | "rojo" | "verde";
 export type Pulso = { lane: NodoId; tono: TonoPulso };
 
 const PRIORIDAD: Record<TonoPulso, number> = { azul: 1, rojo: 2, verde: 3 };
 
-/** Señala entradas y salidas aunque dos ideas se crucen y los totales coincidan.
+/** Señala entradas y salidas aunque dos items se crucen y los totales coincidan.
  *  El pulso va al nodo (borde y contador); la chispa recorre solo el cable de
  *  llegada. Una salida no lanza chispa en el cable de entrada del carril que
  *  deja: eso haría creer que también llega algo. */
-export function useAnimaciones(repo: string | null, ideas: WorkItem[] | null) {
+export function useAnimaciones(repo: string | null, items: WorkItem[] | null) {
   const [actividad, setActividad] = useState<{
     repo: string;
     chispas: Animacion[];
@@ -40,10 +40,10 @@ export function useAnimaciones(repo: string | null, ideas: WorkItem[] | null) {
   const secuencia = useRef(0);
 
   useEffect(() => {
-    if (!repo || !ideas) return;
+    if (!repo || !items) return;
     const previo = anterior.current;
-    const estados = new Map(ideas.map((idea) => [idea.uid, idea.status]));
-    const carriles = new Map(ideas.map((idea) => [idea.uid, laneOf(idea.status)]));
+    const estados = new Map(items.map((item) => [item.uid, item.status]));
+    const carriles = new Map(items.map((item) => [item.uid, laneOf(item.status)]));
     anterior.current = { repo, estados, carriles };
     if (previo?.repo !== repo) return;
 
@@ -58,17 +58,17 @@ export function useAnimaciones(repo: string | null, ideas: WorkItem[] | null) {
     const fijarCajon = (tono: TonoPulso) => {
       if (!cajon || PRIORIDAD[tono] > PRIORIDAD[cajon]) cajon = tono;
     };
-    // Solo los carriles que reciben una idea generan chispa; el resto, pulso.
+    // Solo los carriles que reciben un ítem generan chispa; el resto, pulso.
     // El origen permite elegir, en un carril con ida y vuelta, el cable correcto.
     const llegan = new Map<LaneId, LaneId | null>();
 
-    for (const idea of ideas) {
-      const lane = laneOf(idea.status);
-      const lanePrevio = previo.carriles.get(idea.uid);
+    for (const item of items) {
+      const lane = laneOf(item.status);
+      const lanePrevio = previo.carriles.get(item.uid);
       if (
-        (idea.status === "revision_aprobada" || idea.status === "historial") &&
-        previo.estados.get(idea.uid) !== "revision_aprobada" &&
-        previo.estados.get(idea.uid) !== "historial"
+        (item.status === "revision_aprobada" || item.status === "historial") &&
+        previo.estados.get(item.uid) !== "revision_aprobada" &&
+        previo.estados.get(item.uid) !== "historial"
       ) {
         if (lane) {
           fijar(lane, "verde");
@@ -85,7 +85,7 @@ export function useAnimaciones(repo: string | null, ideas: WorkItem[] | null) {
           fijar(lane, lane === "descartadas" ? "rojo" : "azul");
           llegan.set(lane, lanePrevio);
         }
-        // El carril que deja la idea pulsa en rojo, pero su cable de entrada
+        // El carril que deja el ítem pulsa en rojo, pero su cable de entrada
         // no se enciende: la chispa pertenece al carril de llegada.
         if (lanePrevio) fijar(lanePrevio, "rojo");
         // Salir del cajón a un carril: el cajón pulsa en rojo (sale de aquí).
@@ -117,7 +117,7 @@ export function useAnimaciones(repo: string | null, ideas: WorkItem[] | null) {
       });
     });
     return () => cancelAnimationFrame(raf);
-  }, [repo, ideas]);
+  }, [repo, items]);
 
   useEffect(() => {
     if (!actividad) return;

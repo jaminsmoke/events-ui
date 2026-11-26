@@ -13,13 +13,13 @@ import { resumenEvento } from "./useEventos";
  */
 export function useAvisosEventos({
   eventos,
-  ideas,
+  items,
   error,
   avisar,
   ajustes,
 }: {
   eventos: readonly Evento[];
-  ideas: WorkItem[] | null;
+  items: WorkItem[] | null;
   error: string | null;
   avisar?: (titulo: string, cuerpo: string) => void;
   ajustes: Ajustes;
@@ -41,7 +41,7 @@ export function useAvisosEventos({
     }
   }, [eventos, avisar, ajustes]);
 
-  // Error del core: solo cuando el mapa ni carga (`!ideas`), al pasar a
+  // Error del core: solo cuando el mapa ni carga (`!items`), al pasar a
   // fallar (transición), no en cada reintento —si no, cada 2 s otro aviso.
   const errorPrevio = useRef<string | null>(null);
   useEffect(() => {
@@ -49,6 +49,6 @@ export function useAvisosEventos({
     errorPrevio.current = error;
     if (!avisar || !error || previo === error) return;
     if (!puedeAvisar(ajustes, "error", !document.hidden)) return;
-    if (!ideas) avisar("Events UI", `Sin conexión con el core: ${error}`);
-  }, [error, ideas, avisar, ajustes]);
+    if (!items) avisar("Events UI", `Sin conexión con el core: ${error}`);
+  }, [error, items, avisar, ajustes]);
 }

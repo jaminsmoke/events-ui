@@ -218,7 +218,8 @@ no cambió después. Si la cobertura ya es total, hay que usar absorb sin
 El plan ya escribe `items` y su elemento se llama `PlanWorkItem`. `kind` sigue
 aceptando el `idea` de un plan v1-v3 y lo guarda como `work_item`, y la clave
 `ideas` de un plan guardado se acepta como alias de `items` al leer. La API ya
-solo publica `/items` y el lote vive en `migracion_item` (0035).
+solo publica `/items` y el lote vive en `migracion_item` (0035). La UI habla de
+ítem en componentes, variables y copy; «Work Item» es el nombre de dominio.
 
 ## Antes de aplicar
 

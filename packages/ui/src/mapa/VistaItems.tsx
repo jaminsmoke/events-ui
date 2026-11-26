@@ -8,7 +8,7 @@ import type { PropsVista } from "./vista";
 export function VistaItems(props: PropsVista) {
   const {
     tree,
-    ideas,
+    items,
     cerrados,
     onToggle,
     refs,
@@ -72,7 +72,7 @@ export function VistaItems(props: PropsVista) {
                 style={{
                   // El grosor cuenta lo que espera en el origen; la luz
                   // no: un cable no se enciende porque el carril del
-                  // que sale reciba ideas, solo cuando algo lo cruza.
+                  // que sale reciba items, solo cuando algo lo cruza.
                   strokeWidth: entrada ? 1.3 + 1.5 * t : 1.8 + 2.2 * t,
                   opacity: enMarcha ? 1 : apagadoGit ? 0.25 : entrada ? 0.46 : 0.56,
                   strokeDasharray: apagadoGit ? "4 5" : undefined,
@@ -84,7 +84,7 @@ export function VistaItems(props: PropsVista) {
         {/* Dirección sin depender del movimiento: un chevrón en el
          *  punto medio. La rama de Descartadas no lo lleva. */}
         {cables.map((cable) => {
-          // Git no es un tránsito de ideas: su cable no lleva flecha.
+          // Git no es un tránsito de items: su cable no lleva flecha.
           if (cable.lane === "git") return null;
           // El chevrón cae sobre un tramo recto de la ruta ortogonal.
           const { x: mx, y: my, angulo } = cable.chevron;
@@ -209,12 +209,12 @@ export function VistaItems(props: PropsVista) {
           onPideEditar={acciones.onPideEditar}
           onEditar={acciones.onEditar}
           onBorrar={acciones.onBorrar}
-          onCargarIdea={acciones.onCargar}
+          onCargarItem={acciones.onCargar}
           puedeIr={acciones.puedeIr}
           exigeFases={acciones.exigeFases}
           exigeFasesListas={acciones.exigeFasesListas}
           exigeFasesCompletas={acciones.exigeFasesCompletas}
-          catalogo={ideas}
+          catalogo={items}
           seleccion={seleccion}
           onSeleccionar={onSeleccionar}
         />

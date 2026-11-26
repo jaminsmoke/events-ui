@@ -41,10 +41,10 @@ import { BannerActualizacion } from "./pantalla/BannerActualizacion";
 import { BarraSuperior } from "./pantalla/BarraSuperior";
 import { DialogoGit } from "./pantalla/DialogoGit";
 import { Bienvenida } from "./pantalla/Bienvenida";
-import { NuevaIdea } from "./pantalla/NuevaIdea";
+import { NuevoItem } from "./pantalla/NuevoItem";
 import { SelectorRepo } from "./pantalla/SelectorRepo";
 import { AvisoRecorte, Controles } from "./pantalla/Controles";
-import { EditorIdea } from "./pantalla/EditorIdea";
+import { EditorItem } from "./pantalla/EditorItem";
 import { PanelLog } from "./pantalla/PanelLog";
 import { PanelDerecho } from "./pantalla/PanelDerecho";
 import type { PruebasInyectadas } from "./pantalla/pruebasInyectadas";
@@ -52,7 +52,7 @@ import { useVentanaEstrecha } from "./pantalla/useVentanaEstrecha";
 
 
 /* *  El mapa: se pliega, se encuadra y se mueve; el almacén se toca solo por
- *  la API del core (crear, mover, editar y borrar ideas).
+ *  la API del core (crear, mover, editar y borrar items).
  *
  *  `elegirCarpeta` lo inyecta el envoltorio que tenga diálogo nativo (Tauri);
  *  la web no lo pasa. El selector es el mismo en las dos: explorador de
@@ -156,7 +156,7 @@ export default function App({
   );
 
   const {
-    ideas,
+    items,
     error,
     proyeccion,
     commits,
@@ -164,7 +164,7 @@ export default function App({
     mover,
     editar,
     borrar,
-    cargarIdea,
+    cargarItem,
     ignorarAlmacen,
     reiniciar,
     crearRepoGit,
@@ -176,7 +176,7 @@ export default function App({
   // se borra el dato. No hay status `eliminadas` en el almacén.
   const [quemas, setQuemas] = useState<{ id: number; uid: string; title: string }[]>([]);
   const quemaSeq = useRef(0);
-  const tree = useArbolMapa(ideas, quemas);
+  const tree = useArbolMapa(items, quemas);
   // F1: el log del repo en vivo (cada `EUI_DATABASE` lleva el suyo).
   const { eventos, conectado, limpiar: limpiarLog } = useEventos(repo);
   useEmpujeMapa(eventos, refrescar);
@@ -185,7 +185,7 @@ export default function App({
   // no ofrece traslados prohibidos; el core los rechaza si llegan igual.
   const { puedeIr, exigeFases, exigeFasesListas, exigeFasesCompletas, paso } = useProtocolos(repo);
 
-  useAvisosEventos({ eventos, ideas, error, avisar, ajustes });
+  useAvisosEventos({ eventos, items, error, avisar, ajustes });
 
   const boardRef = useRef<HTMLElement | null>(null);
   const mapRef = useRef<HTMLDivElement | null>(null);
@@ -223,7 +223,7 @@ export default function App({
     conGit: gitActivo,
     insetDerecha,
   });
-  const { vuelos, volando, aterrizado } = useVuelos({ repo, mapa, ideas, cerrados, vista, mapRef });
+  const { vuelos, volando, aterrizado } = useVuelos({ repo, mapa, items, cerrados, vista, mapRef });
   const { filas: vuelosGit, aterrizado: aterrizadoGit } = useVueloCommit({
     repo,
     proyeccion,
@@ -232,7 +232,7 @@ export default function App({
     cambiosRef,
     commitsRef,
   });
-  const { chispas, pulsos, pulsoCajon } = useAnimaciones(repo, ideas);
+  const { chispas, pulsos, pulsoCajon } = useAnimaciones(repo, items);
 
   const { destelloDe, cableDeChispa } = useDestellos({ chispas, cables });
 
@@ -275,7 +275,7 @@ export default function App({
   );
 
   // Paradas del teclado, en el orden en que se lee el lienzo: la Entrada, los
-  // carriles, las ideas, los nudos, los cables y los puentes. En el Mapa de
+  // carriles, los ítems, los nudos, los cables y los puentes. En el Mapa de
   // Git: nodo, historial, commits y cambios. En Documentos: el Changelog.
   const paradas = useMemo<Seleccion[]>(() => {
     if (mapa === "git") {
@@ -291,9 +291,9 @@ export default function App({
     if (mapa === "documentos") {
       return [
         { tipo: "carril", clave: "lane-historial" },
-        ...(ideas ?? [])
-          .filter((idea) => idea.status === "historial")
-          .map((idea) => ({ tipo: "item" as const, uid: idea.uid })),
+        ...(items ?? [])
+          .filter((item) => item.status === "historial")
+          .map((item) => ({ tipo: "item" as const, uid: item.uid })),
       ];
     }
     return [
@@ -302,15 +302,15 @@ export default function App({
         tipo: "carril" as const,
         clave: `lane-${lane.id}`,
       })),
-      ...(ideas ?? [])
-        .filter((idea) => idea.status !== "historial")
-        .map((idea) => ({ tipo: "item" as const, uid: idea.uid })),
+      ...(items ?? [])
+        .filter((item) => item.status !== "historial")
+        .map((item) => ({ tipo: "item" as const, uid: item.uid })),
       ...nudos.map((nudo) => ({ tipo: "nudo" as const, id: nudo.id })),
       ...cables.map((cable) => ({ tipo: "cable" as const, id: cable.id })),
       { tipo: "puente" },
       { tipo: "puente_documentos" },
     ];
-  }, [mapa, proyeccion, commits, ideas, nudos, cables]);
+  }, [mapa, proyeccion, commits, items, nudos, cables]);
 
   useAtajosLienzo({
     paradas,
@@ -344,12 +344,12 @@ export default function App({
   /** Descartadas → Eliminadas: quema visual y luego borrado real. */
   const alEliminar = useCallback(
     async (uid: string) => {
-      const idea = ideas?.find((item) => item.uid === uid);
-      if (!idea || !sePuedeEliminar(idea.status)) {
+      const item = items?.find((item) => item.uid === uid);
+      if (!item || !sePuedeEliminar(item.status)) {
         throw new Error("Solo se eliminan ítems que ya están en Descartadas");
       }
       const id = ++quemaSeq.current;
-      setQuemas((prev) => [...prev, { id, uid, title: idea.title }]);
+      setQuemas((prev) => [...prev, { id, uid, title: item.title }]);
       setCerrados((prev) => {
         const next = new Set(prev);
         next.delete("lane-eliminadas");
@@ -362,7 +362,7 @@ export default function App({
         setQuemas((prev) => prev.filter((quema) => quema.id !== id));
       }
     },
-    [ideas, borrar],
+    [items, borrar],
   );
 
   const toggle = useCallback((key: string) => {
@@ -375,7 +375,7 @@ export default function App({
   }, []);
 
   // `null` = todavía sin respuesta; `[]` = el repo está sembrado pero vacío.
-  const busy = repo !== null && ideas === null && error === null;
+  const busy = repo !== null && items === null && error === null;
 
   /* Lo que el lienzo y el panel piden al almacén: una sola forma para los
    *  dos, así una acción nueva no se queda en uno de los lados. */
@@ -387,7 +387,7 @@ export default function App({
     onMover: alMover,
     onEditar: editar,
     onBorrar: alEliminar,
-    onCargar: cargarIdea,
+    onCargar: cargarItem,
     onPideEditar: (uid, titulo, descripcion) => setEditando({ uid, titulo, descripcion }),
   };
 
@@ -441,7 +441,7 @@ export default function App({
 
       {repo && nuevaAbierta && (
         <section className="card selector-card">
-          <NuevaIdea onCrear={crear} onCerrar={() => setNuevaAbierta(false)} />
+          <NuevoItem onCrear={crear} onCerrar={() => setNuevaAbierta(false)} />
         </section>
       )}
 
@@ -458,10 +458,10 @@ export default function App({
       )}
 
       {editando && (
-        <EditorIdea
+        <EditorItem
           titulo={editando.titulo}
           descripcion={editando.descripcion}
-          onCargar={() => cargarIdea(editando.uid)}
+          onCargar={() => cargarItem(editando.uid)}
           onGuardar={(cambios) => editar(editando.uid, cambios)}
           onCerrar={() => setEditando(null)}
         />
@@ -490,7 +490,7 @@ export default function App({
 
       {falloAccion && <AvisoError mensaje={falloAccion} />}
 
-      {error && !ideas && <AvisoError mensaje={error} />}
+      {error && !items && <AvisoError mensaje={error} />}
 
       <main className="viewport">
         {/* Marco tipo IDE: la barra de actividad manda sobre los dos paneles. */}
@@ -521,7 +521,7 @@ export default function App({
             onCerrar={() => setPane(null)}
           />
         )}
-        {repo && (!error || ideas) && (
+        {repo && (!error || items) && (
           <section
             className={`board${arrastrando ? " arrastrando" : ""}`}
             ref={boardRef}
@@ -543,7 +543,7 @@ export default function App({
               </p>
             )}
             {busy && <p className="hint">Cargando…</p>}
-            {!busy && ideas?.length === 0 && (
+            {!busy && items?.length === 0 && (
               <p className="hint">Todavía no hay ítems en este repo.</p>
             )}
             {!busy && tree && (
@@ -556,7 +556,7 @@ export default function App({
                 <Lienzo
                   mapa={mapa}
                   tree={tree}
-                  ideas={ideas ?? []}
+                  items={items ?? []}
                   commits={commits}
                   cerrados={cerrados}
                   onToggle={toggle}
@@ -604,7 +604,7 @@ export default function App({
             proyeccion={proyeccion}
             commits={commits}
             seleccion={seleccion}
-            ideas={ideas ?? []}
+            items={items ?? []}
             cables={cables}
             nudos={nudos}
             paso={paso}

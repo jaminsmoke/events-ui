@@ -40,7 +40,7 @@ function Filtros({ grupos, acciones }: { grupos: GrupoFiltro[]; acciones?: React
 }
 
 /** Flyout del log, estilo VS Code: dos pestañas —`Eventos` (el timeline del
- *  repo: `idea.*` + los externos, por `origen`) y `Registro` (el operativo
+ *  repo: `item.*` + los externos, por `origen`) y `Registro` (el operativo
  *  de la app: arranques, errores y operaciones, por nivel y por etiqueta).
  *
  *  Son dos almacenes distintos y no se mezclan: la pestaña solo decide qué

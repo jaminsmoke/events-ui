@@ -318,7 +318,7 @@ header > div {
 }
 
 /* Un documento absorbido: ruta arriba y el recuento debajo, sin competir con
- *  el título de la idea. */
+ *  el título de la ítem. */
 .documento-item {
   display: flex;
   flex-direction: column;
@@ -694,7 +694,7 @@ button.arbol-fila:hover {
   gap: 6px;
 }
 
-/* La ficha de un carril: la lista de ideas y las salidas del protocolo. */
+/* La ficha de un carril: la lista de ítems y las salidas del protocolo. */
 .inspector-lista,
 .inspector-uniones {
   display: flex;
@@ -754,7 +754,7 @@ button.arbol-fila:hover {
   font-size: 10px;
 }
 
-/* La ficha de idea: descripción, fases con sus archivos y acciones. */
+/* La ficha de ítem: descripción, fases con sus archivos y acciones. */
 .inspector-descripcion {
   margin: 0;
   color: #b7c0cc;
@@ -814,7 +814,7 @@ button.arbol-fila:hover {
   white-space: nowrap;
 }
 
-/* Puertas activas en la ficha de la idea. */
+/* Puertas activas en la ficha de la ítem. */
 .inspector-puerta {
   display: flex;
   flex-direction: column;

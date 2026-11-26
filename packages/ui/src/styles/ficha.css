@@ -1,6 +1,6 @@
-/* Fila y ficha de la idea: detalle, estado, dependencias y diálogo de edición. */
+/* Fila y ficha de la ítem: detalle, estado, dependencias y diálogo de edición. */
 
-/* Mover una idea al otro carril: fantasma, a la derecha de la fila. */
+/* Mover una ítem al otro carril: fantasma, a la derecha de la fila. */
 .row {
   display: flex;
   flex-direction: column;
@@ -53,7 +53,7 @@
   gap: 8px;
 }
 
-/* Título y subtítulo de la ficha: el nombre de la idea manda y la
+/* Título y subtítulo de la ficha: el nombre de la ítem manda y la
  * descripción queda debajo, más pequeña y apagada. */
 .fila-texto {
   flex: 1;
@@ -82,7 +82,7 @@
   flex: none;
 }
 
-/* El estado de la idea toma el color de su carril: es el dato que sitúa la
+/* El estado de la ítem toma el color de su carril: es el dato que sitúa la
  * ficha. El chip de estado de fase de la ficha no entra aquí. */
 .fila-cabecera .fila-estado {
   color: var(--tinte, var(--muted));
@@ -91,7 +91,7 @@
   font-weight: 600;
 }
 
-/* Estado de la idea y, cuando la hay, la fecha del descarte. */
+/* Estado de la ítem y, cuando la hay, la fecha del descarte. */
 .fila-meta {
   display: flex;
   flex-wrap: wrap;

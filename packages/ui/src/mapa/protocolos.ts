@@ -18,7 +18,7 @@ export type Union = readonly [Status, Status];
 
 /** Los cables con compuerta, por id.
  *
- *  Un cable puede cruzar varias uniones: una idea se descarta desde la entrada
+ *  Un cable puede cruzar varias uniones: un ítem se descarta desde la entrada
  *  y desde la cola, así que la compuerta del descarte se abre si cualquiera de
  *  las dos está permitida y suma las exigencias de ambas.
  *
@@ -54,7 +54,7 @@ export const UNIONES: Record<string, readonly Union[]> = {
   "rechazo-roadmap": [["verificacion", "roadmap"]],
   "rechazo-descartadas": [["verificacion", "rejected"]],
   /* Eliminar no es unión de protocolo: el cable Descartadas→Eliminadas se
-   * abre en la UI; el borrado real solo sale de ideas ya descartadas. */
+   * abre en la UI; el borrado real solo sale de items ya descartadas. */
   "etapa-eliminadas": [],
   "etapa-git": [],
   "etapa-historial": [],

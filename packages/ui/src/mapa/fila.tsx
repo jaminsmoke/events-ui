@@ -1,16 +1,16 @@
-/** La fila de una idea: cabecera, detalle, traslados y ficha. */
+/** La fila de un ítem: cabecera, detalle, traslados y ficha. */
 
 import { useState } from "react";
 import { createPortal } from "react-dom";
 
 import type { WorkItem, WorkItemUpdate } from "../core/api";
 import type { PuedeIr } from "../core/useProtocolos";
-import { DescartaIdea } from "../pantalla/DescartaIdea";
+import { DescartaItem } from "../pantalla/DescartaItem";
 import { ACCIONES_ESTADO, motivoBloqueo } from "./acciones";
 import type { TreeNode } from "./arbol";
 import { ETIQUETA_ESTADO, sePuedeEliminar } from "./carriles";
 import type { Status } from "./carriles";
-import { FasesIdea } from "./fases";
+import { FasesItem } from "./fases";
 import { comoFases, mismasFases, type Fase } from "./fase";
 import { FichaFases } from "./ficha-fases";
 import { fechaCorta } from "./formato";
@@ -40,7 +40,7 @@ function seAbreSola(estado: Status | undefined): boolean | undefined {
 
 /** Una fila del nodo: solo título, contador y su botón de expandir.
  *  Al expandirla aparece un panel con los detalles (descripción, estado) y
- *  los botones de la idea —mover, completar, editar, borrar—, más sus hijos,
+ *  los botones de el ítem —mover, completar, editar, borrar—, más sus hijos,
  *  si los tiene. Las conexiones no se gestionan aquí: son de la arquitectura
  *  (inmutables) y la fila solo las pinta. Los botones nunca se ven
  *  en la fila cerrada. */
@@ -52,7 +52,7 @@ export function NodeRow({
   onPideEditar,
   onEditar,
   onBorrar,
-  onCargarIdea,
+  onCargarItem,
   puedeIr,
   exigeFases,
   exigeFasesListas,
@@ -70,9 +70,9 @@ export function NodeRow({
   onPideEditar?: (uid: string, titulo: string, descripcion: string) => void;
   onEditar?: (uid: string, cambios: WorkItemUpdate) => Promise<void>;
   onBorrar?: (uid: string) => Promise<void>;
-  /** La idea completa, para el parche de los archivos de cada fase: el mapa
+  /** La item completa, para el parche de los archivos de cada fase: el mapa
    *  solo trae ruta y estado. */
-  onCargarIdea?: (uid: string) => Promise<WorkItem | null>;
+  onCargarItem?: (uid: string) => Promise<WorkItem | null>;
   /** Los protocolos de flujo (`GET /protocolos`): si está, la fila no ofrece
    *  un traslado que el core rechazaría (las descartadas no vuelven a cola,
    *  p. ej.). Sin él se ofrece todo y el core manda. */
@@ -84,10 +84,10 @@ export function NodeRow({
   exigeFasesListas?: PuedeIr;
   /** ¿Exige el protocolo que todas estén completadas? (0023). */
   exigeFasesCompletas?: PuedeIr;
-  /** Todas las ideas del repo: resuelve títulos de las dependencias y
+  /** Todas los ítems del repo: resuelve títulos de las dependencias y
    *  ofrece las que aún no lo son. */
   catalogo?: readonly WorkItem[];
-  /** Lo seleccionado en el lienzo y cómo cambiarlo: la fila marca su idea. */
+  /** Lo seleccionado en el lienzo y cómo cambiarlo: la fila marca su item. */
   seleccion?: Seleccion | null;
   onSeleccionar?: (seleccion: Seleccion) => void;
 }) {
@@ -263,7 +263,7 @@ export function NodeRow({
       )}
       {onEditar && estado && estado !== "rejected" && estado !== "superseded" && (
         <div className="fila-bloque">
-          <FasesIdea
+          <FasesItem
             fases={vistaFases}
             estado={estado}
             alGuardar={guardarFases}
@@ -402,7 +402,7 @@ export function NodeRow({
 
       {node.item && descartando && onEditar &&
         createPortal(
-          <DescartaIdea
+          <DescartaItem
             titulo={node.title}
             onDescartar={(motivo) =>
               onEditar(uid!, { status: "rejected", rejected_description: motivo })
@@ -420,7 +420,7 @@ export function NodeRow({
           titulo={node.title}
           fases={vistaFases}
           alGuardar={onEditar && editando && !enHistorial ? guardarFases : undefined}
-          cargarIdea={onCargarIdea}
+          cargarItem={onCargarItem}
           onCerrar={() => setFichaFases(false)}
         />
       )}
@@ -440,7 +440,7 @@ export function NodeRow({
               onPideEditar={onPideEditar}
               onEditar={onEditar}
               onBorrar={onBorrar}
-              onCargarIdea={onCargarIdea}
+              onCargarItem={onCargarItem}
               puedeIr={puedeIr}
               exigeFases={exigeFases}
               exigeFasesListas={exigeFasesListas}

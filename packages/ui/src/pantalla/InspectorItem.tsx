@@ -10,9 +10,9 @@ import type { Status } from "../mapa/carriles";
 import { ETIQUETA_FASE } from "../mapa/fase";
 import { fechaCorta } from "../mapa/formato";
 import type { Seleccion } from "../mapa/seleccion";
-import { DescartaIdea } from "./DescartaIdea";
+import { DescartaItem } from "./DescartaItem";
 
-/** Las acciones de la idea, tal como las ofrece el mapa: la fila y el
+/** Las acciones de el ítem, tal como las ofrece el mapa: la fila y el
  *  inspector usan los mismos callbacks y las mismas reglas de protocolo. */
 export type AccionesItem = {
   puedeIr?: PuedeIr;
@@ -25,20 +25,20 @@ export type AccionesItem = {
   onPideEditar?: (uid: string, titulo: string, descripcion: string) => void;
 };
 
-/** La ficha de una idea en el Inspector: lo que la fila no enseña para no
+/** La ficha de un ítem en el Inspector: lo que la fila no enseña para no
  *  crecer —descripción, fases con sus archivos y dependencias— y las mismas
  *  acciones, con el bloqueo del protocolo a la vista. */
 export function CuerpoItem({
-  idea,
+  item,
   repo,
   catalogo,
   acciones,
   onSeleccionar,
 }: {
-  idea: WorkItem;
+  item: WorkItem;
   /** La raíz del repo: las puertas se evalúan contra su estado. */
   repo: string;
-  /** Todas las ideas del repo: resuelve los títulos de las dependencias. */
+  /** Todas los ítems del repo: resuelve los títulos de las dependencias. */
   catalogo: readonly WorkItem[];
   acciones: AccionesItem;
   onSeleccionar: (seleccion: Seleccion) => void;
@@ -49,13 +49,13 @@ export function CuerpoItem({
   const [descartando, setDescartando] = useState(false);
   const [puertas, setPuertas] = useState<Puerta[] | null>(null);
   const [falloPuertas, setFalloPuertas] = useState<string | null>(null);
-  const fases = idea.fases ?? [];
-  const deps = idea.depende_de ?? [];
+  const fases = item.fases ?? [];
+  const deps = item.depende_de ?? [];
   const hechas = fases.filter((fase) => fase.estado === "completada").length;
-  const lane = laneOf(idea.status);
+  const lane = laneOf(item.status);
   const carril = lane ? LANES.find((l) => l.id === lane)?.title : "Entrada";
   // El historial es un archivo: ni se edita, ni se mueve, ni se borra.
-  const enHistorial = idea.status === "historial";
+  const enHistorial = item.status === "historial";
 
   useEffect(() => {
     const controller = new AbortController();
@@ -80,22 +80,22 @@ export function CuerpoItem({
       .finally(() => setTrabajando(false));
   };
 
-  const movimientos = (ACCIONES_ESTADO[idea.status] ?? []).filter(
-    (accion) => !acciones.puedeIr || acciones.puedeIr(idea.status, accion.estado),
+  const movimientos = (ACCIONES_ESTADO[item.status] ?? []).filter(
+    (accion) => !acciones.puedeIr || acciones.puedeIr(item.status, accion.estado),
   );
 
   return (
     <div className="panel-cuerpo inspector-cuerpo">
-      <p className="inspector-asunto">{idea.title}</p>
+      <p className="inspector-asunto">{item.title}</p>
       <p className="inspector-meta">
-        {ETIQUETA_ESTADO[idea.status] ?? idea.status} · {carril}
+        {ETIQUETA_ESTADO[item.status] ?? item.status} · {carril}
       </p>
-      <p className="inspector-descripcion">{idea.description || "Sin descripción"}</p>
+      <p className="inspector-descripcion">{item.description || "Sin descripción"}</p>
 
-      {idea.rejected_at && (
+      {item.rejected_at && (
         <p className="fila-rechazo">
-          Rechazada el {fechaCorta(idea.rejected_at)}
-          {idea.rejected_description ? ` — ${idea.rejected_description}` : ""}
+          Rechazada el {fechaCorta(item.rejected_at)}
+          {item.rejected_description ? ` — ${item.rejected_description}` : ""}
         </p>
       )}
 
@@ -206,7 +206,7 @@ export function CuerpoItem({
           <p className="pane-rotulo">Acciones</p>
           <div className="inspector-acciones">
             {movimientos.map((accion) => {
-              const bloqueo = motivoBloqueo(idea.status, fases, accion.estado, {
+              const bloqueo = motivoBloqueo(item.status, fases, accion.estado, {
                 exigeFases: acciones.exigeFases,
                 exigeFasesListas: acciones.exigeFasesListas,
                 exigeFasesCompletas: acciones.exigeFasesCompletas,
@@ -221,7 +221,7 @@ export function CuerpoItem({
                   onClick={() => {
                     // Descartar pide el motivo, como en la fila.
                     if (accion.descartar && acciones.onEditar) setDescartando(true);
-                    else acciones.onMover?.(idea.uid, accion.estado);
+                    else acciones.onMover?.(item.uid, accion.estado);
                   }}
                 >
                   {accion.etiqueta}
@@ -233,13 +233,13 @@ export function CuerpoItem({
                 type="button"
                 className="btn ghost"
                 onClick={() =>
-                  acciones.onPideEditar?.(idea.uid, idea.title, idea.description)
+                  acciones.onPideEditar?.(item.uid, item.title, item.description)
                 }
               >
                 Editar datos…
               </button>
             )}
-            {acciones.onBorrar && sePuedeEliminar(idea.status) && !confirmando && (
+            {acciones.onBorrar && sePuedeEliminar(item.status) && !confirmando && (
               <button
                 type="button"
                 className="btn ghost"
@@ -249,14 +249,14 @@ export function CuerpoItem({
                 Eliminar
               </button>
             )}
-            {acciones.onBorrar && sePuedeEliminar(idea.status) && confirmando && (
+            {acciones.onBorrar && sePuedeEliminar(item.status) && confirmando && (
               <span className="fila-acciones">
                 ¿Eliminar del todo?
                 <button
                   className="btn ghost"
                   type="button"
                   disabled={trabajando}
-                  onClick={() => hacer(() => acciones.onBorrar?.(idea.uid) ?? Promise.resolve())}
+                  onClick={() => hacer(() => acciones.onBorrar?.(item.uid) ?? Promise.resolve())}
                 >
                   Sí
                 </button>
@@ -278,10 +278,10 @@ export function CuerpoItem({
       {descartando &&
         acciones.onEditar &&
         createPortal(
-          <DescartaIdea
-            titulo={idea.title}
+          <DescartaItem
+            titulo={item.title}
             onDescartar={(motivo) =>
-              acciones.onEditar?.(idea.uid, {
+              acciones.onEditar?.(item.uid, {
                 status: "rejected",
                 rejected_description: motivo,
               }) ?? Promise.resolve()

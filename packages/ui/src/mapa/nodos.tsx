@@ -52,7 +52,7 @@ export function NodeBox({
   onPideEditar,
   onEditar,
   onBorrar,
-  onCargarIdea,
+  onCargarItem,
   puedeIr,
   exigeFases,
   exigeFasesListas,
@@ -74,15 +74,15 @@ export function NodeBox({
   onPideEditar?: (uid: string, titulo: string, descripcion: string) => void;
   onEditar?: (uid: string, cambios: WorkItemUpdate) => Promise<void>;
   onBorrar?: (uid: string) => Promise<void>;
-  /** La idea completa (con el parche de sus archivos), vía `useRepo`. */
-  onCargarIdea?: (uid: string) => Promise<WorkItem | null>;
+  /** La item completa (con el parche de sus archivos), vía `useRepo`. */
+  onCargarItem?: (uid: string) => Promise<WorkItem | null>;
   puedeIr?: PuedeIr;
   exigeFases?: PuedeIr;
   exigeFasesListas?: PuedeIr;
   exigeFasesCompletas?: PuedeIr;
   catalogo?: readonly WorkItem[];
   /** Lo seleccionado en el lienzo y cómo cambiarlo: la cabecera marca el
-   *  nodo (Entrada o carril) y las filas marcan su idea. */
+   *  nodo (Entrada o carril) y las filas marcan su item. */
   seleccion?: Seleccion | null;
   onSeleccionar?: (seleccion: Seleccion) => void;
 }) {
@@ -133,7 +133,7 @@ export function NodeBox({
                 onPideEditar={onPideEditar}
                 onEditar={onEditar}
                 onBorrar={onBorrar}
-                onCargarIdea={onCargarIdea}
+                onCargarItem={onCargarItem}
                 puedeIr={puedeIr}
                 exigeFases={exigeFases}
                 exigeFasesListas={exigeFasesListas}

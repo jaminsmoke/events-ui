@@ -12,7 +12,7 @@
 }
 
 /* El visor necesita más ancho que una ficha; el resto de vistas del panel se
- *  quedan en los 272 px de `.resumen`. */
+ *  quedan en el ancho de `--ancho-resumen`. */
 .resumen--visor {
   width: clamp(420px, 46vw, 860px);
 }

@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 
 import { cargarAjustes, guardarAjustes } from "./core/avisos";
 import type { Ajustes } from "./core/avisos";
+import { medidaMarco } from "./core/marco";
 import { storedRepo } from "./core/repo";
 import type { ElegirCarpeta } from "./core/repo";
 import type { Actualizacion } from "./core/actualizacion";
@@ -49,10 +50,6 @@ import { PanelDerecho } from "./pantalla/PanelDerecho";
 import type { PruebasInyectadas } from "./pantalla/pruebasInyectadas";
 import { useVentanaEstrecha } from "./pantalla/useVentanaEstrecha";
 
-/** Ancho del panel derecho abierto: el mismo que `.resumen` en marco.css.
- *  El panel va encima del lienzo —no lo encoge—, así que la cámara tiene que
- *  saber cuánto tapa para encuadrar en lo que se ve. */
-const ANCHO_RESUMEN = 272;
 
 /* *  El mapa: se pliega, se encuadra y se mueve; el almacén se toca solo por
  *  la API del core (crear, mover, editar y borrar ideas).
@@ -198,9 +195,10 @@ export default function App({
   const cambiosRef = useRef<HTMLElement | null>(null);
   const commitsRef = useRef<HTMLElement | null>(null);
 
-  // Lo que tapa el panel derecho. Con los dos paneles abiertos el lienzo se
-  // queda en lo que sobra: la cámara encuadra ahí, no debajo del panel.
-  const insetDerecha = derechaVisible ? ANCHO_RESUMEN : 0;
+  // Lo que tapa el panel derecho, leído de `--ancho-resumen` (marco.css): el
+  // panel va encima del lienzo, así que la cámara descuenta lo que tapa.
+  const [anchoResumen] = useState(() => medidaMarco("--ancho-resumen"));
+  const insetDerecha = derechaVisible ? anchoResumen : 0;
 
   const { vista, arrastrando, encuadrar, zoom, reset, olvidar, mano } = useCamara({
     repo,

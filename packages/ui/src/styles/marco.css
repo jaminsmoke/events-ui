@@ -1,5 +1,14 @@
 /* Marco de la app: topbar, statusbar, flyout de panel y bienvenida. */
 
+/* Medidas del marco: la única copia. TS las lee del DOM (`core/marco.ts`),
+ * así la cámara descuenta el ancho real del panel y no un número repetido. */
+:root {
+  --ancho-rail: 44px;
+  --ancho-pane: 232px;
+  --ancho-resumen: 272px;
+  --ancho-minimo-paneles: 1400px;
+}
+
 /* Frame de la app: topbar arriba, viewport en medio (solo el graph) y
  * statusbar abajo. Alto fijo de ventana: el lienzo no crece con el
  * contenido, se recorta y la cámara es la que encuadra. */
@@ -44,7 +53,7 @@
   display: flex;
   align-items: baseline;
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--t-cuerpo);
   color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
@@ -68,7 +77,7 @@
   border: none;
   color: var(--fg);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--t-cuerpo);
   padding: 3px 8px;
   border-radius: 4px;
   cursor: pointer;
@@ -117,7 +126,7 @@
 }
 
 .panel-titulo {
-  font-size: 11px;
+  font-size: var(--t-subtitulo);
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -126,13 +135,13 @@
 
 .panel-cabecera .btn {
   padding: 2px 8px;
-  font-size: 12px;
+  font-size: var(--t-cuerpo);
 }
 
 /* Las pestañas del panel derecho caben junto al cierre sin crecer de alto. */
 .panel-cabecera .chip {
   padding: 1px 8px;
-  font-size: 11px;
+  font-size: var(--t-subtitulo);
 }
 
 .panel-cuerpo {
@@ -155,7 +164,7 @@ h1 {
 
 h2 {
   margin: 0 0 12px;
-  font-size: 13px;
+  font-size: var(--t-fila);
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -183,7 +192,7 @@ header > div {
 
 .actividad {
   flex: none;
-  width: 44px;
+  width: var(--ancho-rail);
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -236,7 +245,7 @@ header > div {
 
 .pane {
   flex: none;
-  width: 232px;
+  width: var(--ancho-pane);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -254,7 +263,7 @@ header > div {
 
 .pane-cabecera .btn {
   padding: 1px 6px;
-  font-size: 12px;
+  font-size: var(--t-cuerpo);
 }
 
 .pane-cuerpo {
@@ -269,7 +278,7 @@ header > div {
   margin: 12px 0 6px;
   padding: 0 4px;
   color: var(--muted);
-  font-size: 9.5px;
+  font-size: var(--t-rotulo);
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -361,7 +370,7 @@ header > div {
   background: transparent;
   color: var(--fg);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--t-cuerpo);
   text-align: left;
 }
 
@@ -415,7 +424,7 @@ button.arbol-fila:hover {
 .arbol-vacio {
   padding: 2px 6px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--t-subtitulo);
 }
 
 /* ---------- pane de Git: estado, cambios e historial ---------- */
@@ -582,10 +591,10 @@ button.arbol-fila:hover {
   position: absolute;
   top: 0;
   /* A la izquierda de la barra de actividad derecha, que no se oculta. */
-  right: 44px;
+  right: var(--ancho-rail);
   bottom: 0;
   z-index: 20;
-  width: 272px;
+  width: var(--ancho-resumen);
   display: flex;
   flex-direction: column;
   border-left: 1px solid var(--line);
@@ -652,7 +661,7 @@ button.arbol-fila:hover {
   background: var(--bg);
   color: inherit;
   font: inherit;
-  font-size: 11px;
+  font-size: var(--t-subtitulo);
 }
 
 .inspector-filtro::placeholder {
@@ -708,7 +717,7 @@ button.arbol-fila:hover {
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 11px;
+  font-size: var(--t-subtitulo);
   text-align: left;
   cursor: pointer;
 }
@@ -726,7 +735,7 @@ button.arbol-fila:hover {
 .inspector-item-estado {
   flex: none;
   color: var(--muted);
-  font-size: 9.5px;
+  font-size: var(--t-rotulo);
 }
 
 .inspector-uniones li {
@@ -769,7 +778,7 @@ button.arbol-fila:hover {
 
 .inspector-fase-titulo {
   overflow: hidden;
-  font-size: 11px;
+  font-size: var(--t-subtitulo);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -777,7 +786,7 @@ button.arbol-fila:hover {
 .inspector-fase-estado {
   flex: none;
   color: var(--muted);
-  font-size: 9.5px;
+  font-size: var(--t-rotulo);
 }
 
 .inspector-archivos {
@@ -844,7 +853,7 @@ button.arbol-fila:hover {
 
 .inspector-puerta-cierra {
   color: var(--muted);
-  font-size: 9.5px;
+  font-size: var(--t-rotulo);
 }
 
 .inspector-acciones {
@@ -856,7 +865,7 @@ button.arbol-fila:hover {
 
 .inspector-acciones .btn {
   padding: 2px 8px;
-  font-size: 11px;
+  font-size: var(--t-subtitulo);
 }
 
 /* Hash del commit con su botón de copiar, y el atajo de vuelta a la lista. */
@@ -875,13 +884,13 @@ button.arbol-fila:hover {
 .inspector-volver {
   align-self: flex-start;
   padding: 2px 8px;
-  font-size: 11px;
+  font-size: var(--t-subtitulo);
 }
 
 .resumen-repo {
   margin: 0;
   overflow: hidden;
-  font-size: 13px;
+  font-size: var(--t-fila);
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -922,7 +931,7 @@ button.arbol-fila:hover {
 
 .resumen-cifra span {
   color: var(--muted);
-  font-size: 9.5px;
+  font-size: var(--t-rotulo);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -1027,12 +1036,12 @@ button.arbol-fila:hover {
   max-height: 3.6em;
   overflow: hidden;
   color: var(--muted, #8b98a9);
-  font-size: 12px;
+  font-size: var(--t-cuerpo);
   white-space: pre-line;
 }
 
 .actualizacion-progreso {
-  font-size: 12px;
+  font-size: var(--t-cuerpo);
   color: var(--muted, #8b98a9);
 }
 
@@ -1054,5 +1063,5 @@ button.arbol-fila:hover {
 
 .ajustes-actualizacion h3 {
   margin: 0 0 6px;
-  font-size: 13px;
+  font-size: var(--t-fila);
 }

@@ -17,8 +17,9 @@ y hace tail por cursor. No hay watcher de ficheros ni poller de git.
 apps/desktop      Envoltorio Tauri 2 (diálogo nativo) sobre la UI compartida
 apps/web          Envoltorio web (Vite, 15174) sobre la misma UI compartida
 packages/ui       UI compartida: mapa de trabajo, selector de repo y API, sin
-                  envoltorio. Desktop inyecta el diálogo nativo; la web ofrece
-                  la lista de `GET /repos` y pegar la ruta.
+                  envoltorio. Las dos apps comparten el explorador de `/fs`, la
+                  lista de `GET /repos` y la ruta manual; desktop añade el
+                  diálogo nativo.
 services/core     FastAPI + SQLite WAL          (uv)
 repoprobe/        laboratorio: material analizado y su .EUI
 ```
@@ -260,6 +261,7 @@ corepack pnpm core:dev           # Swagger en http://127.0.0.1:18765/docs
 | Método | Ruta |
 | --- | --- |
 | GET | `/repos` — carpetas del laboratorio ya sembradas |
+| GET | `/fs?path=<ruta>` — un nivel del explorador de carpetas (raíz del usuario o `EVENTSUI_FS_ROOT`) |
 | GET / PUT | `/config` — raíz por defecto y puerto compartidos con el CLI |
 | GET | `/archivo?repo=<ruta>&ruta=<relativa>` — texto de un archivo (512 KiB, 415 si es binario) |
 | GET | `/archivo-bytes?repo=<ruta>&ruta=<relativa>` — bytes de una imagen (12 MiB, solo `image/*`) |

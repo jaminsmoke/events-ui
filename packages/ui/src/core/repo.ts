@@ -11,6 +11,17 @@ export function folderName(path: string): string {
   return parts[parts.length - 1] ?? path;
 }
 
+/** Une una carpeta y un nombre con el separador de la base.
+ *
+ *  El core acepta `/` en cualquier plataforma, pero mezclar `C:\repo` con
+ *  `/sub` deja una ruta que se lee mal y que algún día alguien comparará. La
+ *  base manda: si ya usa barras invertidas, se conservan. */
+export function unirRuta(base: string, nombre: string): string {
+  const limpia = base.replace(/[\\/]+$/, "");
+  const separador = limpia.includes("\\") && !limpia.includes("/") ? "\\" : "/";
+  return `${limpia}${separador}${nombre}`;
+}
+
 /** Última carpeta usada. Es solo comodidad de arranque: la verdad está en el repo. */
 export function storedRepo(): string | null {
   try {

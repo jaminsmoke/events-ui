@@ -63,7 +63,9 @@ const ANCHO_RESUMEN = 272;
  *  la API del core (crear, mover, editar y borrar ideas).
  *
  *  `elegirCarpeta` lo inyecta el envoltorio que tenga diálogo nativo (Tauri);
- *  la web no lo pasa y el selector ofrece lista de `/repos` y ruta manual.
+ *  la web no lo pasa. El selector es el mismo en las dos: explorador de
+ *  `/fs`, lista de `/repos` y ruta manual; el diálogo nativo es una acción
+ *  extra de desktop.
  *  `avisar`, igual: solo lo inyecta desktop (notificaciones del sistema) y
  *  con él aparece el botón de Ajustes; sin él no hay avisos que ajustar.
  *  `puedeProbar`, también solo desktop: abre el lanzador de pruebas del

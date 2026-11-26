@@ -85,6 +85,9 @@ function arrancarCore(tmp, puerto) {
       env: {
         ...process.env,
         EVENTSUI_REPOS_ROOT: path.join(tmp, "repos"),
+        // El explorador de carpetas del selector se ancla al temporal del
+        // runner: los escenarios navegan sin salir del árbol de pruebas.
+        EVENTSUI_FS_ROOT: tmp,
         EVENTSUI_REGISTRO_DB: path.join(tmp, "registro.sqlite"),
         // La UI escribe la raíz en la configuración compartida al abrir: que
         // caiga en el temporal del runner y no en el perfil del usuario.

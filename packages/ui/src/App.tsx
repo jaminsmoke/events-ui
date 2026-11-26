@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import { cargarAjustes, guardarAjustes } from "./core/avisos";
 import type { Ajustes } from "./core/avisos";
@@ -46,13 +46,8 @@ import { AvisoRecorte, Controles } from "./pantalla/Controles";
 import { EditorIdea } from "./pantalla/EditorIdea";
 import { PanelLog } from "./pantalla/PanelLog";
 import { PanelDerecho } from "./pantalla/PanelDerecho";
-import { pruebaPendiente, soltar } from "./pantalla/pruebaEnCurso";
+import type { PruebasInyectadas } from "./pantalla/pruebasInyectadas";
 import { useVentanaEstrecha } from "./pantalla/useVentanaEstrecha";
-
-/** El lanzador de pruebas es solo de desktop y pesa: se carga al abrirlo. */
-const Pruebas = lazy(() =>
-  import("./pantalla/Pruebas").then((modulo) => ({ default: modulo.Pruebas })),
-);
 
 /** Ancho del panel derecho abierto: el mismo que `.resumen` en marco.css.
  *  El panel va encima del lienzo —no lo encoge—, así que la cámara tiene que
@@ -68,19 +63,20 @@ const ANCHO_RESUMEN = 272;
  *  extra de desktop.
  *  `avisar`, igual: solo lo inyecta desktop (notificaciones del sistema) y
  *  con él aparece el botón de Ajustes; sin él no hay avisos que ajustar.
- *  `puedeProbar`, también solo desktop: abre el lanzador de pruebas del
- *  laboratorio; la web no lo pasa y no se pinta. */
+ *  `pruebas` solo lo inyecta desktop: el lanzador del laboratorio vive en su
+ *  envoltorio y aquí solo se conoce la frontera. Sin él no hay botón. */
 export default function App({
   elegirCarpeta,
   avisar,
-  puedeProbar,
+  pruebas,
   actualizacion,
 }: {
   elegirCarpeta?: ElegirCarpeta;
   avisar?: (titulo: string, cuerpo: string) => void;
-  puedeProbar?: boolean;
+  pruebas?: PruebasInyectadas;
   actualizacion?: Actualizacion;
 }) {
+  const PanelPruebas = pruebas?.componente;
   const [repo, setRepo] = useState<string | null>(storedRepo);
   const [selectorAbierto, setSelectorAbierto] = useState(false);
   const [nuevaAbierta, setNuevaAbierta] = useState(false);
@@ -91,9 +87,6 @@ export default function App({
   const [ajustesAbiertos, setAjustesAbiertos] = useState(false);
   const [pruebaEnCurso, setPruebaEnCurso] = useState(false);
   const [pruebasAbiertas, setPruebasAbiertas] = useState(false);
-  // Se monta al abrirlo la primera vez y se queda: cerrar el diálogo oculta el
-  // progreso, no lo pierde (la prueba sigue corriendo).
-  const [pruebasMontadas, setPruebasMontadas] = useState(false);
   // Tres mapas enlazados: trabajo, Git y Documentos (Changelog). El puente
   // de Git solo abre con work tree; el de Documentos siempre.
   const [mapa, setMapa] = useState<MapaLienzo>("items");
@@ -194,30 +187,6 @@ export default function App({
   // Los protocolos de flujo: las uniones permitidas entre carriles. La fila
   // no ofrece traslados prohibidos; el core los rechaza si llegan igual.
   const { puedeIr, exigeFases, exigeFasesListas, exigeFasesCompletas, paso } = useProtocolos(repo);
-
-  // Una prueba que murió con la app deja su marca sin latido: al reabrir el
-  // mismo laboratorio se cobra el vaciado que quedó pendiente. Con latido
-  // fresco hay otra ejecución viva y no se toca nada.
-  const recuperado = useRef<string | null>(null);
-  useEffect(() => {
-    if (!repo || !puedeProbar || !proyeccion?.laboratorio) return;
-    if (recuperado.current === repo) return;
-    const pendiente = pruebaPendiente(repo);
-    if (!pendiente) return;
-    recuperado.current = repo;
-    void reiniciar().then(
-      () => {
-        soltar(repo, pendiente.ejecucion);
-        limpiarLog();
-        setAvisoRecuperacion("Se cerró la app durante una prueba: el laboratorio quedó vacío.");
-      },
-      (err: unknown) => {
-        setAvisoRecuperacion(
-          `Quedó una prueba sin limpiar y no se pudo vaciar: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      },
-    );
-  }, [repo, puedeProbar, proyeccion?.laboratorio, reiniciar, limpiarLog]);
 
   useAvisosEventos({ eventos, ideas, error, avisar, ajustes });
 
@@ -435,7 +404,7 @@ export default function App({
         ruta={proyeccion?.repo}
         ocupado={busy || pruebaEnCurso}
         conAjustes={avisar !== undefined}
-        puedeProbar={puedeProbar === true}
+        puedeProbar={PanelPruebas !== undefined}
         laboratorio={proyeccion?.laboratorio === true}
         onCambiar={() => setSelectorAbierto(true)}
         onNuevo={() => setNuevaAbierta(true)}
@@ -443,7 +412,6 @@ export default function App({
         onPruebas={() => {
           setSelectorAbierto(false);
           setPruebasAbiertas(true);
-          setPruebasMontadas(true);
         }}
       />
 
@@ -501,26 +469,25 @@ export default function App({
         />
       )}
 
-      {pruebasMontadas && repo && puedeProbar && proyeccion?.laboratorio && (
-        <Suspense fallback={null}>
-          <Pruebas
-            key={repo}
-            abierta={pruebasAbiertas}
-            onActividad={setPruebaEnCurso}
-            repo={repo}
-            crear={crear}
-            mover={mover}
-            editar={editar}
-            abrirMapa={setMapa}
-            commit={commit}
-            cambios={proyeccion?.git_cambios.length ?? 0}
-            reiniciar={async () => {
-              await reiniciar();
-              limpiarLog();
-            }}
-            onCerrar={() => setPruebasAbiertas(false)}
-          />
-        </Suspense>
+      {PanelPruebas && repo && proyeccion?.laboratorio && (
+        <PanelPruebas
+          key={repo}
+          abierta={pruebasAbiertas}
+          onActividad={setPruebaEnCurso}
+          repo={repo}
+          crear={crear}
+          mover={mover}
+          editar={editar}
+          abrirMapa={setMapa}
+          commit={commit}
+          cambios={proyeccion?.git_cambios.length ?? 0}
+          reiniciar={async () => {
+            await reiniciar();
+            limpiarLog();
+          }}
+          onAviso={setAvisoRecuperacion}
+          onCerrar={() => setPruebasAbiertas(false)}
+        />
       )}
 
       {falloAccion && <AvisoError mensaje={falloAccion} />}

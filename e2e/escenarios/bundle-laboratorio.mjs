@@ -1,6 +1,6 @@
-// El lanzador de pruebas es solo de desktop: su chunk no puede viajar en la
-// entrada de la web publicada. El escenario construye la web en un directorio
-// temporal y mira qué lleva cada chunk; después comprueba que el diálogo sigue
+// El lanzador de pruebas es solo de desktop: la web publicada no debe llevar
+// ni su chunk ni los guiones. El escenario construye la web en un directorio
+// temporal y revisa todos los assets; después comprueba que el diálogo sigue
 // abriendo en la UI real.
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
@@ -14,7 +14,7 @@ const MARCA = "Marcha · cable";
 
 export default {
   nombre: "bundle-laboratorio",
-  descripcion: "El chunk de entrada de la web no lleva los guiones y el lanzador sigue abriendo",
+  descripcion: "La web no publica el laboratorio y el lanzador de desktop sigue abriendo",
   run: async ({ page, UI, esperar, expect }) => {
     const salida = mkdtempSync(path.join(os.tmpdir(), "eui-web-"));
     try {
@@ -53,12 +53,13 @@ export default {
         readFileSync(path.join(salida, "assets", n), "utf8").includes(MARCA),
       );
       expect(
-        conGuiones.length === 1,
-        `los guiones deberían ir en un chunk propio y están en ${conGuiones.length}`,
+        conGuiones.length === 0,
+        `la web publica los guiones en ${conGuiones.join(", ")}`,
       );
+      const chunksPruebas = assets.filter((n) => /^Pruebas[-.]/.test(n));
       expect(
-        !conGuiones.includes(path.basename(entrada)),
-        "los guiones comparten chunk con la entrada",
+        chunksPruebas.length === 0,
+        `la web publica el lanzador en ${chunksPruebas.join(", ")}`,
       );
 
       // En desktop, el botón sigue abriendo el lanzador con sus nueve guiones.

@@ -4,7 +4,7 @@
 //
 // `guiones.ts` solo importa tipos, así que Node lo carga con su type
 // stripping: lo que se prueba son los constructores, no la pantalla.
-import { PRUEBAS, exigirUid, fase, item } from "../../packages/ui/src/pantalla/guiones.ts";
+import { PRUEBAS, exigirUid, fase, item } from "../../apps/desktop/src/guiones.ts";
 
 /** Una API de mentira que apunta lo que pide cada paso. */
 function apiFalsa() {

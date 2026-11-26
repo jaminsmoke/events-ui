@@ -5,3 +5,4 @@ export { default } from "./App";
 export { montarApp } from "./montar";
 export type { Actualizacion, EstadoActualizacion } from "./core/actualizacion";
 export type { ElegirCarpeta } from "./core/repo";
+export type { WorkItemCreate, WorkItemUpdate } from "./core/api";

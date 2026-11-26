@@ -4,7 +4,7 @@
  *  el componente `Pruebas` solo los ejecuta y pinta el progreso.
  */
 
-import type { WorkItemCreate, WorkItemUpdate } from "../core/api";
+import type { WorkItemCreate, WorkItemUpdate } from "@events-ui/ui";
 
 export type Acciones = {
   crear: (body: WorkItemCreate) => Promise<{ uid: string } | null>;

@@ -6,7 +6,13 @@
 import { useEffect, useRef, useState } from "react";
 
 import { ESPERA_ENTRE_PASOS_MS, PRUEBAS, type Acciones, type Paso } from "./guiones";
-import { latir, pruebaVigente, soltar, tomar } from "./pruebaEnCurso";
+import {
+  latir,
+  pruebaPendiente,
+  pruebaVigente,
+  soltar,
+  tomar,
+} from "./pruebaEnCurso";
 
 /** Mientras la prueba corre se deja constancia de que sigue viva. */
 const LATIDO_MS = 3000;
@@ -60,6 +66,7 @@ export function Pruebas({
   abierta,
   onActividad,
   reiniciar,
+  onAviso,
   onCerrar,
 }: {
   repo: string;
@@ -72,6 +79,7 @@ export function Pruebas({
   abierta: boolean;
   onActividad: (enCurso: boolean) => void;
   reiniciar: () => Promise<unknown>;
+  onAviso: (mensaje: string) => void;
   onCerrar: () => void;
 }) {
   const [seleccionada, setSeleccionada] = useState(PRUEBAS[0]?.id ?? "");
@@ -96,6 +104,31 @@ export function Pruebas({
   useEffect(() => () => {
     if (latido.current !== null) clearInterval(latido.current);
   }, []);
+
+  // Una prueba que murió con la app deja su marca sin latido: al montar el
+  // panel en el mismo laboratorio se cobra el vaciado pendiente. Con latido
+  // fresco hay otra ejecución viva y no se toca nada.
+  const recuperado = useRef(false);
+  useEffect(() => {
+    if (recuperado.current) return;
+    const pendiente = pruebaPendiente(repo);
+    if (!pendiente) return;
+    recuperado.current = true;
+    onActividad(true);
+    void reiniciar()
+      .then(
+        () => {
+          soltar(repo, pendiente.ejecucion);
+          onAviso("Se cerró la app durante una prueba: el laboratorio quedó vacío.");
+        },
+        (err: unknown) => {
+          onAviso(
+            `Quedó una prueba sin limpiar y no se pudo vaciar: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        },
+      )
+      .finally(() => onActividad(false));
+  }, [repo, reiniciar, onActividad, onAviso]);
 
   const prueba = PRUEBAS.find((p) => p.id === seleccionada) ?? PRUEBAS[0];
   const pasos = prueba?.construir({ crear, mover, editar, abrirMapa, commit, cambios }) ?? [];

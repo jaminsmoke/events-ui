@@ -7,7 +7,11 @@ import {
 
 import App from "@events-ui/ui";
 
+import { Pruebas } from "./Pruebas";
 import { useActualizacion } from "./useActualizacion";
+
+/** El lanzador del laboratorio se queda en el envoltorio: la web no lo ve. */
+const PANEL_PRUEBAS = { componente: Pruebas };
 
 /** Lo único propio de desktop: el diálogo nativo de carpetas, los avisos del
  *  sistema y las actualizaciones. La web no inyecta nada de esto. */
@@ -35,7 +39,7 @@ export function Escritorio() {
     <App
       elegirCarpeta={elegirCarpeta}
       avisar={avisar}
-      puedeProbar
+      pruebas={PANEL_PRUEBAS}
       actualizacion={actualizacion}
     />
   );

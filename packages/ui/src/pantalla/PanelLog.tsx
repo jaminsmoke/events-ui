@@ -80,15 +80,18 @@ export function PanelLog({
   const [purgando, setPurgando] = useState(false);
   const [recarga, setRecarga] = useState(0);
   // El latido compartido avisa cada 2 s; un core lento no debe acumular
-  // lecturas. La guarda es un ref y no estado: no hace falta repintar.
-  const enVuelo = useRef(false);
+  // lecturas. La guarda es un ref y no estado: no hace falta repintar. Se
+  // identifica por filtro: cambiar de filtro no puede saltarse su primera
+  // lectura porque la anterior siga en vuelo.
+  const enVuelo = useRef<string | null>(null);
 
   useEffect(() => {
     if (tab !== "registro") return;
     let activo = true;
+    const claveFiltro = `${nivelFiltro}|${origenFiltro}|${recarga}`;
     const vigilar = async () => {
-      if (enVuelo.current) return;
-      enVuelo.current = true;
+      if (enVuelo.current === claveFiltro) return;
+      enVuelo.current = claveFiltro;
       try {
         const lista = await unwrap(
           api.GET("/log", {
@@ -108,7 +111,7 @@ export function PanelLog({
       } catch (err) {
         if (activo) setFallo(err instanceof Error ? err.message : String(err));
       } finally {
-        enVuelo.current = false;
+        if (enVuelo.current === claveFiltro) enVuelo.current = null;
       }
     };
     void vigilar();

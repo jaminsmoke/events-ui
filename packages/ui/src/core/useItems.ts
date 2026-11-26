@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { api, unwrap } from "./api";
 import { suscribirSondeo } from "./sondeo";
 import type { Mapa, Reinicio, WorkItemCreate, WorkItemUpdate } from "./api";
-import { STORAGE_KEY } from "./repo";
 
 /** Lo cargado pertenece a *un* repo: si se cambia de carpeta, lo viejo deja de
  *  valer al instante en vez de pintarse un frame con el árbol anterior. */
@@ -26,11 +25,6 @@ export function useItems(repo: string | null) {
   // lectura es inmediata en vez de esperar al sondeo de 2 s.
   const [latido, setLatido] = useState(0);
 
-  // La raíz se recuerda una vez por repo. El SSE reinicia el efecto (y con él
-  // `firma`), pero eso no puede volver a escribir `config.json`: el fichero es
-  // para el CLI y el MCP, no un latido más.
-  const recordado = useRef<string | null>(null);
-
   // Los `setState` van en continuaciones async, nunca en el cuerpo del efecto;
   // si se cambia de repo a mitad, `vivo` descarta lo que llegue tarde.
   //
@@ -40,35 +34,28 @@ export function useItems(repo: string | null) {
     let vivo = true;
     let ocupado = false;
     let firma: string | null = null;
+    const controller = new AbortController();
 
     const vigilar = async () => {
       if (ocupado) return;
       ocupado = true;
       try {
-        const rev = await unwrap(api.GET("/revision", { params: { query: { repo } } }));
+        const rev = await unwrap(
+          api.GET("/revision", {
+            params: { query: { repo } },
+            signal: controller.signal,
+          }),
+        );
         if (!vivo) return;
         const actual = `${rev.instance}/${rev.data_version}/${rev.items}/${rev.ultimo_evento}`;
         if (actual !== firma) {
-          const mapa: Mapa = await unwrap(api.GET("/mapa", { params: { query: { repo } } }));
+          const mapa: Mapa = await unwrap(
+            api.GET("/mapa", {
+              params: { query: { repo } },
+              signal: controller.signal,
+            }),
+          );
           if (!vivo) return;
-          if (recordado.current !== repo) {
-            // Antes del `await`: si un evento re-ejecuta el efecto con el PUT
-            // anterior en vuelo, la segunda lectura no lo manda otra vez.
-            recordado.current = repo;
-            try {
-              localStorage.setItem(STORAGE_KEY, repo);
-            } catch {
-              // Recordar la carpeta es opcional.
-            }
-            // El CLI y el MCP no ven `localStorage`: la raíz se comparte por el
-            // fichero de configuración del core (paso 1 del roadmap).
-            void api
-              .PUT("/config", { body: { repo } })
-              .catch(() => {
-                // Si el core no lo pudo guardar, el siguiente evento reintenta.
-                if (recordado.current === repo) recordado.current = null;
-              });
-          }
           setCargado({ repo, mapa });
           firma = actual;
         }
@@ -86,6 +73,7 @@ export function useItems(repo: string | null) {
     void vigilar();
     return () => {
       vivo = false;
+      controller.abort();
       baja();
     };
   }, [repo, latido]);

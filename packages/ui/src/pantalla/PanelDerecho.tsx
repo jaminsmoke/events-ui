@@ -1,8 +1,9 @@
 import { Fragment, useState } from "react";
 
-import type { CommitGit, WorkItem, ProyeccionRepo } from "../core/api";
+import type { CommitGit, Puerta, WorkItem, ProyeccionRepo } from "../core/api";
 import { folderName } from "../core/repo";
 import type { Paso } from "../core/useProtocolos";
+import { usePuertas } from "../core/usePuertas";
 import type { Cable, Nudo } from "../mapa/cables";
 import {
   ESTADOS,
@@ -85,6 +86,9 @@ export function PanelDerecho({
   conectado: boolean;
   onClose: () => void;
 }) {
+  // Las puertas son del repo: se piden una vez para todo el panel, no cada
+  // vez que se selecciona otro ítem.
+  const { puertas, error: falloPuertas } = usePuertas(repo);
   const pestana = (clave: VistaDerecha, etiqueta: string) => (
     <button
       type="button"
@@ -137,7 +141,6 @@ export function PanelDerecho({
         />
       ) : (
         <CuerpoInspector
-          repo={repo}
           proyeccion={proyeccion}
           commits={commits}
           seleccion={seleccion}
@@ -146,6 +149,8 @@ export function PanelDerecho({
           nudos={nudos}
           paso={paso}
           acciones={acciones}
+          puertas={puertas}
+          falloPuertas={falloPuertas}
           onSeleccionar={onSeleccionar}
           onAbrirArchivo={onAbrirArchivo}
         />
@@ -443,7 +448,6 @@ function CuerpoCarril({
  *  nodo de Git, historial y nudo. El contrato del historial solo trae `hash`
  *  abreviado, asunto, autor y fecha; lo que no llega, no se inventa. */
 function CuerpoInspector({
-  repo,
   proyeccion,
   commits,
   seleccion,
@@ -452,10 +456,11 @@ function CuerpoInspector({
   nudos,
   paso,
   acciones,
+  puertas,
+  falloPuertas,
   onSeleccionar,
   onAbrirArchivo,
 }: {
-  repo: string;
   proyeccion: ProyeccionRepo | null | undefined;
   commits: readonly CommitGit[];
   seleccion: Seleccion | null;
@@ -464,6 +469,8 @@ function CuerpoInspector({
   nudos: readonly Nudo[];
   paso: (origen: Status, destino: Status) => Paso | null;
   acciones: AccionesItem;
+  puertas: Puerta[] | null;
+  falloPuertas: string | null;
   onSeleccionar: (seleccion: Seleccion) => void;
   onAbrirArchivo: (ruta: string) => void;
 }) {
@@ -553,7 +560,8 @@ function CuerpoInspector({
       <CuerpoItem
         key={item.uid}
         item={item}
-        repo={repo}
+        puertas={puertas}
+        falloPuertas={falloPuertas}
         catalogo={items}
         acciones={acciones}
         onSeleccionar={onSeleccionar}

@@ -35,6 +35,7 @@ export function useArbolArchivos(repo: string | null, rutas: string[]) {
     if (!repo) return;
     let vivo = true;
     let ocupado = false;
+    const controller = new AbortController();
 
     const pedir = async () => {
       if (ocupado) return;
@@ -42,7 +43,10 @@ export function useArbolArchivos(repo: string | null, rutas: string[]) {
       try {
         const pedidas = clave === "" ? [] : clave.split("\u0000");
         const niveles = await unwrap(
-          api.GET("/arbol", { params: { query: { repo, rutas: pedidas } } }),
+          api.GET("/arbol", {
+            params: { query: { repo, rutas: pedidas } },
+            signal: controller.signal,
+          }),
         );
         if (!vivo) return;
         // `hijos` viaja opcional en el contrato (tiene valor por defecto en
@@ -67,6 +71,7 @@ export function useArbolArchivos(repo: string | null, rutas: string[]) {
     void pedir();
     return () => {
       vivo = false;
+      controller.abort();
       baja();
     };
   }, [repo, clave]);

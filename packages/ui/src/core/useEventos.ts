@@ -84,7 +84,12 @@ export function useEventos(repo: string | null): {
     repo,
     eventos: [],
   });
-  const [conectado, setConectado] = useState(false);
+  // El punto «en vivo» también pertenece a un repo: al cambiar de carpeta, el
+  // socket anterior no puede dejar el punto encendido en el nuevo.
+  const [conectadoEstado, setConectadoEstado] = useState<{
+    repo: string | null;
+    vivo: boolean;
+  }>({ repo: null, vivo: false });
 
   useEffect(() => {
     if (!repo) return;
@@ -104,8 +109,8 @@ export function useEventos(repo: string | null): {
         // Un frame roto no rompe el stream: el siguiente lo sustituye.
       }
     });
-    fuente.onopen = () => setConectado(true);
-    fuente.onerror = () => setConectado(false);
+    fuente.onopen = () => setConectadoEstado({ repo, vivo: true });
+    fuente.onerror = () => setConectadoEstado({ repo, vivo: false });
     return () => fuente.close();
   }, [repo]);
 
@@ -117,5 +122,6 @@ export function useEventos(repo: string | null): {
   }, []);
 
   const eventos = estado.repo === repo ? estado.eventos : [];
+  const conectado = conectadoEstado.repo === repo && conectadoEstado.vivo;
   return { eventos, conectado: conectado && repo !== null, limpiar };
 }

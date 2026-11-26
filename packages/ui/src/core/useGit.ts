@@ -20,15 +20,27 @@ export function useGit(repo: string | null) {
     let vivo = true;
     let ocupado = false;
     let latido = 0;
+    const controller = new AbortController();
 
     const vigilar = async () => {
       if (latido++ % 3 !== 0 || ocupado) return;
       ocupado = true;
       try {
         const p: ProyeccionRepo = await unwrap(
-          api.GET("/proyecciones/repo", { params: { query: { repo } } }),
+          api.GET("/proyecciones/repo", {
+            params: { query: { repo } },
+            signal: controller.signal,
+          }),
         );
-        if (vivo) setProyeccionEstado({ repo, datos: p });
+        if (vivo) {
+          // Cada latido trae un objeto nuevo aunque nada cambie: sin comparar,
+          // el mapa se repinta cada ~6 s. La proyección es pequeña.
+          setProyeccionEstado((previo) =>
+            previo?.repo === repo && JSON.stringify(previo.datos) === JSON.stringify(p)
+              ? previo
+              : { repo, datos: p },
+          );
+        }
       } catch {
         // La proyección no bloquea el mapa: si falla, simplemente no se ve.
       } finally {
@@ -40,6 +52,7 @@ export function useGit(repo: string | null) {
     void vigilar();
     return () => {
       vivo = false;
+      controller.abort();
       baja();
     };
   }, [repo]);
@@ -102,7 +115,10 @@ export function useGit(repo: string | null) {
   useEffect(() => {
     if (!repo || firmaHistorial === null) return;
     let vivo = true;
-    void unwrap(api.GET("/git/commits", { params: { query: { repo } } }))
+    const controller = new AbortController();
+    void unwrap(
+      api.GET("/git/commits", { params: { query: { repo } }, signal: controller.signal }),
+    )
       .then((datos) => {
         if (vivo) setHistorialEstado({ repo, datos });
       })
@@ -111,6 +127,7 @@ export function useGit(repo: string | null) {
       });
     return () => {
       vivo = false;
+      controller.abort();
     };
   }, [repo, firmaHistorial]);
 

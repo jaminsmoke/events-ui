@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { createPortal } from "react-dom";
 
-import { api, unwrap } from "../core/api";
 import type { Puerta, WorkItem, WorkItemUpdate } from "../core/api";
 import type { PuedeIr } from "../core/useProtocolos";
 import { BotonesMover } from "../mapa/BotonesMover";
@@ -30,14 +29,16 @@ export type AccionesItem = {
  *  acciones, con el bloqueo del protocolo a la vista. */
 export function CuerpoItem({
   item,
-  repo,
+  puertas,
+  falloPuertas,
   catalogo,
   acciones,
   onSeleccionar,
 }: {
   item: WorkItem;
-  /** La raíz del repo: las puertas se evalúan contra su estado. */
-  repo: string;
+  /** Las puertas del repo: se cargan una vez en el panel, no por ítem. */
+  puertas: Puerta[] | null;
+  falloPuertas: string | null;
   /** Todas los ítems del repo: resuelve los títulos de las dependencias. */
   catalogo: readonly WorkItem[];
   acciones: AccionesItem;
@@ -47,8 +48,6 @@ export function CuerpoItem({
   const [fallo, setFallo] = useState<string | null>(null);
   const [confirmando, setConfirmando] = useState(false);
   const [descartando, setDescartando] = useState(false);
-  const [puertas, setPuertas] = useState<Puerta[] | null>(null);
-  const [falloPuertas, setFalloPuertas] = useState<string | null>(null);
   const fases = item.fases ?? [];
   const deps = item.depende_de ?? [];
   const hechas = fases.filter((fase) => fase.estado === "completada").length;
@@ -56,20 +55,6 @@ export function CuerpoItem({
   const carril = lane ? LANES.find((l) => l.id === lane)?.title : "Entrada";
   // El historial es un archivo: ni se edita, ni se mueve, ni se borra.
   const enHistorial = item.status === "historial";
-
-  useEffect(() => {
-    const controller = new AbortController();
-    unwrap(api.GET("/puertas", { params: { query: { repo } }, signal: controller.signal }))
-      .then((lista) => {
-        if (!controller.signal.aborted) setPuertas(lista);
-      })
-      .catch((err) => {
-        if (!controller.signal.aborted) {
-          setFalloPuertas(err instanceof Error ? err.message : String(err));
-        }
-      });
-    return () => controller.abort();
-  }, [repo]);
 
   const hacer = (fn: () => Promise<void>, alOk?: () => void) => {
     setTrabajando(true);

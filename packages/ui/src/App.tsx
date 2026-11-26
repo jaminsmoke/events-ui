@@ -1,9 +1,11 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import { api } from "./core/api";
 
 import { cargarAjustes, guardarAjustes } from "./core/avisos";
 import type { Ajustes } from "./core/avisos";
 import { medidaMarco } from "./core/marco";
-import { storedRepo } from "./core/repo";
+import { STORAGE_KEY, storedRepo } from "./core/repo";
 import type { ElegirCarpeta } from "./core/repo";
 import type { Actualizacion } from "./core/actualizacion";
 import { useRepo } from "./core/useRepo";
@@ -75,6 +77,26 @@ export default function App({
 }) {
   const PanelPruebas = pruebas?.componente;
   const [repo, setRepo] = useState<string | null>(storedRepo);
+  const repoRef = useRef(repo);
+  useEffect(() => {
+    repoRef.current = repo;
+  }, [repo]);
+  // La carpeta elegida se recuerda una vez por repo, también al arrancar con
+  // una ya guardada. La guarda evita el doble efecto de StrictMode y los
+  // eventos del SSE: `config.json` no es un latido.
+  const persistido = useRef<string | null>(null);
+  useEffect(() => {
+    if (!repo || persistido.current === repo) return;
+    persistido.current = repo;
+    try {
+      localStorage.setItem(STORAGE_KEY, repo);
+    } catch {
+      // Recordar la carpeta es opcional.
+    }
+    void api.PUT("/config", { body: { repo } }).catch(() => {
+      // El core la volverá a recibir la próxima vez que se elija.
+    });
+  }, [repo]);
   const [selectorAbierto, setSelectorAbierto] = useState(false);
   const [nuevaAbierta, setNuevaAbierta] = useState(false);
   const [falloAccion, setFalloAccion] = useState<string | null>(null);
@@ -174,9 +196,18 @@ export default function App({
   } = useRepo(repo);
   // Filas que cruzan Descartadas→Eliminadas: solo UI, se queman y luego
   // se borra el dato. No hay status `eliminadas` en el almacén.
-  const [quemas, setQuemas] = useState<{ id: number; uid: string; title: string }[]>([]);
+  const [quemas, setQuemas] = useState<
+    { id: number; repo: string; uid: string; title: string }[]
+  >([]);
   const quemaSeq = useRef(0);
-  const tree = useArbolMapa(items, quemas);
+  // El filtro se memoriza: `useArbolMapa` y `useCables` dependen de la
+  // identidad de `quemas`; un array nuevo por render rehacía el árbol y
+  // volvía a medir los cables en cada fotograma.
+  const quemasDelRepo = useMemo(
+    () => quemas.filter((quema) => quema.repo === repo),
+    [quemas, repo],
+  );
+  const tree = useArbolMapa(items, quemasDelRepo);
   // F1: el log del repo en vivo (cada `EUI_DATABASE` lleva el suyo).
   const { eventos, conectado, limpiar: limpiarLog } = useEventos(repo);
   useEmpujeMapa(eventos, refrescar);
@@ -349,7 +380,9 @@ export default function App({
         throw new Error("Solo se eliminan ítems que ya están en Descartadas");
       }
       const id = ++quemaSeq.current;
-      setQuemas((prev) => [...prev, { id, uid, title: item.title }]);
+      const repoAlBorrar = repo;
+      if (!repoAlBorrar) throw new Error("Sin repo no se puede borrar");
+      setQuemas((prev) => [...prev, { id, repo: repoAlBorrar, uid, title: item.title }]);
       setCerrados((prev) => {
         const next = new Set(prev);
         next.delete("lane-eliminadas");
@@ -357,12 +390,14 @@ export default function App({
       });
       await new Promise((resolve) => setTimeout(resolve, 1400));
       try {
-        await borrar(uid);
+        // La espera es de la animación: si mientras tanto se cambió de
+        // carpeta, el cierre capturado no puede borrar en el repo viejo.
+        if (repoRef.current === repoAlBorrar) await borrar(uid);
       } finally {
         setQuemas((prev) => prev.filter((quema) => quema.id !== id));
       }
     },
-    [items, borrar],
+    [repo, items, borrar],
   );
 
   const toggle = useCallback((key: string) => {

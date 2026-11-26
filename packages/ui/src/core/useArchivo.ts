@@ -19,7 +19,13 @@ export function useArchivo(repo: string, ruta: string, activo = true) {
   useEffect(() => {
     if (!activo) return;
     let vivo = true;
-    void unwrap(api.GET("/archivo", { params: { query: { repo, ruta } } }))
+    const controller = new AbortController();
+    void unwrap(
+      api.GET("/archivo", {
+        params: { query: { repo, ruta } },
+        signal: controller.signal,
+      }),
+    )
       .then((datos) => {
         if (vivo) setEstado({ ruta, datos });
       })
@@ -30,6 +36,7 @@ export function useArchivo(repo: string, ruta: string, activo = true) {
       });
     return () => {
       vivo = false;
+      controller.abort();
     };
   }, [repo, ruta, activo]);
 

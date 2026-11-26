@@ -51,11 +51,14 @@ export function useImagen(repo: string, ruta: string | null) {
     if (!ruta) return;
     let vivo = true;
     let url: string | null = null;
+    const controller = new AbortController();
 
     const pedir = async () => {
       try {
         const consulta = new URLSearchParams({ repo, ruta });
-        const res = await fetch(`${API_BASE}/archivo-bytes?${consulta}`);
+        const res = await fetch(`${API_BASE}/archivo-bytes?${consulta}`, {
+          signal: controller.signal,
+        });
         if (!res.ok) {
           const cuerpo = (await res.json().catch(() => null)) as { detail?: unknown } | null;
           const detalle =
@@ -79,6 +82,7 @@ export function useImagen(repo: string, ruta: string | null) {
     void pedir();
     return () => {
       vivo = false;
+      controller.abort();
       if (url) URL.revokeObjectURL(url);
     };
   }, [repo, ruta]);

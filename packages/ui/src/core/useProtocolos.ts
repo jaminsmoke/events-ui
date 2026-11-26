@@ -73,13 +73,17 @@ export function useProtocolos(repo: string | null): ProtocolosFlujo {
     let vivo = true;
     let ocupado = false;
     let latido = 0;
+    const controller = new AbortController();
 
     const vigilar = async () => {
       if (latido++ % 3 !== 0 || ocupado) return;
       ocupado = true;
       try {
         const datos = await unwrap(
-          api.GET("/protocolos", { params: { query: { repo } } }),
+          api.GET("/protocolos", {
+            params: { query: { repo } },
+            signal: controller.signal,
+          }),
         );
         const filas = Protocolos.parse(datos);
         if (vivo) {
@@ -106,6 +110,7 @@ export function useProtocolos(repo: string | null): ProtocolosFlujo {
     void vigilar();
     return () => {
       vivo = false;
+      controller.abort();
       baja();
     };
   }, [repo]);

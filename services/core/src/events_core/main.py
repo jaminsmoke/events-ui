@@ -25,6 +25,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from starlette.types import Receive, Scope, Send
 
 from . import __version__, items, registro
 from . import config as configuracion
@@ -301,24 +302,52 @@ def _dist_web_inicial() -> Path | None:
 
 
 DIST_WEB: Path | None = _dist_web_inicial()
-WEB_STATIC: StaticFiles | None = None
+WEB_MONTADA = False
+
+
+class _WebVigente:
+    """Sirve en `/` el `dist` que haya en `DIST_WEB` al atender la petición.
+
+    `StaticFiles` fija su carpeta al construirse y no ofrece API para cambiarla;
+    mutar `directory`/`all_directories` para montar la web en caliente dependía
+    de atributos no públicos de Starlette. Este despachador se monta una sola
+    vez y delega en un `StaticFiles` por carpeta (cacheado), así que
+    `POST /webapp` solo mueve `DIST_WEB`: la petición siguiente ya sirve el dist
+    nuevo, sin tocar el estado interno de nadie.
+    """
+
+    def __init__(self) -> None:
+        self._estaticos: dict[str, StaticFiles] = {}
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        ruta = DIST_WEB
+        if ruta is None:
+            respuesta = JSONResponse({"detail": "La web no está montada"}, status_code=404)
+            await respuesta(scope, receive, send)
+            return
+        clave = str(ruta)
+        estatico = self._estaticos.get(clave)
+        if estatico is None:
+            estatico = StaticFiles(directory=clave, html=True)
+            self._estaticos[clave] = estatico
+        await estatico(scope, receive, send)
+
+
+WEB = _WebVigente()
 
 
 def _montar_web(ruta: Path) -> None:
-    """Sirve `ruta` en `/`, o cambia el `dist` si ya estaba montado.
+    """Apunta la web a `ruta` y la monta la primera vez.
 
     Se llama al arrancar (si hay `dist`) y desde `POST /webapp` cuando `eui web`
     encuentra un core ya vivo. El montaje va al final: las rutas de la API van
     antes, y el middleware de `/api` reescribe el camino antes de enrutar.
     """
-    global DIST_WEB, WEB_STATIC
+    global DIST_WEB, WEB_MONTADA
     DIST_WEB = ruta
-    if WEB_STATIC is None:
-        WEB_STATIC = StaticFiles(directory=str(ruta), html=True)
-        app.mount("/", WEB_STATIC, name="web")
-        return
-    WEB_STATIC.directory = str(ruta)
-    WEB_STATIC.all_directories = [str(ruta)]
+    if not WEB_MONTADA:
+        app.mount("/", WEB, name="web")
+        WEB_MONTADA = True
 
 
 class _WebappEntrada(BaseModel):

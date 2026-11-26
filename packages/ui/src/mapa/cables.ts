@@ -5,35 +5,21 @@ import type { Tree } from "./arbol";
 import { LANES } from "./carriles";
 import type { LaneId, Status } from "./carriles";
 import type { Vista } from "./camara";
+import { largo, puntoEnTrazo, repartirCompuertas, trazoDe } from "./geometria";
+import type { Nudo, Punto } from "./geometria";
 import { UNIONES } from "./protocolos";
 import type { Union } from "./protocolos";
 
-/** Un punto del trazado, en píxeles locales del mapa. */
-type Punto = { x: number; y: number };
+// La geometría vive en `geometria.ts`, sin DOM: aquí solo queda la medición de
+// las cajas y el trazado de los cables. Se reexporta porque es parte del
+// contrato del mapa: `compuertas.tsx` mide con `CELDA` y `App.tsx` pide aquí la
+// duración de la chispa.
+export { CELDA, duracionChispa } from "./geometria";
+export type { Nudo, Punto } from "./geometria";
 
 /** El nodo Git cierra la línea, pero no es un carril de ideas: solo aporta
  *  su color y su cable. */
 export type DestinoCable = LaneId | "git";
-
-/** Medidas de la celda de protocolo. Las comparte `compuertas.tsx`, y el rombo
- *  de un nudo se dimensiona con ellas para que sus celdas quepan dentro. */
-export const CELDA = { ancho: 10, alto: 18 } as const;
-
-/** Aire entre dos celdas del mismo nudo y margen hasta el filo del rombo. */
-const HUECO_CELDA = 4;
-const MARGEN_NUDO = 3;
-
-/** Un nudo del mapa: un rombo donde el flujo se bifurca. Cada cable que sale
- *  de él lleva su compuerta dentro, y `lado` se deriva de cuántas lleva
- *  (ver `repartirCompuertas`). */
-export type Nudo = {
-  id: string;
-  x: number;
-  y: number;
-  lado: number;
-  /** Los nudos de la revisión rechazada se pintan con su propio color. */
-  rechazo?: boolean;
-};
 
 /** Un cable entre etapas de la línea, ya medido en píxeles del mapa.
  *  `lane` es el carril de destino: da el color y por dónde viaja la chispa.
@@ -86,29 +72,6 @@ export type RamaRechazo = {
   bus: string | null;
 };
 
-/** Velocidad de la chispa en px/s, con tope para no sobrevivir a la ventana
- *  de actividad (1,15 s), que desmonta las chispas. */
-export function duracionChispa(longitud: number): number {
-  return Math.min(1.05, Math.max(0.42, longitud / 90));
-}
-
-/** Longitud de una ruta de puntos. */
-function largo(puntos: readonly Punto[]): number {
-  let total = 0;
-  for (let i = 1; i < puntos.length; i++) {
-    const a = puntos[i - 1]!;
-    const b = puntos[i]!;
-    total += Math.hypot(b.x - a.x, b.y - a.y);
-  }
-  return total;
-}
-
-/** Pinta una ruta ortogonal. Solo hay `M` y `L`: cada tramo es horizontal o
- *  vertical, sin curvas libres, como una pista de circuito impreso. */
-function trazoDe(puntos: readonly Punto[]): string {
-  return puntos.map((punto, i) => `${i === 0 ? "M" : "L"} ${punto.x} ${punto.y}`).join(" ");
-}
-
 /** ¿El esquema se sale de la ventana del tablero?
  *
  *  Es lo único que depende de dónde esté la cámara: arrastrar cambia los
@@ -130,87 +93,6 @@ function recortadoDe(
     vista.top < hueco.top - 1 ||
     vista.bottom > hueco.bottom + 1
   );
-}
-
-/** Punto y ángulo a una fracción de la longitud total. Sirve para colocar la
- *  compuerta y el chevrón sobre un tramo recto de la ruta. */
-function puntoEnTrazo(
-  puntos: readonly Punto[],
-  fraccion: number,
-): { x: number; y: number; angulo: number } {
-  if (puntos.length === 0) return { x: 0, y: 0, angulo: 0 };
-  const primero = puntos[0]!;
-  if (puntos.length === 1) return { ...primero, angulo: 0 };
-
-  let restante = Math.max(0, Math.min(1, fraccion)) * largo(puntos);
-  let ultimoAngulo = 0;
-  for (let i = 1; i < puntos.length; i++) {
-    const a = puntos[i - 1]!;
-    const b = puntos[i]!;
-    const dx = b.x - a.x;
-    const dy = b.y - a.y;
-    const tramo = Math.hypot(dx, dy);
-    if (tramo === 0) continue;
-    const angulo = (Math.atan2(dy, dx) * 180) / Math.PI;
-    if (restante <= tramo) {
-      const t = restante / tramo;
-      return { x: a.x + dx * t, y: a.y + dy * t, angulo };
-    }
-    restante -= tramo;
-    ultimoAngulo = angulo;
-  }
-  const ultimo = puntos[puntos.length - 1]!;
-  return { x: ultimo.x, y: ultimo.y, angulo: ultimoAngulo };
-}
-
-/** Hacia dónde sale del nudo el cable, en grados. Ordena las celdas de un
- *  mismo nudo como su abanico de ramas: primero la que sigue de largo y
- *  después la que se abre. */
-function salida(cable: Cable, nudo: Nudo): number {
-  const i = cable.puntos.findIndex(
-    (punto) => Math.abs(punto.x - nudo.x) < 0.5 && Math.abs(punto.y - nudo.y) < 0.5,
-  );
-  const desde = cable.puntos[Math.max(0, i)] ?? cable.puntos[0];
-  const hasta = cable.puntos[Math.max(0, i) + 1] ?? cable.puntos[cable.puntos.length - 1];
-  if (!desde || !hasta) return 0;
-  return (Math.atan2(hasta.y - desde.y, hasta.x - desde.x) * 180) / Math.PI;
-}
-
-/** La regla de sitio de las compuertas, en un solo lugar: la celda de protocolo
- *  vive dentro del rombo del nudo del que sale su cable y, si el cable no sale
- *  de un nudo, en el punto medio de su trazado.
- *
- *  Cuando un nudo tiene varias celdas (archivar abre dos compuertas, la de Git
- *  y la del Historial) se reparten en fila alrededor del centro, en el orden de
- *  sus ramas, y el rombo crece justo lo que hace falta para que quepan dentro.
- *  Así el código y el mapa cuentan lo mismo: cada unión de `protocolos.ts` es
- *  una caja, y cada caja está donde está su cable. */
-function repartirCompuertas(cables: Cable[], nudos: readonly Nudo[]): void {
-  const porNudo = new Map<string, Cable[]>();
-  for (const cable of cables) {
-    // Una compuerta que no se dibuja (el paso a Git sin work tree) no ocupa
-    // sitio: la otra del nudo se queda centrada.
-    if (!cable.nudo || (cable.uniones.length === 0 && !cable.abierta)) continue;
-    const suyos = porNudo.get(cable.nudo);
-    if (suyos) suyos.push(cable);
-    else porNudo.set(cable.nudo, [cable]);
-  }
-  for (const nudo of nudos) {
-    const celdas = porNudo.get(nudo.id);
-    if (!celdas) continue;
-    celdas.sort((a, b) => salida(a, nudo) - salida(b, nudo));
-    const ancho = celdas.length * CELDA.ancho + (celdas.length - 1) * HUECO_CELDA;
-    celdas.forEach((cable, i) => {
-      cable.compuerta = {
-        x: nudo.x + (i - (celdas.length - 1) / 2) * (CELDA.ancho + HUECO_CELDA),
-        y: nudo.y,
-        angulo: 0,
-      };
-    });
-    // El rombo circunscribe la fila de celdas: media diagonal = medio ancho
-    // más media celda, y el lado que le corresponde.
-    nudo.lado = Math.ceil((ancho / 2 + CELDA.alto / 2 + MARGEN_NUDO) * Math.SQRT2);
-  }
 }
 
 /** Los cables y la respuesta a «¿queda algo fuera del lienzo?».
@@ -238,7 +120,7 @@ export function useCables({
   boardRef: RefObject<HTMLElement | null>;
   mapRef: RefObject<HTMLDivElement | null>;
   cajonRef: RefObject<HTMLElement | null>;
-  carrilRefs: RefObject<(HTMLElement | null)[]>;
+  carrilRefs: RefObject<Partial<Record<LaneId, HTMLElement | null>>>;
   /** Ancho tapado por el panel derecho, en el mismo sentido que en `useCamara`. */
   insetDerecha?: number;
   gitRef: RefObject<HTMLElement | null>;
@@ -283,13 +165,14 @@ export function useCables({
       const cabeceraGitEl = nodoGit?.querySelector<HTMLElement>(".node-head");
       const cabeceraGit = cabeceraGitEl ? rectLocal(cabeceraGitEl) : null;
       cajas.set("root", cabecera(cajon));
-      carrilRefs.current.forEach((el, i) => {
-        const lane = LANES[i];
-        if (el && lane) {
-          cajas.set(lane.id, cabecera(el));
-          cajasNodo.set(lane.id, rectLocal(el));
-        }
-      });
+      // Los carriles se leen por su id, no por su posición: reordenar
+      // `LANES` no puede cruzar los cables.
+      for (const lane of LANES) {
+        const el = carrilRefs.current[lane.id];
+        if (!el) continue;
+        cajas.set(lane.id, cabecera(el));
+        cajasNodo.set(lane.id, rectLocal(el));
+      }
 
       const total = (lane: LaneId | "root") =>
         lane === "root"
@@ -695,7 +578,10 @@ export function useCables({
     // El lienzo también: al encoger la ventana puede empezar a recortar sin que
     // cambie ni la vista ni el árbol.
     if (boardRef.current) ro.observe(boardRef.current);
-    for (const el of carrilRefs.current) if (el) ro.observe(el);
+    for (const lane of LANES) {
+      const el = carrilRefs.current[lane.id];
+      if (el) ro.observe(el);
+    }
     map.addEventListener("scroll", medir, true);
     return () => {
       ro.disconnect();

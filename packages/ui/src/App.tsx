@@ -371,7 +371,7 @@ export default function App({
   const boardRef = useRef<HTMLElement | null>(null);
   const mapRef = useRef<HTMLDivElement | null>(null);
   const cajonRef = useRef<HTMLElement | null>(null);
-  const carrilRefs = useRef<(HTMLElement | null)[]>([]);
+  const carrilRefs = useRef<Partial<Record<LaneId, HTMLElement | null>>>({});
   const gitRef = useRef<HTMLElement | null>(null);
   const cambiosRef = useRef<HTMLElement | null>(null);
   const commitsRef = useRef<HTMLElement | null>(null);
@@ -649,14 +649,15 @@ export default function App({
   /* Cada carril es un nodo de la línea. Changelog vive en el mapa Documentos;
    *  en el de trabajo su índice de `LANES` lo ocupa el puente Documentos, para
    *  que el cable de archivo lo mida igual. */
-  const nodoDeCarril = (lane: TreeNode, i: number) => (
+  const nodoDeCarril = (lane: TreeNode) => (
     <NodeBox
       key={lane.key}
       node={lane}
       cerrados={cerrados}
       onToggle={toggle}
       boxRef={(el) => {
-        carrilRefs.current[i] = el;
+        const id = lane.tone === "root" ? null : lane.tone;
+        if (id) carrilRefs.current[id] = el;
       }}
       volando={volando}
       pulso={pulsos.find((p) => p.lane === lane.tone)?.tono}
@@ -1060,8 +1061,8 @@ export default function App({
                     seleccion={seleccion}
                     onSeleccionar={seleccionar}
                   />
-                  {tree.carriles.map((lane, i) =>
-                    lane.tone === "historial" ? null : nodoDeCarril(lane, i),
+                  {tree.carriles.map((lane) =>
+                    lane.tone === "historial" ? null : nodoDeCarril(lane),
                   )}
                   <div className="estacion-git">
                     <NodoPuenteGit
@@ -1076,14 +1077,16 @@ export default function App({
                       onCrear={() => setDialogoGit("crear")}
                       onEliminar={() => setDialogoGit("eliminar")}
                     />
-                    {tree.carriles.map((lane, i) =>
+                    {tree.carriles.map((lane) =>
                       lane.tone === "historial" ? (
                         <NodoPuenteDocumentos
                           key="puente-documentos"
                           seleccion={seleccion}
                           onSeleccionar={seleccionar}
                           boxRef={(el) => {
-                            carrilRefs.current[i] = el;
+                            // El puente de Documentos ocupa el sitio del
+                            // carril Changelog: el cable de archivo lo mide.
+                            carrilRefs.current["historial"] = el;
                           }}
                           onAbrir={irDocumentos}
                         />
@@ -1134,8 +1137,8 @@ export default function App({
                       <p className="git-titulo">Mapa de Documentos</p>
                     </div>
                   </div>
-                  {tree.carriles.map((lane, i) =>
-                    lane.tone === "historial" ? nodoDeCarril(lane, i) : null,
+                  {tree.carriles.map((lane) =>
+                    lane.tone === "historial" ? nodoDeCarril(lane) : null,
                   )}
                 </div>
                 )}

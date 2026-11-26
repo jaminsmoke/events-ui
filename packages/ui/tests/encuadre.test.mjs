@@ -1,8 +1,8 @@
 /** El encuadre del mapa: una sola regla para la cámara.
  *
  *  El mapa nunca se agranda por encima de su tamaño real, nunca baja del
- *  suelo legible y se centra en el área que queda libre (sin contar el
- *  relleno del lienzo ni el panel derecho). */
+ *  suelo legible (75 %) y se centra en el área que queda libre (sin contar
+ *  el relleno del lienzo ni el panel derecho). */
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -25,7 +25,7 @@ test("el encuadre no baja del suelo legible aunque el mapa no quepa", () => {
     offset: { x: 0, y: 46 },
     relleno: RELLENO,
   });
-  assert.equal(vista.k, 0.5);
+  assert.equal(vista.k, 0.75);
   // El mapa se recorta por la derecha, pero empieza en la Entrada: no se
   // centra un mapa que no cabe, o desaparecería la primera columna.
   assert.equal(vista.x, 0);
@@ -68,13 +68,13 @@ test("el encuadre cabe entero cuando hay sitio y no agranda por encima de 1", ()
 test("el panel derecho se descuenta del ancho visible", () => {
   const sinPanel = encuadreDe({
     mapa: MAPA,
-    board: { ancho: 1600, alto: 900 },
+    board: { ancho: 2000, alto: 900 },
     offset: { x: 0, y: 0 },
     relleno: { arriba: 0, abajo: 0 },
   });
   const conPanel = encuadreDe({
     mapa: MAPA,
-    board: { ancho: 1600, alto: 900 },
+    board: { ancho: 2000, alto: 900 },
     offset: { x: 0, y: 0 },
     relleno: { arriba: 0, abajo: 0 },
     insetDerecha: 272,

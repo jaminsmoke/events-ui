@@ -38,13 +38,11 @@ export default {
         (Number.parseFloat(estilo.paddingTop) || 0) -
         (Number.parseFloat(estilo.paddingBottom) || 0);
       const k = cajaMapa.width / mapa.offsetWidth;
-      const kEsperada = Math.max(
-        0.5,
-        Math.min(
-          (cajaBoard.width - resumen.width - 64) / mapa.offsetWidth,
-          altoVisible / mapa.offsetHeight,
-        ),
+      const bruto = Math.min(
+        (cajaBoard.width - resumen.width - 64) / mapa.offsetWidth,
+        altoVisible / mapa.offsetHeight,
       );
+      const kEsperada = Math.min(1, Math.max(0.75, Math.round(bruto * 20) / 20));
       return {
         vars: {
           rail: px("--ancho-rail"),

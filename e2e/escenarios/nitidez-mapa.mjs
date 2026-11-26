@@ -1,10 +1,10 @@
 /** El mapa se encuadra con una sola regla en las dos apps: nunca por debajo
- *  del suelo legible (50 %) y centrado en el alto libre del lienzo. A 800×600
+ *  del suelo legible (75 %) y centrado en el alto libre del lienzo. A 800×600
  *  antes caía al 29 % y quedaba pegado arriba. */
 export default {
   nombre: "nitidez-mapa",
   descripcion:
-    "El encuadre no baja del 50 % y centra el mapa en web y desktop a 800×600 y 1920×1080",
+    "El encuadre no baja del 75 % y centra el mapa en web y desktop a 800×600 y 1920×1080",
 
   run: async ({ page, web, UI, WEB, expect, resultado }) => {
     const medir = async (app) => {
@@ -46,8 +46,8 @@ export default {
 
         const pequeno = await medir(app);
         expect(
-          pequeno.k >= 0.5 - 1e-6,
-          `${etiqueta} a 800×600 encuadró al ${(pequeno.k * 100).toFixed(1)} % (suelo 50 %)`,
+          pequeno.k >= 0.75 - 1e-6,
+          `${etiqueta} a 800×600 encuadró al ${(pequeno.k * 100).toFixed(1)} % (suelo 75 %)`,
         );
         expect(
           Math.abs(pequeno.centroMapa - pequeno.centroLibre) <= 2,
@@ -63,7 +63,7 @@ export default {
         const grande = await medir(app);
         await app.screenshot({ path: resultado(`nitidez-${etiqueta}-1920.png`) });
         expect(
-          grande.k > 0.5 && grande.k <= 1,
+          grande.k >= 0.75 && grande.k <= 1,
           `${etiqueta} a 1920×1080 encuadró al ${(grande.k * 100).toFixed(1)} %`,
         );
         expect(

@@ -289,9 +289,12 @@
   font-weight: 600;
 }
 
-/* Al cambiar de mapa, el lienzo se funde y los nodos entran en cascada. */
+/* Al cambiar de mapa, el lienzo se funde y los nodos entran en cascada. Sin
+ * `both`: al terminar, la capa se suelta y el compositor vuelve a rasterizar
+ * el texto a la escala real. Con `both`, el texto se muestrea desde la capa
+ * de 1× y se ve borroso en cuanto la cámara baja del 100 %. */
 .map {
-  animation: mapa-funde 0.4s ease both;
+  animation: mapa-funde 0.4s ease;
 }
 
 .linea > .node,
@@ -300,7 +303,7 @@
 .linea-git > .git-cabecera,
 .linea-documentos > .node,
 .linea-documentos > .git-cabecera {
-  animation: nodo-entra 0.45s cubic-bezier(0.2, 0.9, 0.25, 1.1) both;
+  animation: nodo-entra 0.45s cubic-bezier(0.2, 0.9, 0.25, 1.1) backwards;
 }
 
 .linea-git > .node:nth-of-type(1) {

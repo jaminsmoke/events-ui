@@ -10,9 +10,22 @@ import type {
  *  El esquema es pequeño: no hay nada que leer al 25% ni un nodo que necesite el
  *  300%. Por debajo del 50% los títulos se vuelven ilegibles y por encima del
  *  150% el mapa ocupa mucho más que su ventana y se pierde de vista. */
-export const ZOOM_MIN = 0.5;
+export const ZOOM_MIN = 0.75;
 export const ZOOM_MAX = 1.5;
 export const ZOOM_PASO = 1.08;
+
+/** El zoom no es continuo: cae en escalones del 5 %. Un `scale` arbitrario
+ *  (0,5196…) deja el texto en coordenadas fraccionarias y el rasterizador no
+ *  puede alinearlo al píxel; los pasos fijos sí. */
+const PASO_ESCALA = 0.05;
+const cuantizar = (k: number) => Math.round(k / PASO_ESCALA) * PASO_ESCALA;
+
+/** Redondea al píxel del dispositivo: a dpr 1, entero; a dpr 1,25, múltiplo
+ *  de 0,8. Medio píxel de `translate` suaviza todo el texto. */
+const alPixel = (n: number) => {
+  const dpr = typeof window === "undefined" ? 1 : window.devicePixelRatio || 1;
+  return Math.round(n * dpr) / dpr;
+};
 
 /** Suelo de «encuadrar»: el mismo que el del zoom a mano.
  *
@@ -54,11 +67,12 @@ export function encuadreDe({
   if (!mapa.ancho || !mapa.alto) return { x: 0, y: 0, k: 1 };
   const anchoVisible = Math.max(120, board.ancho - insetDerecha);
   const altoVisible = Math.max(120, board.alto - relleno.arriba - relleno.abajo);
-  const k = acotar(
+  const bruto = acotar(
     Math.min((anchoVisible - margen) / mapa.ancho, altoVisible / mapa.alto),
     ZOOM_ENCUADRE_MIN,
     1,
   );
+  const k = acotar(cuantizar(bruto), ZOOM_ENCUADRE_MIN, 1);
   // Si no cabe, se ancla a la izquierda: el flujo empieza en la Entrada y el
   // resto se alcanza arrastrando. Centrarlo recortaría las dos puntas y la
   // primera columna desaparecería sin decir por dónde se empieza.
@@ -108,15 +122,19 @@ export function useCamara({
   const zoom = useCallback((factor: number) => {
     movida.current = true;
     setVista((v) => {
-      const k = acotar(v.k * factor, Math.min(ZOOM_MIN, v.k), ZOOM_MAX);
-      if (k === v.k) return v;
+      const k = acotar(
+        cuantizar(acotar(v.k * factor, Math.min(ZOOM_MIN, v.k), ZOOM_MAX)),
+        Math.min(ZOOM_MIN, v.k),
+        ZOOM_MAX,
+      );
+      if (Math.abs(k - v.k) < 1e-9) return v;
       const caja = mapRef.current?.getBoundingClientRect();
       if (!caja) return { ...v, k };
       const lx = caja.width / v.k / 2;
       const ly = caja.height / v.k / 2;
       return {
-        x: Math.round(v.x + lx * (v.k - k)),
-        y: Math.round(v.y + ly * (v.k - k)),
+        x: alPixel(v.x + lx * (v.k - k)),
+        y: alPixel(v.y + ly * (v.k - k)),
         k,
       };
     });
@@ -142,18 +160,17 @@ export function useCamara({
     // el lienzo, solo lo tapa. El relleno del lienzo entra en la cuenta para
     // que el centro sea el del área visible y no el del borde.
     const estilo = getComputedStyle(board);
-    setVista(
-      encuadreDe({
-        mapa: { ancho, alto },
-        board: { ancho: board.clientWidth, alto: board.clientHeight },
-        offset: { x: map.offsetLeft, y: map.offsetTop },
-        insetDerecha,
-        relleno: {
-          arriba: parseFloat(estilo.paddingTop) || 0,
-          abajo: parseFloat(estilo.paddingBottom) || 0,
-        },
-      }),
-    );
+    const vista = encuadreDe({
+      mapa: { ancho, alto },
+      board: { ancho: board.clientWidth, alto: board.clientHeight },
+      offset: { x: map.offsetLeft, y: map.offsetTop },
+      insetDerecha,
+      relleno: {
+        arriba: parseFloat(estilo.paddingTop) || 0,
+        abajo: parseFloat(estilo.paddingBottom) || 0,
+      },
+    });
+    setVista({ ...vista, x: alPixel(vista.x), y: alPixel(vista.y) });
   }, [boardRef, mapRef, insetDerecha]);
 
   /** Repo nuevo: encuadre nuevo y cámara sin tocar. */
@@ -191,15 +208,25 @@ export function useCamara({
       movida.current = true;
       setVista((v) => {
         const k = acotar(
-          v.k * (e.deltaY < 0 ? ZOOM_PASO : 1 / ZOOM_PASO),
+          cuantizar(
+            acotar(
+              v.k * (e.deltaY < 0 ? ZOOM_PASO : 1 / ZOOM_PASO),
+              Math.min(ZOOM_MIN, v.k),
+              ZOOM_MAX,
+            ),
+          ),
           Math.min(ZOOM_MIN, v.k),
           ZOOM_MAX,
         );
-        if (k === v.k) return v;
+        if (Math.abs(k - v.k) < 1e-9) return v;
         // El punto local bajo el cursor se queda bajo el cursor.
         const lx = (e.clientX - caja.left) / v.k;
         const ly = (e.clientY - caja.top) / v.k;
-        return { x: v.x + lx * (v.k - k), y: v.y + ly * (v.k - k), k };
+        return {
+          x: alPixel(v.x + lx * (v.k - k)),
+          y: alPixel(v.y + ly * (v.k - k)),
+          k,
+        };
       });
     };
 
@@ -236,8 +263,8 @@ export function useCamara({
         encuadrar();
         return;
       }
-      const desplazamiento = Math.round((nuevo - previo) / 2);
-      setVista((v) => ({ ...v, x: v.x + desplazamiento }));
+      const desplazamiento = (nuevo - previo) / 2;
+      setVista((v) => ({ ...v, x: alPixel(v.x + desplazamiento) }));
     };
 
     const ro = new ResizeObserver(alCambiarElLienzo);
@@ -258,8 +285,8 @@ export function useCamara({
       encuadrar();
       return;
     }
-    const delta = Math.round((insetDerecha - previo) / 2);
-    setVista((v) => ({ ...v, x: v.x - delta }));
+    const delta = (insetDerecha - previo) / 2;
+    setVista((v) => ({ ...v, x: alPixel(v.x - delta) }));
   }, [insetDerecha, encuadrar]);
 
   /* Teclado: + y − acercan y alejan, 0 vuelve al 100% y F reencuadra. Nada de
@@ -321,7 +348,7 @@ export function useCamara({
       const dy = e.clientY - desde.y;
       agarre.current = { x: e.clientX, y: e.clientY };
       // Enteros: medio píxel de translate ya suaviza todo el texto.
-      setVista((v) => ({ ...v, x: Math.round(v.x + dx), y: Math.round(v.y + dy) }));
+      setVista((v) => ({ ...v, x: alPixel(v.x + dx), y: alPixel(v.y + dy) }));
     },
     onPointerUp: () => {
       agarre.current = null;

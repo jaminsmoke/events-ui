@@ -29,6 +29,7 @@
     "react-dom": "^19"
   },
   "devDependencies": {
+    "@events-ui/config": "workspace:*",
     "@events-ui/ui": "workspace:*",
     "@eslint/js": "^10.0.1",
     "@types/react": "^19",

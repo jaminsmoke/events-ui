@@ -1,0 +1,23 @@
+{
+  "name": "@events-ui/config",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Preset de Vite, base de TypeScript y preset de ESLint que comparten los envoltorios.",
+  "type": "module",
+  "exports": {
+    "./vite": {
+      "types": "./vite.base.d.mts",
+      "default": "./vite.base.mjs"
+    },
+    "./eslint": "./eslint.base.mjs"
+  },
+  "dependencies": {
+    "@eslint/js": "^10.0.1",
+    "@vitejs/plugin-react": "^5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.8",
+    "globals": "^17.14.0",
+    "typescript-eslint": "^8.73.0",
+    "vite": "^7"
+  }
+}

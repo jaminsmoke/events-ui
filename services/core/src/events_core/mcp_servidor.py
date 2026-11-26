@@ -25,6 +25,7 @@ import os
 import sys
 import tempfile
 from contextlib import redirect_stderr, redirect_stdout
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -64,244 +65,309 @@ INSTRUCCIONES = (
     "retiran herramientas según el mapa; `eui puertas` dice cuáles están cerradas."
 )
 
-_REPO = {
-    "type": "string",
-    "description": "Raíz absoluta o nombre del laboratorio; por defecto, la configurada",
-}
-_URL = {
-    "type": "string",
-    "description": "Base del core; por defecto, la del puerto configurado",
-}
-_PORT = {"type": "integer", "minimum": 1, "maximum": 65535}
 
-_COMUNES = {"repo": _REPO, "url": _URL, "port": _PORT}
+@dataclass(frozen=True)
+class Campo:
+    """Un campo de entrada y cómo viaja al CLI.
+
+    El tipo, el enum y los límites van al `inputSchema`; `posicional`, `bandera`,
+    `repetible`, `temporal` y `pareja` dicen cómo se escribe en el argv. Con eso,
+    una herramienta nueva se declara una vez y las dos cosas salen de aquí.
+    """
+
+    tipo: str = "string"
+    descripcion: str = ""
+    requerido: bool = False
+    opciones: tuple[str, ...] = ()
+    minimo: int | None = None
+    maximo: int | None = None
+    elemento: str = "string"
+    posicional: int | None = None
+    bandera: str | None = None
+    repetible: bool = False
+    temporal: bool = False
+    pareja: tuple[str, str | None] | None = None
+    omite_si: str | None = None
+
+    def esquema(self) -> dict[str, Any]:
+        """El trozo de JSON Schema que anuncia `tools/list`."""
+        salida: dict[str, Any] = {"type": self.tipo}
+        if self.descripcion:
+            salida["description"] = self.descripcion
+        if self.opciones:
+            salida["enum"] = list(self.opciones)
+        if self.minimo is not None:
+            salida["minimum"] = self.minimo
+        if self.maximo is not None:
+            salida["maximum"] = self.maximo
+        if self.tipo == "array":
+            salida["items"] = {"type": self.elemento}
+        return salida
 
 
-def _esquema(
-    propiedades: dict[str, Any], requeridos: tuple[str, ...] | list[str] = ()
-) -> dict[str, Any]:
-    esquema: dict[str, Any] = {
-        "type": "object",
-        "properties": propiedades,
-        "additionalProperties": False,
-    }
-    if requeridos:
-        esquema["required"] = list(requeridos)
-    return esquema
+@dataclass(frozen=True)
+class Herramienta:
+    """Una herramienta del catálogo: lo que se anuncia y el argv que la ejecuta."""
+
+    nombre: str
+    titulo: str
+    descripcion: str
+    orden: tuple[str, ...]
+    campos: dict[str, Campo] = field(default_factory=dict)
+    escritura: bool = False
+    destructiva: bool = False
+    idempotente: bool = False
+    con_repo: bool = True
 
 
-_LECTURA: tuple[dict[str, Any], ...] = (
-    {
-        "name": "doctor",
-        "description": "Comprueba configuración, core, versión, raíz y permiso de escritura.",
-        "inputSchema": _esquema(_COMUNES),
-    },
-    {
-        "name": "repo_actual",
-        "description": "La raíz configurada y la URL del core, o null si no hay raíz.",
-        "inputSchema": _esquema(_COMUNES),
-    },
-    {
-        "name": "repo_list",
-        "description": "Carpetas del laboratorio que ya tienen almacén.",
-        "inputSchema": _esquema({"url": _URL, "port": _PORT}),
-    },
-    {
-        "name": "item_list",
-        "description": "Lista los ítems del mapa con filtros de estado, tipo y paginación.",
-        "inputSchema": _esquema(
-            {
-                **_COMUNES,
-                "status": {"type": "string"},
-                "kind": {"type": "string", "enum": ["work_item", "adr", "note"]},
-                "limit": {"type": "integer", "minimum": 1, "maximum": 500},
-                "offset": {"type": "integer", "minimum": 0},
-            }
-        ),
-    },
-    {
-        "name": "item_get",
-        "description": "La ficha completa de un ítem: campos, fases, requisitos y procedencia.",
-        "inputSchema": _esquema({**_COMUNES, "uid": {"type": "string"}}, ["uid"]),
-    },
-    {
-        "name": "mapa",
-        "description": (
+def _comun(*, con_repo: bool = True) -> dict[str, Campo]:
+    """Los campos que llevan casi todas: el repo, el core y su puerto."""
+    campos: dict[str, Campo] = {}
+    if con_repo:
+        campos["repo"] = Campo(
+            descripcion="Raíz absoluta o nombre del laboratorio; por defecto, la configurada"
+        )
+    campos["url"] = Campo(descripcion="Base del core; por defecto, la del puerto configurado")
+    campos["port"] = Campo(tipo="integer", minimo=1, maximo=65535)
+    return campos
+
+
+_COMUNES = ("repo", "url", "port")
+
+_CATALOGO: tuple[Herramienta, ...] = (
+    Herramienta(
+        nombre="doctor",
+        titulo="Diagnóstico",
+        descripcion="Comprueba configuración, core, versión, raíz y permiso de escritura.",
+        orden=("doctor",),
+        campos=_comun(),
+    ),
+    Herramienta(
+        nombre="repo_actual",
+        titulo="Repo actual",
+        descripcion="La raíz configurada y la URL del core, o null si no hay raíz.",
+        orden=("repo",),
+        campos=_comun(),
+    ),
+    Herramienta(
+        nombre="repo_list",
+        titulo="Repos del laboratorio",
+        descripcion="Carpetas del laboratorio que ya tienen almacén.",
+        orden=("repo", "list"),
+        campos=_comun(con_repo=False),
+    ),
+    Herramienta(
+        nombre="item_list",
+        titulo="Listar ítems",
+        descripcion="Lista los ítems del mapa con filtros de estado, tipo y paginación.",
+        orden=("item", "list"),
+        campos={
+            **_comun(),
+            "status": Campo(bandera="--status"),
+            "kind": Campo(bandera="--kind", opciones=("work_item", "adr", "note")),
+            "limit": Campo(tipo="integer", minimo=1, maximo=500, bandera="--limit"),
+            "offset": Campo(tipo="integer", minimo=0, bandera="--offset"),
+        },
+    ),
+    Herramienta(
+        nombre="item_get",
+        titulo="Leer un ítem",
+        descripcion="La ficha completa de un ítem: campos, fases, requisitos y procedencia.",
+        orden=("item", "get"),
+        campos={
+            **_comun(),
+            "uid": Campo(posicional=1, requerido=True),
+        },
+    ),
+    Herramienta(
+        nombre="mapa",
+        titulo="Mapa",
+        descripcion=(
             "El mapa entero en una lectura: cada ítem con su carril, sus dependencias y sus fases."
         ),
-        "inputSchema": _esquema(_COMUNES),
-    },
-    {
-        "name": "migrate_scan",
-        "description": (
-            "Lee los Markdown de una carpeta del repo y devuelve su sha256 y estructura."
+        orden=("mapa",),
+        campos=_comun(),
+    ),
+    Herramienta(
+        nombre="migrate_scan",
+        titulo="Escanear documentos",
+        descripcion="Lee los Markdown de una carpeta del repo y devuelve su sha256 y estructura.",
+        orden=("migrate", "scan"),
+        campos={
+            **_comun(),
+            "ruta": Campo(posicional=1),
+        },
+    ),
+    Herramienta(
+        nombre="migrate_classify",
+        titulo="Clasificar documentos",
+        descripcion="Propone el manifiesto documentos (mapa/referencia/parcial) a partir del scan.",
+        orden=("migrate", "classify"),
+        campos={
+            **_comun(),
+            "ruta": Campo(posicional=1),
+        },
+    ),
+    Herramienta(
+        nombre="migrate_check",
+        titulo="Validar un plan",
+        descripcion=(
+            "Valida un plan.json sin escribir: esquema, refs, ciclos, origen, hash y "
+            "clasificación de documentos."
         ),
-        "inputSchema": _esquema({**_COMUNES, "ruta": {"type": "string"}}),
-    },
-    {
-        "name": "migrate_classify",
-        "description": (
-            "Propone el manifiesto documentos (mapa/referencia/parcial) a partir del scan."
-        ),
-        "inputSchema": _esquema({**_COMUNES, "ruta": {"type": "string"}}),
-    },
-    {
-        "name": "migrate_check",
-        "description": (
-            "Valida un plan.json sin escribir: esquema, refs, ciclos, origen, "
-            "hash y clasificación de documentos."
-        ),
-        "inputSchema": _esquema({**_COMUNES, "plan": {"type": "string"}}, ["plan"]),
-    },
-)
-
-_ESCRITURA: tuple[dict[str, Any], ...] = (
-    {
-        "name": "item_create",
-        "description": "Crea un ítem (por defecto en draft) con etiquetas y dependencias.",
-        "inputSchema": _esquema(
-            {
-                **_COMUNES,
-                "title": {"type": "string"},
-                "description": {"type": "string"},
-                "content": {"type": "string"},
-                "kind": {"type": "string", "enum": ["work_item"]},
-                "status": {"type": "string", "enum": list(cli.ESTADOS)},
-                "tags": {"type": "array", "items": {"type": "string"}},
-                "depende_de": {"type": "array", "items": {"type": "string"}},
-                "fases": {"type": "array", "items": {"type": "object"}},
-            },
-            ["title"],
-        ),
-    },
-    {
-        "name": "item_edit",
-        "description": (
+        orden=("migrate", "check"),
+        campos={
+            **_comun(),
+            "plan": Campo(posicional=1, requerido=True),
+        },
+    ),
+    Herramienta(
+        nombre="item_create",
+        titulo="Crear un ítem",
+        descripcion="Crea un ítem (por defecto en draft) con etiquetas y dependencias.",
+        orden=("item", "create"),
+        escritura=True,
+        campos={
+            **_comun(),
+            "title": Campo(bandera="--title", requerido=True),
+            "description": Campo(bandera="--description"),
+            "content": Campo(bandera="--content"),
+            "kind": Campo(bandera="--kind", opciones=("work_item",)),
+            "status": Campo(bandera="--status", opciones=tuple(cli.ESTADOS)),
+            "tags": Campo(tipo="array", bandera="--tag", repetible=True),
+            "depende_de": Campo(tipo="array", bandera="--dep", repetible=True),
+            "fases": Campo(tipo="array", elemento="object", bandera="--fases", temporal=True),
+        },
+    ),
+    Herramienta(
+        nombre="item_edit",
+        titulo="Editar un ítem",
+        descripcion=(
             "Edita solo los campos dados de un ítem; permite vaciar etiquetas o dependencias."
         ),
-        "inputSchema": _esquema(
-            {
-                **_COMUNES,
-                "uid": {"type": "string"},
-                "title": {"type": "string"},
-                "description": {"type": "string"},
-                "content": {"type": "string"},
-                "tags": {"type": "array", "items": {"type": "string"}},
-                "limpiar_tags": {"type": "boolean"},
-                "depende_de": {"type": "array", "items": {"type": "string"}},
-                "limpiar_dependencias": {"type": "boolean"},
-            },
-            ["uid"],
-        ),
-    },
-    {
-        "name": "item_move",
-        "description": "Mueve un ítem de carril con los datos de la ficha de destino.",
-        "inputSchema": _esquema(
-            {
-                **_COMUNES,
-                "uid": {"type": "string"},
-                "status": {"type": "string", "enum": list(cli.ESTADOS)},
-                "resultado": {"type": "string"},
-                "referencia": {"type": "string"},
-                "verificacion_resultado": {"type": "string"},
-                "verificacion_comentario": {"type": "string"},
-                "aprobado_por": {
-                    "type": "string",
-                    "enum": ["usuario", "agente", "sistema"],
-                },
-                "nota": {"type": "string"},
-                "motivo": {"type": "string"},
-                "descartado_por": {
-                    "type": "string",
-                    "enum": ["usuario", "agente", "sistema"],
-                },
-                "sustituye_a": {"type": "string"},
-            },
-            ["uid", "status"],
-        ),
-    },
-    {
-        "name": "item_fases",
-        "description": (
+        orden=("item", "edit"),
+        escritura=True,
+        campos={
+            **_comun(),
+            "uid": Campo(posicional=1, requerido=True),
+            "title": Campo(bandera="--title"),
+            "description": Campo(bandera="--description"),
+            "content": Campo(bandera="--content"),
+            "tags": Campo(tipo="array", bandera="--tag", repetible=True, omite_si="limpiar_tags"),
+            "limpiar_tags": Campo(tipo="boolean", pareja=("--sin-etiquetas", None)),
+            "depende_de": Campo(
+                tipo="array", bandera="--dep", repetible=True, omite_si="limpiar_dependencias"
+            ),
+            "limpiar_dependencias": Campo(tipo="boolean", pareja=("--sin-dependencias", None)),
+        },
+    ),
+    Herramienta(
+        nombre="item_move",
+        titulo="Mover un ítem",
+        descripcion="Mueve un ítem de carril con los datos de la ficha de destino.",
+        orden=("item", "move"),
+        escritura=True,
+        campos={
+            **_comun(),
+            "uid": Campo(posicional=1, requerido=True),
+            "status": Campo(posicional=2, requerido=True, opciones=tuple(cli.ESTADOS)),
+            "resultado": Campo(bandera="--resultado"),
+            "referencia": Campo(bandera="--referencia"),
+            "verificacion_resultado": Campo(bandera="--verificacion-resultado"),
+            "verificacion_comentario": Campo(bandera="--verificacion-comentario"),
+            "aprobado_por": Campo(
+                bandera="--aprobado-por", opciones=("usuario", "agente", "sistema")
+            ),
+            "nota": Campo(bandera="--nota"),
+            "motivo": Campo(bandera="--motivo"),
+            "descartado_por": Campo(
+                bandera="--descartado-por", opciones=("usuario", "agente", "sistema")
+            ),
+            "sustituye_a": Campo(bandera="--sustituye-a"),
+        },
+    ),
+    Herramienta(
+        nombre="item_fases",
+        titulo="Fases de un ítem",
+        descripcion=(
             "Reemplaza las fases de un ítem con la lista inline `fases` o con "
             'el JSON de `fichero` (lista o {"fases": [...]}).'
         ),
-        "inputSchema": _esquema(
-            {
-                **_COMUNES,
-                "uid": {"type": "string"},
-                "fases": {"type": "array", "items": {"type": "object"}},
-                "fichero": {"type": "string"},
-            },
-            ["uid"],
-        ),
-    },
-    {
-        "name": "item_requisito",
-        "description": "Marca o desmarca un requisito conservando estados, notas y el resto.",
-        "inputSchema": _esquema(
-            {
-                **_COMUNES,
-                "uid": {"type": "string"},
-                "fase": {"type": "integer", "minimum": 1},
-                "requisito": {"type": "integer", "minimum": 1},
-                "hecho": {"type": "boolean"},
-            },
-            ["uid", "fase", "requisito", "hecho"],
-        ),
-    },
-    {
-        "name": "migrate_apply",
-        "description": "Aplica un plan.json como lote atómico; repetirlo devuelve el mismo lote.",
-        "inputSchema": _esquema({**_COMUNES, "plan": {"type": "string"}}, ["plan"]),
-    },
-    {
-        "name": "migrate_undo",
-        "description": "Deshace un lote si sus ítems no cambiaron de carril ni se editaron.",
-        "inputSchema": _esquema({**_COMUNES, "lote": {"type": "string"}}, ["lote"]),
-    },
+        orden=("item", "fases"),
+        escritura=True,
+        campos={
+            **_comun(),
+            "uid": Campo(posicional=1, requerido=True),
+            "fases": Campo(tipo="array", elemento="object", posicional=2, temporal=True),
+            "fichero": Campo(posicional=2),
+        },
+    ),
+    Herramienta(
+        nombre="item_requisito",
+        titulo="Marcar un requisito",
+        descripcion="Marca o desmarca un requisito conservando estados, notas y el resto.",
+        orden=("item", "requisito"),
+        escritura=True,
+        campos={
+            **_comun(),
+            "uid": Campo(posicional=1, requerido=True),
+            "fase": Campo(tipo="integer", minimo=1, posicional=2, requerido=True),
+            "requisito": Campo(tipo="integer", minimo=1, posicional=3, requerido=True),
+            "hecho": Campo(tipo="boolean", requerido=True, pareja=("--hecho", "--pendiente")),
+        },
+    ),
+    Herramienta(
+        nombre="migrate_apply",
+        titulo="Aplicar un plan",
+        descripcion="Aplica un plan.json como lote atómico; repetirlo devuelve el mismo lote.",
+        orden=("migrate", "apply"),
+        escritura=True,
+        idempotente=True,
+        campos={
+            **_comun(),
+            "plan": Campo(posicional=1, requerido=True),
+        },
+    ),
+    Herramienta(
+        nombre="migrate_undo",
+        titulo="Deshacer un lote",
+        descripcion="Deshace un lote si sus ítems no cambiaron de carril ni se editaron.",
+        orden=("migrate", "undo"),
+        escritura=True,
+        destructiva=True,
+        campos={
+            **_comun(),
+            "lote": Campo(posicional=1, requerido=True),
+        },
+    ),
+)
+
+HERRAMIENTAS = {herramienta.nombre: herramienta for herramienta in _CATALOGO}
+HERRAMIENTAS_ESCRITURA = frozenset(
+    herramienta.nombre for herramienta in _CATALOGO if herramienta.escritura
 )
 
 
-HERRAMIENTAS = {herramienta["name"]: herramienta for herramienta in (*_LECTURA, *_ESCRITURA)}
-HERRAMIENTAS_ESCRITURA = frozenset(herramienta["name"] for herramienta in _ESCRITURA)
-
-# Título corto de cada herramienta: es lo que enseña el cliente en su lista, así
-# que dice qué hace y no repite el nombre técnico.
-_TITULOS = {
-    "doctor": "Diagnóstico",
-    "repo_actual": "Repo actual",
-    "repo_list": "Repos del laboratorio",
-    "item_list": "Listar ítems",
-    "item_get": "Leer un ítem",
-    "mapa": "Mapa",
-    "migrate_scan": "Escanear documentos",
-    "migrate_classify": "Clasificar documentos",
-    "migrate_check": "Validar un plan",
-    "item_create": "Crear un ítem",
-    "item_edit": "Editar un ítem",
-    "item_move": "Mover un ítem",
-    "item_fases": "Fases de un ítem",
-    "item_requisito": "Marcar un requisito",
-    "migrate_apply": "Aplicar un plan",
-    "migrate_undo": "Deshacer un lote",
-}
-
-# El protocolo asume `destructiveHint: true` cuando no se dice nada, así que las
-# dos listas van explícitas: solo `migrate_undo` borra, y solo `migrate_apply`
-# se puede repetir sin efecto nuevo (la huella del plan devuelve el mismo lote).
-_DESTRUCTIVAS = frozenset({"migrate_undo"})
-_IDEMPOTENTES = frozenset({"migrate_apply"})
+def _esquema(herramienta: Herramienta) -> dict[str, Any]:
+    """El `inputSchema` de la herramienta, derivado de sus campos."""
+    esquema: dict[str, Any] = {
+        "type": "object",
+        "properties": {nombre: campo.esquema() for nombre, campo in herramienta.campos.items()},
+        "additionalProperties": False,
+    }
+    requeridos = [nombre for nombre, campo in herramienta.campos.items() if campo.requerido]
+    if requeridos:
+        esquema["required"] = requeridos
+    return esquema
 
 
-def _anotaciones(nombre: str) -> dict[str, Any]:
+def _anotaciones(herramienta: Herramienta) -> dict[str, Any]:
     """Las pistas de `tools/list`: qué lee, qué borra y qué se puede repetir."""
     return {
-        "title": _TITULOS.get(nombre, nombre),
-        "readOnlyHint": nombre not in HERRAMIENTAS_ESCRITURA,
-        "destructiveHint": nombre in _DESTRUCTIVAS,
-        "idempotentHint": nombre in _IDEMPOTENTES,
+        "title": herramienta.titulo,
+        "readOnlyHint": not herramienta.escritura,
+        "destructiveHint": herramienta.destructiva,
+        "idempotentHint": herramienta.idempotente,
         # Todo es local: el repo y el core en loopback, nunca un servicio fuera.
         "openWorldHint": False,
     }
@@ -366,12 +432,16 @@ _SALIDAS: dict[str, dict[str, Any]] = {
 }
 
 
-def _herramienta_publica(herramienta: dict[str, Any]) -> dict[str, Any]:
-    """Lo que ve el cliente: la herramienta, sus pistas y su salida si la hay."""
-    nombre = herramienta["name"]
-    publica = {**herramienta, "annotations": _anotaciones(nombre)}
-    if nombre in _SALIDAS:
-        publica["outputSchema"] = _SALIDAS[nombre]
+def _herramienta_publica(herramienta: Herramienta) -> dict[str, Any]:
+    """Lo que ve el cliente: el catálogo, sus pistas y su salida si la hay."""
+    publica = {
+        "name": herramienta.nombre,
+        "description": herramienta.descripcion,
+        "inputSchema": _esquema(herramienta),
+        "annotations": _anotaciones(herramienta),
+    }
+    if herramienta.nombre in _SALIDAS:
+        publica["outputSchema"] = _SALIDAS[herramienta.nombre]
     return publica
 
 
@@ -410,12 +480,11 @@ def _lista_herramientas(
     el agente no las intenta. `tools/call` las rechaza igual, porque la lista
     puede venir de antes del cambio de mapa.
     """
-    disponibles = [*_LECTURA, *_ESCRITURA] if permitir_escritura else [*_LECTURA]
     fuera = cerradas or {}
     return [
         _herramienta_publica(herramienta)
-        for herramienta in disponibles
-        if herramienta["name"] not in fuera
+        for herramienta in _CATALOGO
+        if (permitir_escritura or not herramienta.escritura) and herramienta.nombre not in fuera
     ]
 
 
@@ -443,7 +512,7 @@ def _sugerencia(nombre: str, campo: str) -> str | None:
     if directa is not None and directa != nombre:
         return directa
     for otra, herramienta in HERRAMIENTAS.items():
-        if otra != nombre and campo in herramienta["inputSchema"]["properties"]:
+        if otra != nombre and campo in herramienta.campos:
             return otra
     return None
 
@@ -487,18 +556,18 @@ def _validar_entrada(nombre: str, argumentos: dict[str, Any]) -> str | None:
     que cumple el anuncio. Se llama antes de `_orden`, así que una clave
     desconocida no llega a descartarse en silencio.
     """
-    esquema = HERRAMIENTAS[nombre]["inputSchema"]
-    propiedades = esquema.get("properties") or {}
+    herramienta = HERRAMIENTAS[nombre]
+    campos = herramienta.campos
     for campo in argumentos:
-        if campo not in propiedades:
+        if campo not in campos:
             otra = _sugerencia(nombre, campo)
             aviso = f"campo desconocido: {campo}"
             return f"{aviso} (usa {otra})" if otra else aviso
-    for campo in esquema.get("required") or ():
-        if argumentos.get(campo) is None:
+    for campo, definicion in campos.items():
+        if definicion.requerido and argumentos.get(campo) is None:
             return f"falta el campo obligatorio: {campo}"
     for campo, valor in argumentos.items():
-        problema = _validar_valor(campo, valor, propiedades[campo])
+        problema = _validar_valor(campo, valor, campos[campo].esquema())
         if problema is not None:
             return problema
     return None
@@ -515,129 +584,86 @@ def _comunes(argumentos: dict[str, Any], *, con_repo: bool = True) -> list[str]:
     return extras
 
 
+def _temporal(datos: Any) -> str:
+    """Un JSON en un fichero temporal: es como el CLI recibe listas y objetos."""
+    with tempfile.NamedTemporaryFile(
+        "w", suffix=".json", delete=False, encoding="utf-8"
+    ) as fichero:
+        json.dump(datos, fichero, ensure_ascii=False)
+        return fichero.name
+
+
 def _orden(nombre: str, a: dict[str, Any]) -> tuple[list[str], str | None]:
-    """El argv del CLI para una herramienta; el segundo valor es un temporal."""
+    """El argv del CLI para una herramienta; el segundo valor es un temporal.
+
+    Todo sale del catálogo: un posicional ocupa su hueco, una bandera se escribe
+    con su valor, un repetible se escribe una vez por elemento, una pareja elige
+    su forma según el booleano y lo que no cabe en la línea viaja en un fichero
+    que se borra al terminar.
+    """
+    herramienta = HERRAMIENTAS[nombre]
+    argv = [*herramienta.orden]
     temporal: str | None = None
-    if nombre == "doctor":
-        argv = ["doctor"]
-    elif nombre == "repo_actual":
-        argv = ["repo"]
-    elif nombre == "repo_list":
-        argv = ["repo", "list"]
-    elif nombre == "item_list":
-        argv = ["item", "list"]
-        if a.get("status"):
-            argv += ["--status", str(a["status"])]
-        if a.get("kind"):
-            argv += ["--kind", str(a["kind"])]
-        if a.get("limit") is not None:
-            argv += ["--limit", str(int(a["limit"]))]
-        if a.get("offset") is not None:
-            argv += ["--offset", str(int(a["offset"]))]
-    elif nombre == "item_get":
-        argv = ["item", "get", str(a["uid"])]
-    elif nombre == "mapa":
-        argv = ["mapa"]
-    elif nombre == "item_create":
-        argv = ["item", "create", "--title", str(a["title"])]
-        for clave, bandera in (
-            ("description", "--description"),
-            ("content", "--content"),
-            ("kind", "--kind"),
-            ("status", "--status"),
-        ):
-            if a.get(clave) is not None:
-                argv += [bandera, str(a[clave])]
-        for tag in a.get("tags") or []:
-            argv += ["--tag", str(tag)]
-        for dep in a.get("depende_de") or []:
-            argv += ["--dep", str(dep)]
-        if a.get("fases") is not None:
-            fases = a["fases"]
-            if not isinstance(fases, list):
-                raise ValueError("`fases` tiene que ser una lista")
-            with tempfile.NamedTemporaryFile(
-                "w", suffix=".json", delete=False, encoding="utf-8"
-            ) as fichero:
-                json.dump(fases, fichero, ensure_ascii=False)
-                temporal = fichero.name
-            argv += ["--fases", temporal]
-    elif nombre == "item_edit":
-        argv = ["item", "edit", str(a["uid"])]
-        for clave, bandera in (
-            ("title", "--title"),
-            ("description", "--description"),
-            ("content", "--content"),
-        ):
-            if a.get(clave) is not None:
-                argv += [bandera, str(a[clave])]
-        if a.get("limpiar_tags"):
-            argv += ["--sin-etiquetas"]
+
+    huecos = sorted(
+        {
+            campo.posicional
+            for clave, campo in herramienta.campos.items()
+            if campo.posicional is not None and clave not in _COMUNES
+        }
+    )
+    for hueco in huecos:
+        elegido = next(
+            (
+                (clave, campo)
+                for clave, campo in herramienta.campos.items()
+                if campo.posicional == hueco and clave not in _COMUNES and a.get(clave) is not None
+            ),
+            None,
+        )
+        if elegido is None:
+            continue
+        clave, campo = elegido
+        valor = a[clave]
+        if campo.temporal:
+            if not isinstance(valor, list):
+                raise ValueError(f"`{clave}` tiene que ser una lista")
+            argv.append(_temporal(valor))
+            temporal = argv[-1]
         else:
-            for tag in a.get("tags") or []:
-                argv += ["--tag", str(tag)]
-        if a.get("limpiar_dependencias"):
-            argv += ["--sin-dependencias"]
+            argv.append(str(valor))
+
+    for clave, campo in herramienta.campos.items():
+        if clave in _COMUNES or campo.posicional is not None:
+            continue
+        valor = a.get(clave)
+        if campo.omite_si and a.get(campo.omite_si):
+            continue
+        if campo.pareja is not None:
+            if valor:
+                argv.append(campo.pareja[0])
+            elif campo.pareja[1] is not None:
+                argv.append(campo.pareja[1])
+            continue
+        if valor is None:
+            continue
+        if campo.bandera is None:
+            raise KeyError(f"{nombre}.{clave} no dice cómo viajar al CLI")
+        if campo.repetible:
+            for elemento in valor:
+                argv += [campo.bandera, str(elemento)]
+        elif campo.temporal:
+            if not isinstance(valor, list):
+                raise ValueError(f"`{clave}` tiene que ser una lista")
+            argv += [campo.bandera, _temporal(valor)]
+            temporal = argv[-1]
         else:
-            for dep in a.get("depende_de") or []:
-                argv += ["--dep", str(dep)]
-    elif nombre == "item_move":
-        argv = ["item", "move", str(a["uid"]), str(a["status"])]
-        for clave, bandera in (
-            ("resultado", "--resultado"),
-            ("referencia", "--referencia"),
-            ("verificacion_resultado", "--verificacion-resultado"),
-            ("verificacion_comentario", "--verificacion-comentario"),
-            ("aprobado_por", "--aprobado-por"),
-            ("nota", "--nota"),
-            ("motivo", "--motivo"),
-            ("descartado_por", "--descartado-por"),
-            ("sustituye_a", "--sustituye-a"),
-        ):
-            if a.get(clave) is not None:
-                argv += [bandera, str(a[clave])]
-    elif nombre == "item_fases":
-        if a.get("fichero"):
-            ruta = str(a["fichero"])
-        else:
-            fases = a.get("fases")
-            if not isinstance(fases, list):
-                raise ValueError("da `fases` (lista) o `fichero`")
-            with tempfile.NamedTemporaryFile(
-                "w", suffix=".json", delete=False, encoding="utf-8"
-            ) as fichero:
-                json.dump(fases, fichero, ensure_ascii=False)
-                temporal = fichero.name
-            ruta = temporal
-        argv = ["item", "fases", str(a["uid"]), ruta]
-    elif nombre == "item_requisito":
-        argv = [
-            "item",
-            "requisito",
-            str(a["uid"]),
-            str(int(a["fase"])),
-            str(int(a["requisito"])),
-            "--hecho" if a.get("hecho") else "--pendiente",
-        ]
-    elif nombre == "migrate_scan":
-        argv = ["migrate", "scan"]
-        if a.get("ruta"):
-            argv.append(str(a["ruta"]))
-    elif nombre == "migrate_classify":
-        argv = ["migrate", "classify"]
-        if a.get("ruta"):
-            argv.append(str(a["ruta"]))
-    elif nombre == "migrate_check":
-        argv = ["migrate", "check", str(a["plan"])]
-    elif nombre == "migrate_apply":
-        argv = ["migrate", "apply", str(a["plan"])]
-    elif nombre == "migrate_undo":
-        argv = ["migrate", "undo", str(a["lote"])]
-    else:
-        raise KeyError(f"herramienta desconocida: {nombre}")
+            argv += [campo.bandera, str(valor)]
+    if herramienta.nombre == "item_fases" and "fases" not in a and not a.get("fichero"):
+        raise ValueError("da `fases` (lista) o `fichero`")
 
     argv += ["--json"]
-    argv += _comunes(a, con_repo=nombre != "repo_list")
+    argv += _comunes(a, con_repo=herramienta.con_repo)
     return argv, temporal
 
 

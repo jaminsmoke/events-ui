@@ -45,10 +45,3 @@ export function guardarAjustes(ajustes: Ajustes): void {
   }
 }
 
-export function avisaEventos(ajustes: Ajustes): boolean {
-  return ajustes.verbosidad === "eventos" || ajustes.verbosidad === "todo";
-}
-
-export function avisaErrores(ajustes: Ajustes): boolean {
-  return ajustes.verbosidad === "errores" || ajustes.verbosidad === "todo";
-}

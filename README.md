@@ -98,7 +98,8 @@ UI: el webview de Tauri, el mismo origen del core (la web montada en
 comas, p. ej. `http://localhost:15176`). `EVENTSUI_DESARROLLO=1` —lo ponen
 `pnpm dev` y el runner e2e— abre además cualquier `http` de bucle local,
 porque Vite salta de puerto; sin esa variable, otro dev server local recibe
-403.
+403. La misma lista decide CORS: una web estática con `VITE_API_URL` apuntando
+al core tiene que estar en `EVENTSUI_ORIGENES` para poder leer las respuestas.
 
 La raíz elegida y el puerto también viven en `config.json`, dentro de los datos
 del usuario (`%LOCALAPPDATA%/EventsUI`; `EVENTSUI_CONFIG` cambia la ruta), no

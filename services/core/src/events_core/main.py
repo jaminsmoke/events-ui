@@ -105,11 +105,24 @@ def _origen_permitido(origen: str, *, host: str | None = None, esquema: str = "h
     return _en_desarrollo() and _es_bucle_local(normalizado)
 
 
+class _CORSDeLaUI(CORSMiddleware):
+    """CORS con la misma allowlist que las mutaciones.
+
+    Starlette pregunta por cada origen a `is_allowed_origin`, así que la lista
+    no se congela al montar la app: `EVENTSUI_ORIGENES` y el comodín de
+    desarrollo valen también para LEER, que es lo que promete `VITE_API_URL`.
+    """
+
+    def is_allowed_origin(self, origin: str) -> bool:
+        return _origen_permitido(origin)
+
+
 app = FastAPI(title="Events UI Core", version=__version__)
 
 app.add_middleware(
-    CORSMiddleware,
-    allow_origins=list(ORIGENES_PERMITIDOS),
+    _CORSDeLaUI,
+    # La lista la decide `is_allowed_origin`: no se repite aquí.
+    allow_origins=[],
     allow_methods=["GET", "POST", "PATCH", "DELETE"],
     expose_headers=["Last-Event-ID"],
     allow_headers=["content-type"],

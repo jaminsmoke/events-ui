@@ -65,7 +65,8 @@ export type ErrorDetalle = Schemas["ErrorDetail"];
 /** Base de la API. Por defecto `/api`: en dev Vite lo proxyfica al core
  *  (el puerto de `puerto.json`) tanto en la web como en Tauri. Una web servida
  *  como estático puede apuntar directo con `VITE_API_URL` al core; en ese caso
- *  el core tiene que permitir su origen en CORS. */
+ *  el core tiene que listar su origen en `EVENTSUI_ORIGENES` (CORS y
+ *  mutaciones usan la misma lista). */
 export const API_BASE = import.meta.env.VITE_API_URL?.replace(/\/$/, "") ?? "/api";
 
 /** Cliente tipado por `paths` (el OpenAPI generado): ruta, query, path params

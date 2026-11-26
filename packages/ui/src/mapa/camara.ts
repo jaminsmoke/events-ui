@@ -294,10 +294,13 @@ export function useCamara({
    * el diálogo de descartar no le sigue un encuadre de regalo. */
   useEffect(() => {
     const teclas = (e: KeyboardEvent) => {
+      // Un diálogo abierto manda: `f` o `0` no pueden mover la cámara detrás.
+      if (document.querySelector('dialog[open], [role="dialog"], .modal-fondo')) return;
       if (
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLSelectElement ||
         e.target instanceof HTMLTextAreaElement ||
+        (e.target instanceof HTMLElement && e.target.isContentEditable) ||
         e.ctrlKey ||
         e.metaKey ||
         e.altKey

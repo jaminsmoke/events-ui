@@ -60,6 +60,9 @@ export function useAtajosLienzo({
     }
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
+      // El diálogo abierto gestiona su propio Escape; el lienzo no suelta la
+      // selección que hay detrás.
+      if (document.querySelector('dialog[open], [role="dialog"], .modal-fondo')) return;
       // El visor ocupa el centro: Escape lo cierra antes que nada.
       if (archivoAbierto && vistaDerecha === "archivo") {
         setVistaDerecha(null);
@@ -83,7 +86,7 @@ export function useAtajosLienzo({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.altKey || e.ctrlKey || e.metaKey || paradas.length === 0) return;
-      if (document.querySelector("dialog[open]")) return;
+      if (document.querySelector('dialog[open], [role="dialog"], .modal-fondo')) return;
       const destino = e.target instanceof HTMLElement ? e.target : null;
       const escribiendo =
         !!destino &&

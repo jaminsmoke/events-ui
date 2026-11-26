@@ -43,6 +43,35 @@ from .trabajo.anotacion import (
 from .trabajo.fases import _escribir_fases, _fases, _normalizar_fases
 
 
+def _mensaje_integridad(exc: sqlite3.IntegrityError) -> str:
+    """Traduce la restricción que saltó a un 400 que se entiende.
+
+    Los índices parciales de `work_item_node` son la última red: con la
+    transacción inmediata no deberían saltar, pero si saltan el mensaje tiene
+    que decir qué pasó y no hablar de `superseded_by_uid`.
+    """
+    texto = str(exc)
+    if "work_item_roadmap_unico" in texto:
+        return "roadmap solo admite un item activo: ya hay uno en curso"
+    if "work_item_cola_orden" in texto:
+        return "la cola cambió mientras se guardaba el ítem: reintenta"
+    return "superseded_by_uid apunta a un ítem que no existe"
+
+
+def _huella_fases(fases: list[dict[str, Any]]) -> list[tuple[Any, ...]]:
+    """Lo de las fases que decide el plan, sin los archivos anotados."""
+    return [
+        (
+            fase["orden"],
+            fase["titulo"],
+            fase["estado"],
+            fase["nota"],
+            tuple((r["orden"], r["titulo"], bool(r["hecho"])) for r in fase["requisitos"]),
+        )
+        for fase in fases
+    ]
+
+
 def create_item(
     repo: str,
     *,
@@ -78,46 +107,53 @@ def create_item(
             # sabe: mejor eso que perder el alta.
             registro.escribir("aviso", f"No se pudo fotografiar el árbol de {uid}: {exc}")
     with closing(connect(db)) as conn:
-        deps = _validar_dependencias(conn, uid, list(depende_de))
-        _comprobar_dependencias(conn, uid, status, deps)
-        datos = conn.execute(
-            "INSERT INTO work_item_data"
-            " (uid, title, description, content, kind, tags, depende_de,"
-            " created_at, updated_at)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (
-                uid,
-                title,
-                description,
-                content,
-                kind,
-                json.dumps(list(tags)),
-                json.dumps(deps),
-                ts,
-                ts,
-            ),
-        )
-        # El nodo nace en la entrada y `_escribir_estado` lo mueve si el ítem
-        # se creó ya en otro carril, en la misma transacción.
-        # La fecha y el `id` se copian al nodo (0033): son el filtro y el orden
-        # del listado, y ninguno cambia nunca, a diferencia de `entered_at`.
-        conn.execute(
-            "INSERT INTO work_item_node (uid, estado, posicion, created_at, id, entered_at)"
-            " VALUES (?, 'draft', NULL, ?, ?, ?)",
-            (uid, ts, datos.lastrowid, ts),
-        )
-        _escribir_estado(conn, uid, status, {})
-        # Las fases entran en la misma transacción que el ítem: o nace completa
-        # o no nace.
-        if fases_finales is not None:
-            _escribir_fases(conn, uid, fases_finales)
-        # Nacer ya en roadmap también es entrar: sin foto de partida, la primera
-        # fase anotaría como suyo todo el árbol que ya estaba. Se guarda aquí,
-        # pero se tomó antes del BEGIN (ver `foto_inicial`).
-        if foto_inicial is not None:
-            _foto_guardar(conn, uid, foto_inicial)
-        _emitir(conn, "item.created", {"uid": uid, "title": title})
-        conn.commit()
+        # Alta y comprobación del carril en una transacción inmediata: dos
+        # altas a la vez no pueden leer el mismo `max(posicion)` ni el mismo
+        # roadmap, ni validar dependencias contra un almacén que cambia.
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            deps = _validar_dependencias(conn, uid, list(depende_de))
+            _comprobar_dependencias(conn, uid, status, deps)
+            datos = conn.execute(
+                "INSERT INTO work_item_data"
+                " (uid, title, description, content, kind, tags, depende_de,"
+                " created_at, updated_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    uid,
+                    title,
+                    description,
+                    content,
+                    kind,
+                    json.dumps(list(tags)),
+                    json.dumps(deps),
+                    ts,
+                    ts,
+                ),
+            )
+            # El nodo nace en la entrada y `_escribir_estado` lo mueve si el ítem
+            # se creó ya en otro carril, en la misma transacción.
+            # La fecha y el `id` se copian al nodo (0033): son el filtro y el orden
+            # del listado, y ninguno cambia nunca, a diferencia de `entered_at`.
+            conn.execute(
+                "INSERT INTO work_item_node (uid, estado, posicion, created_at, id, entered_at)"
+                " VALUES (?, 'draft', NULL, ?, ?, ?)",
+                (uid, ts, datos.lastrowid, ts),
+            )
+            _escribir_estado(conn, uid, status, {})
+            # Las fases entran en la misma transacción que el ítem: o nace completa
+            # o no nace.
+            if fases_finales is not None:
+                _escribir_fases(conn, uid, fases_finales)
+            # Nacer ya en roadmap también es entrar: sin foto de partida, la primera
+            # fase anotaría como suyo todo el árbol que ya estaba. Se guarda aquí,
+            # pero se tomó antes del BEGIN (ver `foto_inicial`).
+            if foto_inicial is not None:
+                _foto_guardar(conn, uid, foto_inicial)
+            _emitir(conn, "item.created", {"uid": uid, "title": title})
+            conn.commit()
+        except sqlite3.IntegrityError as exc:
+            raise InvalidInput(_mensaje_integridad(exc)) from exc
     return get_item(repo, uid)
 
 
@@ -170,8 +206,42 @@ def update_item(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
         # fila de cola, de roadmap, de verificación, de revisión aprobada o
         # de descartada. Sin cambio (o reafirmando el mismo), se edita la
         # ficha activa.
+        cambiado_estado = nuevo_estado is not None and nuevo_estado != actual
+        # Las fases se reemplazan enteras y se validan antes de escribir nada:
+        # el gate mira lo que quedará, no lo que había.
+        fases_finales = (
+            _normalizar_fases(fases_pedidas, fases_previas) if fases_pedidas is not None else None
+        )
+        if fases_finales is not None:
+            _validar_fases_en_lane(destino, fases_finales)
+            _validar_fases_completadas(fases_finales)
+        # El gate mira la lista que quedará: la que llega en este PATCH o,
+        # si no hay, la que ya tiene el ítem.
+        fases_quedan = (
+            (fases_finales if fases_finales is not None else fases_previas)
+            if cambiado_estado
+            else []
+        )
+        # El árbol se lee aquí, con la transacción todavía sin abrir: el lock
+        # de escritura no cubre el recorrido ni el `git diff`, y un PATCH con
+        # varias fases hace uno de cada.
+        plan_archivos = _plan_de_eventos(
+            fases_previas,
+            fases_finales if fases_finales is not None else fases_previas,
+            inicio=cambiado_estado and _grupo(str(nuevo_estado)) == "roadmap",
+        )
+        anotacion = _planificar_anotacion(conn, repo, uid, plan_archivos)
+        # Comprobar y escribir, en la misma transacción inmediata: si no, dos
+        # PATCH a la vez leen «no hay nadie en roadmap» los dos y el índice
+        # único para al segundo con un error que no explica nada.
+        conn.execute("BEGIN IMMEDIATE")
         try:
-            cambiado_estado = nuevo_estado is not None and nuevo_estado != actual
+            # Otra petición pudo escribir entre la lectura y el lock: el plan
+            # se calculó con datos que ya no valen.
+            if _estado(conn, uid) != actual or _huella_fases(_fases(conn, uid)) != _huella_fases(
+                fases_previas
+            ):
+                raise InvalidInput("el ítem cambió mientras se preparaba el PATCH: reintenta")
             # Los protocolos mandan sobre el flujo: una unión no listada
             # se rechaza (400) y no escribe nada.
             if cambiado_estado and not _protocolo_ok(conn, actual, nuevo_estado):
@@ -181,23 +251,6 @@ def update_item(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
                 )
             if cambiado_estado:
                 _comprobar_dependencias(conn, uid, nuevo_estado, deps_nuevas)
-            # Las fases se reemplazan enteras y se validan antes de escribir
-            # nada: el gate mira lo que quedará, no lo que había.
-            fases_finales = (
-                _normalizar_fases(fases_pedidas, fases_previas)
-                if fases_pedidas is not None
-                else None
-            )
-            if fases_finales is not None:
-                _validar_fases_en_lane(destino, fases_finales)
-                _validar_fases_completadas(fases_finales)
-            # El gate mira la lista que quedará: la que llega en este PATCH o,
-            # si no hay, la que ya tiene el ítem.
-            fases_quedan = (
-                (fases_finales if fases_finales is not None else fases_previas)
-                if cambiado_estado
-                else []
-            )
             if cambiado_estado and _exige_fases(conn, actual, nuevo_estado) and not fases_quedan:
                 raise InvalidInput(
                     f"el protocolo exige al menos una fase para pasar a {nuevo_estado}"
@@ -224,15 +277,6 @@ def update_item(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
                     )
             if cambiado_estado and _grupo(nuevo_estado) in ("revision_aprobada", "historial"):
                 _validar_aprobacion_total(fases_quedan)
-            # El árbol se lee aquí, con la transacción todavía sin abrir: el
-            # lock de escritura no cubre el recorrido ni el `git diff`, y un
-            # PATCH con varias fases hace uno de cada.
-            plan_archivos = _plan_de_eventos(
-                fases_previas,
-                fases_finales if fases_finales is not None else fases_previas,
-                inicio=cambiado_estado and _grupo(str(nuevo_estado)) == "roadmap",
-            )
-            anotacion = _planificar_anotacion(conn, repo, uid, plan_archivos)
             cursor = conn.execute(
                 f"UPDATE work_item_data SET {assignments} WHERE uid = :uid",
                 {**clean, "uid": uid},
@@ -273,9 +317,10 @@ def update_item(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
             )
             conn.commit()
         except sqlite3.IntegrityError as exc:
-            # `superseded_by_uid` apunta a un ítem que no existe: es un dato
-            # mal puesto (400), no un fallo del servidor (500).
-            raise InvalidInput("superseded_by_uid apunta a un ítem que no existe") from exc
+            # El dato mal puesto es un 400, no un fallo del servidor (500). Con
+            # la transacción inmediata los índices de roadmap y cola no
+            # deberían saltar; si saltan, el mensaje dice cuál.
+            raise InvalidInput(_mensaje_integridad(exc)) from exc
     return item
 
 

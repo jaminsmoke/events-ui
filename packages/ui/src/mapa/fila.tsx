@@ -11,7 +11,7 @@ import type { TreeNode } from "./arbol";
 import { ETIQUETA_ESTADO, sePuedeEliminar } from "./carriles";
 import type { Status } from "./carriles";
 import { FasesIdea } from "./fases";
-import { comoFases, type Fase } from "./fase";
+import { comoFases, mismasFases, type Fase } from "./fase";
 import { FichaFases } from "./ficha-fases";
 import { fechaCorta } from "./formato";
 import { mismoElemento } from "./seleccion";
@@ -105,13 +105,19 @@ export function NodeRow({
   const fases = node.item?.fases ?? [];
   // Copia optimista compartida por la fila y la ficha: el mapa tarda en
   // refrescar y dos cambios seguidos no pueden reenviar la lista vieja (el
-  // PATCH la reemplaza entera). Vale solo mientras la prop sea la misma;
-  // cuando el mapa trae otra lista, manda el mapa.
+  // PATCH la reemplaza entera). Se compara por contenido: cada relectura del
+  // mapa trae arrays nuevos aunque nada haya cambiado, y comparar por
+  // identidad soltaba la copia a mitad del PATCH. Manda la copia mientras el
+  // servidor siga en lo que había o ya tenga lo enviado; si trae otra cosa
+  // (otro cliente), manda el mapa.
   const [optimista, setOptimista] = useState<{
     base: readonly Fase[];
     fases: readonly Fase[];
   } | null>(null);
-  const vistaFases = optimista?.base === fases ? optimista.fases : fases;
+  const vistaFases =
+    optimista && (mismasFases(fases, optimista.base) || mismasFases(fases, optimista.fases))
+      ? optimista.fases
+      : fases;
   const guardarFases = (siguientes: readonly Fase[]) => {
     if (!onEditar || !uid) return Promise.resolve();
     setOptimista({ base: fases, fases: siguientes });

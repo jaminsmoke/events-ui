@@ -13,6 +13,7 @@ import {
   largo,
   puntoEnTrazo,
   repartirCompuertas,
+  salida,
   trazoDe,
 } from "../src/mapa/geometria.ts";
 
@@ -45,6 +46,26 @@ test("puntoEnTrazo reparte por longitud y clampa la fracción", () => {
 test("puntoEnTrazo sin puntos no inventa coordenadas", () => {
   assert.deepEqual(puntoEnTrazo([], 0.5), { x: 0, y: 0, angulo: 0 });
   assert.deepEqual(puntoEnTrazo([{ x: 4, y: 9 }], 0.5), { x: 4, y: 9, angulo: 0 });
+});
+
+/** Los ángulos salen de `atan2`, así que se comparan con tolerancia. */
+function cerca(actual, esperado) {
+  assert.ok(Math.abs(actual - esperado) < 1e-9, `${actual} no es ${esperado}`);
+}
+
+test("salida da el ángulo del primer tramo que sale del nudo", () => {
+  const nudo = { id: "n", x: 50, y: 50, lado: 0 };
+  cerca(salida({ puntos: [{ x: 50, y: 50 }, { x: 120, y: 50 }] }, nudo), 0);
+  cerca(salida({ puntos: [{ x: 50, y: 50 }, { x: 50, y: 0 }] }, nudo), -90);
+  cerca(salida({ puntos: [{ x: 50, y: 50 }, { x: 50, y: 120 }] }, nudo), 90);
+  cerca(salida({ puntos: [{ x: 50, y: 50 }, { x: 0, y: 50 }] }, nudo), 180);
+});
+
+test("salida tolera medio píxel y mide desde el primer tramo si no encuentra el nudo", () => {
+  const nudo = { id: "n", x: 50, y: 50, lado: 0 };
+  cerca(salida({ puntos: [{ x: 50.4, y: 50.2 }, { x: 0, y: 50.2 }] }, nudo), 180);
+  cerca(salida({ puntos: [{ x: 0, y: 0 }, { x: 0, y: 10 }] }, nudo), 90);
+  assert.equal(salida({ puntos: [] }, nudo), 0);
 });
 
 test("duracionChispa acota entre 0,42 y 1,05 s", () => {

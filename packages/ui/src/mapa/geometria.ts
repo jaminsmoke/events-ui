@@ -5,6 +5,8 @@
  *  funciones; todo lo que se puede probar sin ventana vive aquí.
  */
 
+import type { Union } from "./protocolos";
+
 /** Un punto del trazado, en píxeles locales del mapa. */
 export type Punto = { x: number; y: number };
 
@@ -33,7 +35,7 @@ export type Nudo = {
 export type TramoCompuerta = {
   puntos: readonly Punto[];
   nudo?: string;
-  uniones: readonly unknown[];
+  uniones: readonly Union[];
   /** Archivar no es una unión: la compuerta se abre porque el destino está
    *  disponible. Una compuerta apagada no ocupa sitio en el rombo. */
   abierta?: boolean;

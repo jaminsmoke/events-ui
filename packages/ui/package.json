@@ -1,7 +1,7 @@
 {
   "name": "@events-ui/ui",
   "private": true,
-  "version": "0.5.16",
+  "version": "0.5.17",
   "description": "UI compartida de Events UI: el mapa de trabajo, sin envoltorio (ni Tauri ni web).",
   "type": "module",
   "exports": {

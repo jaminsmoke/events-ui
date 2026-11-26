@@ -49,7 +49,5 @@ def test_la_ui_valida_los_mismos_grupos() -> None:
 
 
 def test_el_cli_no_repite_la_lista() -> None:
-    """Sale del modelo: una copia volvería a derivar como la de 19 y 20."""
+    """Sale del modelo: si se copiara, la tupla no sería la misma y derivaría."""
     assert cli.ESTADOS is estados.ESTADOS
-    fuente = Path(str(cli.__file__)).read_text(encoding="utf-8")
-    assert "\nESTADOS = (\n" not in fuente

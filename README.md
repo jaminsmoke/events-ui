@@ -92,6 +92,14 @@ configuración, y comprueba el fichero `EVENTSUI_DB` (por defecto,
 `data/events.db`). El historial que ve la UI se lee de la tabla `event` del
 repositorio seleccionado.
 
+Las mutaciones (`POST`, `PATCH`, `DELETE`) solo aceptan orígenes de la propia
+UI: el webview de Tauri, el mismo origen del core (la web montada en
+`/webapp`) y lo que liste `EVENTSUI_ORIGENES` (orígenes completos separados por
+comas, p. ej. `http://localhost:15176`). `EVENTSUI_DESARROLLO=1` —lo ponen
+`pnpm dev` y el runner e2e— abre además cualquier `http` de bucle local,
+porque Vite salta de puerto; sin esa variable, otro dev server local recibe
+403.
+
 La raíz elegida y el puerto también viven en `config.json`, dentro de los datos
 del usuario (`%LOCALAPPDATA%/EventsUI`; `EVENTSUI_CONFIG` cambia la ruta), no
 solo en el `localStorage` del webview: la UI lo escribe al abrir una carpeta

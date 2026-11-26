@@ -54,7 +54,13 @@ function arrancarCore() {
   return spawn(
     "uv",
     ["run", "--directory", "services/core", "python", "-m", "events_core.serve"],
-    { cwd: ROOT, stdio: "inherit" },
+    {
+      cwd: ROOT,
+      stdio: "inherit",
+      // El core de dev abre el comodín de orígenes de bucle local: Vite sirve
+      // la UI en un puerto que puede no ser el de siempre.
+      env: { ...process.env, EVENTSUI_DESARROLLO: "1" },
+    },
   );
 }
 

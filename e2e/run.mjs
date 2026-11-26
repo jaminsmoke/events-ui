@@ -89,6 +89,9 @@ function arrancarCore(tmp, puerto) {
         // La UI escribe la raíz en la configuración compartida al abrir: que
         // caiga en el temporal del runner y no en el perfil del usuario.
         EVENTSUI_CONFIG: path.join(tmp, "config.json"),
+        // La UI del runner corre en un Vite propio: el core abre el comodín
+        // de orígenes de bucle local (el de producción no lo tiene).
+        EVENTSUI_DESARROLLO: "1",
       },
     },
   );

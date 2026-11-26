@@ -42,26 +42,67 @@ from .routers import migracion as rutas_migracion
 # Orígenes con derecho a llamar a la API: el webview de Tauri. CORS decide
 # quién puede LEER la respuesta; las mutaciones comprueban además el origen,
 # porque un POST simple de otra web se ejecuta igual aunque CORS esconda la
-# respuesta. La UI en dev entra por `_origen_permitido`, que no fija puerto.
+# respuesta.
+#
+# Modelo de confianza de las mutaciones (allowlist exacta, no comodín):
+# - el webview de Tauri;
+# - lo que liste `EVENTSUI_ORIGENES` (orígenes completos, separados por comas);
+# - el propio origen del core, que es el de la web montada en `/webapp`: un
+#   navegador manda `Origin` también en las peticiones del mismo origen.
+# El comodín de bucle local solo existe en desarrollo (`EVENTSUI_DESARROLLO`),
+# que ponen `pnpm dev` y el runner e2e: Vite salta de puerto y fijarlo dejaba
+# fuera a la UI de dev. Sin esa variable, otro dev server local recibe 403.
 ORIGENES_PERMITIDOS = (
     "tauri://localhost",
     "http://tauri.localhost",
 )
 
+ORIGENES_ENV_VAR = "EVENTSUI_ORIGENES"
+DESARROLLO_ENV_VAR = "EVENTSUI_DESARROLLO"
+_VERDADEROS = {"1", "true", "yes", "on", "si", "sí"}
 
-def _origen_permitido(origen: str) -> bool:
-    """El webview, o cualquier bucle local que use la UI en dev.
 
-    Vite salta al siguiente puerto si el 15175 está ocupado (la app abierta, el
-    runner e2e), y el navegador manda `Origin` con el puerto real: fijarlo
-    dejaba sin protestar solo a la UI del puerto por defecto, y un commit desde
-    otro se rechazaba con «origen no permitido». Se compara el host y no el
-    puerto; una web ajena no puede fingir ser localhost.
-    """
-    if origen in ORIGENES_PERMITIDOS:
-        return True
+def _en_desarrollo() -> bool:
+    """¿Este proceso se arrancó para desarrollo? Solo entonces vale el comodín."""
+    return os.environ.get(DESARROLLO_ENV_VAR, "").strip().lower() in _VERDADEROS
+
+
+def _normalizar_origen(origen: str) -> str:
+    """La forma en la que se comparan: sin barra final y en minúsculas."""
+    return origen.strip().rstrip("/").lower()
+
+
+def _origenes_extra() -> frozenset[str]:
+    """`EVENTSUI_ORIGENES`, ya normalizado."""
+    crudo = os.environ.get(ORIGENES_ENV_VAR, "")
+    return frozenset(_normalizar_origen(parte) for parte in crudo.split(",") if parte.strip())
+
+
+def _es_bucle_local(origen: str) -> bool:
+    """¿Es un `http` de la propia máquina, con el puerto que sea?"""
     partes = urlsplit(origen)
     return partes.scheme == "http" and partes.hostname in {"localhost", "127.0.0.1", "::1"}
+
+
+def _host_de_bucle(host: str) -> bool:
+    """¿El `Host` de la petición es de la propia máquina? (DNS rebinding, no)."""
+    return urlsplit(f"//{host}").hostname in {"localhost", "127.0.0.1", "::1"}
+
+
+def _origen_permitido(origen: str, *, host: str | None = None, esquema: str = "http") -> bool:
+    """¿Puede esta web mutar el almacén?
+
+    Se compara el origen entero (esquema, host y puerto), no solo el host: un
+    dev server de otro proyecto en `localhost:15176` no es esta UI. El único
+    atajo es el mismo origen del core, y solo si el `Host` es de bucle local:
+    así una web que se haga resolver a 127.0.0.1 (DNS rebinding) no entra.
+    """
+    normalizado = _normalizar_origen(origen)
+    if normalizado in ORIGENES_PERMITIDOS or normalizado in _origenes_extra():
+        return True
+    if host and _host_de_bucle(host) and normalizado == f"{esquema}://{host.strip().lower()}":
+        return True
+    return _en_desarrollo() and _es_bucle_local(normalizado)
 
 
 app = FastAPI(title="Events UI Core", version=__version__)
@@ -91,7 +132,11 @@ async def _origen_conocido(request: Request, call_next):
     if (
         request.method in METODOS_QUE_ESCRIBEN
         and origen is not None
-        and not _origen_permitido(origen)
+        and not _origen_permitido(
+            origen,
+            host=request.headers.get("host"),
+            esquema=request.url.scheme,
+        )
     ):
         return JSONResponse(status_code=403, content={"detail": "origen no permitido"})
     return await call_next(request)

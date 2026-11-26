@@ -18,13 +18,14 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 
+import { ARCHIVOS, CARGO_PATH, CORE_VERSION_PATH, RAIZ_JSON } from "./versiones.mjs";
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const VERSION_RE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 
 // La versión del core vive en `__version__` y no en el `version=` de
 // `FastAPI(...)`: así el CLI y el core leen el mismo literal y un
 // `lifespan=` nuevo no rompe `check:versions`.
-const CORE_VERSION_PATH = "services/core/src/events_core/__init__.py";
 const VERSION_PY_RE = /^__version__ = "([^"]+)"/m;
 
 function versionDeCore(texto) {
@@ -34,16 +35,6 @@ function versionDeCore(texto) {
 function conVersionDeCore(texto, version) {
   return texto.replace(VERSION_PY_RE, `__version__ = "${version}"`);
 }
-
-/** Los ficheros que llevan la versión, con el camino hasta el valor. */
-const ARCHIVOS = [
-  { ruta: "package.json", clave: "version" },
-  { ruta: "packages/ui/package.json", clave: "version" },
-  { ruta: "packages/protocols/package.json", clave: "version" },
-  { ruta: "apps/desktop/package.json", clave: "version" },
-  { ruta: "apps/web/package.json", clave: "version" },
-  { ruta: "apps/desktop/src-tauri/tauri.conf.json", clave: "version" },
-];
 
 function leerJson(ruta) {
   const texto = readFileSync(ruta, "utf8");
@@ -68,9 +59,9 @@ function vigentes() {
     const { datos } = leerJson(path.join(ROOT, ruta));
     versiones.set(ruta, datos[clave]);
   }
-  const cargo = readFileSync(path.join(ROOT, "apps/desktop/src-tauri/Cargo.toml"), "utf8");
+  const cargo = readFileSync(path.join(ROOT, CARGO_PATH), "utf8");
   const m = cargo.match(/^version = "([^"]+)"/m);
-  versiones.set("apps/desktop/src-tauri/Cargo.toml", m ? m[1] : "(sin version)");
+  versiones.set(CARGO_PATH, m ? m[1] : "(sin version)");
   const core = readFileSync(path.join(ROOT, CORE_VERSION_PATH), "utf8");
   versiones.set(CORE_VERSION_PATH, versionDeCore(core) ?? "(sin version)");
   return versiones;
@@ -84,7 +75,7 @@ if (argumento && !VERSION_RE.test(argumento)) {
 }
 
 const antes = vigentes();
-const actual = antes.get("package.json");
+const actual = antes.get(RAIZ_JSON);
 const destino = argumento ?? siguientePatch(actual);
 
 if (argumento === undefined) {
@@ -109,7 +100,7 @@ for (const { ruta, clave } of ARCHIVOS) {
 }
 
 // Cargo.toml: solo la línea `version = "..."` de la cabecera del paquete.
-const cargoRuta = path.join(ROOT, "apps/desktop/src-tauri/Cargo.toml");
+const cargoRuta = path.join(ROOT, CARGO_PATH);
 const cargo = readFileSync(cargoRuta, "utf8");
 writeFileSync(
   cargoRuta,
@@ -126,7 +117,7 @@ console.log(`Versiones actualizadas a ${destino}:`);
 for (const { ruta } of ARCHIVOS) {
   console.log(`  ${ruta}: ${antes.get(ruta)} → ${destino}`);
 }
-console.log(`  apps/desktop/src-tauri/Cargo.toml: ${antes.get("apps/desktop/src-tauri/Cargo.toml")} → ${destino}`);
+console.log(`  ${CARGO_PATH}: ${antes.get(CARGO_PATH)} → ${destino}`);
 console.log(`  ${CORE_VERSION_PATH}: ${antes.get(CORE_VERSION_PATH)} → ${destino}`);
 
 // El lockfile guarda la versión de la raíz: se sincroniza en el propio bump.

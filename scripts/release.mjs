@@ -21,6 +21,8 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { FICHEROS_DEL_RELEASE, RAIZ_JSON } from "./versiones.mjs";
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 // Un solo flag (`--esperar`) y, como mucho, la versión suelta. Cualquier otro
@@ -51,7 +53,7 @@ function paso(nombre, comando, { cwd: directorio = ROOT, opcional = false } = {}
 }
 
 // La versión que dice la raíz (fuente de verdad, ver `scripts/bump.mjs`).
-const version = ARGUMENTO ?? JSON.parse(readFileSync(path.join(ROOT, "package.json"), "utf8")).version;
+const version = ARGUMENTO ?? JSON.parse(readFileSync(path.join(ROOT, RAIZ_JSON), "utf8")).version;
 console.log(`Release v${version}`);
 
 paso(`bump a ${version}`, `node scripts/bump.mjs ${version}`);
@@ -62,23 +64,9 @@ paso("build del sidecar (PyInstaller, externalBin)", "corepack pnpm build:sideca
 paso("build de la desktop (bundle Tauri)", "corepack pnpm build");
 
 // Se commitea solo lo del bump y el contrato que generó, no lo que haya en el
-// árbol por trabajo en curso: eso no es parte de esta versión.
-const FICHEROS_RELEASE = [
-  "package.json",
-  "pnpm-lock.yaml",
-  "packages/ui/package.json",
-  "packages/protocols/package.json",
-  "apps/desktop/package.json",
-  "apps/web/package.json",
-  "apps/desktop/src-tauri/tauri.conf.json",
-  "apps/desktop/src-tauri/Cargo.toml",
-  "apps/desktop/src-tauri/Cargo.lock",
-  "services/core/src/events_core/main.py",
-  "services/core/src/events_core/__init__.py",
-  "packages/ui/openapi.json",
-  "packages/ui/src/core/schema.ts",
-];
-execSync(`git add ${FICHEROS_RELEASE.join(" ")}`, { cwd: ROOT, stdio: "inherit", shell: true });
+// árbol por trabajo en curso: eso no es parte de esta versión. La lista de qué
+// lleva versión vive en `versiones.mjs`; aquí no se repite.
+execSync(`git add ${FICHEROS_DEL_RELEASE.join(" ")}`, { cwd: ROOT, stdio: "inherit", shell: true });
 
 const cambios = execSync("git diff --cached --name-only", { cwd: ROOT, encoding: "utf8" }).trim();
 if (cambios) {
@@ -102,7 +90,7 @@ if (ESPERAR) {
   // El tag tiene que estar en el remoto para que el workflow exista: se avisa
   // en vez de empujar por su cuenta. La verificación espera a que aparezca.
   console.log(`\n── esperar a que el tag se publique ──`);
-  console.log("(si aún no está en el remoto, empújalo: git push --follow-tags)");
+  console.log(`(si aún no está en el remoto, empújalo: git push origin ${tag})`);
   const verificacion = spawnSync("node", ["scripts/release-verificar.mjs", version], {
     cwd: ROOT,
     stdio: "inherit",

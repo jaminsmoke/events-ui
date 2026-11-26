@@ -1,8 +1,43 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 
 import { api, unwrap } from "../core/api";
 import type { EntradaLog, Evento } from "../core/api";
+import { suscribirSondeo } from "../core/sondeo";
 import { resumenEvento } from "../core/useEventos";
+
+/** Los filtros de las dos pestañas son el mismo control: un rótulo y sus
+ *  chips. `acciones` es lo que solo tiene el Registro (recargar y purgar). */
+type GrupoFiltro = {
+  titulo: string;
+  opciones: readonly string[];
+  valor: string;
+  onCambio: (valor: string) => void;
+};
+
+function Filtros({ grupos, acciones }: { grupos: GrupoFiltro[]; acciones?: ReactNode }) {
+  return (
+    <div className="panel-filtros">
+      {grupos.map((grupo) => (
+        <Fragment key={grupo.titulo}>
+          <span className="chip-titulo">{grupo.titulo}</span>
+          {grupo.opciones.map((opcion) => (
+            <button
+              key={opcion}
+              type="button"
+              className={`chip${grupo.valor === opcion ? " activo" : ""}`}
+              aria-pressed={grupo.valor === opcion}
+              onClick={() => grupo.onCambio(opcion)}
+            >
+              {opcion}
+            </button>
+          ))}
+        </Fragment>
+      ))}
+      {acciones && <span className="panel-acciones">{acciones}</span>}
+    </div>
+  );
+}
 
 /** Flyout del log, estilo VS Code: dos pestañas —`Eventos` (el timeline del
  *  repo: `idea.*` + los externos, por `origen`) y `Registro` (el operativo
@@ -44,11 +79,16 @@ export function PanelLog({
   const [origenFiltro, setOrigenFiltro] = useState<"todas" | string>("todas");
   const [purgando, setPurgando] = useState(false);
   const [recarga, setRecarga] = useState(0);
+  // El latido compartido avisa cada 2 s; un core lento no debe acumular
+  // lecturas. La guarda es un ref y no estado: no hace falta repintar.
+  const enVuelo = useRef(false);
 
   useEffect(() => {
     if (tab !== "registro") return;
     let activo = true;
     const vigilar = async () => {
+      if (enVuelo.current) return;
+      enVuelo.current = true;
       try {
         const lista = await unwrap(
           api.GET("/log", {
@@ -67,13 +107,17 @@ export function PanelLog({
         }
       } catch (err) {
         if (activo) setFallo(err instanceof Error ? err.message : String(err));
+      } finally {
+        enVuelo.current = false;
       }
     };
     void vigilar();
-    const timer = setInterval(() => void vigilar(), 3000);
+    // El temporizador es el común: calla con la pestaña oculta y avisa al
+    // volver. Al cerrar la pestaña o cambiar de filtro, la baja lo apaga.
+    const baja = suscribirSondeo(() => void vigilar());
     return () => {
       activo = false;
-      clearInterval(timer);
+      baja();
     };
   }, [tab, nivelFiltro, origenFiltro, recarga]);
 
@@ -131,20 +175,11 @@ export function PanelLog({
       <div className="panel-cuerpo">
         {tab === "actividad" && (
           <>
-            <div className="panel-filtros">
-              <span className="chip-titulo">Origen</span>
-              {(["todas", ...origenes] as const).map((o) => (
-                <button
-                  key={o}
-                  type="button"
-                  className={`chip${origen === o ? " activo" : ""}`}
-                  aria-pressed={origen === o}
-                  onClick={() => setOrigen(o)}
-                >
-                  {o}
-                </button>
-              ))}
-            </div>
+            <Filtros
+              grupos={[
+                { titulo: "Origen", opciones: ["todas", ...origenes], valor: origen, onCambio: setOrigen },
+              ]}
+            />
             {visibles.length === 0 ? (
               <p className="hint">Sin eventos todavía. El log se lee, no se escribe.</p>
             ) : (
@@ -162,40 +197,27 @@ export function PanelLog({
 
         {tab === "registro" && (
           <>
-            <div className="panel-filtros">
-              <span className="chip-titulo">Nivel</span>
-              {(["todas", "info", "aviso", "error"] as const).map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  className={`chip${nivelFiltro === n ? " activo" : ""}`}
-                  aria-pressed={nivelFiltro === n}
-                  onClick={() => setNivelFiltro(n)}
-                >
-                  {n}
-                </button>
-              ))}
-              <span className="chip-titulo">Origen</span>
-              {(["todas", ...etiquetas] as const).map((o) => (
-                <button
-                  key={o}
-                  type="button"
-                  className={`chip${origenFiltro === o ? " activo" : ""}`}
-                  aria-pressed={origenFiltro === o}
-                  onClick={() => setOrigenFiltro(o)}
-                >
-                  {o}
-                </button>
-              ))}
-              <span className="panel-acciones">
-                <button type="button" className="btn ghost" onClick={() => setRecarga((n) => n + 1)}>
-                  Recargar
-                </button>
-                <button type="button" className="btn ghost" disabled={purgando} onClick={purgar}>
-                  {purgando ? "Purgando…" : "Purgar ahora"}
-                </button>
-              </span>
-            </div>
+            <Filtros
+              grupos={[
+                {
+                  titulo: "Nivel",
+                  opciones: ["todas", "info", "aviso", "error"],
+                  valor: nivelFiltro,
+                  onCambio: (v) => setNivelFiltro(v as typeof nivelFiltro),
+                },
+                { titulo: "Origen", opciones: ["todas", ...etiquetas], valor: origenFiltro, onCambio: setOrigenFiltro },
+              ]}
+              acciones={
+                <>
+                  <button type="button" className="btn ghost" onClick={() => setRecarga((n) => n + 1)}>
+                    Recargar
+                  </button>
+                  <button type="button" className="btn ghost" disabled={purgando} onClick={purgar}>
+                    {purgando ? "Purgando…" : "Purgar ahora"}
+                  </button>
+                </>
+              }
+            />
             {fallo && <p className="hint error">Error: {fallo}</p>}
             {entradas.length === 0 ? (
               <p className="hint">Sin entradas.</p>

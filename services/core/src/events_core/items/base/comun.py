@@ -10,9 +10,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-
-class InvalidInput(ValueError):
-    """Petición inválida: no es un fallo del servidor, es un dato mal puesto."""
+from ...errors import InvalidInput
 
 
 class AlmacenMasNuevo(InvalidInput):
@@ -37,7 +35,7 @@ def escribir_atomico(destino: Path, datos: bytes) -> None:
     Si el destino cae bajo `.EUI`, solo se aceptan rutas del contrato
     (almacén, `.gitignore`, `migracion/<lote>/…`).
     """
-    # Import diferido: `rutas` / `eui_fs` importan `InvalidInput` de aquí.
+    # Import diferido: `eui_fs` importa `InvalidInput` de aquí.
     from .eui_fs import asegurar_destino_eui, asegurar_directorio_eui
 
     asegurar_destino_eui(destino)

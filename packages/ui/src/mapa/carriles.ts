@@ -1,4 +1,5 @@
 import type { WorkItem } from "../core/api";
+import type { components } from "../core/schema";
 
 export type Status = WorkItem["status"];
 
@@ -26,23 +27,9 @@ export const LANES = [
 
 export type LaneId = (typeof LANES)[number]["id"];
 
-/** Los grupos del flujo de protocolo, en el orden en que se recorre.
- *
- *  `superseded` no es un grupo propio: comparte el de `rejected`, igual que en
- *  `_grupo` del core. Es el enum que publica `GET /protocolos`, así que el
- *  esquema zod de `useProtocolos` se deriva de aquí en vez de escribirlo.
- */
-export const GRUPOS = [
-  "draft",
-  "proposed",
-  "roadmap",
-  "verificacion",
-  "revision_aprobada",
-  "historial",
-  "rejected",
-] as const;
-
-export type Grupo = (typeof GRUPOS)[number];
+/** El grupo de flujo de un carril: el que publica `GET /protocolos`. Sale del
+ *  contrato generado (`Protocolo`), no de una lista copiada a mano. */
+export type Grupo = components["schemas"]["Protocolo"]["origen"];
 
 /** La única tabla estado → carril y grupo.
  *
@@ -64,6 +51,17 @@ export const CARRIL_DE_ESTADO: Record<Status, { carril: LaneId | null; grupo: Gr
   rejected: { carril: "descartadas", grupo: "rejected" },
   superseded: { carril: "descartadas", grupo: "rejected" },
 };
+
+/** Los grupos del flujo, en el orden en que aparecen en la tabla.
+ *
+ *  No se escriben aparte: salen de `CARRIL_DE_ESTADO`, que es el único sitio
+ *  que reparte estados. `superseded` comparte el de `rejected`, así que el
+ *  `Set` lo deja una vez. Es la lista con la que `useProtocolos` construye su
+ *  enum zod. El `as` es solo porque `z.enum` pide una tupla no vacía, y la
+ *  tabla siempre tiene algún grupo. */
+export const GRUPOS = [
+  ...new Set(Object.values(CARRIL_DE_ESTADO).map((ficha) => ficha.grupo)),
+] as [Grupo, ...Grupo[]];
 
 /** Todos los estados en el orden del flujo, para recorrerlos y buscar salidas. */
 export const ESTADOS = Object.keys(CARRIL_DE_ESTADO) as readonly Status[];

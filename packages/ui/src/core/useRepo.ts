@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api, unwrap } from "./api";
 import { suscribirSondeo } from "./sondeo";
@@ -26,6 +26,11 @@ export function useRepo(repo: string | null) {
   // lectura es inmediata en vez de esperar al sondeo de 2 s.
   const [latido, setLatido] = useState(0);
 
+  // La raíz se recuerda una vez por repo. El SSE reinicia el efecto (y con él
+  // `firma`), pero eso no puede volver a escribir `config.json`: el fichero es
+  // para el CLI y el MCP, no un latido más.
+  const recordado = useRef<string | null>(null);
+
   // Los `setState` van en continuaciones async, nunca en el cuerpo del efecto;
   // si se cambia de repo a mitad, `vivo` descarta lo que llegue tarde.
   //
@@ -46,7 +51,10 @@ export function useRepo(repo: string | null) {
         if (actual !== firma) {
           const mapa: Mapa = await unwrap(api.GET("/mapa", { params: { query: { repo } } }));
           if (!vivo) return;
-          if (firma === null) {
+          if (recordado.current !== repo) {
+            // Antes del `await`: si un evento re-ejecuta el efecto con el PUT
+            // anterior en vuelo, la segunda lectura no lo manda otra vez.
+            recordado.current = repo;
             try {
               localStorage.setItem(STORAGE_KEY, repo);
             } catch {
@@ -54,7 +62,12 @@ export function useRepo(repo: string | null) {
             }
             // El CLI y el MCP no ven `localStorage`: la raíz se comparte por el
             // fichero de configuración del core (paso 1 del roadmap).
-            void api.PUT("/config", { body: { repo } }).catch(() => {});
+            void api
+              .PUT("/config", { body: { repo } })
+              .catch(() => {
+                // Si el core no lo pudo guardar, el siguiente evento reintenta.
+                if (recordado.current === repo) recordado.current = null;
+              });
           }
           setCargado({ repo, mapa });
           firma = actual;

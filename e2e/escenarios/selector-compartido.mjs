@@ -23,11 +23,16 @@ export default {
     ]);
 
     // 1) Las dos apps pintan las mismas tres vías. Hoy desktop no pinta el
-    //    explorador y esta espera se agota.
+    //    explorador y esta espera se agota. Un escenario anterior puede haber
+    //    dejado un repo abierto en la página: se abre el selector con Cambiar.
     for (const [etiqueta, app] of [
       ["desktop", page],
       ["web", web],
     ]) {
+      const cambiar = app.getByRole("button", { name: "Cambiar", exact: true });
+      if ((await cambiar.count()) > 0 && (await cambiar.isVisible())) {
+        await cambiar.click();
+      }
       await app.getByText("Explorador de carpetas").waitFor({ timeout: 15_000 });
       await app.getByLabel("Ruta del repositorio").waitFor({ timeout: 15_000 });
       await app

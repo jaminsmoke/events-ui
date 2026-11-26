@@ -15,6 +15,10 @@ import type { Status } from "../mapa/carriles";
  *  sin protocolos cargados aún o si la respuesta no valida, se ofrece todo
  *  y el core decide.
  *
+ *  La respuesta se resume una vez en un `Map` de uniones (`origen→destino` →
+ *  `Paso`): `puedeIr` y las tres `exige*` se preguntan a `paso()`, así que
+ *  añadir una exigencia no obliga a tocar cuatro sitios.
+ *
  *  Se refresca con el latido compartido de `sondeo`, uno de cada tres (~6 s):
  *  es configuración y cambia poco.
  */
@@ -53,16 +57,16 @@ export type ProtocolosFlujo = {
   paso: (origen: Status, destino: Status) => Paso | null;
 };
 
+/** Lo cargado de un repo: sus uniones ya resueltas, por `origen→destino`. */
+type Cargado = {
+  repo: string | null;
+  uniones: ReadonlyMap<string, Paso>;
+};
+
 export function useProtocolos(repo: string | null): ProtocolosFlujo {
   // Lo cargado pertenece a *un* repo: al cambiar de carpeta, lo viejo deja de
   // valer al instante en vez de aplicarse un frame (patrón de `useRepo`).
-  const [estado, setEstado] = useState<{
-    repo: string | null;
-    pares: ReadonlySet<string>;
-    exigen: ReadonlySet<string>;
-    exigenListas: ReadonlySet<string>;
-    exigenCompletas: ReadonlySet<string>;
-  } | null>(null);
+  const [estado, setEstado] = useState<Cargado | null>(null);
 
   useEffect(() => {
     if (!repo) return;
@@ -79,21 +83,17 @@ export function useProtocolos(repo: string | null): ProtocolosFlujo {
         );
         const filas = Protocolos.parse(datos);
         if (vivo) {
-          setEstado({
-            repo,
-            pares: new Set(filas.map((f) => `${f.origen}→${f.destino}`)),
-            exigen: new Set(
-              filas.filter((f) => f.exige_fases).map((f) => `${f.origen}→${f.destino}`),
-            ),
-            exigenListas: new Set(
-              filas.filter((f) => f.exige_fases_listas).map((f) => `${f.origen}→${f.destino}`),
-            ),
-            exigenCompletas: new Set(
-              filas
-                .filter((f) => f.exige_fases_completas)
-                .map((f) => `${f.origen}→${f.destino}`),
-            ),
-          });
+          const uniones = new Map<string, Paso>();
+          for (const fila of filas) {
+            const exige: Exigencia[] = [];
+            if (fila.exige_fases) exige.push("fases");
+            if (fila.exige_fases_listas) exige.push("fases-listas");
+            if (fila.exige_fases_completas) exige.push("fases-completas");
+            // Toda fila de `protocolo_flujo` es una unión abierta: la tabla es
+            // la allowlist. Lo que no está, `paso` lo devuelve cerrado.
+            uniones.set(`${fila.origen}→${fila.destino}`, { abierta: true, exige });
+          }
+          setEstado({ repo, uniones });
         }
       } catch {
         // Sin protocolos se deja la puerta como estaba: el core manda.
@@ -111,36 +111,26 @@ export function useProtocolos(repo: string | null): ProtocolosFlujo {
   }, [repo]);
 
   const cargado = estado?.repo === repo ? estado : null;
+
+  /** La única consulta: qué es esa unión y qué pide. */
+  const paso = (origen: Status, destino: Status): Paso | null => {
+    if (cargado === null) return null;
+    const a = grupoDeEstado(origen);
+    const d = grupoDeEstado(destino);
+    const union = cargado.uniones.get(`${a}→${d}`);
+    // Mismo grupo (p. ej. rechazada → reemplazada) no cruza compuerta.
+    return { abierta: a === d || union !== undefined, exige: union?.exige ?? [] };
+  };
+
+  /** ¿Pide esa unión este requisito? Sin protocolos cargados, ninguno. */
+  const exige = (origen: Status, destino: Status, requisito: Exigencia): boolean =>
+    paso(origen, destino)?.exige.includes(requisito) ?? false;
+
   return {
-    puedeIr: (origen, destino) => {
-      if (cargado === null) return true;
-      const a = grupoDeEstado(origen);
-      const d = grupoDeEstado(destino);
-      return a === d || cargado.pares.has(`${a}→${d}`);
-    },
-    exigeFases: (origen, destino) => {
-      if (cargado === null) return false;
-      return cargado.exigen.has(`${grupoDeEstado(origen)}→${grupoDeEstado(destino)}`);
-    },
-    exigeFasesListas: (origen, destino) => {
-      if (cargado === null) return false;
-      return cargado.exigenListas.has(`${grupoDeEstado(origen)}→${grupoDeEstado(destino)}`);
-    },
-    exigeFasesCompletas: (origen, destino) => {
-      if (cargado === null) return false;
-      return cargado.exigenCompletas.has(`${grupoDeEstado(origen)}→${grupoDeEstado(destino)}`);
-    },
-    paso: (origen, destino) => {
-      if (cargado === null) return null;
-      const a = grupoDeEstado(origen);
-      const d = grupoDeEstado(destino);
-      const par = `${a}→${d}`;
-      const exige: Exigencia[] = [];
-      if (cargado.exigen.has(par)) exige.push("fases");
-      if (cargado.exigenListas.has(par)) exige.push("fases-listas");
-      if (cargado.exigenCompletas.has(par)) exige.push("fases-completas");
-      // Mismo grupo (p. ej. rechazada → reemplazada) no cruza compuerta.
-      return { abierta: a === d || cargado.pares.has(par), exige };
-    },
+    puedeIr: (origen, destino) => paso(origen, destino)?.abierta ?? true,
+    exigeFases: (origen, destino) => exige(origen, destino, "fases"),
+    exigeFasesListas: (origen, destino) => exige(origen, destino, "fases-listas"),
+    exigeFasesCompletas: (origen, destino) => exige(origen, destino, "fases-completas"),
+    paso,
   };
 }

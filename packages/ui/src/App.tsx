@@ -14,7 +14,7 @@ import { useCamara } from "./mapa/camara";
 import { LANES, sePuedeEliminar } from "./mapa/carriles";
 import type { LaneId, Status } from "./mapa/carriles";
 import { Lienzo } from "./mapa/Lienzo";
-import type { AccionesLienzo } from "./mapa/Lienzo";
+import type { AccionesLienzo } from "./mapa/vista";
 import type { Seleccion } from "./mapa/seleccion";
 import { useVueloCommit } from "./mapa/vuelos-git";
 import { useVuelos } from "./mapa/vuelos";

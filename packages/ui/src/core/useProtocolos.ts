@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { api, unwrap } from "./api";
 import { suscribirSondeo } from "./sondeo";
+import { GRUPOS, grupoDeEstado } from "../mapa/carriles";
 import type { Status } from "../mapa/carriles";
 
 /** Los protocolos de flujo (`GET /protocolos`): la allowlist de uniones
@@ -17,40 +18,18 @@ import type { Status } from "../mapa/carriles";
  *  Se refresca con el latido compartido de `sondeo`, uno de cada tres (~6 s):
  *  es configuración y cambia poco.
  */
-const Grupo = z.enum([
-  "draft",
-  "proposed",
-  "roadmap",
-  "verificacion",
-  "revision_aprobada",
-  "historial",
-  "rejected",
-]);
+const SchemaGrupo = z.enum(GRUPOS);
 // `exige_fases` (0021): la unión no se cruza sin al menos una fase. Es dato
 // del protocolo, así que la fila puede avisar antes de que el core la pare.
 const Union = z.object({
-  origen: Grupo,
-  destino: Grupo,
+  origen: SchemaGrupo,
+  destino: SchemaGrupo,
   exige_fases: z.boolean(),
   exige_fases_listas: z.boolean(),
   exige_fases_completas: z.boolean(),
 });
 const Protocolos = z.array(Union);
 
-type Grupo = z.infer<typeof Grupo>;
-
-/** El grupo de un estado para mover: `superseded` es el grupo de
- *  descartadas (la ficha lo distingue, el carril no) —igual que en el core. */
-const A_GRUPO: Record<Status, Grupo> = {
-  draft: "draft",
-  proposed: "proposed",
-  roadmap: "roadmap",
-  verificacion: "verificacion",
-  revision_aprobada: "revision_aprobada",
-  historial: "historial",
-  rejected: "rejected",
-  superseded: "rejected",
-};
 
 export type PuedeIr = (origen: Status, destino: Status) => boolean;
 
@@ -135,26 +114,26 @@ export function useProtocolos(repo: string | null): ProtocolosFlujo {
   return {
     puedeIr: (origen, destino) => {
       if (cargado === null) return true;
-      const a = A_GRUPO[origen];
-      const d = A_GRUPO[destino];
+      const a = grupoDeEstado(origen);
+      const d = grupoDeEstado(destino);
       return a === d || cargado.pares.has(`${a}→${d}`);
     },
     exigeFases: (origen, destino) => {
       if (cargado === null) return false;
-      return cargado.exigen.has(`${A_GRUPO[origen]}→${A_GRUPO[destino]}`);
+      return cargado.exigen.has(`${grupoDeEstado(origen)}→${grupoDeEstado(destino)}`);
     },
     exigeFasesListas: (origen, destino) => {
       if (cargado === null) return false;
-      return cargado.exigenListas.has(`${A_GRUPO[origen]}→${A_GRUPO[destino]}`);
+      return cargado.exigenListas.has(`${grupoDeEstado(origen)}→${grupoDeEstado(destino)}`);
     },
     exigeFasesCompletas: (origen, destino) => {
       if (cargado === null) return false;
-      return cargado.exigenCompletas.has(`${A_GRUPO[origen]}→${A_GRUPO[destino]}`);
+      return cargado.exigenCompletas.has(`${grupoDeEstado(origen)}→${grupoDeEstado(destino)}`);
     },
     paso: (origen, destino) => {
       if (cargado === null) return null;
-      const a = A_GRUPO[origen];
-      const d = A_GRUPO[destino];
+      const a = grupoDeEstado(origen);
+      const d = grupoDeEstado(destino);
       const par = `${a}→${d}`;
       const exige: Exigencia[] = [];
       if (cargado.exigen.has(par)) exige.push("fases");

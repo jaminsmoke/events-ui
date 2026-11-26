@@ -4,7 +4,13 @@ import type { CommitGit, WorkItem, ProyeccionRepo } from "../core/api";
 import { folderName } from "../core/repo";
 import type { Paso } from "../core/useProtocolos";
 import type { Cable, Nudo } from "../mapa/cables";
-import { ETIQUETA_ESTADO, LANES } from "../mapa/carriles";
+import {
+  ESTADOS,
+  ESTADOS_ENTRADA,
+  ESTADOS_POR_CARRIL,
+  ETIQUETA_ESTADO,
+  LANES,
+} from "../mapa/carriles";
 import type { LaneId, Status } from "../mapa/carriles";
 import { TEXTO_EXIGENCIA } from "../mapa/protocolos";
 import { fechaCorta } from "../mapa/formato";
@@ -322,33 +328,6 @@ function CuerpoResumen({
     </div>
   );
 }
-
-/** Estados que viven en cada carril: los mismos grupos con los que el core
- *  cruza el protocolo. `descartadas` junta rechazadas y reemplazadas, y la
- *  Entrada es el caso particular de `draft`, sin carril propio. */
-const ESTADOS_POR_CARRIL: Record<LaneId, readonly Status[]> = {
-  cola: ["proposed"],
-  roadmap: ["roadmap"],
-  verificacion: ["verificacion"],
-  revision_aprobada: ["revision_aprobada"],
-  historial: ["historial"],
-  descartadas: ["rejected", "superseded"],
-  /* Solo representación visual: no hay status persistido. */
-  eliminadas: [],
-};
-const ESTADOS_ENTRADA: readonly Status[] = ["draft"];
-
-/** Todos los estados en el orden del flujo, para buscar salidas. */
-const ESTADOS: readonly Status[] = [
-  "draft",
-  "proposed",
-  "roadmap",
-  "verificacion",
-  "revision_aprobada",
-  "historial",
-  "rejected",
-  "superseded",
-];
 
 /** La ficha de un carril: qué ideas lo pueblan, cómo se reparten y por dónde
  *  puede seguir cada estado según el protocolo del repo. Las salidas no se

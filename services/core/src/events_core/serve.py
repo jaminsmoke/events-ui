@@ -96,12 +96,12 @@ def _vigilar_inactividad(minutos: float) -> None:
     apagado limpio desde un hilo; la base de datos no tiene escrituras pendientes
     en este punto, cada petición confirma las suyas.
     """
-    from . import main  # noqa: PLC0415 (import tardío: `main` ya está cargado por uvicorn)
+    from . import middleware  # noqa: PLC0415 (import tardío: la app ya está cargada)
 
     limite = minutos * 60
     while True:
         time.sleep(15)
-        if time.monotonic() - main.ULTIMA_ACTIVIDAD[0] >= limite:
+        if time.monotonic() - middleware.ULTIMA_ACTIVIDAD[0] >= limite:
             registro.escribir("info", f"Core apagado por inactividad ({minutos:g} min)")
             os._exit(0)
 

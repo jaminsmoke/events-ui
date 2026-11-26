@@ -10,7 +10,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from events_core import main
+from events_core import webapp
 
 
 def _dist(base: Path, titulo: str) -> Path:
@@ -22,7 +22,7 @@ def _dist(base: Path, titulo: str) -> Path:
 
 
 def test_montar_la_web_en_caliente(client: TestClient, tmp_path: Path) -> None:
-    original = main.DIST_WEB
+    original = webapp.DIST_WEB
     dist = _dist(tmp_path, "web")
 
     try:
@@ -41,11 +41,11 @@ def test_montar_la_web_en_caliente(client: TestClient, tmp_path: Path) -> None:
         # El mismo origen sigue sirviendo la API (el middleware quita `/api`).
         assert client.get("/api/health").status_code == 200
     finally:
-        main.DIST_WEB = original
+        webapp.DIST_WEB = original
 
 
 def test_cambiar_de_dist_en_caliente(client: TestClient, tmp_path: Path) -> None:
-    original = main.DIST_WEB
+    original = webapp.DIST_WEB
     primero = _dist(tmp_path / "uno", "uno")
     segundo = _dist(tmp_path / "dos", "dos")
 
@@ -56,7 +56,7 @@ def test_cambiar_de_dist_en_caliente(client: TestClient, tmp_path: Path) -> None
         assert client.post("/webapp", json={"dist": str(segundo)}).status_code == 200
         assert "<title>dos</title>" in client.get("/").text
     finally:
-        main.DIST_WEB = original
+        webapp.DIST_WEB = original
 
 
 def test_la_web_lee_el_dist_en_cada_peticion(client: TestClient, tmp_path: Path) -> None:
@@ -67,7 +67,7 @@ def test_la_web_lee_el_dist_en_cada_peticion(client: TestClient, tmp_path: Path)
     Starlette. Ahora mover `DIST_WEB` cambia lo que sirve la siguiente petición,
     que es justo lo que hace `POST /webapp`.
     """
-    original = main.DIST_WEB
+    original = webapp.DIST_WEB
     primero = _dist(tmp_path / "uno", "uno")
     segundo = _dist(tmp_path / "dos", "dos")
 
@@ -75,10 +75,10 @@ def test_la_web_lee_el_dist_en_cada_peticion(client: TestClient, tmp_path: Path)
         assert client.post("/webapp", json={"dist": str(primero)}).status_code == 200
         assert "<title>uno</title>" in client.get("/").text
 
-        main.DIST_WEB = segundo
+        webapp.DIST_WEB = segundo
         assert "<title>dos</title>" in client.get("/").text
     finally:
-        main.DIST_WEB = original
+        webapp.DIST_WEB = original
 
 
 def test_rechaza_una_carpeta_que_no_es_un_dist(client: TestClient, tmp_path: Path) -> None:

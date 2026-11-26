@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { avisaErrores, avisaEventos, cargarAjustes, guardarAjustes } from "./core/avisos";
 import type { Ajustes } from "./core/avisos";
@@ -50,8 +50,12 @@ import { AvisoRecorte, Controles } from "./pantalla/Controles";
 import { EditorIdea } from "./pantalla/EditorIdea";
 import { PanelLog } from "./pantalla/PanelLog";
 import { PanelDerecho } from "./pantalla/PanelDerecho";
-import { Pruebas } from "./pantalla/Pruebas";
 import { pruebaPendiente, soltar } from "./pantalla/pruebaEnCurso";
+
+/** El lanzador de pruebas es solo de desktop y pesa: se carga al abrirlo. */
+const Pruebas = lazy(() =>
+  import("./pantalla/Pruebas").then((modulo) => ({ default: modulo.Pruebas })),
+);
 
 /** Ancho del panel derecho abierto: el mismo que `.resumen` en marco.css.
  *  El panel va encima del lienzo —no lo encoge—, así que la cámara tiene que
@@ -105,6 +109,9 @@ export default function App({
   const [ajustesAbiertos, setAjustesAbiertos] = useState(false);
   const [pruebaEnCurso, setPruebaEnCurso] = useState(false);
   const [pruebasAbiertas, setPruebasAbiertas] = useState(false);
+  // Se monta al abrirlo la primera vez y se queda: cerrar el diálogo oculta el
+  // progreso, no lo pierde (la prueba sigue corriendo).
+  const [pruebasMontadas, setPruebasMontadas] = useState(false);
   // Tres mapas enlazados: trabajo, Git y Documentos (Changelog). El puente
   // de Git solo abre con work tree; el de Documentos siempre.
   const [mapa, setMapa] = useState<MapaLienzo>("items");
@@ -702,7 +709,14 @@ export default function App({
           </button>
         )}
         {repo && puedeProbar && proyeccion?.laboratorio && (
-          <button className="btn ghost" onClick={() => { setSelectorAbierto(false); setPruebasAbiertas(true); }}>
+          <button
+            className="btn ghost"
+            onClick={() => {
+              setSelectorAbierto(false);
+              setPruebasAbiertas(true);
+              setPruebasMontadas(true);
+            }}
+          >
             Pruebas
           </button>
         )}
@@ -762,24 +776,26 @@ export default function App({
         />
       )}
 
-      {repo && puedeProbar && proyeccion?.laboratorio && (
-        <Pruebas
-          key={repo}
-          abierta={pruebasAbiertas}
-          onActividad={setPruebaEnCurso}
-          repo={repo}
-          crear={crear}
-          mover={mover}
-          editar={editar}
-          abrirMapa={setMapa}
-          commit={commit}
-          cambios={proyeccion?.git_cambios.length ?? 0}
-          reiniciar={async () => {
-            await reiniciar();
-            limpiarLog();
-          }}
-          onCerrar={() => setPruebasAbiertas(false)}
-        />
+      {pruebasMontadas && repo && puedeProbar && proyeccion?.laboratorio && (
+        <Suspense fallback={null}>
+          <Pruebas
+            key={repo}
+            abierta={pruebasAbiertas}
+            onActividad={setPruebaEnCurso}
+            repo={repo}
+            crear={crear}
+            mover={mover}
+            editar={editar}
+            abrirMapa={setMapa}
+            commit={commit}
+            cambios={proyeccion?.git_cambios.length ?? 0}
+            reiniciar={async () => {
+              await reiniciar();
+              limpiarLog();
+            }}
+            onCerrar={() => setPruebasAbiertas(false)}
+          />
+        </Suspense>
       )}
 
       {falloAccion && <AvisoError mensaje={falloAccion} />}

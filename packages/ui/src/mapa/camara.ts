@@ -14,19 +14,61 @@ export const ZOOM_MIN = 0.5;
 export const ZOOM_MAX = 1.5;
 export const ZOOM_PASO = 1.08;
 
-/** Suelo de «encuadrar», más bajo que el del zoom a mano.
+/** Suelo de «encuadrar»: el mismo que el del zoom a mano.
  *
- *  Por debajo del 50 % el texto del esquema ya no se lee, pero con el pane
- *  abierto o en una ventana estrecha el mapa no cabe de otra forma: recortarlo
- *  y avisar de que está fuera de la vista es peor que verlo entero y pequeño.
- *  Encuadrar llega hasta aquí; el zoom a mano conserva su suelo (`ZOOM_MIN`),
- *  salvo que la cámara ya esté por debajo —entonces no se le impone un
- *  salto—. */
-export const ZOOM_ENCUADRE_MIN = 0.2;
+ *  Antes bajaba hasta el 20 % para que el esquema entrara entero. A 800×600
+ *  eso dejaba el texto al 29 %, ilegible, y el mapa pegado al borde superior.
+ *  Ahora, si no cabe, se recorta y el aviso de recorte lo dice: el texto se
+ *  lee y el usuario puede arrastrar para ver el resto. */
+export const ZOOM_ENCUADRE_MIN = ZOOM_MIN;
 
 export type Vista = { x: number; y: number; k: number };
 
 const acotar = (valor: number, min: number, max: number) => Math.min(max, Math.max(min, valor));
+
+/** Una sola regla de encuadre, sin DOM: el mapa entero si cabe, centrado en el
+ *  alto libre del lienzo y nunca por debajo del suelo legible.
+ *
+ *  `offset` es dónde está el mapa dentro del lienzo (`offsetLeft/offsetTop`),
+ *  que se descuenta para que el centro sea el del área visible. `relleno` es
+ *  el padding del lienzo: el centro se calcula dentro de él, no del borde.
+ *  `insetDerecha` es lo que tapa el panel de Resumen. */
+export type Encuadre = {
+  mapa: { ancho: number; alto: number };
+  board: { ancho: number; alto: number };
+  offset: { x: number; y: number };
+  insetDerecha?: number;
+  relleno?: { arriba: number; abajo: number };
+  /** Aire horizontal que se deja a los lados al encuadrar. */
+  margen?: number;
+};
+
+export function encuadreDe({
+  mapa,
+  board,
+  offset,
+  insetDerecha = 0,
+  relleno = { arriba: 0, abajo: 0 },
+  margen = 64,
+}: Encuadre): Vista {
+  if (!mapa.ancho || !mapa.alto) return { x: 0, y: 0, k: 1 };
+  const anchoVisible = Math.max(120, board.ancho - insetDerecha);
+  const altoVisible = Math.max(120, board.alto - relleno.arriba - relleno.abajo);
+  const k = acotar(
+    Math.min((anchoVisible - margen) / mapa.ancho, altoVisible / mapa.alto),
+    ZOOM_ENCUADRE_MIN,
+    1,
+  );
+  // Si no cabe, se ancla a la izquierda: el flujo empieza en la Entrada y el
+  // resto se alcanza arrastrando. Centrarlo recortaría las dos puntas y la
+  // primera columna desaparecería sin decir por dónde se empieza.
+  const cabe = mapa.ancho * k <= anchoVisible;
+  return {
+    x: (cabe ? (anchoVisible - mapa.ancho * k) / 2 : 0) - offset.x,
+    y: relleno.arriba + (altoVisible - mapa.alto * k) / 2 - offset.y,
+    k,
+  };
+}
 
 /** Cámara del lienzo: solo mueve la vista. Los nodos no se tocan.
  *
@@ -97,18 +139,21 @@ export function useCamara({
     if (!ancho || !alto) return;
 
     // Se encuadra en lo que se ve, no en la caja: el panel derecho no encoge
-    // el lienzo, solo lo tapa.
-    const visible = Math.max(120, board.clientWidth - insetDerecha);
-    const k = acotar(
-      Math.min((visible - 64) / ancho, (board.clientHeight - 120) / alto),
-      ZOOM_ENCUADRE_MIN,
-      1,
+    // el lienzo, solo lo tapa. El relleno del lienzo entra en la cuenta para
+    // que el centro sea el del área visible y no el del borde.
+    const estilo = getComputedStyle(board);
+    setVista(
+      encuadreDe({
+        mapa: { ancho, alto },
+        board: { ancho: board.clientWidth, alto: board.clientHeight },
+        offset: { x: map.offsetLeft, y: map.offsetTop },
+        insetDerecha,
+        relleno: {
+          arriba: parseFloat(estilo.paddingTop) || 0,
+          abajo: parseFloat(estilo.paddingBottom) || 0,
+        },
+      }),
     );
-    setVista({
-      x: (visible - ancho * k) / 2 - map.offsetLeft,
-      y: 0,
-      k,
-    });
   }, [boardRef, mapRef, insetDerecha]);
 
   /** Repo nuevo: encuadre nuevo y cámara sin tocar. */

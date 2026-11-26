@@ -6,7 +6,9 @@ import { createPortal } from "react-dom";
 import type { WorkItem } from "../core/api";
 import type { Status } from "./carriles";
 import { ETIQUETA_FASE, type Fase } from "./fase";
+import { conNota, conRequisito, progreso } from "./fasesModelo";
 import { fechaCorta } from "./formato";
+import { useGuardarFases } from "./useGuardarFases";
 
 /** Un archivo anotado: ruta, estado y, si lo hay, su parche desplegable.
  *  Sin contenido (sin Git, sin commits o demasiado grande) queda la fila: la
@@ -98,15 +100,14 @@ export function FichaFases({
   cargarIdea?: (uid: string) => Promise<WorkItem | null>;
   onCerrar: () => void;
 }) {
-  const [guardando, setGuardando] = useState(false);
-  const [fallo, setFallo] = useState<string | null>(null);
+  const { guardando, fallo, guardar } = useGuardarFases(alGuardar);
   // El parche se pide al abrir la ficha y se mezcla por `fase:requisito:ruta`:
   // la lista que se edita sigue siendo la de la fila, y el contenido solo se
   // pinta. El requisito 0 es la fase entera.
   const [parches, setParches] = useState<ReadonlyMap<string, string>>(() => new Map());
   const [abierto, setAbierto] = useState<string | null>(null);
   const vista = fases;
-  const hechas = vista.filter((fase) => fase.estado === "completada").length;
+  const { hechas } = progreso(vista);
 
   useEffect(() => {
     if (!cargarIdea || !uid) return;
@@ -137,16 +138,6 @@ export function FichaFases({
     };
   }, [cargarIdea, uid]);
 
-  const guardar = (siguientes: readonly Fase[]) => {
-    if (!alGuardar) return;
-    setGuardando(true);
-    setFallo(null);
-    alGuardar(siguientes)
-      .catch((err: unknown) => {
-        setFallo(err instanceof Error ? err.message : String(err));
-      })
-      .finally(() => setGuardando(false));
-  };
   return createPortal(
     <div
       className="modal-fondo"
@@ -197,11 +188,7 @@ export function FichaFases({
                   onBlur={(e) => {
                     const nota = e.target.value.trim();
                     if (nota === fase.nota) return;
-                    guardar(
-                      vista.map((otra) =>
-                        otra.orden === fase.orden ? { ...otra, nota } : otra,
-                      ),
-                    );
+                    guardar(conNota(vista, fase.orden, nota));
                   }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") e.currentTarget.blur();
@@ -222,22 +209,7 @@ export function FichaFases({
                         checked={requisito.hecho}
                         disabled={guardando || estado !== "roadmap" || !alGuardar}
                         aria-label={`Requisito ${requisito.titulo}`}
-                        onChange={() =>
-                          guardar(
-                            vista.map((otra) =>
-                              otra.orden === fase.orden
-                                ? {
-                                    ...otra,
-                                    requisitos: (otra.requisitos ?? []).map((cada) =>
-                                      cada.orden === requisito.orden
-                                        ? { ...cada, hecho: !cada.hecho }
-                                        : cada,
-                                    ),
-                                  }
-                                : otra,
-                            ),
-                          )
-                        }
+                        onChange={() => guardar(conRequisito(vista, fase.orden, requisito.orden))}
                       />
                       <span className="ficha-requisito-titulo">{requisito.titulo}</span>
                       {requisito.done_at && (

@@ -467,8 +467,21 @@ function CuerpoInspector({
   onSeleccionar: (seleccion: Seleccion) => void;
   onAbrirArchivo: (ruta: string) => void;
 }) {
-  if (seleccion && (seleccion.tipo === "carril" || seleccion.tipo === "cajon")) {
-    const laneId =
+  if (!seleccion) {
+    return (
+      <div className="panel-cuerpo inspector-cuerpo">
+        <p className="hint">
+          Nada seleccionado. Pulsa un nodo del mapa y sus detalles aparecerán
+          aquí.
+        </p>
+      </div>
+    );
+  }
+
+  switch (seleccion.tipo) {
+    case "carril":
+    case "cajon": {
+      const laneId =
       seleccion.tipo === "carril"
         ? (seleccion.clave.replace(/^lane-/, "") as LaneId)
         : null;
@@ -484,11 +497,12 @@ function CuerpoInspector({
     );
   }
 
-  if (seleccion && (seleccion.tipo === "git" || seleccion.tipo === "puente")) {
-    return <CuerpoNodoGit tipo={seleccion.tipo} proyeccion={proyeccion} />;
-  }
+    case "git":
+    case "puente": {
+      return <CuerpoNodoGit tipo={seleccion.tipo} proyeccion={proyeccion} />;
+    }
 
-  if (seleccion && seleccion.tipo === "puente_documentos") {
+    case "puente_documentos": {
     return (
       <div className="panel-cuerpo inspector-cuerpo">
         <p className="inspector-asunto">Mapa de Documentos</p>
@@ -501,18 +515,18 @@ function CuerpoInspector({
     );
   }
 
-  if (seleccion && seleccion.tipo === "nudo") {
-    const nudo = nudos.find((candidato) => candidato.id === seleccion.id);
-    return nudo ? (
-      <CuerpoNudo nudo={nudo} cables={cables} paso={paso} />
-    ) : (
-      <div className="panel-cuerpo inspector-cuerpo">
-        <p className="hint">Ese nudo ya no está en el mapa.</p>
-      </div>
-    );
-  }
+    case "nudo": {
+      const nudo = nudos.find((candidato) => candidato.id === seleccion.id);
+      return nudo ? (
+        <CuerpoNudo nudo={nudo} cables={cables} paso={paso} />
+      ) : (
+        <div className="panel-cuerpo inspector-cuerpo">
+          <p className="hint">Ese nudo ya no está en el mapa.</p>
+        </div>
+      );
+    }
 
-  if (seleccion && seleccion.tipo === "commits") {
+    case "commits": {
     return (
       <CuerpoCommits
         commits={commits}
@@ -522,7 +536,7 @@ function CuerpoInspector({
     );
   }
 
-  if (seleccion && seleccion.tipo === "cable") {
+    case "cable": {
     const cable = cables.find((candidato) => candidato.id === seleccion.id);
     return cable ? (
       <CuerpoCable cable={cable} paso={paso} />
@@ -533,7 +547,7 @@ function CuerpoInspector({
     );
   }
 
-  if (seleccion && seleccion.tipo === "item") {
+    case "item": {
     const idea = ideas.find((candidata) => candidata.uid === seleccion.uid);
     return idea ? (
       <CuerpoItem
@@ -551,7 +565,7 @@ function CuerpoInspector({
     );
   }
 
-  if (seleccion && seleccion.tipo === "cambio") {
+    case "cambio": {
     const cambios = proyeccion?.git_cambios ?? [];
     const cambio = cambios.find((candidato) => candidato.ruta === seleccion.ruta);
     return cambio ? (
@@ -568,13 +582,13 @@ function CuerpoInspector({
     );
   }
 
-  if (seleccion && seleccion.tipo === "cambios") {
+    case "cambios": {
     return (
       <CuerpoCambios cambios={proyeccion?.git_cambios ?? []} onSeleccionar={onSeleccionar} />
     );
   }
 
-  if (seleccion && seleccion.tipo === "commit") {
+    case "commit": {
     const indice = commits.findIndex((commit) => commit.hash === seleccion.hash);
     const commit = indice === -1 ? null : commits[indice];
     return commit ? (
@@ -591,12 +605,9 @@ function CuerpoInspector({
     );
   }
 
-  return (
-    <div className="panel-cuerpo inspector-cuerpo">
-      <p className="hint">
-        Nada seleccionado. Pulsa un nodo del mapa y sus detalles aparecerán
-        aquí.
-      </p>
-    </div>
-  );
+    default: {
+      const agotado: never = seleccion;
+      return agotado;
+    }
+  }
 }

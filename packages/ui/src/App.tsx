@@ -18,7 +18,7 @@ import type { AccionesLienzo } from "./mapa/vista";
 import type { Seleccion } from "./mapa/seleccion";
 import { useVueloCommit } from "./mapa/vuelos-git";
 import { useVuelos } from "./mapa/vuelos";
-import { useArbol } from "./mapa/useArbol";
+import { useArbolMapa } from "./mapa/useArbolMapa";
 import { useDestellos } from "./mapa/useDestellos";
 import { useSeleccion } from "./mapa/useSeleccion";
 import { useEventos } from "./core/useEventos";
@@ -179,7 +179,7 @@ export default function App({
   // se borra el dato. No hay status `eliminadas` en el almacén.
   const [quemas, setQuemas] = useState<{ id: number; uid: string; title: string }[]>([]);
   const quemaSeq = useRef(0);
-  const tree = useArbol(ideas, quemas);
+  const tree = useArbolMapa(ideas, quemas);
   // F1: el log del repo en vivo (cada `EUI_DATABASE` lleva el suyo).
   const { eventos, conectado, limpiar: limpiarLog } = useEventos(repo);
   useEmpujeMapa(eventos, refrescar);

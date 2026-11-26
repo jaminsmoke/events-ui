@@ -20,7 +20,7 @@ type Fallo = { repo: string; mensaje: string };
  *
  *  `rutas` es la raíz (`""`) más lo desplegado. Como la clave del efecto es su
  *  contenido, un array nuevo en cada render no reprograma nada. */
-export function useArbol(repo: string | null, rutas: string[]) {
+export function useArbolArchivos(repo: string | null, rutas: string[]) {
   const [cargado, setCargado] = useState<Cargado | null>(null);
   const [fallo, setFallo] = useState<Fallo | null>(null);
   const clave = rutas.join("\u0000");

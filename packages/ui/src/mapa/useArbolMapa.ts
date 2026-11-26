@@ -11,7 +11,7 @@ export type Quema = { id: number; uid: string; title: string };
  *
  *  No hay status `eliminadas` en el almacén: esas filas se inyectan aquí
  *  mientras dura la animación y desaparecen cuando el borrado termina. */
-export function useArbol(
+export function useArbolMapa(
   ideas: WorkItem[] | null,
   quemas: readonly Quema[],
 ): Tree | null {

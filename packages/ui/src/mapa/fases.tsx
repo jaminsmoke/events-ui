@@ -4,6 +4,18 @@ import { useState } from "react";
 
 import type { Status } from "./carriles";
 import { ESTADOS_FASE, ETIQUETA_FASE, type Fase } from "./fase";
+import {
+  conEstado,
+  conNota,
+  conRequisito,
+  nuevaFase,
+  nuevoRequisito,
+  progreso,
+  requisitosDe,
+  sinFase,
+  sinRequisito,
+} from "./fasesModelo";
+import { useGuardarFases } from "./useGuardarFases";
 
 /** Las fases de una idea: lista corta con su estado, sin salir de la fila.
  *  Cada cambio reenvía la lista entera: el PATCH la reemplaza en una
@@ -24,8 +36,9 @@ export function FasesIdea({
 }) {
   const [nuevo, setNuevo] = useState("");
   const [primerRequisito, setPrimerRequisito] = useState("");
-  const [fallo, setFallo] = useState<string | null>(null);
-  const [guardando, setGuardando] = useState(false);
+  const vista = fases;
+  const { guardando, fallo, guardar } = useGuardarFases(alGuardar);
+  const { hechas } = progreso(vista);
   // Al fallar sin motivo no se guarda: se pide aquí y se manda con el estado.
   const [motivoPendiente, setMotivoPendiente] = useState<number | null>(null);
   const [motivoNuevo, setMotivoNuevo] = useState("");
@@ -38,35 +51,13 @@ export function FasesIdea({
     () => new Map(),
   );
   const [requisitoNuevo, setRequisitoNuevo] = useState("");
-  const vista = fases;
-
-  const guardar = (siguientes: readonly Fase[]) => {
-    setGuardando(true);
-    setFallo(null);
-    alGuardar(siguientes)
-      .catch((err: unknown) => {
-        setFallo(err instanceof Error ? err.message : String(err));
-      })
-      .finally(() => setGuardando(false));
-  };
 
   const anadir = (e: React.FormEvent) => {
     e.preventDefault();
     const titulo = nuevo.trim();
     const primer = primerRequisito.trim();
     if (!titulo || !primer) return;
-    const orden = Math.max(0, ...vista.map((fase) => fase.orden)) + 1;
-    guardar([
-      ...vista,
-      {
-        orden,
-        titulo,
-        estado: "pendiente",
-        nota: "",
-        entered_at: "",
-        requisitos: [{ orden: 1, titulo: primer, hecho: false, done_at: null }],
-      },
-    ]);
+    guardar(nuevaFase(vista, titulo, primer));
     setNuevo("");
     setPrimerRequisito("");
   };
@@ -74,12 +65,12 @@ export function FasesIdea({
   return (
     <div className="fases">
       <p className="fases-cabecera">
-        Fases {vista.filter((fase) => fase.estado === "completada").length}/{vista.length}
+        Fases {hechas}/{vista.length}
       </p>
       {vista.map((fase) => {
         const requisitos = fase.requisitos ?? [];
-        const hechosReq = requisitos.filter((requisito) => requisito.hecho).length;
-        const pendientesReq = requisitos.length - hechosReq;
+        const { hechos: hechosReq, total: totalReq } = requisitosDe(fase);
+        const pendientesReq = totalReq - hechosReq;
         const abiertos = excepciones.get(fase.orden) ?? autoRequisitos;
         return (
         <div className="fase-grupo" key={fase.orden}>
@@ -125,13 +116,7 @@ export function FasesIdea({
                   e.preventDefault();
                   const nota = motivoNuevo.trim();
                   if (!nota) return;
-                  guardar(
-                    vista.map((otra) =>
-                      otra.orden === fase.orden
-                        ? { ...otra, estado: "fallida", nota }
-                        : otra,
-                    ),
-                  );
+                  guardar(conEstado(vista, fase.orden, "fallida", nota));
                   setMotivoPendiente(null);
                   setMotivoNuevo("");
                 }}
@@ -174,11 +159,7 @@ export function FasesIdea({
                 onBlur={(e) => {
                   const nota = e.target.value.trim();
                   if (nota === fase.nota) return;
-                  guardar(
-                    vista.map((otra) =>
-                      otra.orden === fase.orden ? { ...otra, nota } : otra,
-                    ),
-                  );
+                  guardar(conNota(vista, fase.orden, nota));
                 }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") e.currentTarget.blur();
@@ -206,11 +187,7 @@ export function FasesIdea({
                   setMotivoNuevo("");
                   return;
                 }
-                guardar(
-                  vista.map((otra) =>
-                    otra.orden === fase.orden ? { ...otra, estado: siguiente } : otra,
-                  ),
-                );
+                guardar(conEstado(vista, fase.orden, siguiente));
               }}
             >
               {ESTADOS_FASE.map((otro) => (
@@ -241,7 +218,7 @@ export function FasesIdea({
             title="Quitar fase"
             hidden={soloLectura}
             disabled={guardando}
-            onClick={() => guardar(vista.filter((otra) => otra.orden !== fase.orden))}
+            onClick={() => guardar(sinFase(vista, fase.orden))}
           >
             ×
           </button>
@@ -258,22 +235,7 @@ export function FasesIdea({
                   checked={requisito.hecho}
                   disabled={guardando || estado !== "roadmap" || soloLectura}
                   aria-label={`Requisito ${requisito.titulo}`}
-                  onChange={() =>
-                    guardar(
-                      vista.map((otra) =>
-                        otra.orden === fase.orden
-                          ? {
-                              ...otra,
-                              requisitos: (otra.requisitos ?? []).map((cada) =>
-                                cada.orden === requisito.orden
-                                  ? { ...cada, hecho: !cada.hecho }
-                                  : cada,
-                              ),
-                            }
-                          : otra,
-                      ),
-                    )
-                  }
+                  onChange={() => guardar(conRequisito(vista, fase.orden, requisito.orden))}
                 />
                 <span className="requisito-titulo">{requisito.titulo}</span>
                 <button
@@ -288,18 +250,7 @@ export function FasesIdea({
                   disabled={guardando || requisitos.length === 1}
                   onClick={(e) => {
                     e.preventDefault();
-                    guardar(
-                      vista.map((otra) =>
-                        otra.orden === fase.orden
-                          ? {
-                              ...otra,
-                              requisitos: (otra.requisitos ?? []).filter(
-                                (cada) => cada.orden !== requisito.orden,
-                              ),
-                            }
-                          : otra,
-                      ),
-                    );
+                    guardar(sinRequisito(vista, fase.orden, requisito.orden));
                   }}
                 >
                   ×
@@ -313,20 +264,7 @@ export function FasesIdea({
                 e.preventDefault();
                 const titulo = requisitoNuevo.trim();
                 if (!titulo) return;
-                const orden = Math.max(0, ...requisitos.map((cada) => cada.orden)) + 1;
-                guardar(
-                  vista.map((otra) =>
-                    otra.orden === fase.orden
-                      ? {
-                          ...otra,
-                          requisitos: [
-                            ...(otra.requisitos ?? []),
-                            { orden, titulo, hecho: false, done_at: null },
-                          ],
-                        }
-                      : otra,
-                  ),
-                );
+                guardar(nuevoRequisito(vista, fase.orden, titulo));
                 setRequisitoNuevo("");
               }}
             >

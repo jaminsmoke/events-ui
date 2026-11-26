@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 
 import type { CambioGit, NodoArbol } from "../core/api";
 import { folderName } from "../core/repo";
-import { useArbol } from "../core/useArbol";
+import { useArbolArchivos } from "../core/useArbolArchivos";
 
 /** Árbol de archivos del repo, plegable y vivo.
  *
@@ -22,7 +22,7 @@ export function ExploradorArbol({
   const [abiertas, setAbiertas] = useState<string[]>([]);
   // La raíz (`""`) va siempre; lo demás es lo que el usuario desplegó.
   const rutas = useMemo(() => ["", ...abiertas], [abiertas]);
-  const { hijos, error } = useArbol(repo, rutas);
+  const { hijos, error } = useArbolArchivos(repo, rutas);
 
   const estado = useMemo(() => {
     const porRuta = new Map<string, string>();

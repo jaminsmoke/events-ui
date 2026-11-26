@@ -13,7 +13,7 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 from .config import PUERTO_POR_DEFECTO
 
-# Se repiten los CHECK de `schema/items.sql` a propÃ³sito: aquÃ­ sirven para que el
+# Se repiten los CHECK de `schema/items.sql` a propósito: aquí sirven para que el
 # contrato OpenAPI publique los enums y la UI no tenga que adivinarlos.
 # Al crear y editar solo se admite `work_item`: nota/ADR no están pensados
 # como tipos nuevos. Al leer sí se conservan los históricos (`adr`, `note`) y el

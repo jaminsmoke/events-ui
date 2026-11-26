@@ -15,32 +15,11 @@ from .base.esquema import connect, ensure_repo
 from .base.rutas import repos_root, resolve_repo
 from .consulta import _row, get_item
 from .modelo.dependencias import _comprobar_dependencias, _validar_dependencias
-from .modelo.estados import (
-    REJECT_FIELDS,
-    STATE_FIELDS,
-    UPDATABLE,
-    _actualizar_ficha_activa,
-    _escribir_estado,
-    _estado,
-    _grupo,
-    _validar_campos_ficha,
-)
-from .modelo.validacion import (
-    _exige_fases,
-    _exige_fases_completas,
-    _exige_fases_listas,
-    _protocolo_ok,
-    _validar_aprobacion_total,
-    _validar_fases_completadas,
-    _validar_fases_en_lane,
-)
-from .trabajo.anotacion import (
-    _aplicar_anotacion,
-    _foto_guardar,
-    _plan_de_eventos,
-    _planificar_anotacion,
-)
-from .trabajo.fases import _escribir_fases, _fases, _normalizar_fases
+from .modelo.estados import _escribir_estado, _grupo
+from .modelo.plan import _aplicar, _comprobar, _planificar
+from .modelo.validacion import _validar_fases_completadas, _validar_fases_en_lane
+from .trabajo.anotacion import _foto_guardar
+from .trabajo.fases import _escribir_fases, _normalizar_fases
 
 
 def _mensaje_integridad(exc: sqlite3.IntegrityError) -> str:
@@ -56,20 +35,6 @@ def _mensaje_integridad(exc: sqlite3.IntegrityError) -> str:
     if "work_item_cola_orden" in texto:
         return "la cola cambió mientras se guardaba el ítem: reintenta"
     return "superseded_by_uid apunta a un ítem que no existe"
-
-
-def _huella_fases(fases: list[dict[str, Any]]) -> list[tuple[Any, ...]]:
-    """Lo de las fases que decide el plan, sin los archivos anotados."""
-    return [
-        (
-            fase["orden"],
-            fase["titulo"],
-            fase["estado"],
-            fase["nota"],
-            tuple((r["orden"], r["titulo"], bool(r["hecho"])) for r in fase["requisitos"]),
-        )
-        for fase in fases
-    ]
 
 
 def create_item(
@@ -164,155 +129,24 @@ def update_item(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
     la anotación (0028) se calculan con la conexión todavía sin escribir, y el
     delta del PATCH se anota en el primer evento que trae (ver `anotacion.py`).
     Si el árbol falla, queda un aviso y la ficha se guarda igual.
+
+    El trabajo está repartido: `_planificar` decide qué escribir, qué comprobar
+    y qué anotar; `_comprobar` pasa las compuertas con el lock tomado; `_aplicar`
+    escribe. Aquí solo se abre la transacción y se emite el evento.
     """
-    clean = {k: v for k, v in changes.items() if v is not None and k in UPDATABLE}
-    rechazo = {k: v for k, v in changes.items() if v is not None and k in REJECT_FIELDS}
-    estado_detalle = {k: v for k, v in changes.items() if v is not None and k in STATE_FIELDS}
-    fases_pedidas = changes.get("fases")
-    if (
-        not clean
-        and not rechazo
-        and not estado_detalle
-        and "status" not in changes
-        and fases_pedidas is None
-    ):
-        raise InvalidInput("nada que actualizar")
-
-    if "tags" in clean:
-        clean["tags"] = json.dumps(list(clean["tags"]))
-    clean["updated_at"] = now_iso()
-
-    nuevo_estado = changes["status"] if changes.get("status") is not None else None
-    detalle_ficha = {**rechazo, **estado_detalle}
-    assignments = ", ".join(f"{column} = :{column}" for column in clean)
     with closing(connect(ensure_repo(repo))) as conn:
-        # La ficha activa (y el destino, si cambia el estado) decide qué
-        # campos de ficha tienen sentido; se comprueba antes de escribir.
-        if conn.execute("SELECT 1 FROM work_item_data WHERE uid = ?", (uid,)).fetchone() is None:
-            raise KeyError(uid)
-        actual = _estado(conn, uid)
-        # Las fases se leen una vez: el mismo dato decide la validación, las
-        # compuertas y los archivos que se anotan al cerrar (0028).
-        fases_previas = _fases(conn, uid)
-        destino = nuevo_estado or actual
-        _validar_campos_ficha(detalle_ficha, destino)
-        # Las dependencias se validan antes del UPDATE: se deduplican, tienen
-        # que existir y no pueden cerrar un ciclo. La lista se guarda en JSON.
-        deps_nuevas: list[str] | None = None
-        if "depende_de" in clean:
-            deps_nuevas = _validar_dependencias(conn, uid, list(clean["depende_de"]))
-            clean["depende_de"] = json.dumps(deps_nuevas)
-        # Un cambio de estado no es un UPDATE de la entrada: crea o retira la
-        # fila de cola, de roadmap, de verificación, de revisión aprobada o
-        # de descartada. Sin cambio (o reafirmando el mismo), se edita la
-        # ficha activa.
-        cambiado_estado = nuevo_estado is not None and nuevo_estado != actual
-        # Las fases se reemplazan enteras y se validan antes de escribir nada:
-        # el gate mira lo que quedará, no lo que había.
-        fases_finales = (
-            _normalizar_fases(fases_pedidas, fases_previas) if fases_pedidas is not None else None
-        )
-        if fases_finales is not None:
-            _validar_fases_en_lane(destino, fases_finales)
-            _validar_fases_completadas(fases_finales)
-        # El gate mira la lista que quedará: la que llega en este PATCH o,
-        # si no hay, la que ya tiene el ítem.
-        fases_quedan = (
-            (fases_finales if fases_finales is not None else fases_previas)
-            if cambiado_estado
-            else []
-        )
-        # El árbol se lee aquí, con la transacción todavía sin abrir: el lock
-        # de escritura no cubre el recorrido ni el `git diff`, y un PATCH con
-        # varias fases hace uno de cada.
-        plan_archivos = _plan_de_eventos(
-            fases_previas,
-            fases_finales if fases_finales is not None else fases_previas,
-            inicio=cambiado_estado and _grupo(str(nuevo_estado)) == "roadmap",
-        )
-        anotacion = _planificar_anotacion(conn, repo, uid, plan_archivos)
+        plan = _planificar(conn, repo, uid, changes)
         # Comprobar y escribir, en la misma transacción inmediata: si no, dos
         # PATCH a la vez leen «no hay nadie en roadmap» los dos y el índice
         # único para al segundo con un error que no explica nada.
         conn.execute("BEGIN IMMEDIATE")
         try:
-            # Otra petición pudo escribir entre la lectura y el lock: el plan
-            # se calculó con datos que ya no valen.
-            if _estado(conn, uid) != actual or _huella_fases(_fases(conn, uid)) != _huella_fases(
-                fases_previas
-            ):
-                raise InvalidInput("el ítem cambió mientras se preparaba el PATCH: reintenta")
-            # Los protocolos mandan sobre el flujo: una unión no listada
-            # se rechaza (400) y no escribe nada.
-            if cambiado_estado and not _protocolo_ok(conn, actual, nuevo_estado):
-                raise InvalidInput(
-                    f"el protocolo no permite el flujo {actual} → "
-                    f"{nuevo_estado}: esa unión no está en `protocolo_flujo`"
-                )
-            if cambiado_estado:
-                _comprobar_dependencias(conn, uid, nuevo_estado, deps_nuevas)
-            if cambiado_estado and _exige_fases(conn, actual, nuevo_estado) and not fases_quedan:
-                raise InvalidInput(
-                    f"el protocolo exige al menos una fase para pasar a {nuevo_estado}"
-                )
-            if cambiado_estado and _exige_fases_listas(conn, actual, nuevo_estado):
-                abiertas = [
-                    fase["titulo"]
-                    for fase in fases_quedan
-                    if fase["estado"] in ("pendiente", "fallida")
-                ]
-                if abiertas:
-                    raise InvalidInput(
-                        f"no puede pasar a {nuevo_estado}: quedan fases sin cerrar: "
-                        + ", ".join(abiertas)
-                    )
-            if cambiado_estado and _exige_fases_completas(conn, actual, nuevo_estado):
-                incompletas = [
-                    fase["titulo"] for fase in fases_quedan if fase["estado"] != "completada"
-                ]
-                if incompletas:
-                    raise InvalidInput(
-                        f"no puede pasar a {nuevo_estado}: hay fases sin completar: "
-                        + ", ".join(incompletas)
-                    )
-            if cambiado_estado and _grupo(nuevo_estado) in ("revision_aprobada", "historial"):
-                _validar_aprobacion_total(fases_quedan)
-            cursor = conn.execute(
-                f"UPDATE work_item_data SET {assignments} WHERE uid = :uid",
-                {**clean, "uid": uid},
-            )
-            if cursor.rowcount == 0:
-                raise KeyError(uid)
-            if cambiado_estado:
-                _escribir_estado(conn, uid, nuevo_estado, detalle_ficha)
-                # Aprobar archiva: la firma se queda en `revision_node` y la
-                # item pasa a `historial` en la misma transacción. El carril
-                # aprobado es la compuerta, no un sitio donde esperar.
-                if nuevo_estado == "revision_aprobada":
-                    conn.execute(
-                        "UPDATE work_item_node SET estado = 'historial',"
-                        " posicion = NULL WHERE uid = ?",
-                        (uid,),
-                    )
-            else:
-                _actualizar_ficha_activa(conn, uid, actual, detalle_ficha)
-            if fases_finales is not None:
-                _escribir_fases(conn, uid, fases_finales)
-            # Ya con las fases escritas, se aplica lo que se planificó antes
-            # del BEGIN: el delta del PATCH se anota en el primer evento.
-            _aplicar_anotacion(conn, uid, plan_archivos, anotacion)
-            item = _row(
-                conn,
-                conn.execute(
-                    f"SELECT {_COLUMNAS} FROM work_item_data"
-                    " JOIN work_item_node ON work_item_node.uid = work_item_data.uid"
-                    " WHERE work_item_data.uid = ?",
-                    (uid,),
-                ).fetchone(),
-            )
+            _comprobar(conn, plan)
+            _aplicar(conn, plan)
+            item = _leer(conn, uid)
             _emitir(
                 conn,
-                "item.status" if cambiado_estado else "item.updated",
+                "item.status" if plan.cambiado_estado else "item.updated",
                 {"uid": uid, "title": item["title"], "status": item["status"]},
             )
             conn.commit()
@@ -322,6 +156,19 @@ def update_item(repo: str, uid: str, changes: dict[str, Any]) -> dict[str, Any]:
             # deberían saltar; si saltan, el mensaje dice cuál.
             raise InvalidInput(_mensaje_integridad(exc)) from exc
     return item
+
+
+def _leer(conn: sqlite3.Connection, uid: str) -> dict[str, Any]:
+    """La ficha tal y como queda: lo que devuelve el PATCH y lo que va al evento."""
+    return _row(
+        conn,
+        conn.execute(
+            f"SELECT {_COLUMNAS} FROM work_item_data"
+            " JOIN work_item_node ON work_item_node.uid = work_item_data.uid"
+            " WHERE work_item_data.uid = ?",
+            (uid,),
+        ).fetchone(),
+    )
 
 
 def delete_item(repo: str, uid: str) -> bool:

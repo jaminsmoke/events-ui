@@ -19,17 +19,149 @@ de ellos.
 
 from __future__ import annotations
 
+import os
 import shutil
 import sqlite3
 import subprocess
+import time
 from contextlib import closing
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from .db import open_read_only
-from .git_local import _git_repo, cambios, ejecutar, texto
+from .git_local import _git_repo, _proceso_git, cambios, ejecutar, texto
 from .items import InvalidInput, _existe, ensure_repo, repos_root, resolve_repo
 from .items.base.rutas import DB_FILENAME, EUI_DIR
+
+# La proyección se pide cada ~6 s por cliente y el estado de Git cambia poco.
+# Se recuerda la parte de Git por carpeta y solo se rehace cuando cambia la
+# huella de lo que Git cuenta, cuando el árbol deja de estar como HEAD o cuando
+# toca revisar los no seguidos: eso último es lo único que obliga a recorrer el
+# árbol, así que se hace cada `TTL_NO_SEGUIDOS` y no en cada lectura.
+TTL_NO_SEGUIDOS = 10.0
+
+
+@dataclass
+class _CacheGit:
+    """La parte de Git de una proyección y cuándo se miró el árbol entero."""
+
+    propio: bool
+    raiz: Path | None
+    huella: tuple[object, ...] | None
+    parte: dict[str, Any]
+    escaneo: float
+
+
+_ULTIMA_GIT: dict[Path, _CacheGit] = {}
+
+
+def _firma(ruta: Path) -> tuple[int, int] | None:
+    """`(mtime_ns, tamaño)` de una ruta; `None` si no está."""
+    try:
+        info = ruta.stat()
+    except OSError:
+        return None
+    return info.st_mtime_ns, info.st_size
+
+
+def _firma_refs(refs: Path) -> tuple[tuple[str, tuple[int, int] | None], ...]:
+    """La firma de cada ref: un commit mueve la de su rama, no la de `refs/`."""
+    firmas = []
+    for raiz, _, ficheros in os.walk(refs):
+        for fichero in ficheros:
+            ruta = Path(raiz) / fichero
+            firmas.append((ruta.relative_to(refs).as_posix(), _firma(ruta)))
+    return tuple(sorted(firmas))
+
+
+def _huella_git(raiz: Path) -> tuple[object, ...] | None:
+    """La firma de lo que Git cuenta: índice, HEAD y refs.
+
+    `None` cuando no hay una huella fiable —un work tree enlazado guarda su
+    estado fuera de la carpeta— y entonces no se recuerda nada.
+    """
+    punto = raiz / ".git"
+    if not punto.is_dir():
+        return None
+    return (
+        _firma(punto / "index"),
+        _firma(punto / "HEAD"),
+        _firma(punto / "packed-refs"),
+        _firma_refs(punto / "refs"),
+    )
+
+
+def _sin_tocar(carpeta: Path) -> bool | None:
+    """¿El árbol sigue como HEAD, sin tocar lo que el índice conoce?
+
+    `diff-index --quiet` no escribe nada ni enumera los no seguidos —eso es lo
+    caro de `git status`—: solo mira los archivos que el índice ya conoce, que
+    es justo lo que un editor cambia. `None` cuando no se puede saber (un repo
+    sin commits, por ejemplo).
+    """
+    salida = _proceso_git(carpeta, "diff-index", "--quiet", "HEAD", "--", timeout=5)
+    if salida is None or salida.returncode not in (0, 1):
+        return None
+    return salida.returncode == 0
+
+
+def _olvidar(carpeta: Path) -> None:
+    """Tira la proyección recordada: algo cambió sin mover su huella."""
+    _ULTIMA_GIT.pop(carpeta, None)
+
+
+def _parte_git(carpeta: Path) -> dict[str, Any]:
+    """Identidad, rama, commit y cambios: lo que se pregunta a Git.
+
+    En cada lectura se miran dos cosas baratas: la huella de lo que Git cuenta
+    y si el árbol sigue como HEAD. Con eso se reutiliza lo último sin lanzar el
+    `status`; los no seguidos, que no dejan huella, se revisan cada
+    `TTL_NO_SEGUIDOS`.
+    """
+    ahora = time.monotonic()
+    # Solo importa si hay `.git` propio: su `mtime` lo mueve el propio
+    # `status` (crea y borra el lock del índice) y no dice nada.
+    propio = (carpeta / ".git").is_dir()
+    cache = _ULTIMA_GIT.get(carpeta)
+    if cache is not None and cache.propio == propio:
+        if cache.raiz is None:
+            if ahora - cache.escaneo < TTL_NO_SEGUIDOS:
+                return cache.parte
+        elif (
+            cache.huella is not None
+            and _huella_git(cache.raiz) == cache.huella
+            and _sin_tocar(carpeta) is True
+            and ahora - cache.escaneo < TTL_NO_SEGUIDOS
+        ):
+            return cache.parte
+
+    es_git, raiz = _git_repo(carpeta)
+    if not es_git or raiz is None:
+        parte: dict[str, Any] = {
+            "git": False,
+            "git_root": None,
+            "branch": None,
+            "commit": None,
+            "git_cambios": [],
+            "eui_ignorado": None,
+        }
+        _ULTIMA_GIT[carpeta] = _CacheGit(propio, None, None, parte, ahora)
+        return parte
+
+    # `symbolic-ref` funciona en un repo recién inicializado, antes del primer
+    # commit; `rev-parse --abbrev-ref HEAD` no. El commit sí puede faltar y se
+    # queda en `None`.
+    parte = {
+        "git": True,
+        "git_root": str(raiz),
+        "branch": texto(carpeta, "symbolic-ref", "--short", "HEAD", timeout=5),
+        "commit": texto(carpeta, "rev-parse", "--short", "HEAD", timeout=5),
+        "git_cambios": cambios(carpeta),
+        "eui_ignorado": _almacen_ignorado(carpeta),
+    }
+    _ULTIMA_GIT[carpeta] = _CacheGit(propio, raiz, _huella_git(raiz), parte, ahora)
+    return parte
 
 
 def _almacen_ignorado(carpeta: Path) -> bool | None:
@@ -81,6 +213,9 @@ def ignorar_almacen(carpeta: Path) -> None:
         destino.write_text(nuevo, encoding="utf-8")
     except OSError as exc:
         raise InvalidInput(f"No se pudo escribir {destino}: {exc}") from exc
+    # El `.gitignore` puede ser nuevo y no cambiar índice ni HEAD: la
+    # proyección recordada diría que el almacén sigue versionándose.
+    _olvidar(carpeta)
 
 
 def historial(carpeta: Path, limite: int = 20) -> list[dict[str, str]]:
@@ -141,6 +276,7 @@ def inicializar_repo(carpeta: Path) -> None:
     if salida.returncode != 0:
         detalle = salida.stderr.strip() or "git init falló"
         raise InvalidInput(detalle)
+    _olvidar(carpeta)
 
 
 def eliminar_repo(carpeta: Path) -> None:
@@ -159,6 +295,7 @@ def eliminar_repo(carpeta: Path) -> None:
     if not punto_git.is_dir():
         raise InvalidInput("El .git no es una carpeta; no se elimina")
     shutil.rmtree(punto_git)
+    _olvidar(carpeta)
 
 
 def commit(carpeta: Path, mensaje: str) -> None:
@@ -197,6 +334,7 @@ def commit(carpeta: Path, mensaje: str) -> None:
             raise InvalidInput("No se pudo ejecutar git") from exc
         if salida.returncode != 0:
             raise InvalidInput(salida.stderr.strip() or "git falló")
+    _olvidar(carpeta)
 
 
 def repo_estado_actual(repo: str) -> dict[str, Any]:
@@ -234,19 +372,10 @@ def repo_estado_actual(repo: str) -> dict[str, Any]:
         except sqlite3.Error:
             ultima = None
 
-    es_git, git_root = _git_repo(carpeta)
     return {
         "repo": str(carpeta),
         "laboratorio": carpeta.parent == repos_root(),
-        "git": es_git,
-        "git_root": str(git_root) if git_root else None,
-        # `symbolic-ref` funciona en un repo recién inicializado, antes del
-        # primer commit; `rev-parse --abbrev-ref HEAD` no. El commit sí puede
-        # faltar y se queda en `None`.
-        "branch": texto(carpeta, "symbolic-ref", "--short", "HEAD", timeout=5) if es_git else None,
-        "commit": texto(carpeta, "rev-parse", "--short", "HEAD", timeout=5) if es_git else None,
-        "git_cambios": cambios(carpeta) if es_git else [],
-        "eui_ignorado": _almacen_ignorado(carpeta) if es_git else None,
+        **_parte_git(carpeta),
         "items": items,
         "events": eventos,
         "por_estado": por_estado,

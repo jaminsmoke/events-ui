@@ -94,6 +94,48 @@ def test_si_cabe_no_toca_nada(client, tmp_path, monkeypatch):  # noqa: ANN001, A
         assert _contenidos(conn) == [1]
 
 
+class _Contador:
+    """La conexión, contando los SUM de la tabla entera que le piden."""
+
+    def __init__(self, conn: sqlite3.Connection) -> None:
+        self.conn = conn
+        self.sumas = 0
+
+    def execute(self, sql: str, *args):  # noqa: ANN002, ANN201
+        # El total del almacén es el único SUM de la tabla sin WHERE.
+        if "SUM(LENGTH(CAST(contenido AS BLOB)))" in sql and "WHERE" not in sql:
+            self.sumas += 1
+        return self.conn.execute(sql, *args)
+
+
+def test_un_cierre_pequeno_no_suma_la_tabla(client, tmp_path, monkeypatch):  # noqa: ANN001, ANN202
+    carpeta = tmp_path / "tope-sin-sumar"
+    carpeta.mkdir()
+    uid = _item(client, carpeta)
+    with sqlite3.connect(_ruta_db(carpeta)) as conn:
+        _sembrar(conn, uid, {1: ("2026-01-01T00:00:00+00:00", "a" * 4000)})
+        monkeypatch.setattr(anotacion, "LIMITE_PARQUES", 8000)
+        monkeypatch.setattr(anotacion, "_PENDIENTES", {}, raising=False)
+        contador = _Contador(conn)
+
+        # La primera anotación del almacén en el proceso suma: el fichero puede
+        # venir de otra ejecución ya por encima del tope.
+        assert anotacion._podar_parches(contador) == 0
+        assert contador.sumas == 1
+
+        # Cerrar otra fase no vuelve a sumar: la tabla se queda como estaba.
+        assert anotacion._podar_parches(contador) == 0
+        assert contador.sumas == 1
+
+        # Ni un cierre que trae unos pocos bytes, mientras no llegue al umbral.
+        assert anotacion._podar_parches(contador, escritos=4000) == 0
+        assert contador.sumas == 1
+
+        # Pasado el umbral, vuelve a sumar.
+        assert anotacion._podar_parches(contador, escritos=anotacion.UMBRAL_REVISION) == 0
+        assert contador.sumas == 2
+
+
 def _git(carpeta: Path, *args: str) -> None:
     subprocess.run([GIT or "git", *args], cwd=carpeta, check=True, capture_output=True, text=True)
 
@@ -164,8 +206,10 @@ def test_el_cierre_poda_lo_viejo_y_conserva_lo_nuevo(client, tmp_path, monkeypat
     (carpeta / "pequeno.txt").write_text("x\n", encoding="utf-8")
 
     # Un tope entre el parche nuevo (unos cientos de bytes) y el viejo (miles):
-    # al cerrar la segunda fase solo se poda la primera.
+    # al cerrar la segunda fase solo se poda la primera. El umbral a cero hace
+    # que este cierre vuelva a sumar, que es lo que se está probando aquí.
     monkeypatch.setattr(anotacion, "LIMITE_PARQUES", 1000)
+    monkeypatch.setattr(anotacion, "UMBRAL_REVISION", 0, raising=False)
     fases = _payload(client, carpeta, uid)
     fases[1]["estado"] = "completada"
     fases[1]["requisitos"][0]["hecho"] = True

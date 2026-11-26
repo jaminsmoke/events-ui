@@ -12,6 +12,7 @@ mismo PATCH no reescriben su lista.
 from __future__ import annotations
 
 import sqlite3
+import threading
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -32,6 +33,17 @@ LIMITE_PARQUES = 8 * 1024 * 1024
 # `git diff` y el evento se queda sin archivos, con aviso. Una fase cerrada sin
 # lista es recuperable; un core que no acepta escrituras durante segundos, no.
 PRESUPUESTO_MS = 2_000
+
+# El tope no se comprueba en cada anotación: sumar la tabla entera cuesta lo que
+# crezca el histórico del almacén. Se acumulan los bytes que escriben los PATCH
+# y solo al pasar de este umbral se vuelve a sumar; la primera anotación de un
+# almacén en este proceso suma siempre, que el fichero puede venir de otra
+# ejecución ya por encima. Los borrados no se descuentan: la cuenta se queda
+# larga y, como mucho, se suma de más.
+UMBRAL_REVISION = 256 * 1024
+
+_PENDIENTES: dict[str, int] = {}
+_PENDIENTES_LOCK = threading.Lock()
 
 
 def _foto_texto(conn: sqlite3.Connection, uid: str) -> str | None:
@@ -94,7 +106,52 @@ def _escribir_archivos(
     )
 
 
-def _podar_parches(conn: sqlite3.Connection) -> int:
+def _ruta_db(conn: sqlite3.Connection) -> str:
+    """El fichero de la conexión: la clave del contador de bytes pendientes."""
+    for fila in conn.execute("PRAGMA database_list"):
+        if fila[1] == "main":
+            return str(fila[2])
+    return ""
+
+
+def _toca_revisar(conn: sqlite3.Connection, escritos: int) -> bool:
+    """¿Toca sumar la tabla entera? Solo cada `UMBRAL_REVISION` bytes escritos.
+
+    Anota los bytes de este PATCH y responde. La primera vez que este proceso
+    anota en un almacén responde que sí, para no dejar sin podar un fichero que
+    ya venía por encima del tope.
+    """
+    clave = _ruta_db(conn)
+    with _PENDIENTES_LOCK:
+        previos = _PENDIENTES.get(clave)
+        if previos is None:
+            _PENDIENTES[clave] = 0
+            return True
+        acumulado = previos + escritos
+        if acumulado < UMBRAL_REVISION:
+            _PENDIENTES[clave] = acumulado
+            return False
+        _PENDIENTES[clave] = 0
+        return True
+
+
+def _bytes_parches(conn: sqlite3.Connection) -> int:
+    """Lo que ocupan los parches del almacén, en bytes."""
+    return int(
+        conn.execute(
+            "SELECT COALESCE(SUM(LENGTH(CAST(contenido AS BLOB))), 0) FROM work_item_fase_archivo"
+        ).fetchone()[0]
+    )
+
+
+def _bytes_de(cambios: list[dict[str, Any]]) -> int:
+    """Lo que ocupan los parches de este PATCH (de más si sustituyen a otros)."""
+    return sum(
+        len(cambio["contenido"].encode("utf-8")) for cambio in cambios if cambio.get("contenido")
+    )
+
+
+def _podar_parches(conn: sqlite3.Connection, escritos: int = 0) -> int:
     """Suelta el contenido de las fases más viejas si la base pasa del tope.
 
     Se cuentan bytes, no caracteres (`CAST … AS BLOB`), que es lo que ocupa el
@@ -102,12 +159,13 @@ def _podar_parches(conn: sqlite3.Connection) -> int:
     antes es lo que antes deja de mirarse. Se poda una fase entera de golpe para
     no dejar medio registro con parche y medio sin él. Devuelve cuántas fases se
     quedaron sin contenido.
+
+    `escritos` son los bytes que trae este PATCH: con ellos se decide si toca
+    sumar (`_toca_revisar`), no en cada cierre.
     """
-    total = int(
-        conn.execute(
-            "SELECT COALESCE(SUM(LENGTH(CAST(contenido AS BLOB))), 0) FROM work_item_fase_archivo"
-        ).fetchone()[0]
-    )
+    if not _toca_revisar(conn, escritos):
+        return 0
+    total = _bytes_parches(conn)
     if total <= LIMITE_PARQUES:
         return 0
     grupos = conn.execute(
@@ -338,7 +396,7 @@ def _aplicar_anotacion(
             f"Anotación de {uid} parada por el presupuesto de {PRESUPUESTO_MS} ms:"
             f" sin archivos en {_eventos_texto(anotacion.saltados)}",
         )
-    podadas = _podar_parches(conn)
+    podadas = _podar_parches(conn, _bytes_de(anotacion.cambios))
     if podadas:
         registro.escribir(
             "aviso",

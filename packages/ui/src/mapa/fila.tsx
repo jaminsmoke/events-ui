@@ -6,8 +6,8 @@ import { createPortal } from "react-dom";
 import type { WorkItem, WorkItemUpdate } from "../core/api";
 import type { PuedeIr } from "../core/useProtocolos";
 import { DescartaItem } from "../pantalla/DescartaItem";
-import { ACCIONES_ESTADO, motivoBloqueo } from "./acciones";
 import type { TreeNode } from "./arbol";
+import { BotonesMover } from "./BotonesMover";
 import { ETIQUETA_ESTADO, sePuedeEliminar } from "./carriles";
 import type { Status } from "./carriles";
 import { FasesItem } from "./fases";
@@ -308,34 +308,20 @@ export function NodeRow({
       )}
       <div className="fila-pie">
         <div className="fila-mover">
-          {estado &&
-            onMover &&
-            ACCIONES_ESTADO[estado]
-              .filter((accion) => !puedeIr || puedeIr(estado, accion.estado))
-              .map((accion) => {
-                const bloqueo = motivoBloqueo(estado, fases, accion.estado, {
-                  exigeFases,
-                  exigeFasesListas,
-                  exigeFasesCompletas,
-                });
-                return (
-                  <button
-                    key={accion.estado}
-                    type="button"
-                    className="btn ghost mover"
-                    title={bloqueo ?? accion.etiqueta}
-                    disabled={trabajando || bloqueo !== null}
-                    onClick={() => {
-                      // Descartar pide el motivo (detalle `rejected_node`); los
-                      // demás traslados van directos.
-                      if (accion.descartar && onEditar) setDescartando(true);
-                      else onMover(uid!, accion.estado);
-                    }}
-                  >
-                    {accion.etiqueta}
-                  </button>
-                );
-              })}
+          {estado && (
+            <BotonesMover
+              uid={uid!}
+              estado={estado}
+              fases={fases}
+              puedeIr={puedeIr}
+              exigeFases={exigeFases}
+              exigeFasesListas={exigeFasesListas}
+              exigeFasesCompletas={exigeFasesCompletas}
+              trabajando={trabajando}
+              onMover={onMover}
+              onDescartar={onEditar ? () => setDescartando(true) : undefined}
+            />
+          )}
         </div>
         <div className="fila-secundaria">
           {onEditar && !enHistorial && (

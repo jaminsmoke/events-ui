@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { api, unwrap } from "../core/api";
 import type { Puerta, WorkItem, WorkItemUpdate } from "../core/api";
 import type { PuedeIr } from "../core/useProtocolos";
-import { ACCIONES_ESTADO, motivoBloqueo } from "../mapa/acciones";
+import { BotonesMover } from "../mapa/BotonesMover";
 import { ETIQUETA_ESTADO, LANES, laneOf, sePuedeEliminar } from "../mapa/carriles";
 import type { Status } from "../mapa/carriles";
 import { ETIQUETA_FASE } from "../mapa/fase";
@@ -79,10 +79,6 @@ export function CuerpoItem({
       .catch((err: unknown) => setFallo(err instanceof Error ? err.message : String(err)))
       .finally(() => setTrabajando(false));
   };
-
-  const movimientos = (ACCIONES_ESTADO[item.status] ?? []).filter(
-    (accion) => !acciones.puedeIr || acciones.puedeIr(item.status, accion.estado),
-  );
 
   return (
     <div className="panel-cuerpo inspector-cuerpo">
@@ -205,29 +201,19 @@ export function CuerpoItem({
         <>
           <p className="pane-rotulo">Acciones</p>
           <div className="inspector-acciones">
-            {movimientos.map((accion) => {
-              const bloqueo = motivoBloqueo(item.status, fases, accion.estado, {
-                exigeFases: acciones.exigeFases,
-                exigeFasesListas: acciones.exigeFasesListas,
-                exigeFasesCompletas: acciones.exigeFasesCompletas,
-              });
-              return (
-                <button
-                  key={accion.estado}
-                  type="button"
-                  className="btn ghost"
-                  title={bloqueo ?? accion.etiqueta}
-                  disabled={trabajando || bloqueo !== null}
-                  onClick={() => {
-                    // Descartar pide el motivo, como en la fila.
-                    if (accion.descartar && acciones.onEditar) setDescartando(true);
-                    else acciones.onMover?.(item.uid, accion.estado);
-                  }}
-                >
-                  {accion.etiqueta}
-                </button>
-              );
-            })}
+            <BotonesMover
+              uid={item.uid}
+              estado={item.status}
+              fases={fases}
+              puedeIr={acciones.puedeIr}
+              exigeFases={acciones.exigeFases}
+              exigeFasesListas={acciones.exigeFasesListas}
+              exigeFasesCompletas={acciones.exigeFasesCompletas}
+              trabajando={trabajando}
+              onMover={acciones.onMover}
+              onDescartar={acciones.onEditar ? () => setDescartando(true) : undefined}
+              className="btn ghost"
+            />
             {acciones.onPideEditar && (
               <button
                 type="button"

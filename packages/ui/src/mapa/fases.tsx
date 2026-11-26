@@ -1,6 +1,6 @@
-/** Fases de un ítem: la lista que se edita en la fila. */
+/** Fases de un ítem: una sola lista para la fila y la ficha. */
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import type { Status } from "./carriles";
 import { ESTADOS_FASE, ETIQUETA_FASE, type Fase } from "./fase";
@@ -15,30 +15,41 @@ import {
   sinFase,
   sinRequisito,
 } from "./fasesModelo";
+import { fechaCorta } from "./formato";
 import { useGuardarFases } from "./useGuardarFases";
 
-/** Las fases de un ítem: lista corta con su estado, sin salir de la fila.
- *  Cada cambio reenvía la lista entera: el PATCH la reemplaza en una
- *  transacción, así que marcar una casilla no pisa el carril. */
-export function FasesItem({
+type RequisitoFase = NonNullable<Fase["requisitos"]>[number];
+
+/** La lista de fases, compacta en la fila y de detalle en la ficha.
+ *
+ *  La lógica —estado, nota, requisitos, guardado y motivo del fallo— es la
+ *  misma en las dos variantes; solo cambia el marco y lo que se enseña
+ *  alrededor (archivos y fechas en la ficha).
+ */
+export function FasesLista({
   fases,
   estado,
   alGuardar,
   soloLectura,
+  variante = "fila",
+  mostrarFechas = false,
+  renderArchivos,
 }: {
   fases: readonly Fase[];
   /** El carril de el ítem: el estado de una fase solo se toca en roadmap. */
   estado: Status;
   /** La copia optimista vive en la fila: así la ficha y la fila no se pisan. */
-  alGuardar: (siguientes: readonly Fase[]) => Promise<void>;
+  alGuardar?: (siguientes: readonly Fase[]) => Promise<void>;
   /** En solo lectura no se pintan campos: los controles llegan con Editar. */
   soloLectura: boolean;
+  variante?: "fila" | "ficha";
+  mostrarFechas?: boolean;
+  renderArchivos?: (fase: Fase, requisito?: RequisitoFase) => ReactNode;
 }) {
   const [nuevo, setNuevo] = useState("");
   const [primerRequisito, setPrimerRequisito] = useState("");
-  const vista = fases;
   const { guardando, fallo, guardar } = useGuardarFases(alGuardar);
-  const { hechas } = progreso(vista);
+  const { hechas } = progreso(fases);
   // Al fallar sin motivo no se guarda: se pide aquí y se manda con el estado.
   const [motivoPendiente, setMotivoPendiente] = useState<number | null>(null);
   const [motivoNuevo, setMotivoNuevo] = useState("");
@@ -57,17 +68,103 @@ export function FasesItem({
     const titulo = nuevo.trim();
     const primer = primerRequisito.trim();
     if (!titulo || !primer) return;
-    guardar(nuevaFase(vista, titulo, primer));
+    guardar(nuevaFase(fases, titulo, primer));
     setNuevo("");
     setPrimerRequisito("");
   };
 
+  if (variante === "ficha") {
+    return (
+      <div className="fases-lista ficha-fases-contenido">
+        <ol className="ficha-fases">
+          {fases.map((fase) => {
+            const requisitos = fase.requisitos ?? [];
+            const hechosReq = requisitos.filter((requisito) => requisito.hecho).length;
+            return (
+              <li key={fase.orden} className={`ficha-fase estado-${fase.estado}`}>
+                <span className="ficha-fase-titulo">
+                  <span className="fase-indice">Fase {fase.orden}</span>
+                  {" · "}
+                  {fase.titulo}
+                </span>
+                {/* Mismo resumen que la fila; aquí la checklist ya está a la vista. */}
+                <span className="fase-check">
+                  {hechosReq}/{requisitos.length}{" "}
+                  {requisitos.length === 1 ? "requisito" : "requisitos"}
+                </span>
+                <span className="fila-estado">
+                  {ETIQUETA_FASE[fase.estado] ?? fase.estado}
+                </span>
+                {!soloLectura &&
+                estado === "roadmap" &&
+                (fase.estado === "fallida" || fase.estado === "rechazada") ? (
+                  <input
+                    key={fase.nota}
+                    className="ficha-fase-motivo"
+                    defaultValue={fase.nota}
+                    placeholder="Motivo…"
+                    aria-label={`Motivo de ${fase.titulo}`}
+                    disabled={guardando}
+                    onBlur={(e) => {
+                      const nota = e.target.value.trim();
+                      if (nota === fase.nota) return;
+                      guardar(conNota(fases, fase.orden, nota));
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") e.currentTarget.blur();
+                    }}
+                  />
+                ) : (
+                  fase.nota && <p className="ficha-fase-nota">Motivo: {fase.nota}</p>
+                )}
+                {requisitos.length > 0 && (
+                  <ul className="ficha-requisitos">
+                    {requisitos.map((requisito) => (
+                      <li
+                        key={requisito.orden}
+                        className={`ficha-requisito${requisito.hecho ? " hecho" : ""}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={requisito.hecho}
+                          disabled={guardando || estado !== "roadmap" || soloLectura}
+                          aria-label={`Requisito ${requisito.titulo}`}
+                          onChange={() =>
+                            guardar(conRequisito(fases, fase.orden, requisito.orden))
+                          }
+                        />
+                        <span className="ficha-requisito-titulo">{requisito.titulo}</span>
+                        {mostrarFechas && requisito.done_at && (
+                          <time dateTime={requisito.done_at}>
+                            {fechaCorta(requisito.done_at)}
+                          </time>
+                        )}
+                        {renderArchivos?.(fase, requisito)}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {renderArchivos?.(fase)}
+                {mostrarFechas && (
+                  <time className="ficha-fase-fecha" dateTime={fase.entered_at}>
+                    {fechaCorta(fase.entered_at)}
+                  </time>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+        {fallo && <p className="hint error">{fallo}</p>}
+      </div>
+    );
+  }
+
   return (
     <div className="fases">
       <p className="fases-cabecera">
-        Fases {hechas}/{vista.length}
+        Fases {hechas}/{fases.length}
       </p>
-      {vista.map((fase) => {
+      {fases.map((fase) => {
         const requisitos = fase.requisitos ?? [];
         const { hechos: hechosReq, total: totalReq } = requisitosDe(fase);
         const pendientesReq = totalReq - hechosReq;
@@ -116,7 +213,7 @@ export function FasesItem({
                   e.preventDefault();
                   const nota = motivoNuevo.trim();
                   if (!nota) return;
-                  guardar(conEstado(vista, fase.orden, "fallida", nota));
+                  guardar(conEstado(fases, fase.orden, "fallida", nota));
                   setMotivoPendiente(null);
                   setMotivoNuevo("");
                 }}
@@ -159,7 +256,7 @@ export function FasesItem({
                 onBlur={(e) => {
                   const nota = e.target.value.trim();
                   if (nota === fase.nota) return;
-                  guardar(conNota(vista, fase.orden, nota));
+                  guardar(conNota(fases, fase.orden, nota));
                 }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") e.currentTarget.blur();
@@ -187,7 +284,7 @@ export function FasesItem({
                   setMotivoNuevo("");
                   return;
                 }
-                guardar(conEstado(vista, fase.orden, siguiente));
+                guardar(conEstado(fases, fase.orden, siguiente));
               }}
             >
               {ESTADOS_FASE.map((otro) => (
@@ -218,7 +315,7 @@ export function FasesItem({
             title="Quitar fase"
             hidden={soloLectura}
             disabled={guardando}
-            onClick={() => guardar(sinFase(vista, fase.orden))}
+            onClick={() => guardar(sinFase(fases, fase.orden))}
           >
             ×
           </button>
@@ -235,7 +332,7 @@ export function FasesItem({
                   checked={requisito.hecho}
                   disabled={guardando || estado !== "roadmap" || soloLectura}
                   aria-label={`Requisito ${requisito.titulo}`}
-                  onChange={() => guardar(conRequisito(vista, fase.orden, requisito.orden))}
+                  onChange={() => guardar(conRequisito(fases, fase.orden, requisito.orden))}
                 />
                 <span className="requisito-titulo">{requisito.titulo}</span>
                 <button
@@ -250,7 +347,7 @@ export function FasesItem({
                   disabled={guardando || requisitos.length === 1}
                   onClick={(e) => {
                     e.preventDefault();
-                    guardar(sinRequisito(vista, fase.orden, requisito.orden));
+                    guardar(sinRequisito(fases, fase.orden, requisito.orden));
                   }}
                 >
                   ×
@@ -264,7 +361,7 @@ export function FasesItem({
                 e.preventDefault();
                 const titulo = requisitoNuevo.trim();
                 if (!titulo) return;
-                guardar(nuevoRequisito(vista, fase.orden, titulo));
+                guardar(nuevoRequisito(fases, fase.orden, titulo));
                 setRequisitoNuevo("");
               }}
             >
@@ -309,5 +406,27 @@ export function FasesItem({
       </form>
       {fallo && <span className="hint error">{fallo}</span>}
     </div>
+  );
+}
+
+/** La variante compacta: la lista dentro de la fila. */
+export function FasesItem({
+  fases,
+  estado,
+  alGuardar,
+  soloLectura,
+}: {
+  fases: readonly Fase[];
+  estado: Status;
+  alGuardar: (siguientes: readonly Fase[]) => Promise<void>;
+  soloLectura: boolean;
+}) {
+  return (
+    <FasesLista
+      fases={fases}
+      estado={estado}
+      alGuardar={alGuardar}
+      soloLectura={soloLectura}
+    />
   );
 }

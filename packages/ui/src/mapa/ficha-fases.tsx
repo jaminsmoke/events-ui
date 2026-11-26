@@ -1,14 +1,13 @@
-/** La ficha de fases: detalle de la fase y el visor de sus archivos. */
+/** La ficha de fases: el marco y el visor de archivos sobre la lista común. */
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
 import type { WorkItem } from "../core/api";
 import type { Status } from "./carriles";
-import { ETIQUETA_FASE, type Fase } from "./fase";
-import { conNota, conRequisito, progreso } from "./fasesModelo";
-import { fechaCorta } from "./formato";
-import { useGuardarFases } from "./useGuardarFases";
+import type { Fase } from "./fase";
+import { FasesLista } from "./fases";
+import { progreso } from "./fasesModelo";
 
 /** Un archivo anotado: ruta, estado y, si lo hay, su parche desplegable.
  *  Sin contenido (sin Git, sin commits o demasiado grande) queda la fila: la
@@ -77,8 +76,8 @@ function ArchivoAnotado({
   );
 }
 
-/** La ficha de fases: el detalle completo (estado, nota y fecha), que la
- *  fila no enseña para no crecer. Solo lectura: editar es cosa de la fila. */
+/** La ficha de fases: el detalle completo (estado, nota, fecha y archivos),
+ *  que la fila no enseña para no crecer. La lista es la misma que la fila. */
 export function FichaFases({
   uid,
   estado,
@@ -100,7 +99,6 @@ export function FichaFases({
   cargarItem?: (uid: string) => Promise<WorkItem | null>;
   onCerrar: () => void;
 }) {
-  const { guardando, fallo, guardar } = useGuardarFases(alGuardar);
   // El parche se pide al abrir la ficha y se mezcla por `fase:requisito:ruta`:
   // la lista que se edita sigue siendo la de la fila, y el contenido solo se
   // pinta. El requisito 0 es la fase entera.
@@ -158,112 +156,38 @@ export function FichaFases({
         <p className="hint">
           {hechas} de {vista.length} completadas
         </p>
-        <ol className="ficha-fases">
-          {vista.map((fase) => {
-            const requisitos = fase.requisitos ?? [];
-            const hechosReq = requisitos.filter((requisito) => requisito.hecho).length;
+        <FasesLista
+          fases={vista}
+          estado={estado}
+          alGuardar={alGuardar}
+          soloLectura={!alGuardar}
+          variante="ficha"
+          mostrarFechas
+          renderArchivos={(fase, requisito) => {
+            const archivos = requisito ? requisito.archivos ?? [] : fase.archivos ?? [];
+            if (archivos.length === 0) return null;
             return (
-            <li key={fase.orden} className={`ficha-fase estado-${fase.estado}`}>
-              <span className="ficha-fase-titulo">
-                <span className="fase-indice">Fase {fase.orden}</span>
-                {" · "}
-                {fase.titulo}
-              </span>
-              {/* Mismo resumen que la fila; aquí la checklist ya está a la vista. */}
-              <span className="fase-check">
-                {hechosReq}/{requisitos.length}{" "}
-                {requisitos.length === 1 ? "requisito" : "requisitos"}
-              </span>
-              <span className="fila-estado">{ETIQUETA_FASE[fase.estado] ?? fase.estado}</span>
-              {alGuardar &&
-              estado === "roadmap" &&
-              (fase.estado === "fallida" || fase.estado === "rechazada") ? (
-                <input
-                  key={fase.nota}
-                  className="ficha-fase-motivo"
-                  defaultValue={fase.nota}
-                  placeholder="Motivo…"
-                  aria-label={`Motivo de ${fase.titulo}`}
-                  disabled={guardando}
-                  onBlur={(e) => {
-                    const nota = e.target.value.trim();
-                    if (nota === fase.nota) return;
-                    guardar(conNota(vista, fase.orden, nota));
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") e.currentTarget.blur();
-                  }}
-                />
-              ) : (
-                fase.nota && <p className="ficha-fase-nota">Motivo: {fase.nota}</p>
-              )}
-              {fase.requisitos && fase.requisitos.length > 0 && (
-                <ul className="ficha-requisitos">
-                  {fase.requisitos.map((requisito) => (
-                    <li
-                      key={requisito.orden}
-                      className={`ficha-requisito${requisito.hecho ? " hecho" : ""}`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={requisito.hecho}
-                        disabled={guardando || estado !== "roadmap" || !alGuardar}
-                        aria-label={`Requisito ${requisito.titulo}`}
-                        onChange={() => guardar(conRequisito(vista, fase.orden, requisito.orden))}
-                      />
-                      <span className="ficha-requisito-titulo">{requisito.titulo}</span>
-                      {requisito.done_at && (
-                        <time dateTime={requisito.done_at}>{fechaCorta(requisito.done_at)}</time>
-                      )}
-                      {requisito.archivos && requisito.archivos.length > 0 && (
-                        <ul
-                          className="ficha-archivos requisito-archivos"
-                          aria-label={`Archivos de ${requisito.titulo}`}
-                        >
-                          {requisito.archivos.map((archivo) => {
-                            const clave = `${fase.orden}:${requisito.orden}:${archivo.ruta}`;
-                            return (
-                              <ArchivoAnotado
-                                key={archivo.ruta}
-                                archivo={archivo}
-                                clave={clave}
-                                parche={parches.get(clave)}
-                                desplegado={abierto === clave}
-                                onAbrir={setAbierto}
-                              />
-                            );
-                          })}
-                        </ul>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {fase.archivos && fase.archivos.length > 0 && (
-                <ul className="ficha-archivos" aria-label={`Archivos de ${fase.titulo}`}>
-                  {fase.archivos.map((archivo) => {
-                    const clave = `${fase.orden}:0:${archivo.ruta}`;
-                    return (
-                      <ArchivoAnotado
-                        key={archivo.ruta}
-                        archivo={archivo}
-                        clave={clave}
-                        parche={parches.get(clave)}
-                        desplegado={abierto === clave}
-                        onAbrir={setAbierto}
-                      />
-                    );
-                  })}
-                </ul>
-              )}
-              <time className="ficha-fase-fecha" dateTime={fase.entered_at}>
-                {fechaCorta(fase.entered_at)}
-              </time>
-            </li>
+              <ul
+                className={requisito ? "ficha-archivos requisito-archivos" : "ficha-archivos"}
+                aria-label={`Archivos de ${requisito?.titulo ?? fase.titulo}`}
+              >
+                {archivos.map((archivo) => {
+                  const clave = `${fase.orden}:${requisito?.orden ?? 0}:${archivo.ruta}`;
+                  return (
+                    <ArchivoAnotado
+                      key={archivo.ruta}
+                      archivo={archivo}
+                      clave={clave}
+                      parche={parches.get(clave)}
+                      desplegado={abierto === clave}
+                      onAbrir={setAbierto}
+                    />
+                  );
+                })}
+              </ul>
             );
-          })}
-        </ol>
-        {fallo && <p className="hint error">{fallo}</p>}
+          }}
+        />
         <div className="modal-acciones">
           <button className="btn" type="button" onClick={onCerrar}>
             Cerrar

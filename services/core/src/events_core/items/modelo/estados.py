@@ -7,6 +7,32 @@ from typing import Any
 
 from ..base.comun import InvalidInput, now_iso
 
+# Los estados del flujo, en orden. `superseded` cierra junto a `rejected`,
+# pero la ficha los distingue. `contrato.Status` los repite como `Literal`
+# (typing no acepta una tupla) y `test_listas.py` comprueba que no se separen.
+ESTADOS = (
+    "draft",
+    "proposed",
+    "roadmap",
+    "verificacion",
+    "revision_aprobada",
+    "historial",
+    "rejected",
+    "superseded",
+)
+
+# Los grupos que se mueven: `superseded` comparte el de `rejected`. Es lo que
+# publica `GET /protocolos` y lo que valida el esquema de la UI.
+GRUPOS = (
+    "draft",
+    "proposed",
+    "roadmap",
+    "verificacion",
+    "revision_aprobada",
+    "historial",
+    "rejected",
+)
+
 UPDATABLE = ("title", "description", "content", "kind", "tags", "depende_de")
 
 # Campos del descarte que el PATCH acepta junto al `status` (ver `update_item`).

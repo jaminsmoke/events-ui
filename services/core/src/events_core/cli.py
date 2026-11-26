@@ -38,6 +38,7 @@ from .items.base.esquema import connect, ensure_repo
 from .items.base.eui_fs import es_permitida_en_eui, relativa_bajo_eui
 from .items.base.rutas import EUI_DIR, db_file_for, resolve_repo
 from .items.modelo import puertas as modelo_puertas
+from .items.modelo.estados import ESTADOS
 
 TIMEOUT_S = 2.0
 # Aplicar un lote escribe en el almacén: no cabe en el tiempo de un sondeo.
@@ -574,18 +575,6 @@ def _puertas(args: argparse.Namespace) -> int:
         cierra = ", ".join(puerta["cierra"]) or "informativa"
         print(f"{puerta['id']}  {puerta['motivo']}  ({cierra})")
     return 0
-
-
-ESTADOS = (
-    "draft",
-    "proposed",
-    "roadmap",
-    "verificacion",
-    "revision_aprobada",
-    "historial",
-    "rejected",
-    "superseded",
-)
 
 
 def _con_raiz(args: argparse.Namespace) -> tuple[str | None, str]:

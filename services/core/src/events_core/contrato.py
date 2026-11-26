@@ -220,6 +220,20 @@ class MapWorkItem(BaseModel):
     fases: list[Fase] = Field(default_factory=list)
 
 
+# Los grupos de la allowlist, una sola vez: `origen` y `destino` los comparten
+# (antes estaban escritos dos veces) y `test_listas.py` los compara con
+# `estados.GRUPOS` y con el `GRUPOS` de la UI.
+Grupo = Literal[
+    "draft",
+    "proposed",
+    "roadmap",
+    "verificacion",
+    "revision_aprobada",
+    "historial",
+    "rejected",
+]
+
+
 class Protocolo(BaseModel):
     """Una unión permitida por el protocolo de flujo (`protocolo_flujo`).
 
@@ -228,24 +242,8 @@ class Protocolo(BaseModel):
     como origen ni destino propios.
     """
 
-    origen: Literal[
-        "draft",
-        "proposed",
-        "roadmap",
-        "verificacion",
-        "revision_aprobada",
-        "historial",
-        "rejected",
-    ]
-    destino: Literal[
-        "draft",
-        "proposed",
-        "roadmap",
-        "verificacion",
-        "revision_aprobada",
-        "historial",
-        "rejected",
-    ]
+    origen: Grupo
+    destino: Grupo
     # ¿Pide esta unión al menos una fase? (0021). La UI lo usa para no ofrecer
     # un traslado que el core va a rechazar. Desde la 0024 también al aprobar.
     exige_fases: bool = False

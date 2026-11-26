@@ -24,6 +24,7 @@ import {
 } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { carpetaCompartida, versionesABorrar } from "./compartido.mjs";
 
 const REPO = "jaminsmoke/events-ui";
 const PLATAFORMAS = ["win32-x64", "linux-x64", "darwin-arm64", "darwin-x64"];
@@ -37,34 +38,9 @@ const sufijo = sistema === "win32" ? ".exe" : "";
 const aquí = dirname(fileURLToPath(import.meta.url));
 const { version } = JSON.parse(readFileSync(join(aquí, "..", "package.json"), "utf8"));
 
-/** La carpeta del core de esta versión, la misma que usa el desktop. */
-function carpetaCompartida() {
-  if (process.env.EUI_CORE_DIR) return process.env.EUI_CORE_DIR;
-  const versionada = (base) => join(base, "core", `v${version}`);
-  if (process.env.LOCALAPPDATA) return versionada(join(process.env.LOCALAPPDATA, "EventsUI"));
-  if (sistema === "darwin") {
-    return versionada(join(process.env.HOME ?? "", "Library", "Application Support", "EventsUI"));
-  }
-  if (process.env.XDG_DATA_HOME) return versionada(join(process.env.XDG_DATA_HOME, "eventsui"));
-  return versionada(join(process.env.HOME ?? ".", ".local", "share", "eventsui"));
-}
-
-const CARPETA = carpetaCompartida();
+const CARPETA = carpetaCompartida({ env: process.env, sistema, version });
 const CLI = join(CARPETA, `eui${sufijo}`);
 const CORE_DEL_DESKTOP = join(CARPETA, `events-core${sufijo}`);
-
-/** `vX.Y.Z` → [X, Y, Z]; null si el nombre no es una versión. */
-function versionDe(nombre) {
-  const m = /^v(\d+)\.(\d+)\.(\d+)$/.exec(nombre);
-  return m ? m.slice(1).map(Number) : null;
-}
-
-function compararVersiones(a, b) {
-  for (let i = 0; i < 3; i += 1) {
-    if (a[i] !== b[i]) return a[i] - b[i];
-  }
-  return 0;
-}
 
 /**
  * Borra las versiones antiguas del core: se queda la que se está usando, la
@@ -74,24 +50,17 @@ function compararVersiones(a, b) {
  */
 function limpiarVersionesAntiguas() {
   const raiz = dirname(CARPETA);
-  const actual = versionDe(basename(CARPETA));
-  if (!actual) return;
-
   let entradas;
   try {
     entradas = readdirSync(raiz, { withFileTypes: true });
   } catch {
     return;
   }
-  const anteriores = entradas
-    .filter((entrada) => entrada.isDirectory())
-    .map((entrada) => ({ nombre: entrada.name, numero: versionDe(entrada.name) }))
-    .filter((vieja) => vieja.numero && compararVersiones(vieja.numero, actual) < 0)
-    .sort((a, b) => compararVersiones(b.numero, a.numero));
+  const nombres = entradas.filter((entrada) => entrada.isDirectory()).map((entrada) => entrada.name);
 
-  for (const vieja of anteriores.slice(1)) {
+  for (const nombre of versionesABorrar(nombres, basename(CARPETA))) {
     try {
-      rmSync(join(raiz, vieja.nombre), { recursive: true, force: true });
+      rmSync(join(raiz, nombre), { recursive: true, force: true });
     } catch {
       // en uso por otro proceso: se queda
     }

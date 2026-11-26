@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import type { ProyeccionRepo } from "../core/api";
+import { Modal } from "./Modal";
 
 /** Confirmación para crear (`git init`) o eliminar (solo su `.git`) el repo
  *  local del repo abierto. Las dos direcciones piden permiso: eliminar
@@ -39,15 +40,11 @@ export function DialogoGit({
   };
 
   return (
-    <div className="modal-fondo" role="presentation" onClick={onCerrar}>
-      <div
-        className="modal"
-        role="dialog"
-        aria-label={crear ? "Crear repo local" : "Eliminar repo local"}
-        onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.key === "Escape" && onCerrar()}
-      >
-        <form onSubmit={confirmar}>
+    <Modal
+      etiqueta={crear ? "Crear repo local" : "Eliminar repo local"}
+      onCerrar={onCerrar}
+    >
+      <form onSubmit={confirmar}>
           <h2>{crear ? "Crear repo local" : "Eliminar repo local"}</h2>
           {crear ? (
             <p className="hint">
@@ -70,8 +67,7 @@ export function DialogoGit({
               Cancelar
             </button>
           </div>
-        </form>
-      </div>
-    </div>
+      </form>
+    </Modal>
   );
 }

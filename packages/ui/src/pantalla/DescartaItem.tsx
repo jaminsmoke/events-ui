@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import { Modal } from "./Modal";
+
 /** Diálogo al descartar: el motivo del rechazo se guarda en la tabla de
  *  descartes, junto con la fecha. Es opcional —descartar sin motivo sigue descartando—,
  *  pero sin él la ficha queda con la descripción vacía. */
@@ -31,15 +33,8 @@ export function DescartaItem({
   };
 
   return (
-    <div className="modal-fondo" role="presentation" onClick={onCerrar}>
-      <div
-        className="modal"
-        role="dialog"
-        aria-label="Descartar ítem"
-        onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.key === "Escape" && onCerrar()}
-      >
-        <form onSubmit={descartar}>
+    <Modal etiqueta="Descartar ítem" onCerrar={onCerrar}>
+      <form onSubmit={descartar}>
           <h2>Descartar ítem</h2>
           <p className="hint">«{titulo}» pasa a Descartadas. La descripción inicial se conserva.</p>
           <label>
@@ -61,8 +56,7 @@ export function DescartaItem({
               Cancelar
             </button>
           </div>
-        </form>
-      </div>
-    </div>
+      </form>
+    </Modal>
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { WorkItemUpdate } from "../core/api";
+import { Modal } from "./Modal";
 
 /** Diálogo de edición de un ítem: título, descripción y `tags`.
  *
@@ -102,15 +103,8 @@ export function EditorItem({
   // rompe (mousedown sobre el botón, mouseup fuera del diálogo) y Guardar/
   // Cancelar morían sin hacer nada. Los otros modales ya usan esta forma.
   return (
-    <div className="modal-fondo" role="presentation" onClick={onCerrar}>
-      <div
-        className="modal"
-        role="dialog"
-        aria-label="Editar ítem"
-        onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.key === "Escape" && onCerrar()}
-      >
-        <form onSubmit={guardar}>
+    <Modal etiqueta="Editar ítem" onCerrar={onCerrar}>
+      <form onSubmit={guardar}>
           <h2>Editar ítem</h2>
           {estadoCarga === "cargando" && <p className="hint">Cargando tags…</p>}
           <label>
@@ -153,8 +147,7 @@ export function EditorItem({
               Cancelar
             </button>
           </div>
-        </form>
-      </div>
-    </div>
+      </form>
+    </Modal>
   );
 }

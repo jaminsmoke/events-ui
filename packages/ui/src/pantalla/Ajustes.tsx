@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import type { Actualizacion } from "../core/actualizacion";
 import type { Ajustes, Verbosidad } from "../core/avisos";
+import { Modal } from "./Modal";
 
 /** Diálogo de ajustes: avisos del sistema y, en desktop, actualizaciones.
  *
@@ -32,15 +33,8 @@ export function Ajustes({
     actualizacion?.estado === "comprobando" || actualizacion?.estado === "descargando";
 
   return (
-    <div className="modal-fondo" role="presentation" onClick={onCerrar}>
-      <div
-        className="modal"
-        role="dialog"
-        aria-label="Ajustes"
-        onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.key === "Escape" && onCerrar()}
-      >
-        <form onSubmit={guardar}>
+    <Modal etiqueta="Ajustes" onCerrar={onCerrar}>
+      <form onSubmit={guardar}>
           <h2>Ajustes de avisos</h2>
           <label>
             Qué avisar
@@ -99,8 +93,7 @@ export function Ajustes({
               Cancelar
             </button>
           </div>
-        </form>
-      </div>
-    </div>
+      </form>
+    </Modal>
   );
 }

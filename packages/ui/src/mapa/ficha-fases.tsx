@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
 import type { WorkItem } from "../core/api";
+import { Modal } from "../pantalla/Modal";
 import type { Status } from "./carriles";
 import type { Fase } from "./fase";
 import { FasesLista } from "./fases";
@@ -137,22 +138,8 @@ export function FichaFases({
   }, [cargarItem, uid]);
 
   return createPortal(
-    <div
-      className="modal-fondo"
-      role="presentation"
-      // El tablero captura el puntero al arrastrar: sin cortarlo aquí, el
-      // `mouseup` se va al mapa y el botón Cerrar no recibe el clic.
-      onPointerDown={(e) => e.stopPropagation()}
-      onClick={onCerrar}
-    >
-      <div
-        className="modal"
-        role="dialog"
-        aria-label="Fases del ítem"
-        onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.key === "Escape" && onCerrar()}
-      >
-        <h2>Fases de «{titulo}»</h2>
+    <Modal etiqueta="Fases del ítem" onCerrar={onCerrar}>
+      <h2>Fases de «{titulo}»</h2>
         <p className="hint">
           {hechas} de {vista.length} completadas
         </p>
@@ -188,13 +175,12 @@ export function FichaFases({
             );
           }}
         />
-        <div className="modal-acciones">
-          <button className="btn" type="button" onClick={onCerrar}>
-            Cerrar
-          </button>
-        </div>
+      <div className="modal-acciones">
+        <button className="btn" type="button" onClick={onCerrar}>
+          Cerrar
+        </button>
       </div>
-    </div>,
+    </Modal>,
     document.body,
   );
 }

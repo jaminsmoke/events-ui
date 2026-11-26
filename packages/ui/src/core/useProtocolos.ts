@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 
 import { api, unwrap } from "./api";
@@ -118,24 +118,39 @@ export function useProtocolos(repo: string | null): ProtocolosFlujo {
   const cargado = estado?.repo === repo ? estado : null;
 
   /** La única consulta: qué es esa unión y qué pide. */
-  const paso = (origen: Status, destino: Status): Paso | null => {
-    if (cargado === null) return null;
-    const a = grupoDeEstado(origen);
-    const d = grupoDeEstado(destino);
-    const union = cargado.uniones.get(`${a}→${d}`);
-    // Mismo grupo (p. ej. rechazada → reemplazada) no cruza compuerta.
-    return { abierta: a === d || union !== undefined, exige: union?.exige ?? [] };
-  };
+  const paso = useCallback(
+    (origen: Status, destino: Status): Paso | null => {
+      if (cargado === null) return null;
+      const a = grupoDeEstado(origen);
+      const d = grupoDeEstado(destino);
+      const union = cargado.uniones.get(`${a}→${d}`);
+      // Mismo grupo (p. ej. rechazada → reemplazada) no cruza compuerta.
+      return { abierta: a === d || union !== undefined, exige: union?.exige ?? [] };
+    },
+    [cargado],
+  );
 
   /** ¿Pide esa unión este requisito? Sin protocolos cargados, ninguno. */
-  const exige = (origen: Status, destino: Status, requisito: Exigencia): boolean =>
-    paso(origen, destino)?.exige.includes(requisito) ?? false;
+  const exige = useCallback(
+    (origen: Status, destino: Status, requisito: Exigencia): boolean =>
+      paso(origen, destino)?.exige.includes(requisito) ?? false,
+    [paso],
+  );
 
-  return {
-    puedeIr: (origen, destino) => paso(origen, destino)?.abierta ?? true,
-    exigeFases: (origen, destino) => exige(origen, destino, "fases"),
-    exigeFasesListas: (origen, destino) => exige(origen, destino, "fases-listas"),
-    exigeFasesCompletas: (origen, destino) => exige(origen, destino, "fases-completas"),
-    paso,
-  };
+  // Identidad estable: `paso` es prop de `Lienzo` y de las filas. Una función
+  // nueva por render anulaba la memoización del mapa.
+  return useMemo(
+    () => ({
+      puedeIr: (origen: Status, destino: Status) =>
+        paso(origen, destino)?.abierta ?? true,
+      exigeFases: (origen: Status, destino: Status) =>
+        exige(origen, destino, "fases"),
+      exigeFasesListas: (origen: Status, destino: Status) =>
+        exige(origen, destino, "fases-listas"),
+      exigeFasesCompletas: (origen: Status, destino: Status) =>
+        exige(origen, destino, "fases-completas"),
+      paso,
+    }),
+    [paso, exige],
+  );
 }

@@ -266,6 +266,10 @@ export default function App({
   const { chispas, pulsos, pulsoCajon } = useAnimaciones(repo, items);
 
   const { destelloDe, cableDeChispa } = useDestellos({ chispas, cables });
+  const animacion = useMemo(
+    () => ({ volando, pulsos, pulsoCajon, destelloDe }),
+    [volando, pulsos, pulsoCajon, destelloDe],
+  );
 
   const abrir = useCallback(
     (path: string) => {
@@ -412,19 +416,38 @@ export default function App({
   // `null` = todavía sin respuesta; `[]` = el repo está sembrado pero vacío.
   const busy = repo !== null && items === null && error === null;
 
+  const pedirEdicion = useCallback(
+    (uid: string, titulo: string, descripcion: string) =>
+      setEditando({ uid, titulo, descripcion }),
+    [],
+  );
   /* Lo que el lienzo y el panel piden al almacén: una sola forma para los
-   *  dos, así una acción nueva no se queda en uno de los lados. */
-  const acciones: AccionesLienzo = {
-    puedeIr,
-    exigeFases,
-    exigeFasesListas,
-    exigeFasesCompletas,
-    onMover: alMover,
-    onEditar: editar,
-    onBorrar: alEliminar,
-    onCargar: cargarItem,
-    onPideEditar: (uid, titulo, descripcion) => setEditando({ uid, titulo, descripcion }),
-  };
+   *  dos, así una acción nueva no se queda en uno de los lados. Memorizado:
+   *  es prop de `Lienzo` y no puede cambiar por un movimiento de cámara. */
+  const acciones = useMemo<AccionesLienzo>(
+    () => ({
+      puedeIr,
+      exigeFases,
+      exigeFasesListas,
+      exigeFasesCompletas,
+      onMover: alMover,
+      onEditar: editar,
+      onBorrar: alEliminar,
+      onCargar: cargarItem,
+      onPideEditar: pedirEdicion,
+    }),
+    [
+      puedeIr,
+      exigeFases,
+      exigeFasesListas,
+      exigeFasesCompletas,
+      alMover,
+      editar,
+      alEliminar,
+      cargarItem,
+      pedirEdicion,
+    ],
+  );
 
   /* Frame: topbar, viewport (el graph) y statusbar *abajo*. Dentro del
    *  viewport, la barra de actividad y el pane van antes del lienzo; el panel
@@ -610,7 +633,7 @@ export default function App({
                   seleccion={seleccion}
                   onSeleccionar={seleccionar}
                   paso={paso}
-                  animacion={{ volando, pulsos, pulsoCajon, destelloDe }}
+                  animacion={animacion}
                   acciones={acciones}
                   proyeccion={proyeccion}
                   gitActivo={gitActivo}

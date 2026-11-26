@@ -32,22 +32,53 @@ export const ESPERA_ENTRE_PASOS_MS = 1100;
 /** Respiro para mirar un estado antes de seguir (solo en las pruebas). */
 const mirar = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-/** Una fase del taller de la prueba, en el formato del PATCH. */
-type FaseTaller = {
-  orden: number;
-  titulo: string;
-  estado: "pendiente" | "completada" | "fallida" | "rechazada";
-  nota: string;
-};
+/** Una fase del taller, en el formato del PATCH. */
+export type Fase = NonNullable<WorkItemUpdate["fases"]>[number];
+export type EstadoFase = Fase["estado"];
 
-/** Una fase del taller con su checklist de requisitos. */
-type FaseTallerConRequisitos = {
-  orden: number;
-  titulo: string;
-  estado: FaseTaller["estado"];
-  nota: string;
-  requisitos: { orden: number; titulo: string; hecho: boolean }[];
-};
+/** Una fase con su checklist; cada requisito toma el orden de su posición. */
+export function fase(
+  orden: number,
+  titulo: string,
+  estado: EstadoFase,
+  requisitos: [titulo: string, hecho: boolean][],
+  nota = "",
+): Fase {
+  return {
+    orden,
+    titulo,
+    estado,
+    nota,
+    requisitos: requisitos.map(([nombre, hecho], i) => ({ orden: i + 1, titulo: nombre, hecho })),
+  };
+}
+
+/** El uid de un ítem que la prueba crea: sin creación previa, el paso avisa. */
+export function exigirUid(uid: () => string | null): () => string {
+  return () => {
+    const creado = uid();
+    if (!creado) throw new Error("Falta el uid del ítem creado.");
+    return creado;
+  };
+}
+
+/** El ítem de una prueba: se crea una vez y su uid queda a mano. */
+export function item(crear: Acciones["crear"]) {
+  let uid: string | null = null;
+  return {
+    async crear(body: WorkItemCreate): Promise<void> {
+      const idea = await crear(body);
+      if (!idea) throw new Error("El core no devolvió el ítem creado.");
+      uid = idea.uid;
+    },
+    uid: exigirUid(() => uid),
+  };
+}
+
+/** La fase «Diseño» de una comprobación que comparten dos pruebas. */
+const diseno = (estado: "pendiente" | "completada"): Fase[] => [
+  fase(1, "Diseño", estado, [["Comprobar", estado === "completada"]]),
+];
 
 export const PRUEBAS: Prueba[] = [
   {
@@ -112,26 +143,8 @@ export const PRUEBAS: Prueba[] = [
       "Siembra ítems en todos los carriles con fases en varios estados, requisitos, motivos y dependencias, " +
       "para ver los seis cables, sus compuertas, los contadores y las fichas. Después vacía el laboratorio.",
     construir: ({ crear, editar }) => {
-      type FaseEntrada = NonNullable<WorkItemUpdate["fases"]>[number];
       const pasos: Paso[] = [];
       const uids: Record<string, string> = {};
-      const fase = (
-        orden: number,
-        titulo: string,
-        estado: "pendiente" | "completada" | "fallida" | "rechazada",
-        requisitos: [string, boolean][],
-        nota = "",
-      ): FaseEntrada => ({
-        orden,
-        titulo,
-        estado,
-        nota,
-        requisitos: requisitos.map(([nombre, hecho], i) => ({
-          orden: i + 1,
-          titulo: nombre,
-          hecho,
-        })),
-      });
       const sembrar = (
         clave: string,
         body: WorkItemCreate,
@@ -397,87 +410,70 @@ export const PRUEBAS: Prueba[] = [
       "cable de llegada y lo hace correr con la chispa. Encadena cinco saltos para poder mirarlo sin prisa. " +
       "Después vacía el laboratorio.",
     construir: ({ crear, mover, editar }) => {
-      let uid: string | null = null;
-      const conUid = () => {
-        if (!uid) throw new Error("Falta el uid del ítem creado.");
-        return uid;
-      };
+      const nuevo = item(crear);
       // Con la fase completada pasan las compuertas de roadmap y verificación.
       // Volver a la cola es la única forma de repetir un cable ya visto, pero
       // allí la fase se reinicia: hay que volver a cerrarla para el segundo
       // salto a verificación.
-      const fase = (estado: "pendiente" | "completada") => [
-        {
-          orden: 1,
-          titulo: "Diseño",
-          estado,
-          nota: "",
-          requisitos: [
-            { orden: 1, titulo: "Comprobar", hecho: estado === "completada" },
-          ],
-        },
-      ];
       return [
         {
           texto: "Crear el ítem en Backlog",
           ejecutar: async () => {
-            const idea = await crear({
+            await nuevo.crear({
               title: "Marcha · cable",
               description: "Un ítem que salta de carril para ver el cable en marcha.",
               content: "Un ítem que salta de carril para ver el cable en marcha.",
               kind: "work_item",
               status: "proposed",
             });
-            if (!idea) throw new Error("El core no devolvió el ítem creado.");
-            uid = idea.uid;
           },
         },
         {
           texto: "Añadir la fase «Diseño» (pendiente)",
           ejecutar: async () => {
-            await editar(conUid(), { fases: fase("pendiente") });
+            await editar(nuevo.uid(), { fases: diseno("pendiente") });
           },
         },
         {
           texto: "Mover a roadmap",
           ejecutar: async () => {
-            await mover(conUid(), "roadmap");
+            await mover(nuevo.uid(), "roadmap");
           },
         },
         {
           texto: "Completar la fase «Diseño»",
           ejecutar: async () => {
-            await editar(conUid(), { fases: fase("completada") });
+            await editar(nuevo.uid(), { fases: diseno("completada") });
           },
         },
         {
           texto: "Mover a verificación",
           ejecutar: async () => {
-            await mover(conUid(), "verificacion");
+            await mover(nuevo.uid(), "verificacion");
           },
         },
         {
           texto: "Volver a Backlog",
           ejecutar: async () => {
-            await mover(conUid(), "proposed");
+            await mover(nuevo.uid(), "proposed");
           },
         },
         {
           texto: "Mover otra vez a roadmap",
           ejecutar: async () => {
-            await mover(conUid(), "roadmap");
+            await mover(nuevo.uid(), "roadmap");
           },
         },
         {
           texto: "Completar «Diseño» otra vez",
           ejecutar: async () => {
-            await editar(conUid(), { fases: fase("completada") });
+            await editar(nuevo.uid(), { fases: diseno("completada") });
           },
         },
         {
           texto: "Mover otra vez a verificación",
           ejecutar: async () => {
-            await mover(conUid(), "verificacion");
+            await mover(nuevo.uid(), "verificacion");
           },
         },
       ];
@@ -490,65 +486,48 @@ export const PRUEBAS: Prueba[] = [
       "Un ítem con la fase «Diseño» recorre cola, roadmap, verificación, aprobación y archivo: " +
       "se ve la compuerta pedir una fase, después exigirla completada y el pulso verde al llegar al historial.",
     construir: ({ crear, mover, editar }) => {
-      let uid: string | null = null;
-      const conUid = () => {
-        if (!uid) throw new Error("Falta el uid del ítem creado.");
-        return uid;
-      };
-      const fases = (estado: "pendiente" | "completada") => [
-        {
-          orden: 1,
-          titulo: "Diseño",
-          estado,
-          nota: "",
-          requisitos: [
-            { orden: 1, titulo: "Comprobar", hecho: estado === "completada" },
-          ],
-        },
-      ];
+      const nuevo = item(crear);
       return [
         {
           texto: "Crear el ítem en Backlog",
           ejecutar: async () => {
-            const idea = await crear({
+            await nuevo.crear({
               title: "Fases · aprobación",
               description: "Un ítem que recorre el flujo con una fase.",
               content: "Un ítem que recorre el flujo con una fase.",
               kind: "work_item",
               status: "proposed",
             });
-            if (!idea) throw new Error("El core no devolvió el ítem creado.");
-            uid = idea.uid;
           },
         },
         {
           texto: "Añadir la fase «Diseño» (pendiente)",
           ejecutar: async () => {
-            await editar(conUid(), { fases: fases("pendiente") });
+            await editar(nuevo.uid(), { fases: diseno("pendiente") });
           },
         },
         {
           texto: "Mover a roadmap (pide al menos una fase)",
           ejecutar: async () => {
-            await mover(conUid(), "roadmap");
+            await mover(nuevo.uid(), "roadmap");
           },
         },
         {
           texto: "Completar la fase «Diseño»",
           ejecutar: async () => {
-            await editar(conUid(), { fases: fases("completada") });
+            await editar(nuevo.uid(), { fases: diseno("completada") });
           },
         },
         {
           texto: "Mover a verificación (sin fases abiertas)",
           ejecutar: async () => {
-            await mover(conUid(), "verificacion");
+            await mover(nuevo.uid(), "verificacion");
           },
         },
         {
           texto: "Aprobar y archivar en historial (todo completado)",
           ejecutar: async () => {
-            await mover(conUid(), "revision_aprobada");
+            await mover(nuevo.uid(), "revision_aprobada");
           },
         },
       ];
@@ -562,24 +541,20 @@ export const PRUEBAS: Prueba[] = [
       "recorren todos sus estados —completada, fallida, rechazada y pendiente— con pausas para " +
       "mirarlo. Después cierra las abiertas para pasar a verificación. Abre la fila «Fases · taller».",
     construir: ({ crear, mover, editar }) => {
-      let uid: string | null = null;
-      const conUid = () => {
-        if (!uid) throw new Error("Falta el uid del ítem creado.");
-        return uid;
-      };
+      const nuevo = item(crear);
       // Se reenvía la lista entera en cada paso: el PATCH la reemplaza. Cada
       // fase nace con un requisito; al completarla se marca hecho.
-      let fases: FaseTallerConRequisitos[] = [];
-      const anotar = (fase: FaseTallerConRequisitos) => {
+      let fases: Fase[] = [];
+      const anotar = (fase: Fase) => {
         fases = [...fases, fase];
       };
-      const cambiar = (orden: number, estado: FaseTallerConRequisitos["estado"]) => {
+      const cambiar = (orden: number, estado: EstadoFase) => {
         fases = fases.map((fase) =>
           fase.orden === orden
             ? {
                 ...fase,
                 estado,
-                requisitos: fase.requisitos.map((requisito) => ({
+                requisitos: (fase.requisitos ?? []).map((requisito) => ({
                   ...requisito,
                   hecho: estado === "completada" ? true : requisito.hecho,
                 })),
@@ -587,71 +562,45 @@ export const PRUEBAS: Prueba[] = [
             : fase,
         );
       };
-      const guardar = () => editar(conUid(), { fases });
+      const guardar = () => editar(nuevo.uid(), { fases });
       return [
         {
           texto: "Crear «Fases · taller» en Backlog",
           ejecutar: async () => {
-            const idea = await crear({
+            await nuevo.crear({
               title: "Fases · taller",
               description: "Cuatro fases para ver todos sus estados.",
               content: "Cuatro fases para ver todos sus estados.",
               kind: "work_item",
               status: "proposed",
             });
-            if (!idea) throw new Error("El core no devolvió el ítem creado.");
-            uid = idea.uid;
           },
         },
         {
           texto: "Añadir «Diseño» (pendiente)",
           ejecutar: async () => {
-            anotar({
-              orden: 1,
-              titulo: "Diseño",
-              estado: "pendiente",
-              nota: "",
-              requisitos: [{ orden: 1, titulo: "Listo", hecho: false }],
-            });
+            anotar(fase(1, "Diseño", "pendiente", [["Listo", false]]));
             await guardar();
           },
         },
         {
           texto: "Añadir «Pruebas» (pendiente)",
           ejecutar: async () => {
-            anotar({
-              orden: 2,
-              titulo: "Pruebas",
-              estado: "pendiente",
-              nota: "",
-              requisitos: [{ orden: 1, titulo: "Listo", hecho: false }],
-            });
+            anotar(fase(2, "Pruebas", "pendiente", [["Listo", false]]));
             await guardar();
           },
         },
         {
           texto: "Añadir «Revisión» (pendiente)",
           ejecutar: async () => {
-            anotar({
-              orden: 3,
-              titulo: "Revisión",
-              estado: "pendiente",
-              nota: "",
-              requisitos: [{ orden: 1, titulo: "Listo", hecho: false }],
-            });
+            anotar(fase(3, "Revisión", "pendiente", [["Listo", false]]));
             await guardar();
           },
         },
         {
           texto: "Añadir «Publicar» (pendiente)",
           ejecutar: async () => {
-            anotar({
-              orden: 4,
-              titulo: "Publicar",
-              estado: "pendiente",
-              nota: "",
-              requisitos: [{ orden: 1, titulo: "Listo", hecho: false }],
-            });
+            anotar(fase(4, "Publicar", "pendiente", [["Listo", false]]));
             await guardar();
           },
         },
@@ -662,7 +611,7 @@ export const PRUEBAS: Prueba[] = [
         {
           texto: "Mover a roadmap (todavía con fases abiertas)",
           ejecutar: async () => {
-            await mover(conUid(), "roadmap");
+            await mover(nuevo.uid(), "roadmap");
           },
         },
         {
@@ -722,7 +671,7 @@ export const PRUEBAS: Prueba[] = [
         {
           texto: "Mover a verificación",
           ejecutar: async () => {
-            await mover(conUid(), "verificacion");
+            await mover(nuevo.uid(), "verificacion");
           },
         },
       ];
@@ -735,51 +684,39 @@ export const PRUEBAS: Prueba[] = [
       "Una fase rechazada con motivo vuelve con el ítem a la cola: se queda pendiente, pero no " +
       "pierde el motivo. Abre la fila «Motivo · fases» para verlo antes y después.",
     construir: ({ crear, mover, editar }) => {
-      let uid: string | null = null;
-      const conUid = () => {
-        if (!uid) throw new Error("Falta el uid del ítem creado.");
-        return uid;
-      };
+      const nuevo = item(crear);
       const motivo = "No cubre el caso borde";
-      const fase: FaseTallerConRequisitos = {
-        orden: 1,
-        titulo: "Revisar",
-        estado: "pendiente",
-        nota: "",
-        requisitos: [{ orden: 1, titulo: "Comprobar", hecho: false }],
-      };
+      const revisar = fase(1, "Revisar", "pendiente", [["Comprobar", false]]);
       return [
         {
           texto: "Crear «Motivo · fases» en Backlog",
           ejecutar: async () => {
-            const idea = await crear({
+            await nuevo.crear({
               title: "Motivo · fases",
               description: "Una fase fallida que vuelve con su motivo.",
               content: "Una fase fallida que vuelve con su motivo.",
               kind: "work_item",
               status: "proposed",
             });
-            if (!idea) throw new Error("El core no devolvió el ítem creado.");
-            uid = idea.uid;
           },
         },
         {
           texto: "Añadir la fase «Revisar»",
           ejecutar: async () => {
-            await editar(conUid(), { fases: [fase] });
+            await editar(nuevo.uid(), { fases: [revisar] });
           },
         },
         {
           texto: "Mover a roadmap",
           ejecutar: async () => {
-            await mover(conUid(), "roadmap");
+            await mover(nuevo.uid(), "roadmap");
           },
         },
         {
           texto: `Rechazar «Revisar» con el motivo «${motivo}»`,
           ejecutar: async () => {
-            await editar(conUid(), {
-              fases: [{ ...fase, estado: "rechazada", nota: motivo }],
+            await editar(nuevo.uid(), {
+              fases: [{ ...revisar, estado: "rechazada", nota: motivo }],
             });
           },
         },
@@ -790,13 +727,13 @@ export const PRUEBAS: Prueba[] = [
         {
           texto: "Mover a verificación",
           ejecutar: async () => {
-            await mover(conUid(), "verificacion");
+            await mover(nuevo.uid(), "verificacion");
           },
         },
         {
           texto: "Volver a Backlog",
           ejecutar: async () => {
-            await mover(conUid(), "proposed");
+            await mover(nuevo.uid(), "proposed");
           },
         },
         {
@@ -813,57 +750,42 @@ export const PRUEBAS: Prueba[] = [
       "Una fase con dos requisitos: nacen pendientes en la cola, se marcan en roadmap y la fase " +
       "solo se completa cuando están los dos. Abre la fila «Requisitos · fases» y su checklist.",
     construir: ({ crear, mover, editar }) => {
-      let uid: string | null = null;
-      const conUid = () => {
-        if (!uid) throw new Error("Falta el uid del ítem creado.");
-        return uid;
-      };
-      const fase = (
-        estado: FaseTaller["estado"],
-        hechos: boolean[],
-      ): FaseTallerConRequisitos[] => [
-        {
-          orden: 1,
-          titulo: "Revisar",
-          estado,
-          nota: "",
-          requisitos: [
-            { orden: 1, titulo: "Cubre el borde", hecho: hechos[0] ?? false },
-            { orden: 2, titulo: "Pasa lint", hecho: hechos[1] ?? false },
-          ],
-        },
+      const nuevo = item(crear);
+      const revisar = (estado: EstadoFase, hechos: boolean[]): Fase[] => [
+        fase(1, "Revisar", estado, [
+          ["Cubre el borde", hechos[0] ?? false],
+          ["Pasa lint", hechos[1] ?? false],
+        ]),
       ];
       return [
         {
           texto: "Crear «Requisitos · fases» en Backlog",
           ejecutar: async () => {
-            const idea = await crear({
+            await nuevo.crear({
               title: "Requisitos · fases",
               description: "Una fase que solo se cierra con sus requisitos.",
               content: "Una fase que solo se cierra con sus requisitos.",
               kind: "work_item",
               status: "proposed",
             });
-            if (!idea) throw new Error("El core no devolvió el ítem creado.");
-            uid = idea.uid;
           },
         },
         {
           texto: "Añadir «Revisar» con dos requisitos",
           ejecutar: async () => {
-            await editar(conUid(), { fases: fase("pendiente", [false, false]) });
+            await editar(nuevo.uid(), { fases: revisar("pendiente", [false, false]) });
           },
         },
         {
           texto: "Mover a roadmap",
           ejecutar: async () => {
-            await mover(conUid(), "roadmap");
+            await mover(nuevo.uid(), "roadmap");
           },
         },
         {
           texto: "Marcar «Cubre el borde»",
           ejecutar: async () => {
-            await editar(conUid(), { fases: fase("pendiente", [true, false]) });
+            await editar(nuevo.uid(), { fases: revisar("pendiente", [true, false]) });
           },
         },
         {
@@ -873,13 +795,13 @@ export const PRUEBAS: Prueba[] = [
         {
           texto: "Marcar «Pasa lint»",
           ejecutar: async () => {
-            await editar(conUid(), { fases: fase("pendiente", [true, true]) });
+            await editar(nuevo.uid(), { fases: revisar("pendiente", [true, true]) });
           },
         },
         {
           texto: "Completar «Revisar»",
           ejecutar: async () => {
-            await editar(conUid(), { fases: fase("completada", [true, true]) });
+            await editar(nuevo.uid(), { fases: revisar("completada", [true, true]) });
           },
         },
         {
@@ -889,7 +811,7 @@ export const PRUEBAS: Prueba[] = [
         {
           texto: "Mover a verificación",
           ejecutar: async () => {
-            await mover(conUid(), "verificacion");
+            await mover(nuevo.uid(), "verificacion");
           },
         },
       ];
@@ -902,79 +824,57 @@ export const PRUEBAS: Prueba[] = [
       "Una idea llega a verificación, vuelve a la cola y se descarta con motivo: " +
       "se ven la vuelta de carril y la rama punteada de Descartadas.",
     construir: ({ crear, mover, editar }) => {
-      let uid: string | null = null;
-      const conUid = () => {
-        if (!uid) throw new Error("Falta el uid del ítem creado.");
-        return uid;
-      };
-      const fase = [
-        {
-          orden: 1,
-          titulo: "Verificar",
-          estado: "pendiente" as const,
-          nota: "",
-          requisitos: [{ orden: 1, titulo: "Comprobar", hecho: false }],
-        },
+      const nuevo = item(crear);
+      const verificar = (estado: "pendiente" | "completada") => [
+        fase(1, "Verificar", estado, [["Comprobar", estado === "completada"]]),
       ];
       return [
         {
           texto: "Crear el ítem en Backlog",
           ejecutar: async () => {
-            const idea = await crear({
+            await nuevo.crear({
               title: "Vuelta · descarte",
               description: "Un ítem que vuelve y se descarta.",
               content: "Un ítem que vuelve y se descarta.",
               kind: "work_item",
               status: "proposed",
             });
-            if (!idea) throw new Error("El core no devolvió el ítem creado.");
-            uid = idea.uid;
           },
         },
         {
           texto: "Añadir la fase «Verificar» (pendiente)",
           ejecutar: async () => {
-            await editar(conUid(), { fases: fase });
+            await editar(nuevo.uid(), { fases: verificar("pendiente") });
           },
         },
         {
           texto: "Mover a roadmap",
           ejecutar: async () => {
-            await mover(conUid(), "roadmap");
+            await mover(nuevo.uid(), "roadmap");
           },
         },
         {
           texto: "Completar la fase «Verificar»",
           ejecutar: async () => {
-            await editar(conUid(), {
-              fases: [
-                {
-                  orden: 1,
-                  titulo: "Verificar",
-                  estado: "completada",
-                  nota: "",
-                  requisitos: [{ orden: 1, titulo: "Comprobar", hecho: true }],
-                },
-              ],
-            });
+            await editar(nuevo.uid(), { fases: verificar("completada") });
           },
         },
         {
           texto: "Mover a verificación",
           ejecutar: async () => {
-            await mover(conUid(), "verificacion");
+            await mover(nuevo.uid(), "verificacion");
           },
         },
         {
           texto: "Volver a Backlog",
           ejecutar: async () => {
-            await mover(conUid(), "proposed");
+            await mover(nuevo.uid(), "proposed");
           },
         },
         {
           texto: "Descartar con motivo «Ya no hace falta»",
           ejecutar: async () => {
-            await editar(conUid(), {
+            await editar(nuevo.uid(), {
               status: "rejected",
               rejected_description: "Ya no hace falta",
             });

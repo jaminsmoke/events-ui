@@ -11,9 +11,10 @@ repo y no viaja con él. La ruta no depende del directorio desde el que se
 arranca el core, para que dos arranques vean el mismo historial. Los
 escritores son solo el propio core; la UI lo lee por `/log`.
 
-Purga: automática al escribir, dos barridos como `eventos.compactar` —
-antigüedad (90 días) y conteo (las 2000 entradas más recientes)— y, si hace
-falta forzarla, por `POST /log/purgar`.
+Purga: automática, dos barridos como `eventos.compactar` —antigüedad (90
+días) y conteo (las 2000 entradas más recientes)—, pero no en cada línea: una
+de cada `CADA_PURGA` escrituras o cada `PURGA_CADA_S` segundos. Si hace falta
+forzarla, `POST /log/purgar`.
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from __future__ import annotations
 import os
 import sqlite3
 import threading
+import time
 from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path
@@ -63,10 +65,14 @@ RAIZ_PROYECTO = _raiz_del_repo()
 DEFAULT_REGISTRO_PATH = RAIZ_PROYECTO / "data" / "registro.sqlite"
 
 BUSY_TIMEOUT_MS = 5_000
-# La retención de este registro: tres meses y dos mil entradas. Lo paga cada
-# escritura; con este tamaño de tabla los dos barridos son ruido.
+# La retención de este registro: tres meses y dos mil entradas.
 DIAS_RETENCION = 90
 MAX_ENTRADAS = 2_000
+# La purga no se paga en cada línea: una de cada `CADA_PURGA` escrituras o
+# cuando han pasado `PURGA_CADA_S` segundos desde la anterior. Con este tamaño
+# de tabla, un barrido cada 100 líneas (o cada 10 minutos) es ruido.
+CADA_PURGA = 100
+PURGA_CADA_S = 600.0
 
 
 def ruta() -> Path:
@@ -81,6 +87,35 @@ def ruta() -> Path:
 # escrita pagaba su `CREATE TABLE/INDEX IF NOT EXISTS`; con la tabla hecha basta.
 _PREPARADOS: set[Path] = set()
 _PREPARADOS_LOCK = threading.Lock()
+
+# Escrituras desde la última purga y cuándo fue, por fichero: la cuenta es de
+# este proceso, no del disco, así que dos core con registros distintos no se
+# pisan.
+_PENDIENTES: dict[Path, tuple[int, float]] = {}
+_PENDIENTES_LOCK = threading.Lock()
+
+
+def _toca_purgar(destino: Path) -> bool:
+    """¿Le toca ya a este fichero? Cuenta la escritura y decide.
+
+    La primera línea no purga: un registro recién abierto no tiene nada que
+    llevarse y el barrido de edad no tiene índice.
+    """
+    ahora = time.monotonic()
+    with _PENDIENTES_LOCK:
+        escrituras, ultima = _PENDIENTES.get(destino, (0, ahora))
+        escrituras += 1
+        if escrituras < CADA_PURGA and ahora - ultima < PURGA_CADA_S:
+            _PENDIENTES[destino] = (escrituras, ultima)
+            return False
+        _PENDIENTES[destino] = (0, ahora)
+        return True
+
+
+def _olvidar_purga(destino: Path) -> None:
+    """Reinicia la cuenta: purga forzada o fichero recreado."""
+    with _PENDIENTES_LOCK:
+        _PENDIENTES[destino] = (0, time.monotonic())
 
 
 def _preparar(conn: sqlite3.Connection) -> None:
@@ -114,6 +149,7 @@ def _olvidar(destino: Path) -> None:
     """Deja de dar por preparado un fichero (p. ej. si lo recrearon)."""
     with _PREPARADOS_LOCK:
         _PREPARADOS.discard(destino)
+    _olvidar_purga(destino)
 
 
 def conectar() -> sqlite3.Connection:
@@ -131,12 +167,13 @@ def _ahora() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
 
 
-def _anotar(conn: sqlite3.Connection, nivel: str, mensaje: str, origen: str) -> None:
+def _anotar(conn: sqlite3.Connection, destino: Path, nivel: str, mensaje: str, origen: str) -> None:
     conn.execute(
         "INSERT INTO registro (ts, nivel, origen, mensaje) VALUES (?, ?, ?, ?)",
         (_ahora(), nivel, origen, mensaje),
     )
-    barridos_retencion(conn, tabla="registro", dias=DIAS_RETENCION, maximo=MAX_ENTRADAS)
+    if _toca_purgar(destino):
+        barridos_retencion(conn, tabla="registro", dias=DIAS_RETENCION, maximo=MAX_ENTRADAS)
     conn.commit()
 
 
@@ -149,16 +186,17 @@ def escribir(nivel: str, mensaje: str, origen: str = "core") -> None:
     se prepara una vez por proceso; si el fichero se recreó por debajo, se
     olvida la marca y se reintenta una vez.
     """
+    destino = ruta()
     try:
         with closing(conectar()) as conn:
-            _anotar(conn, nivel, mensaje, origen)
+            _anotar(conn, destino, nivel, mensaje, origen)
     except sqlite3.Error as exc:
         if "no such table" not in str(exc):
             return
-        _olvidar(ruta())
+        _olvidar(destino)
         try:
             with closing(conectar()) as conn:
-                _anotar(conn, nivel, mensaje, origen)
+                _anotar(conn, destino, nivel, mensaje, origen)
         except sqlite3.Error:
             pass
 
@@ -179,6 +217,9 @@ def purgar(dias: int = DIAS_RETENCION, max_entradas: int = MAX_ENTRADAS) -> dict
             conn.commit()
     except sqlite3.Error:
         por_edad, por_conteo = 0, 0
+    # Una purga forzada también reinicia la cuenta: la siguiente escritura no
+    # vuelve a barrer por haber llegado justo al umbral.
+    _olvidar_purga(ruta())
     return {
         "por_edad": por_edad,
         "por_conteo": por_conteo,

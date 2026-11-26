@@ -181,11 +181,16 @@ def _leer_texto(fichero: Path) -> str | None:
 def contenidos(carpeta: Path, cambios: list[dict[str, Any]]) -> None:
     """Rellena `contenido` en cada cambio: parche de Git o texto del nuevo.
 
-    Los modificados, los borrados y los renombrados salen de un solo
-    `git diff HEAD` —incluye lo preparado y lo que no—, que es justo lo que
-    añade Git a la foto. Los nuevos no aparecen en un diff, así que se leen
-    enteros (con su tope). Sin Git, o sin commits todavía, se quedan sin
-    contenido: la ruta y el estado bastan.
+    Los modificados, los borrados y los renombrados salen de `git diff HEAD`,
+    repartido en lotes acotados —incluye lo preparado y lo que no—, que es
+    justo lo que añade Git a la foto. Los nuevos no aparecen en un diff, así
+    que se leen enteros (con su tope). Sin Git, o sin commits todavía, se
+    quedan sin contenido: la ruta y el estado bastan.
+
+    El presupuesto se mira antes de abrir cada archivo nuevo: el que no cabe en
+    lo que queda, o ya pasa su tope, no se lee. Antes se leían todos y el texto
+    se tiraba al comprobar el total, que con miles de nuevos era media fase de
+    IO para guardar nada.
     """
     if not cambios or not hay_git(carpeta):
         return
@@ -195,14 +200,24 @@ def contenidos(carpeta: Path, cambios: list[dict[str, Any]]) -> None:
     total = 0
     for cambio in cambios:
         if cambio["estado"] == "nuevo":
-            texto = _leer_texto(carpeta / str(cambio["ruta"]))
+            fichero = carpeta / str(cambio["ruta"])
+            try:
+                tamano = fichero.stat().st_size
+            except OSError:
+                # Se borró entre la foto y el cierre: no hay nada que leer.
+                continue
+            if tamano > LIMITE_CONTENIDO or total + tamano > LIMITE_TOTAL:
+                continue
+            texto = _leer_texto(fichero)
         else:
             texto = parcheado.get(str(cambio["ruta"]))
         if texto is None:
             continue
         tamano = len(texto.encode("utf-8"))
         if total + tamano > LIMITE_TOTAL:
-            break
+            # Solo si al decodificar creció (bytes inválidos): no cabe igual,
+            # y se salta sin cortar los que vienen detrás.
+            continue
         cambio["contenido"] = texto
         total += tamano
 

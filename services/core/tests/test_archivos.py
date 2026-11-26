@@ -389,8 +389,10 @@ def test_nacer_en_roadmap_con_fases_toma_la_foto_de_partida(client, tmp_path):  
     assert [archivo["ruta"] for archivo in fase["archivos"]] == ["nuevo.txt"]
 
 
-def test_el_tope_por_fase_cuenta_bytes_y_no_caracteres(monkeypatch):  # noqa: ANN001, ANN202
+def test_el_tope_por_fase_cuenta_bytes_y_no_caracteres(monkeypatch, tmp_path):  # noqa: ANN001, ANN202
     texto = "ñ" * 20  # 20 caracteres, 40 bytes en UTF-8
+    for nombre in ("a.txt", "b.txt"):
+        (tmp_path / nombre).write_text("x", encoding="utf-8")  # 1 byte en disco
     monkeypatch.setattr(archivos, "hay_git", lambda _carpeta: True)
     monkeypatch.setattr(archivos, "_leer_texto", lambda _ruta: texto)
     monkeypatch.setattr(archivos, "LIMITE_TOTAL", 30)
@@ -399,9 +401,10 @@ def test_el_tope_por_fase_cuenta_bytes_y_no_caracteres(monkeypatch):  # noqa: AN
         {"estado": "nuevo", "ruta": "a.txt"},
         {"estado": "nuevo", "ruta": "b.txt"},
     ]
-    archivos.contenidos(Path("."), cambios)
+    archivos.contenidos(tmp_path, cambios)
 
-    # Los 20 caracteres caben en 30, pero sus 40 bytes no: antes se colaba.
+    # El archivo mide 1 byte y pasa el `stat`, pero los 20 caracteres son 40
+    # bytes: no caben en 30 y se quedan sin contenido.
     assert all("contenido" not in cambio for cambio in cambios)
 
 

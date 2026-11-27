@@ -656,3 +656,25 @@ def test_borrar_una_item_la_quita_de_las_dependencias(client, repo):  # noqa: AN
     )
     assert client.delete(f"/items/{a}", params={"repo": repo}).status_code == 204
     assert client.get(f"/items/{b}", params={"repo": repo}).json()["depende_de"] == []
+
+
+def test_el_flujo_por_el_cajon_deja_created_y_dos_status(client, repo):  # noqa: ANN001, ANN202
+    """Cajón → cola → descartadas: los tres pasos son eventos del log."""
+    creada = client.post("/items", params={"repo": repo}, json={"title": "Flujo"}).json()
+    assert creada["status"] == "draft"
+    uid = creada["uid"]
+
+    encolada = client.patch(
+        f"/items/{uid}", params={"repo": repo}, json={"status": "proposed"}
+    ).json()
+    assert encolada["status"] == "proposed"
+
+    descartada = client.patch(
+        f"/items/{uid}",
+        params={"repo": repo},
+        json={"status": "rejected", "rejected_description": "ruido"},
+    ).json()
+    assert descartada["status"] == "rejected"
+
+    tipos = [evento["type"] for evento in client.get("/eventos", params={"repo": repo}).json()]
+    assert tipos == ["item.created", "item.status", "item.status"]

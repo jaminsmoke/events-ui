@@ -279,6 +279,17 @@ def inicializar_repo(carpeta: Path) -> None:
     _olvidar(carpeta)
 
 
+def _liberar_lectura(funcion, ruta, _error):  # noqa: ANN001
+    """Borra un fichero de solo lectura.
+
+    Los objetos sueltos que deja un commit nacen de solo lectura y, en Windows,
+    `rmtree` se para con `PermissionError`: eliminar un repo con historial
+    fallaba con un 500. Se devuelve el permiso de escritura y se reintenta.
+    """
+    os.chmod(ruta, 0o700)
+    funcion(ruta)
+
+
 def eliminar_repo(carpeta: Path) -> None:
     """Borra solo el `.git` propio; si no lo hay o no es carpeta, se rechaza.
 
@@ -294,7 +305,7 @@ def eliminar_repo(carpeta: Path) -> None:
     punto_git = carpeta / ".git"
     if not punto_git.is_dir():
         raise InvalidInput("El .git no es una carpeta; no se elimina")
-    shutil.rmtree(punto_git)
+    shutil.rmtree(punto_git, onexc=_liberar_lectura)
     _olvidar(carpeta)
 
 

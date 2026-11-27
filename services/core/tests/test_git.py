@@ -203,6 +203,23 @@ def test_eliminar_repo_local_apaga_el_puente(client, tmp_path):  # noqa: ANN001,
     assert not (carpeta / ".git").exists()
 
 
+def test_eliminar_un_repo_con_commits_borra_los_objetos(client, tmp_path):  # noqa: ANN001, ANN202
+    """Los objetos sueltos de un commit nacen de solo lectura: en Windows
+    `rmtree` se paraba con `PermissionError` y el borrado daba un 500."""
+    carpeta = tmp_path / "con-historial"
+    _inicializar(carpeta)
+    (carpeta / "nota.txt").write_text("hola", encoding="utf-8")
+    _git(carpeta, "add", "nota.txt")
+    _git(carpeta, "commit", "-m", "inicial")
+
+    r = client.post("/git/eliminar", params={"repo": str(carpeta)})
+
+    assert r.status_code == 200, r.json()
+    assert r.json()["git"] is False
+    assert not (carpeta / ".git").exists()
+    assert (carpeta / "nota.txt").read_text(encoding="utf-8") == "hola"
+
+
 def test_eliminar_rechaza_el_repo_del_contenedor(client, tmp_path):  # noqa: ANN001, ANN202
     raiz = tmp_path / "contenedor"
     _inicializar(raiz)

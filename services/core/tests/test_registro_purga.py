@@ -87,6 +87,22 @@ def test_purgar_reinicia_la_cuenta(tmp_path, monkeypatch) -> None:  # noqa: ANN0
     assert len(llamadas) == 1
 
 
+def test_el_endpoint_de_purga_dice_que_se_llevo(client, tmp_path, monkeypatch) -> None:  # noqa: ANN001, ANN202
+    """`/log` y `POST /log/purgar`, por HTTP: es lo que el e2e miraba."""
+    _preparar(tmp_path, monkeypatch)
+    registro.escribir("info", "línea")
+
+    de_log = client.get("/log", params={"limite": 200})
+    assert de_log.status_code == 200
+    assert len(de_log.json()) > 0
+
+    purga = client.post("/log/purgar")
+    assert purga.status_code == 200
+    cuerpo = purga.json()
+    assert isinstance(cuerpo["por_edad"], int)
+    assert isinstance(cuerpo["por_conteo"], int)
+
+
 def test_el_tiempo_tambien_dispara_la_purga(tmp_path, monkeypatch) -> None:  # noqa: ANN001
     _preparar(tmp_path, monkeypatch)
     monkeypatch.setattr(registro, "PURGA_CADA_S", 0.0)

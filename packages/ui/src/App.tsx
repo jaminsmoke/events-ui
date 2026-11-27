@@ -231,7 +231,7 @@ export default function App({
   const [anchoResumen] = useState(() => medidaMarco("--ancho-resumen"));
   const insetDerecha = derechaVisible ? anchoResumen : 0;
 
-  const { vista, arrastrando, encuadrar, zoom, reset, olvidar, mano } = useCamara({
+  const { vista, completo, arrastrando, encuadrarCompleto, zoom, reset, olvidar, mano } = useCamara({
     repo,
     mapa,
     listo: tree !== null,
@@ -607,7 +607,7 @@ export default function App({
             {!busy && tree && (
               <div
                 key={mapa}
-                className={`map mapa-${mapa}`}
+                className={`map mapa-${mapa}${completo ? " vista-completa" : ""}`}
                 ref={mapRef}
                 style={{ transform: `translate(${vista.x}px, ${vista.y}px) scale(${vista.k})` }}
               >
@@ -647,7 +647,7 @@ export default function App({
                 />
               </div>
             )}
-            {recortado && <AvisoRecorte onEncuadrar={encuadrar} />}
+            {recortado && <AvisoRecorte onEncuadrar={encuadrarCompleto} />}
             <Controles vista={vista} onZoom={zoom} onReset={reset} />
             {cables.length > 0 && <LeyendaCompuertas />}
           </section>

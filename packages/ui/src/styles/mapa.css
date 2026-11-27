@@ -179,6 +179,20 @@
   transform-origin: top left;
 }
 
+/* «Ver completo»: el mapa entero por debajo del suelo legible. A esa escala el
+ * detalle sería barro, así que quedan el título, los carriles y los cables; la
+ * descripción, las fases, las dependencias, los contadores y los mandos de cada
+ * fila vuelven al acercar (o al reencuadrar). */
+.map.vista-completa .fila-descripcion,
+.map.vista-completa .fila-meta,
+.map.vista-completa .fila-bloque,
+.map.vista-completa .fila-pie,
+.map.vista-completa .fila-aviso,
+.map.vista-completa .fila-fallo,
+.map.vista-completa .count {
+  display: none;
+}
+
 .board > .hint {
   position: absolute;
   top: 4px;

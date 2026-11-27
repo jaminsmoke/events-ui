@@ -19,6 +19,8 @@ export const ZOOM_PASO = 1.08;
  *  puede alinearlo al píxel; los pasos fijos sí. */
 const PASO_ESCALA = 0.05;
 const cuantizar = (k: number) => Math.round(k / PASO_ESCALA) * PASO_ESCALA;
+/** Hacia abajo: redondear al alza al encoger volvería a recortar el mapa. */
+const cuantizarAbajo = (k: number) => Math.floor(k / PASO_ESCALA + 1e-9) * PASO_ESCALA;
 
 /** Redondea al píxel del dispositivo: a dpr 1, entero; a dpr 1,25, múltiplo
  *  de 0,8. Medio píxel de `translate` suaviza todo el texto. */
@@ -34,6 +36,14 @@ const alPixel = (n: number) => {
  *  Ahora, si no cabe, se recorta y el aviso de recorte lo dice: el texto se
  *  lee y el usuario puede arrastrar para ver el resto. */
 export const ZOOM_ENCUADRE_MIN = ZOOM_MIN;
+
+/** Suelo de «ver completo»: el mapa entero por debajo del texto legible.
+ *
+ *  Es una vista para mirar el esquema de un vistazo, no para trabajar: por
+ *  debajo del suelo legible la UI esconde el texto secundario
+ *  (`.vista-completa`) y acercar devuelve al 75 %. Nunca menos de 20 %: a esa
+ *  escala el mapa ya no se distingue. */
+export const ZOOM_COMPLETO_MIN = 0.2;
 
 export type Vista = { x: number; y: number; k: number };
 
@@ -54,6 +64,8 @@ export type Encuadre = {
   relleno?: { arriba: number; abajo: number };
   /** Aire horizontal que se deja a los lados al encuadrar. */
   margen?: number;
+  /** «Ver completo»: deja bajar del suelo legible lo justo para que quepa. */
+  completo?: boolean;
 };
 
 export function encuadreDe({
@@ -63,16 +75,18 @@ export function encuadreDe({
   insetDerecha = 0,
   relleno = { arriba: 0, abajo: 0 },
   margen = 64,
+  completo = false,
 }: Encuadre): Vista {
   if (!mapa.ancho || !mapa.alto) return { x: 0, y: 0, k: 1 };
   const anchoVisible = Math.max(120, board.ancho - insetDerecha);
   const altoVisible = Math.max(120, board.alto - relleno.arriba - relleno.abajo);
-  const bruto = acotar(
-    Math.min((anchoVisible - margen) / mapa.ancho, altoVisible / mapa.alto),
-    ZOOM_ENCUADRE_MIN,
-    1,
-  );
-  const k = acotar(cuantizar(bruto), ZOOM_ENCUADRE_MIN, 1);
+  const bruto = Math.min((anchoVisible - margen) / mapa.ancho, altoVisible / mapa.alto);
+  // Normal: nunca por debajo del suelo legible, y si no cabe se recorta (el
+  // aviso ofrece «ver completo»). Completo: baja lo justo para que el esquema
+  // entero quepa, en escalones del 5 % hacia abajo.
+  const k = completo
+    ? acotar(cuantizarAbajo(acotar(bruto, ZOOM_COMPLETO_MIN, 1)), ZOOM_COMPLETO_MIN, 1)
+    : acotar(cuantizar(acotar(bruto, ZOOM_ENCUADRE_MIN, 1)), ZOOM_ENCUADRE_MIN, 1);
   // Si no cabe, se ancla a la izquierda: el flujo empieza en la Entrada y el
   // resto se alcanza arrastrando. Centrarlo recortaría las dos puntas y la
   // primera columna desaparecería sin decir por dónde se empieza.
@@ -122,11 +136,21 @@ export function useCamara({
   const zoom = useCallback((factor: number) => {
     movida.current = true;
     setVista((v) => {
-      const k = acotar(
-        cuantizar(acotar(v.k * factor, Math.min(ZOOM_MIN, v.k), ZOOM_MAX)),
-        Math.min(ZOOM_MIN, v.k),
-        ZOOM_MAX,
-      );
+      // Desde «ver completo» acercar devuelve al suelo legible de una vez: un
+      // 31 % seguiría sin leerse y el texto oculto no volvería.
+      if (v.k < ZOOM_MIN - 1e-9) {
+        if (factor <= 1) return v;
+        const caja = mapRef.current?.getBoundingClientRect();
+        if (!caja) return { ...v, k: ZOOM_MIN };
+        const lx = caja.width / v.k / 2;
+        const ly = caja.height / v.k / 2;
+        return {
+          x: alPixel(v.x + lx * (v.k - ZOOM_MIN)),
+          y: alPixel(v.y + ly * (v.k - ZOOM_MIN)),
+          k: ZOOM_MIN,
+        };
+      }
+      const k = acotar(cuantizar(acotar(v.k * factor, ZOOM_MIN, ZOOM_MAX)), ZOOM_MIN, ZOOM_MAX);
       if (Math.abs(k - v.k) < 1e-9) return v;
       const caja = mapRef.current?.getBoundingClientRect();
       if (!caja) return { ...v, k };
@@ -140,38 +164,56 @@ export function useCamara({
     });
   }, [mapRef]);
 
-  /* Encuadrar: que el esquema quepa entero y centrado. Se mide con `offsetWidth`
-   * y `clientWidth`, que no llevan el transform encima, así el cálculo vale con
-   * cualquier zoom y no depende de la vista actual.
-   *
-   *  El tope es 1: encuadrar nunca agranda el mapa por encima de su tamaño real,
-   *  solo lo encoge si no cabe. El suelo es el mismo de la cámara. */
+  /* El encuadre medido en el DOM. Se mide con `offsetWidth` y `clientWidth`,
+   *  que no llevan el transform encima, así el cálculo vale con cualquier zoom
+   *  y no depende de la vista actual. `completo` deja bajar del suelo legible. */
+  const medirEncuadre = useCallback(
+    (completo: boolean): Vista | null => {
+      const board = boardRef.current;
+      const map = mapRef.current;
+      if (!board || !map) return null;
+
+      const ancho = map.offsetWidth;
+      const alto = map.offsetHeight;
+      if (!ancho || !alto) return null;
+
+      // Se encuadra en lo que se ve, no en la caja: el panel derecho no encoge
+      // el lienzo, solo lo tapa. El relleno del lienzo entra en la cuenta para
+      // que el centro sea el del área visible y no el del borde.
+      const estilo = getComputedStyle(board);
+      const vista = encuadreDe({
+        mapa: { ancho, alto },
+        board: { ancho: board.clientWidth, alto: board.clientHeight },
+        offset: { x: map.offsetLeft, y: map.offsetTop },
+        insetDerecha,
+        relleno: {
+          arriba: parseFloat(estilo.paddingTop) || 0,
+          abajo: parseFloat(estilo.paddingBottom) || 0,
+        },
+        completo,
+      });
+      return { ...vista, x: alPixel(vista.x), y: alPixel(vista.y) };
+    },
+    [boardRef, mapRef, insetDerecha],
+  );
+
+  /* Encuadrar: que el esquema quepa entero y centrado. El tope es 1 (nunca
+   *  agranda) y el suelo es el mismo de la cámara: lo que no cabe se recorta y
+   *  el aviso ofrece «ver completo». */
   const encuadrar = useCallback(() => {
     movida.current = false;
-    const board = boardRef.current;
-    const map = mapRef.current;
-    if (!board || !map) return;
+    const vista = medirEncuadre(false);
+    if (vista) setVista(vista);
+  }, [medirEncuadre]);
 
-    const ancho = map.offsetWidth;
-    const alto = map.offsetHeight;
-    if (!ancho || !alto) return;
-
-    // Se encuadra en lo que se ve, no en la caja: el panel derecho no encoge
-    // el lienzo, solo lo tapa. El relleno del lienzo entra en la cuenta para
-    // que el centro sea el del área visible y no el del borde.
-    const estilo = getComputedStyle(board);
-    const vista = encuadreDe({
-      mapa: { ancho, alto },
-      board: { ancho: board.clientWidth, alto: board.clientHeight },
-      offset: { x: map.offsetLeft, y: map.offsetTop },
-      insetDerecha,
-      relleno: {
-        arriba: parseFloat(estilo.paddingTop) || 0,
-        abajo: parseFloat(estilo.paddingBottom) || 0,
-      },
-    });
-    setVista({ ...vista, x: alPixel(vista.x), y: alPixel(vista.y) });
-  }, [boardRef, mapRef, insetDerecha]);
+  /** «Ver completo»: lo que ofrece el aviso de recorte. Baja del suelo legible
+   *  lo justo para que el esquema entero quepa; por debajo, la UI esconde el
+   *  texto secundario. Acercar o reencuadrar vuelven al suelo. */
+  const encuadrarCompleto = useCallback(() => {
+    movida.current = false;
+    const vista = medirEncuadre(true);
+    if (vista) setVista(vista);
+  }, [medirEncuadre]);
 
   /** Repo nuevo: encuadre nuevo y cámara sin tocar. */
   const olvidar = useCallback(() => {
@@ -207,15 +249,22 @@ export function useCamara({
 
       movida.current = true;
       setVista((v) => {
+        // Acercar desde «ver completo» vuelve al suelo legible de una vez.
+        if (v.k < ZOOM_MIN - 1e-9) {
+          if (e.deltaY >= 0) return v;
+          const caja = mapRef.current?.getBoundingClientRect();
+          if (!caja) return { ...v, k: ZOOM_MIN };
+          const lx = (e.clientX - caja.left) / v.k;
+          const ly = (e.clientY - caja.top) / v.k;
+          return {
+            x: alPixel(v.x + lx * (v.k - ZOOM_MIN)),
+            y: alPixel(v.y + ly * (v.k - ZOOM_MIN)),
+            k: ZOOM_MIN,
+          };
+        }
         const k = acotar(
-          cuantizar(
-            acotar(
-              v.k * (e.deltaY < 0 ? ZOOM_PASO : 1 / ZOOM_PASO),
-              Math.min(ZOOM_MIN, v.k),
-              ZOOM_MAX,
-            ),
-          ),
-          Math.min(ZOOM_MIN, v.k),
+          cuantizar(acotar(v.k * (e.deltaY < 0 ? ZOOM_PASO : 1 / ZOOM_PASO), ZOOM_MIN, ZOOM_MAX)),
+          ZOOM_MIN,
           ZOOM_MAX,
         );
         if (Math.abs(k - v.k) < 1e-9) return v;
@@ -373,5 +422,16 @@ export function useCamara({
     },
   };
 
-  return { vista, arrastrando, encuadrar, zoom, reset, olvidar, mano };
+  return {
+    vista,
+    // Por debajo del suelo legible solo se llega con «ver completo».
+    completo: vista.k < ZOOM_MIN - 1e-9,
+    arrastrando,
+    encuadrar,
+    encuadrarCompleto,
+    zoom,
+    reset,
+    olvidar,
+    mano,
+  };
 }

@@ -13,9 +13,10 @@ const ENFOCABLES = [
 
 /** El marco común de los diálogos.
  *
- *  El foco entra al abrir, Tab no sale del diálogo y Escape lo cierra aunque
- *  el foco se haya quedado fuera (por ejemplo, en el botón que lo abrió). Al
- *  cerrar, el foco vuelve a donde estaba. */
+ *  El foco entra al abrir —salvo que React ya haya enfocado un campo dentro—,
+ *  Tab no sale del diálogo y Escape lo cierra aunque el foco se haya quedado
+ *  fuera (por ejemplo, en el botón que lo abrió). Al cerrar, el foco vuelve a
+ *  donde estaba. */
 export function Modal({
   etiqueta,
   onCerrar,
@@ -26,6 +27,14 @@ export function Modal({
   children: ReactNode;
 }) {
   const marco = useRef<HTMLDivElement>(null);
+  // Quién tenía el foco antes de abrir: se lee al renderizar, antes de que
+  // React aplique `autoFocus`; en el efecto ya sería el campo del diálogo y al
+  // cerrar no habría a quién devolvérselo.
+  const anterior = useRef<HTMLElement | null | undefined>(undefined);
+  if (anterior.current === undefined) {
+    anterior.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  }
   // El cierre puede cambiar en cada render; el oyente se instala una vez.
   const cerrar = useRef(onCerrar);
   useEffect(() => {
@@ -35,16 +44,19 @@ export function Modal({
   useEffect(() => {
     const dialogo = marco.current;
     if (!dialogo) return;
-    const anterior = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
     const enfocables = () =>
       [...dialogo.querySelectorAll<HTMLElement>(ENFOCABLES)].filter(
         (elemento) => elemento.getClientRects().length > 0,
       );
 
-    const inicial =
-      dialogo.querySelector<HTMLElement>("[autofocus]") ?? enfocables()[0] ?? dialogo;
-    inicial.focus({ preventScroll: true });
+    // React no pinta `autofocus` en el DOM: al montar, enfoca él el campo. Si
+    // ese foco ya está dentro (EditorItem, DescartaItem), se respeta; pisarlo
+    // devolvería el cursor al primer enfocable y perdería el título.
+    const activo = document.activeElement;
+    const yaDentro =
+      activo instanceof HTMLElement && activo !== dialogo && dialogo.contains(activo);
+    if (!yaDentro) (enfocables()[0] ?? dialogo).focus({ preventScroll: true });
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -81,9 +93,10 @@ export function Modal({
     };
 
     document.addEventListener("keydown", onKeyDown);
+    const previo = anterior.current;
     return () => {
       document.removeEventListener("keydown", onKeyDown);
-      if (anterior?.isConnected) anterior.focus({ preventScroll: true });
+      if (previo?.isConnected) previo.focus({ preventScroll: true });
     };
   }, []);
 

@@ -1,17 +1,18 @@
 // Los modales deben recibir el foco y cerrarse con Escape aunque el foco se
-// quede en el botón que los abrió. Hoy el Escape global ignora los diálogos y
-// el `onKeyDown` del modal no llega si el foco está fuera.
-//
-// Rojo esperado: los tres diálogos dejan el foco fuera y Escape no los cierra.
+// quede en el botón que los abrió. El foco inicial propio solo entra si React
+// no enfocó ya un campo: `autoFocus` no deja atributo en el DOM y el título de
+// EditorItem no puede acabar pisado por el primer enfocable del diálogo.
 
 export default {
   nombre: "modales-teclado",
   descripcion:
-    "Ajustes, DialogoGit y FichaFases reciben el foco, atrapan Tab, cierran con Escape y devuelven el foco",
+    "Ajustes, DialogoGit, FichaFases, EditorItem y DescartaItem reciben el foco, atrapan Tab, " +
+    "cierran con Escape y devuelven el foco; EditorItem conserva el título",
   run: async ({ page, UI, api, esperar, expect, resultado }) => {
     const cabeceras = { "content-type": "application/json" };
     const fallos = [];
     let uid = null;
+    let uidDescartar = null;
 
     const focoDentro = () =>
       page.evaluate(() => Boolean(document.activeElement?.closest('[role="dialog"]')));
@@ -23,12 +24,19 @@ export default {
       await dialogo.waitFor({ state: "hidden" }).catch(() => {});
     };
 
-    const comprobar = async (nombre, origen, abrir, dialogo, botonCerrar) => {
-      // 1. El foco entra al abrir y Escape funciona aunque se vaya fuera.
+    const comprobar = async (nombre, origen, abrir, dialogo, botonCerrar, campo) => {
+      // 1. El foco entra al abrir (y al campo pedido) y Escape funciona aunque
+      //    se vaya fuera.
       await abrir();
       await dialogo.waitFor({ timeout: 15_000 });
       if (!(await focoDentro())) {
         fallos.push(`${nombre}: el foco inicial se queda fuera del diálogo`);
+      } else if (campo) {
+        const enCampo = await page.evaluate(
+          (etiqueta) => document.activeElement?.getAttribute("aria-label") === etiqueta,
+          campo,
+        );
+        if (!enCampo) fallos.push(`${nombre}: el foco inicial no está en «${campo}»`);
       }
       await origen.evaluate((el) => el.focus());
       await page.keyboard.press("Escape");
@@ -61,6 +69,14 @@ export default {
       });
       expect(crear.status === 201, `no se pudo crear el ítem: ${crear.status}`);
       uid = crear.data.uid;
+      // Otro en cola: solo ahí se ofrece «Descartar», que abre DescartaItem.
+      const descartable = await api("/items?repo=lab", {
+        method: "POST",
+        headers: cabeceras,
+        body: JSON.stringify({ title: "Descartar E2E", status: "proposed" }),
+      });
+      expect(descartable.status === 201, `no se pudo crear el descartable: ${descartable.status}`);
+      uidDescartar = descartable.data.uid;
       const plan = await api(`/items/${uid}?repo=lab`, {
         method: "PATCH",
         headers: cabeceras,
@@ -127,10 +143,53 @@ export default {
         "Cerrar",
       );
 
+      // EditorItem: React enfoca el título con `autoFocus` (sin atributo en el
+      // DOM); el modal debe respetarlo en vez de elegir su propio enfocable.
+      const editar = fila.getByRole("button", { name: "Editar", exact: true });
+      await editar.click();
+      const abrirDatos = fila.getByRole("button", { name: "Datos…", exact: true });
+      await abrirDatos.waitFor();
+      await comprobar(
+        "EditorItem",
+        abrirDatos,
+        async () => {
+          await abrirDatos.click();
+        },
+        page.getByRole("dialog", { name: "Editar ítem" }),
+        "Cancelar",
+        "Título",
+      );
+
+      // DescartaItem: el motivo es el campo que React enfoca y el que se queda.
+      const filaDescartar = page.locator(`.row[data-uid="${uidDescartar}"]`);
+      await filaDescartar.waitFor({ timeout: 15_000 });
+      const cabezaDescartar = filaDescartar.locator(".row-head");
+      if ((await cabezaDescartar.getAttribute("aria-expanded")) !== "true") {
+        await cabezaDescartar.click();
+      }
+      const abrirDescarte = filaDescartar.getByRole("button", {
+        name: "Descartar",
+        exact: true,
+      });
+      await abrirDescarte.waitFor();
+      await comprobar(
+        "DescartaItem",
+        abrirDescarte,
+        async () => {
+          await abrirDescarte.click();
+        },
+        page.getByRole("dialog", { name: "Descartar ítem" }),
+        "Cancelar",
+        "Motivo del rechazo",
+      );
+
       await page.screenshot({ path: resultado("modales-teclado.png") });
       expect(fallos.length === 0, fallos.join(" | "));
     } finally {
       if (uid) await api(`/items/${uid}?repo=lab`, { method: "DELETE" }).catch(() => {});
+      if (uidDescartar) {
+        await api(`/items/${uidDescartar}?repo=lab`, { method: "DELETE" }).catch(() => {});
+      }
     }
   },
 };

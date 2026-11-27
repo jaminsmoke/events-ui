@@ -38,6 +38,20 @@ test("la UI llama ítem a la ficha, no idea", () => {
   assert.deepEqual(fallos, [], `Queda vocabulario viejo:\n${fallos.join("\n")}`);
 });
 
+test("el alta ofrece «Crear ítem»", () => {
+  const alta = readFileSync(path.join(SRC, "pantalla", "NuevoItem.tsx"), "utf8");
+  assert.ok(alta.includes("Crear ítem"), "el alta ya no ofrece «Crear ítem»");
+});
+
+test("el contrato solo publica /items", () => {
+  const esquema = readFileSync(path.join(SRC, "core", "schema.ts"), "utf8");
+  for (const ruta of ['"/items"', '"/items/{uid}"']) {
+    assert.ok(esquema.includes(ruta), `el contrato no publica ${ruta}`);
+  }
+  const ideas = [...esquema.matchAll(/"\/ideas[^"]*"/g)].map((m) => m[0]);
+  assert.deepEqual(ideas, [], `el contrato sigue publicando ${ideas.join(", ")}`);
+});
+
 test("el lector conserva los eventos idea.* que ya estaban escritos", () => {
   const empuje = readFileSync(path.join(SRC, "core", "useEmpujeMapa.ts"), "utf8");
   for (const tipo of ["idea.created", "idea.deleted", "idea.status"]) {

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from contextlib import closing
 
 from events_core import items
@@ -190,6 +191,59 @@ def test_el_contrato_rechaza_otro_estado(client, tmp_path) -> None:
     respuesta = client.post("/migracion/aplicar", params={"repo": str(tmp_path)}, json=plan)
 
     assert respuesta.status_code == 422
+    assert client.get("/items", params={"repo": str(tmp_path)}).json() == []
+
+
+def test_el_cli_recorre_check_apply_repetido_y_undo(client, tmp_path, monkeypatch, capsys) -> None:
+    """El mismo camino que recorre un agente: `eui migrate` contra el core, con
+    el plan en disco, un `depende_de` entre refs y el lote repetido."""
+    from urllib.parse import urlsplit
+
+    from events_core import cli
+
+    plan = _plan(tmp_path)
+    plan["ideas"][1]["depende_de"] = [plan["ideas"][0]["ref"]]
+    fichero = tmp_path / "plan.json"
+    fichero.write_text(json.dumps(plan), encoding="utf-8")
+
+    def puente(url: str) -> str:
+        partes = urlsplit(url)
+        return partes.path + (f"?{partes.query}" if partes.query else "")
+
+    def respuesta(r):  # noqa: ANN001, ANN202
+        cuerpo = r.json() if r.content else None
+        detalle = None if r.status_code < 400 else r.text
+        return (cuerpo, detalle, r.status_code)
+
+    monkeypatch.setattr(cli, "_get", lambda url: respuesta(client.get(puente(url))))
+    monkeypatch.setattr(
+        cli, "_post", lambda url, datos: respuesta(client.post(puente(url), json=datos))
+    )
+    monkeypatch.setattr(cli, "_delete", lambda url: respuesta(client.delete(puente(url))))
+
+    def correr(*args: str) -> dict:
+        assert cli.main([*args, "--repo", str(tmp_path), "--json"]) == 0
+        return json.loads(capsys.readouterr().out)
+
+    assert correr("migrate", "check", str(fichero))["ok"] is True
+
+    aplicado = correr("migrate", "apply", str(fichero))
+    assert aplicado["repetido"] is False
+    assert aplicado["items"] == 2
+
+    repetido = correr("migrate", "apply", str(fichero))
+    assert repetido["repetido"] is True
+    assert repetido["lote"] == aplicado["lote"]
+
+    items = client.get("/items", params={"repo": str(tmp_path)}).json()
+    assert len(items) == 2
+    assert all(item["status"] == "proposed" for item in items)
+    uids = {creada["ref"]: creada["uid"] for creada in aplicado["creadas"]}
+    dependiente = next(item for item in items if item["uid"] == uids["dos"])
+    assert dependiente["depende_de"] == [uids["uno"]]
+
+    deshecho = correr("migrate", "undo", aplicado["lote"])
+    assert deshecho["borradas"] == 2
     assert client.get("/items", params={"repo": str(tmp_path)}).json() == []
 
 

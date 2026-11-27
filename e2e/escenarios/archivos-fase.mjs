@@ -69,33 +69,15 @@ export default {
       conRequisito[0].requisitos[0].hecho = true;
       const marcado = await mover({ fases: conRequisito });
       expect(marcado.status === 200, `no se pudo marcar el requisito: ${marcado.status}`);
-      const requisito = (await item()).fases[0].requisitos[0];
-      expect(
-        requisito.archivos.some(
-          (archivo) => archivo.ruta === "nota.txt" && archivo.estado === "modificado",
-        ),
-        "el archivo modificado debe quedar anotado en el requisito",
-      );
 
-      // Cerrar la fase es otro evento: se lleva lo que quedó después.
+      // Cerrar la fase es otro evento: se lleva lo que quedó después. La
+      // anotación, el parche y el descarte de `.EUI` los mide test_archivos.py;
+      // aquí el viaje sigue para verlo en la fila y en la ficha.
       writeFileSync(path.join(lab, "nuevo.txt"), "hola\n");
       const aCerrar = fasesDe(await item());
       aCerrar[0].estado = "completada";
       const cerrado = await mover({ fases: aCerrar });
       expect(cerrado.status === 200, `no se pudo cerrar la fase: ${cerrado.status}`);
-      const archivos = (await item()).fases[0].archivos;
-      expect(
-        archivos.some((archivo) => archivo.ruta === "nota.txt" && archivo.estado === "modificado"),
-        "el archivo del requisito también cuenta en la fase",
-      );
-      expect(
-        archivos.some((archivo) => archivo.ruta === "nuevo.txt" && archivo.estado === "nuevo"),
-        "el archivo nuevo debe quedar anotado en la fase",
-      );
-      expect(
-        archivos.every((archivo) => !archivo.ruta.startsWith(".EUI")),
-        "la base del repo no es trabajo de la fase",
-      );
 
       // La UI: el chip en la fila y el parche en la ficha, por requisito y fase.
       await page.goto(UI, { waitUntil: "domcontentloaded" });

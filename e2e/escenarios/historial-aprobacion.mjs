@@ -49,17 +49,8 @@ export default {
       }),
     });
     expect(aprobar.status === 200, `aprobación: ${JSON.stringify(aprobar.data)}`);
-    expect(aprobar.data.status === "historial", "aprobar debe archivar en historial");
-    expect(
-      aprobar.data.fases[0].estado === "completada" &&
-        aprobar.data.fases[0].requisitos[0].hecho === true,
-      "el historial debe conservar la fase completada y su requisito",
-    );
-    expect(
-      aprobar.data.revision_approved_by === "agente" &&
-        aprobar.data.revision_nota === "Todo comprobado",
-      "el historial debe conservar la firma",
-    );
+    // Que aprobar archive con fases y firma lo mide test_flujo_items.py; aquí
+    // el viaje sigue hasta la fila del historial, que es lo que solo se ve.
 
     await page.goto(UI, { waitUntil: "domcontentloaded" });
     const selector = page.getByRole("button", { name: "lab", exact: true });

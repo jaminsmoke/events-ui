@@ -66,15 +66,13 @@ export default {
     );
     actual = await abrir("roadmap");
 
-    // Con fases pendientes, verificación está cerrada por protocolo.
+    // Con fases pendientes, verificación está cerrada por protocolo: esa
+    // puerta la mide test_fases.py. Aquí el viaje es la fila: se completa
+    // todo y se comprueba que el botón se enciende solo.
     const aVerificacion = actual.getByRole("button", {
       name: "A verificación",
       exact: true,
     });
-    expect(
-      await aVerificacion.isDisabled(),
-      "A verificación debería estar bloqueado con fases pendientes",
-    );
 
     await esperar(
       () => actual.locator(".fase-estado").count().then((n) => n === 2),

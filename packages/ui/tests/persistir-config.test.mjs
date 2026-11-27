@@ -72,11 +72,15 @@ test("parar corta el reintento pendiente", async () => {
   assert.equal(llamadas, 1, "siguió reintentando después de parar");
 });
 
-test("App da la carpeta por guardada solo cuando el core contesta", async () => {
-  const app = await readFile(new URL("../src/App.tsx", import.meta.url), "utf8");
-  const envio = app.indexOf("persistirRepo(repo");
-  const marca = app.indexOf("persistido.current = repo");
-  assert.ok(envio >= 0, "App no usa el guardado con reintento");
-  assert.ok(marca > envio, "App marca la carpeta antes de mandarla al core");
-  assert.match(app, /alGuardar: \(\) => \{/, "App no espera la confirmación del core");
+test("la carpeta se da por guardada solo cuando el core contesta", async () => {
+  // Vive en el hook desde que `App` solo lo monta (`usePersistirRepo`).
+  const hook = await readFile(
+    new URL("../src/core/usePersistirRepo.ts", import.meta.url),
+    "utf8",
+  );
+  const envio = hook.indexOf("persistirRepo(repo");
+  const marca = hook.indexOf("persistido.current = repo");
+  assert.ok(envio >= 0, "el hook no usa el guardado con reintento");
+  assert.ok(marca > envio, "el hook marca la carpeta antes de mandarla al core");
+  assert.match(hook, /alGuardar: \(\) => \{/, "el hook no espera la confirmación del core");
 });

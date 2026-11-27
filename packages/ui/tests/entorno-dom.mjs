@@ -30,6 +30,9 @@ for (const clave of [
   "getComputedStyle",
   "requestAnimationFrame",
   "cancelAnimationFrame",
+  // `App` guarda la carpeta elegida en `localStorage`.
+  "localStorage",
+  "sessionStorage",
 ]) {
   globalThis[clave] = dom.window[clave];
 }

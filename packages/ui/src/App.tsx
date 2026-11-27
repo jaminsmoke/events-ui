@@ -6,7 +6,7 @@ import { api } from "./core/api";
 import { cargarAjustes, guardarAjustes } from "./core/avisos";
 import type { Ajustes } from "./core/avisos";
 import { medidaMarco } from "./core/marco";
-import { STORAGE_KEY, storedRepo } from "./core/repo";
+import { storedRepo } from "./core/repo";
 import type { ElegirCarpeta } from "./core/repo";
 import type { Actualizacion } from "./core/actualizacion";
 import { useRepo } from "./core/useRepo";
@@ -28,7 +28,7 @@ import { useSeleccion } from "./mapa/useSeleccion";
 import { useEventos } from "./core/useEventos";
 import { useAvisosEventos } from "./core/useAvisosEventos";
 import { useEmpujeMapa } from "./core/useEmpujeMapa";
-import { persistirRepo } from "./core/persistir";
+import { usePersistirRepo } from "./core/usePersistirRepo";
 import { useProtocolos } from "./core/useProtocolos";
 import { usePuertas } from "./core/usePuertas";
 import {
@@ -84,26 +84,9 @@ export default function App({
   useEffect(() => {
     repoRef.current = repo;
   }, [repo]);
-  // La carpeta elegida se recuerda una vez por repo, también al arrancar con
-  // una ya guardada. El core la recibe por PUT y solo se da por guardada
-  // cuando contesta; si está caído, `persistirRepo` reintenta. La guarda
-  // evita repetir el PUT en cada evento del SSE: `config.json` no es un
-  // latido.
-  const persistido = useRef<string | null>(null);
-  useEffect(() => {
-    if (!repo) return;
-    try {
-      localStorage.setItem(STORAGE_KEY, repo);
-    } catch {
-      // Recordar la carpeta es opcional.
-    }
-    if (persistido.current === repo) return;
-    return persistirRepo(repo, (r) => api.PUT("/config", { body: { repo: r } }), {
-      alGuardar: () => {
-        persistido.current = repo;
-      },
-    });
-  }, [repo]);
+  // La carpeta se recuerda y se manda al core una vez por repo; el SSE puede
+  // repintar `App` sin repetir el PUT (ver `usePersistirRepo`).
+  usePersistirRepo(repo, (r) => api.PUT("/config", { body: { repo: r } }));
   const [selectorAbierto, setSelectorAbierto] = useState(false);
   const [nuevaAbierta, setNuevaAbierta] = useState(false);
   const [falloAccion, setFalloAccion] = useState<string | null>(null);

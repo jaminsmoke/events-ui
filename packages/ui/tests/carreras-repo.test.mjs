@@ -21,11 +21,12 @@ test("las lecturas de archivo se abortan al cambiar", async () => {
   }
 });
 
-test("la persistencia del repo vive en la selección, no en useItems", async () => {
+test("la persistencia del repo vive en usePersistirRepo, no en useItems", async () => {
   const items = await leer("src/core/useItems.ts");
+  const hook = await leer("src/core/usePersistirRepo.ts");
   const app = await leer("src/App.tsx");
   assert.doesNotMatch(items, /localStorage|PUT\("\/config"/, "useItems sigue persistiendo");
-  assert.match(app, /localStorage\.setItem/, "la selección no recuerda el repo");
+  assert.match(hook, /localStorage\.setItem/, "la selección no recuerda el repo");
   assert.match(app, /PUT\("\/config"/, "la selección no comparte el repo con el core");
 });
 

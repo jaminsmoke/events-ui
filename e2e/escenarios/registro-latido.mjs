@@ -1,8 +1,8 @@
 /** El Registro late con el sondeo compartido y no encadena peticiones.
  *
- *  Con `/log` tardando 12 s, el `setInterval(3000)` propio lanzaba una nueva
- *  cada 3 s (tres en vuelo a los 7 s). El latido único, con guarda de lectura
- *  en vuelo, debe dejar una sola. */
+ *  Con `/log` tardando 4 s, un sondeo sin guarda lanzaría otra a los 2 s (el
+ *  latido es de 2 s) y a los 3 s ya habría dos. El latido único, con guarda
+ *  de lectura en vuelo, debe dejar una sola. */
 const dormir = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export default {
@@ -22,17 +22,17 @@ export default {
 
       await page.route("**/log*", async (route) => {
         peticiones += 1;
-        await dormir(12_000);
+        await dormir(4_000);
         await route.continue().catch(() => {});
       });
 
       await page.getByRole("button", { name: /^Log/ }).click();
       await page.getByRole("tab", { name: "Registro" }).click();
-      await dormir(7_000);
+      await dormir(3_000);
 
       expect(
         peticiones === 1,
-        `el Registro lanzó ${peticiones} peticiones a /log en 7 s (debe ser 1)`,
+        `el Registro lanzó ${peticiones} peticiones a /log en 3 s (debe ser 1)`,
       );
     } finally {
       await page.unroute("**/log*").catch(() => {});

@@ -54,6 +54,55 @@ export type Vista = { x: number; y: number; k: number };
 
 const acotar = (valor: number, min: number, max: number) => Math.min(max, Math.max(min, valor));
 
+/** La vista tras un paso de rueda, sin DOM: el punto del mapa bajo el cursor
+ *  se queda bajo el cursor.
+ *
+ *  `base` es la esquina del mapa sin su transform. Antes el manejador anclaba
+ *  con el rect pintado: con dos eventos en el mismo frame, el segundo usaba la
+ *  caja anterior al primero y el ancla se escapaba. */
+export function vistaDeRueda(
+  v: Vista,
+  base: { x: number; y: number },
+  cursor: { x: number; y: number },
+  deltaY: number,
+): Vista {
+  // Acercar desde «ver completo» vuelve al suelo legible de una vez; alejar
+  // más no tiene a dónde ir.
+  if (v.k < ZOOM_MIN - 1e-9 && deltaY >= 0) return v;
+  const k =
+    v.k < ZOOM_MIN - 1e-9
+      ? ZOOM_MIN
+      : acotar(
+          cuantizar(
+            acotar(v.k * (deltaY < 0 ? ZOOM_PASO : 1 / ZOOM_PASO), ZOOM_MIN, ZOOM_MAX),
+          ),
+          ZOOM_MIN,
+          ZOOM_MAX,
+        );
+  if (Math.abs(k - v.k) < 1e-9) return v;
+  const lx = (cursor.x - base.x - v.x) / v.k;
+  const ly = (cursor.y - base.y - v.y) / v.k;
+  return {
+    x: alPixel(cursor.x - base.x - lx * k),
+    y: alPixel(cursor.y - base.y - ly * k),
+    k,
+  };
+}
+
+/** La esquina del mapa sin su transform, en coordenadas de ventana.
+ *
+ *  `offsetLeft`/`offsetTop` son del layout sobre el padre posicionado, así que
+ *  valen aunque el transform pintado ya no coincida con la vista pedida. */
+function baseDeMapa(map: HTMLElement): { x: number; y: number } | null {
+  const padre = map.offsetParent;
+  if (!(padre instanceof HTMLElement)) return null;
+  const caja = padre.getBoundingClientRect();
+  return {
+    x: caja.left + padre.clientLeft + map.offsetLeft - padre.scrollLeft,
+    y: caja.top + padre.clientTop + map.offsetTop - padre.scrollTop,
+  };
+}
+
 /** Una sola regla de encuadre, sin DOM: el mapa entero si cabe, centrado en el
  *  alto libre del lienzo y nunca por debajo del suelo legible.
  *
@@ -246,42 +295,20 @@ export function useCamara({
     if (!board) return;
 
     const rueda = (e: WheelEvent) => {
-      const caja = mapRef.current?.getBoundingClientRect();
       const lista = e.target instanceof Element ? e.target.closest(".lane-cola > .node-body") : null;
       if (lista && lista.scrollHeight > lista.clientHeight && !e.ctrlKey) return;
-      if (!caja || !e.deltaY) return;
+      const mapa = mapRef.current;
+      if (!mapa || !e.deltaY) return;
+      // La esquina se mide sin transform: el rect pintado puede ser el de una
+      // vista anterior si ya hay pasos pendientes en este frame.
+      const base = baseDeMapa(mapa);
+      if (!base) return;
       e.preventDefault();
 
       movida.current = true;
-      setVista((v) => {
-        // Acercar desde «ver completo» vuelve al suelo legible de una vez.
-        if (v.k < ZOOM_MIN - 1e-9) {
-          if (e.deltaY >= 0) return v;
-          const caja = mapRef.current?.getBoundingClientRect();
-          if (!caja) return { ...v, k: ZOOM_MIN };
-          const lx = (e.clientX - caja.left) / v.k;
-          const ly = (e.clientY - caja.top) / v.k;
-          return {
-            x: alPixel(v.x + lx * (v.k - ZOOM_MIN)),
-            y: alPixel(v.y + ly * (v.k - ZOOM_MIN)),
-            k: ZOOM_MIN,
-          };
-        }
-        const k = acotar(
-          cuantizar(acotar(v.k * (e.deltaY < 0 ? ZOOM_PASO : 1 / ZOOM_PASO), ZOOM_MIN, ZOOM_MAX)),
-          ZOOM_MIN,
-          ZOOM_MAX,
-        );
-        if (Math.abs(k - v.k) < 1e-9) return v;
-        // El punto local bajo el cursor se queda bajo el cursor.
-        const lx = (e.clientX - caja.left) / v.k;
-        const ly = (e.clientY - caja.top) / v.k;
-        return {
-          x: alPixel(v.x + lx * (v.k - k)),
-          y: alPixel(v.y + ly * (v.k - k)),
-          k,
-        };
-      });
+      setVista((v) =>
+        vistaDeRueda(v, base, { x: e.clientX, y: e.clientY }, e.deltaY),
+      );
     };
 
     board.addEventListener("wheel", rueda, { passive: false });

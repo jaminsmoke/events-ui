@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { api, unwrap } from "./api";
+import { firmaProyeccion } from "./firma";
 import { suscribirSondeo } from "./sondeo";
 import type { CommitGit, ProyeccionRepo } from "./api";
 
@@ -34,9 +35,10 @@ export function useGit(repo: string | null) {
         );
         if (vivo) {
           // Cada latido trae un objeto nuevo aunque nada cambie: sin comparar,
-          // el mapa se repinta cada ~6 s. La proyección es pequeña.
+          // el mapa se repinta cada ~6 s. Se compara por firma barata, sin
+          // serializar la proyección entera (lleva `git_cambios` dentro).
           setProyeccionEstado((previo) =>
-            previo?.repo === repo && JSON.stringify(previo.datos) === JSON.stringify(p)
+            previo?.repo === repo && firmaProyeccion(previo.datos) === firmaProyeccion(p)
               ? previo
               : { repo, datos: p },
           );

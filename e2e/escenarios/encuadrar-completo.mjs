@@ -1,19 +1,19 @@
-/** Encuadrar tiene que dejar el esquema entero a la vista.
+/** El mapa se encuadra con una sola regla y «Encuadrar» deja verlo entero.
  *
- *  El encuadre normal se queda en el suelo legible (75 %) y el mapa sigue
- *  recortado a 800, 1366 y 1920: el aviso ofrece «Encuadrar» y pulsarlo no
- *  cambiaba nada. Ahora ese aviso baja del suelo lo justo para que el mapa
- *  entero quepa, a cambio de esconder el texto secundario de las filas.
+ *  Normal: nunca por debajo del suelo legible (75 %) y centrado en el alto
+ *  libre; a 800×600 antes caía al 29 % y quedaba pegado arriba. Se mide en
+ *  desktop y en la web, a 800 y a 1920.
  *
- *  Se comprueba a los tres anchos: el mapa cabe dentro del lienzo, el título
- *  sigue a la vista y la descripción y los mandos de la fila no.
+ *  Completo: el encuadre normal deja el mapa recortado a 800, 1366 y 1920, y
+ *  el aviso ofrece «Encuadrar». Al pulsarlo, el mapa entero cabe en el lienzo
+ *  a cambio de esconder el texto secundario de las filas: el título sigue a la
+ *  vista y la descripción y los mandos no.
  */
 export default {
   nombre: "encuadrar-completo",
   descripcion:
-    "Encuadrar deja el mapa entero dentro del lienzo a 800, 1366 y 1920, con el detalle oculto",
-
-  run: async ({ page, UI, api, expect, resultado }) => {
+    "El encuadre no baja del 75 % y centra en las dos apps, y «Encuadrar» deja el mapa entero a 800, 1366 y 1920",
+  run: async ({ page, web, UI, WEB, api, expect, resultado }) => {
     const vistas = [
       [800, 600],
       [1366, 768],
@@ -22,30 +22,6 @@ export default {
     const fallos = [];
     const cabeceras = { "content-type": "application/json" };
     let uid = null;
-
-    // Las medidas del propio aviso: el panel derecho tapa el canto sin encoger
-    // la caja, así que lo tapado también cuenta como fuera (como `recortadoDe`).
-    const medir = () =>
-      page.evaluate(() => {
-        const board = document.querySelector(".board");
-        const mapa = document.querySelector(".map");
-        if (!board || !mapa) return null;
-        const hueco = board.getBoundingClientRect();
-        const vista = mapa.getBoundingClientRect();
-        const resumen = document.querySelector(".resumen");
-        const inset = resumen ? resumen.getBoundingClientRect().width : 0;
-        return {
-          k: new DOMMatrix(getComputedStyle(mapa).transform).a,
-          izquierda: vista.left - hueco.left,
-          derecha: hueco.right - inset - vista.right,
-          arriba: vista.top - hueco.top,
-          abajo: hueco.bottom - vista.bottom,
-          ancho: vista.width,
-          alto: vista.height,
-          visible: hueco.width - inset,
-          completa: mapa.classList.contains("vista-completa"),
-        };
-      });
 
     try {
       // Una ficha con descripción y fase: el detalle que se oculta al alejar.
@@ -70,6 +46,72 @@ export default {
       });
       expect(plan.status === 200, `roadmap: ${JSON.stringify(plan.data)}`);
 
+      // 1) Encuadre normal: suelo del 75 % y centrado, en las dos apps.
+      const medirNormal = async (app) => {
+        await app.keyboard.press("f");
+        await app.waitForTimeout(400);
+        return app.evaluate(() => {
+          const mapa = document.querySelector(".map");
+          const board = document.querySelector(".board");
+          const cajaMapa = mapa.getBoundingClientRect();
+          const cajaBoard = board.getBoundingClientRect();
+          const estilo = getComputedStyle(board);
+          const arriba = cajaBoard.top + (parseFloat(estilo.paddingTop) || 0);
+          const abajo = cajaBoard.bottom - (parseFloat(estilo.paddingBottom) || 0);
+          return {
+            k: cajaMapa.width / mapa.offsetWidth,
+            centroMapa: cajaMapa.top + cajaMapa.height / 2,
+            centroLibre: arriba + (abajo - arriba) / 2,
+            izquierdaMapa: cajaMapa.left,
+            izquierdaLibre: cajaBoard.left + (parseFloat(estilo.paddingLeft) || 0),
+          };
+        });
+      };
+
+      for (const [etiqueta, app, base] of [
+        ["desktop", page, UI],
+        ["web", web, WEB],
+      ]) {
+        await app.setViewportSize({ width: 800, height: 600 });
+        await app.goto(base, { waitUntil: "domcontentloaded" });
+        // El runner comparte las pestañas: otro escenario pudo dejar un repo
+        // abierto. Se olvida para arrancar siempre en el selector.
+        await app.evaluate(() => localStorage.removeItem("eui.repo"));
+        await app.reload({ waitUntil: "domcontentloaded" });
+        const lab = app.getByRole("button", { name: "lab", exact: true });
+        await lab.waitFor({ timeout: 15_000 });
+        await lab.click();
+        await app.locator(".board").waitFor({ timeout: 15_000 });
+
+        const pequeno = await medirNormal(app);
+        expect(
+          pequeno.k >= 0.75 - 1e-6,
+          `${etiqueta} a 800×600 encuadró al ${(pequeno.k * 100).toFixed(1)} % (suelo 75 %)`,
+        );
+        expect(
+          Math.abs(pequeno.centroMapa - pequeno.centroLibre) <= 2,
+          `${etiqueta} a 800×600 no centra el mapa (${pequeno.centroMapa} vs ${pequeno.centroLibre})`,
+        );
+        expect(
+          Math.abs(pequeno.izquierdaMapa - pequeno.izquierdaLibre) <= 2,
+          `${etiqueta} a 800×600 recorta la Entrada (${pequeno.izquierdaMapa} vs ${pequeno.izquierdaLibre})`,
+        );
+        await app.screenshot({ path: resultado(`nitidez-${etiqueta}-800.png`) });
+
+        await app.setViewportSize({ width: 1920, height: 1080 });
+        const grande = await medirNormal(app);
+        await app.screenshot({ path: resultado(`nitidez-${etiqueta}-1920.png`) });
+        expect(
+          grande.k >= 0.75 && grande.k <= 1,
+          `${etiqueta} a 1920×1080 encuadró al ${(grande.k * 100).toFixed(1)} %`,
+        );
+        expect(
+          Math.abs(grande.centroMapa - grande.centroLibre) <= 2,
+          `${etiqueta} a 1920×1080 no centra el mapa (${grande.centroMapa} vs ${grande.centroLibre})`,
+        );
+      }
+
+      // 2) Vista completa con el aviso, en desktop y a los tres anchos.
       await page.goto(UI, { waitUntil: "domcontentloaded" });
       await page.evaluate(() => localStorage.removeItem("eui.repo"));
       await page.reload({ waitUntil: "domcontentloaded" });
@@ -80,6 +122,30 @@ export default {
 
       const fila = page.locator(`.row[data-uid="${uid}"]`);
       await fila.waitFor({ timeout: 15_000 });
+
+      // Las medidas del propio aviso: el panel derecho tapa el canto sin encoger
+      // la caja, así que lo tapado también cuenta como fuera (como `recortadoDe`).
+      const medirCompleto = () =>
+        page.evaluate(() => {
+          const board = document.querySelector(".board");
+          const mapa = document.querySelector(".map");
+          if (!board || !mapa) return null;
+          const hueco = board.getBoundingClientRect();
+          const vista = mapa.getBoundingClientRect();
+          const resumen = document.querySelector(".resumen");
+          const inset = resumen ? resumen.getBoundingClientRect().width : 0;
+          return {
+            k: new DOMMatrix(getComputedStyle(mapa).transform).a,
+            izquierda: vista.left - hueco.left,
+            derecha: hueco.right - inset - vista.right,
+            arriba: vista.top - hueco.top,
+            abajo: hueco.bottom - vista.bottom,
+            ancho: vista.width,
+            alto: vista.height,
+            visible: hueco.width - inset,
+            completa: mapa.classList.contains("vista-completa"),
+          };
+        });
 
       for (const [ancho, alto] of vistas) {
         await page.setViewportSize({ width: ancho, height: alto });
@@ -92,7 +158,7 @@ export default {
         if (recortado) await aviso.click();
         await page.waitForTimeout(400);
 
-        const datos = await medir();
+        const datos = await medirCompleto();
         if (!datos) {
           fallos.push(`${ancho}: no hay mapa que medir`);
           continue;
@@ -133,10 +199,13 @@ export default {
       expect(fallos.length === 0, fallos.join(" | "));
     } finally {
       if (uid) await api(`/items/${uid}?repo=lab`, { method: "DELETE" }).catch(() => {});
-      // El runner comparte la pestaña: se devuelve a su tamaño y sin repo.
-      await page.evaluate(() => localStorage.removeItem("eui.repo")).catch(() => {});
-      await page.setViewportSize({ width: 1500, height: 950 }).catch(() => {});
-      await page.goto("about:blank").catch(() => {});
+      // El runner comparte estas dos páginas: se devuelven a su tamaño y sin
+      // repo recordado, o el siguiente arranca en el mapa (y a 1920).
+      for (const app of [page, web]) {
+        await app.evaluate(() => localStorage.removeItem("eui.repo")).catch(() => {});
+        await app.setViewportSize({ width: 1500, height: 950 }).catch(() => {});
+        await app.goto("about:blank").catch(() => {});
+      }
     }
   },
 };

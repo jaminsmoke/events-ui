@@ -47,18 +47,25 @@ export function marcaDe(repo: string): Marca | null {
   }
 }
 
+export type EstadoMarca = "vigente" | "pendiente" | "ninguna";
+
+/** Decide qué es una marca sin tocar el almacén: latido fresco = otra
+ *  ejecución viva; latido viejo = una prueba que murió sin limpiar. */
+export function estadoDeMarca(marca: Marca | null, ahora: number): EstadoMarca {
+  if (!marca) return "ninguna";
+  return ahora - marca.latido < VIGENTE_MS ? "vigente" : "pendiente";
+}
+
 /** Otra ejecución está viva ahora mismo en este laboratorio. */
 export function pruebaVigente(repo: string): Marca | null {
   const marca = marcaDe(repo);
-  if (!marca) return null;
-  return Date.now() - marca.latido < VIGENTE_MS ? marca : null;
+  return estadoDeMarca(marca, Date.now()) === "vigente" ? marca : null;
 }
 
 /** La prueba murió sin limpiar: queda una marca sin latido reciente. */
 export function pruebaPendiente(repo: string): Marca | null {
   const marca = marcaDe(repo);
-  if (!marca) return null;
-  return Date.now() - marca.latido >= VIGENTE_MS ? marca : null;
+  return estadoDeMarca(marca, Date.now()) === "pendiente" ? marca : null;
 }
 
 /** Reclama el laboratorio para una ejecución: gana la última y las demás ven

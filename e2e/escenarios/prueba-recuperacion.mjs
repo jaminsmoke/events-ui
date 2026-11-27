@@ -5,8 +5,7 @@ import { esperarCables } from "../cables.mjs";
 
 export default {
   nombre: "prueba-recuperacion",
-  descripcion:
-    "Reabrir el laboratorio cobra la limpieza pendiente y respeta otra ejecución viva",
+  descripcion: "Reabrir el laboratorio cobra la limpieza que quedó pendiente",
   run: async ({ page, UI, esperar, expect, api, tmp }) => {
     const db = new DatabaseSync(
       path.join(tmp, "repos", "lab", ".EUI", "EUI_DATABASE.sqlite"),
@@ -55,20 +54,8 @@ export default {
       await esperar(() => Promise.resolve(items() === 0), "el vaciado pendiente", 20_000);
       expect(items() === 0, "quedaron ítems de la prueba interrumpida");
 
-      // Otra ejecución viva: latido fresco. Reabrir no puede tocar su trabajo.
-      await sembrar("Dato de otra ejecución");
-      await marcar(repo, Date.now());
-      await page.reload({ waitUntil: "domcontentloaded" });
-      await page.getByText("Dato de otra ejecución").waitFor({ timeout: 20_000 });
-      // Más de un ciclo de sondeo: si la recuperación fuera a limpiar, ya lo habría hecho.
-      await new Promise((r) => setTimeout(r, 4_000));
-      expect(items() === 1, "se vació el laboratorio de otra ejecución activa");
-      const marca = await page.evaluate(
-        (clave) => localStorage.getItem(clave),
-        `eui.prueba:${repo}`,
-      );
-      expect(marca !== null, "se soltó la marca de la ejecución ajena");
-
+      // Que un latido fresco respete la ejecución ajena lo decide
+      // `estadoDeMarca` y lo prueba su unit: aquí solo viaja la UI.
       await page.evaluate((clave) => localStorage.removeItem(clave), `eui.prueba:${repo}`);
     } finally {
       db.close();

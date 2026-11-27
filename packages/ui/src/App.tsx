@@ -28,6 +28,7 @@ import { useSeleccion } from "./mapa/useSeleccion";
 import { useEventos } from "./core/useEventos";
 import { useAvisosEventos } from "./core/useAvisosEventos";
 import { useEmpujeMapa } from "./core/useEmpujeMapa";
+import { persistirRepo } from "./core/persistir";
 import { useProtocolos } from "./core/useProtocolos";
 import { usePuertas } from "./core/usePuertas";
 import {
@@ -84,19 +85,23 @@ export default function App({
     repoRef.current = repo;
   }, [repo]);
   // La carpeta elegida se recuerda una vez por repo, también al arrancar con
-  // una ya guardada. La guarda evita el doble efecto de StrictMode y los
-  // eventos del SSE: `config.json` no es un latido.
+  // una ya guardada. El core la recibe por PUT y solo se da por guardada
+  // cuando contesta; si está caído, `persistirRepo` reintenta. La guarda
+  // evita repetir el PUT en cada evento del SSE: `config.json` no es un
+  // latido.
   const persistido = useRef<string | null>(null);
   useEffect(() => {
-    if (!repo || persistido.current === repo) return;
-    persistido.current = repo;
+    if (!repo) return;
     try {
       localStorage.setItem(STORAGE_KEY, repo);
     } catch {
       // Recordar la carpeta es opcional.
     }
-    void api.PUT("/config", { body: { repo } }).catch(() => {
-      // El core la volverá a recibir la próxima vez que se elija.
+    if (persistido.current === repo) return;
+    return persistirRepo(repo, (r) => api.PUT("/config", { body: { repo: r } }), {
+      alGuardar: () => {
+        persistido.current = repo;
+      },
     });
   }, [repo]);
   const [selectorAbierto, setSelectorAbierto] = useState(false);

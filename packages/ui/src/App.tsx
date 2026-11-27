@@ -3,8 +3,6 @@ import type { CSSProperties } from "react";
 
 import { api } from "./core/api";
 
-import { cargarAjustes, guardarAjustes } from "./core/avisos";
-import type { Ajustes } from "./core/avisos";
 import { medidaMarco } from "./core/marco";
 import { storedRepo } from "./core/repo";
 import type { ElegirCarpeta } from "./core/repo";
@@ -26,7 +24,6 @@ import { useArbolMapa } from "./mapa/useArbolMapa";
 import { useDestellos } from "./mapa/useDestellos";
 import { useSeleccion } from "./mapa/useSeleccion";
 import { useEventos } from "./core/useEventos";
-import { useAvisosEventos } from "./core/useAvisosEventos";
 import { useEmpujeMapa } from "./core/useEmpujeMapa";
 import { usePersistirRepo } from "./core/usePersistirRepo";
 import { useProtocolos } from "./core/useProtocolos";
@@ -63,18 +60,15 @@ import { useVentanaEstrecha } from "./pantalla/useVentanaEstrecha";
  *  la web no lo pasa. El selector es el mismo en las dos: explorador de
  *  `/fs`, lista de `/repos` y ruta manual; el diálogo nativo es una acción
  *  extra de desktop.
- *  `avisar`, igual: solo lo inyecta desktop (notificaciones del sistema) y
- *  con él aparece el botón de Ajustes; sin él no hay avisos que ajustar.
+ *  Sin avisos del sistema: los eventos ya se ven en el log y en el mapa.
  *  `pruebas` solo lo inyecta desktop: el lanzador del laboratorio vive en su
  *  envoltorio y aquí solo se conoce la frontera. Sin él no hay botón. */
 export default function App({
   elegirCarpeta,
-  avisar,
   pruebas,
   actualizacion,
 }: {
   elegirCarpeta?: ElegirCarpeta;
-  avisar?: (titulo: string, cuerpo: string) => void;
   pruebas?: PruebasInyectadas;
   actualizacion?: Actualizacion;
 }) {
@@ -92,7 +86,6 @@ export default function App({
   const [falloAccion, setFalloAccion] = useState<string | null>(null);
   // Lo plegado, no lo abierto: por defecto el flujo se ve entero.
   const [cerrados, setCerrados] = useState<ReadonlySet<string>>(() => new Set());
-  const [ajustes, setAjustes] = useState<Ajustes>(cargarAjustes);
   const [ajustesAbiertos, setAjustesAbiertos] = useState(false);
   const [pruebaEnCurso, setPruebaEnCurso] = useState(false);
   const [pruebasAbiertas, setPruebasAbiertas] = useState(false);
@@ -208,8 +201,6 @@ export default function App({
   // Las puertas son del repo: se piden aquí una vez, no cada vez que se abre
   // el panel derecho.
   const { puertas, error: falloPuertas } = usePuertas(repo);
-
-  useAvisosEventos({ eventos, items, error, avisar, ajustes });
 
   const boardRef = useRef<HTMLElement | null>(null);
   const mapRef = useRef<HTMLDivElement | null>(null);
@@ -453,7 +444,7 @@ export default function App({
         repo={repo}
         ruta={proyeccion?.repo}
         ocupado={busy || pruebaEnCurso}
-        conAjustes={avisar !== undefined}
+        conAjustes={actualizacion !== undefined}
         puedeProbar={PanelPruebas !== undefined}
         laboratorio={proyeccion?.laboratorio === true}
         onCambiar={() => setSelectorAbierto(true)}
@@ -465,15 +456,9 @@ export default function App({
         }}
       />
 
-      {ajustesAbiertos && (
+      {ajustesAbiertos && actualizacion && (
         <DialogoAjustes
-          ajustes={ajustes}
           actualizacion={actualizacion}
-          onGuardar={(nuevos) => {
-            setAjustes(nuevos);
-            guardarAjustes(nuevos);
-            setAjustesAbiertos(false);
-          }}
           onCerrar={() => setAjustesAbiertos(false)}
         />
       )}

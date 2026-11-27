@@ -397,8 +397,8 @@ y el detalle por `ON DELETE CASCADE`. El paso `0004` es el ejemplo: reconstruyó
   DELETE fuera de `rejected`/`superseded`). Todo por `openapi-fetch` tipado por
   el OpenAPI generado, con los errores 400/404 declarados en el contrato.
 - **F1–F3 (hecho):** sobre de evento + SSE en vivo por repo (F1), proyección de repo
-  con identidad git (F2) y empaquetado con sidecar Python en la desktop, bandeja y
-  avisos (F3). El instalador firmado queda fuera (cuesta dinero).
+  con identidad git (F2) y empaquetado con sidecar Python en la desktop, con
+  bandeja (F3). El instalador firmado queda fuera (cuesta dinero).
 - **Dependencias entre ítems (0018) y fuera `connections` (0019)**: un ítem
   declara `depende_de` y no avanza de carril hasta que esos ítems estén
   aprobados; la tabla de conexiones y sus enlaces laterales se retiraron, así

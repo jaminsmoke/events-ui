@@ -3,8 +3,9 @@
  *  Antes esto era el escenario e2e `modales-teclado`: abría Ajustes y el
  *  editor de un ítem en el navegador para comprobar lo mismo. El marco es el
  *  mismo `Modal` para los cinco diálogos, así que probarlo con sus dos casos
- *  —uno con el foco inicial en un campo, otro con el `autoFocus` de React— y
- *  las llamadas falsas del editor cubre lo que el viaje de UI añadía.
+ *  —uno con el foco inicial en el primer enfocable, otro con el `autoFocus`
+ *  de React— y las llamadas falsas del editor cubre lo que el viaje de UI
+ *  añadía. Ajustes ya no configura avisos: solo comprueba actualizaciones.
  */
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -27,13 +28,20 @@ function botonOrigen() {
 
 /** El diálogo tal como lo monta la app: sin `autoFocus` en ningún campo. */
 function montarAjustes() {
-  const visto = { guardado: null, cerrado: 0 };
+  const visto = { cerrado: 0 };
+  const actualizacion = {
+    version: "0.5.19",
+    estado: "inactivo",
+    nueva: null,
+    progreso: null,
+    mensaje: null,
+    comprobar: () => {},
+    instalar: () => {},
+    descartar: () => {},
+  };
   const util = render(
     createElement(Ajustes, {
-      ajustes: { verbosidad: "todo", soloFondo: false },
-      onGuardar: (ajustes) => {
-        visto.guardado = ajustes;
-      },
+      actualizacion,
       onCerrar: () => {
         visto.cerrado++;
       },
@@ -49,18 +57,18 @@ test("Ajustes: el foco entra, Shift+Tab no se escapa y cerrar lo devuelve", () =
 
   assert.ok(dialogo.contains(document.activeElement), "el foco no entró al diálogo");
   assert.equal(
-    document.activeElement.getAttribute("aria-label"),
-    "Qué avisar",
+    document.activeElement.textContent,
+    "Buscar actualizaciones",
     "el foco inicial debe ser el primer enfocable",
   );
 
   // Shift+Tab desde el primero da la vuelta al último: no sale del diálogo.
   fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
   assert.ok(dialogo.contains(document.activeElement), "Tab se escapó del diálogo");
-  assert.equal(document.activeElement.textContent, "Cancelar", "Shift+Tab no dio la vuelta");
+  assert.equal(document.activeElement.textContent, "Cerrar", "Shift+Tab no dio la vuelta");
 
   // Cerrar con el botón y desmontar devuelve el foco a quien lo abrió.
-  fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+  fireEvent.click(screen.getByRole("button", { name: "Cerrar" }));
   assert.equal(visto.cerrado, 1);
   util.unmount();
   assert.equal(document.activeElement, origen, "el foco no volvió al origen");

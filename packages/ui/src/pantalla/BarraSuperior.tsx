@@ -2,8 +2,8 @@ import { BarraRepo } from "./BarraRepo";
 
 /** La cabecera: el repo abierto y las entradas globales (nuevo ítem, ajustes
  *  y pruebas). Los botones que dependen del envoltorio no se pintan si no
- *  hay dónde: sin `avisar` no hay ajustes que guardar y sin panel de pruebas
- *  inyectado no hay lanzador que abrir. */
+ *  hay dónde: sin actualizador no hay nada que ajustar y sin panel de
+ *  pruebas inyectado no hay lanzador que abrir. */
 export function BarraSuperior({
   repo,
   ruta,

@@ -301,10 +301,17 @@ async function main() {
     if (!(await esperarUrl(`${WEB}/`))) throw new Error(`Vite web no respondió en ${WEB}`);
 
     browser = await chromium.launch();
-    const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
-    page.on("dialog", async (d) => d.accept());
-    const web = await browser.newPage({ viewport: { width: 1500, height: 950 } });
-    web.on("dialog", async (d) => d.accept());
+    /* Cada escenario estrena contexto: localStorage, cookies, permisos y
+     * viewport vuelven a cero. Antes se compartía la pestaña y un escenario
+     * heredaba el `eui.repo` del anterior (config-una-vez dependía del orden). */
+    const abrirContexto = async () => {
+      const contexto = await browser.newContext({ viewport: { width: 1500, height: 950 } });
+      const page = await contexto.newPage();
+      page.on("dialog", async (d) => d.accept());
+      const web = await contexto.newPage();
+      web.on("dialog", async (d) => d.accept());
+      return { contexto, page, web };
+    };
 
     const api = async (ruta, opciones = {}) => {
       const res = await fetch(`${CORE}${ruta}`, opciones);
@@ -338,15 +345,13 @@ async function main() {
         throw new Error("el core no volvió a responder /health");
       }
     };
-    const ctx = {
+    const base = {
       CORE,
       UI,
       WEB,
       api,
       esperar,
       expect,
-      page,
-      web,
       tmp,
       matarCore,
       levantarCore,
@@ -355,8 +360,9 @@ async function main() {
 
     for (const escenario of lista) {
       const inicio = Date.now();
+      const { contexto, page, web } = await abrirContexto();
       try {
-        await escenario.run(ctx);
+        await escenario.run({ ...base, page, web });
         resultados.push({ nombre: escenario.nombre, ok: true, ms: Date.now() - inicio });
         console.log(`✓ ${escenario.nombre} (${((Date.now() - inicio) / 1000).toFixed(1)} s)`);
       } catch (err) {
@@ -371,6 +377,8 @@ async function main() {
           .screenshot({ path: path.join(RESULTADOS_DIR, `${escenario.nombre}-fallo.png`) })
           .catch(() => {});
       } finally {
+        // El contexto muere con el escenario: nada de su almacén sobrevive.
+        await contexto.close().catch(() => {});
         // Escenarios aislados: el lab se limpia tras cada uno, pase o no
         // (es el endpoint LAB/e2e de /reiniciar, no el CRUD de producto).
         await api("/reiniciar?repo=lab", { method: "POST" }).catch(() => {});

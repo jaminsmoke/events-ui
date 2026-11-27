@@ -29,6 +29,7 @@ import { useEventos } from "./core/useEventos";
 import { useAvisosEventos } from "./core/useAvisosEventos";
 import { useEmpujeMapa } from "./core/useEmpujeMapa";
 import { useProtocolos } from "./core/useProtocolos";
+import { usePuertas } from "./core/usePuertas";
 import {
   BarraActividad,
   BarraDerecha,
@@ -216,6 +217,9 @@ export default function App({
   // Los protocolos de flujo: las uniones permitidas entre carriles. La fila
   // no ofrece traslados prohibidos; el core los rechaza si llegan igual.
   const { puedeIr, exigeFases, exigeFasesListas, exigeFasesCompletas, paso } = useProtocolos(repo);
+  // Las puertas son del repo: se piden aquí una vez, no cada vez que se abre
+  // el panel derecho.
+  const { puertas, error: falloPuertas } = usePuertas(repo);
 
   useAvisosEventos({ eventos, items, error, avisar, ajustes });
 
@@ -675,6 +679,8 @@ export default function App({
             cables={cables}
             nudos={nudos}
             paso={paso}
+            puertas={puertas}
+            falloPuertas={falloPuertas}
             acciones={acciones}
             onSeleccionar={seleccionar}
             onAbrirArchivo={abrirArchivo}

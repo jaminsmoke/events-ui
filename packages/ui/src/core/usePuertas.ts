@@ -8,13 +8,15 @@ import type { Puerta } from "./api";
  *  Antes las pedía cada montaje del inspector: seleccionar otro ítem volvía a
  *  lanzar la misma lectura. El dato es del repo, no del ítem.
  */
-export function usePuertas(repo: string) {
+export function usePuertas(repo: string | null) {
   const [estado, setEstado] = useState<{ repo: string; puertas: Puerta[] } | null>(
     null,
   );
   const [fallo, setFallo] = useState<{ repo: string; mensaje: string } | null>(null);
 
   useEffect(() => {
+    // Sin repo no hay nada que pedir: la app arranca antes de elegirlo.
+    if (!repo) return;
     const controller = new AbortController();
     let vivo = true;
     void unwrap(

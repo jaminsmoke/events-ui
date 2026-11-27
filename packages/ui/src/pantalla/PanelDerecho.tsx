@@ -3,7 +3,6 @@ import { Fragment, useState } from "react";
 import type { CommitGit, Puerta, WorkItem, ProyeccionRepo } from "../core/api";
 import { folderName } from "../core/repo";
 import type { Paso } from "../core/useProtocolos";
-import { usePuertas } from "../core/usePuertas";
 import type { Cable, Nudo } from "../mapa/cables";
 import {
   ESTADOS,
@@ -51,6 +50,8 @@ export function PanelDerecho({
   cables,
   nudos,
   paso,
+  puertas,
+  falloPuertas,
   acciones,
   onSeleccionar,
   onAbrirArchivo,
@@ -77,6 +78,11 @@ export function PanelDerecho({
   nudos: readonly Nudo[];
   /** El protocolo del repo: qué salidas hay y qué exige cada unión. */
   paso: (origen: Status, destino: Status) => Paso | null;
+  /** Las puertas activas del repo, leídas una vez en `App`: reabrir el panel
+   *  no vuelve a pedirlas. `null` mientras se leen. */
+  puertas: Puerta[] | null;
+  /** El fallo de esa lectura, si lo hubo. */
+  falloPuertas: string | null;
   /** Lo que la ficha de item puede hacer con el ítem seleccionada. */
   acciones: AccionesItem;
   /** Pulsar un ítem en la ficha la selecciona en el lienzo. */
@@ -86,9 +92,6 @@ export function PanelDerecho({
   conectado: boolean;
   onClose: () => void;
 }) {
-  // Las puertas son del repo: se piden una vez para todo el panel, no cada
-  // vez que se selecciona otro ítem.
-  const { puertas, error: falloPuertas } = usePuertas(repo);
   const pestana = (clave: VistaDerecha, etiqueta: string) => (
     <button
       type="button"

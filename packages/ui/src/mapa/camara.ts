@@ -45,6 +45,11 @@ export const ZOOM_ENCUADRE_MIN = ZOOM_MIN;
  *  escala el mapa ya no se distingue. */
 export const ZOOM_COMPLETO_MIN = 0.2;
 
+/** Por debajo de este zoom el texto secundario deja de llegar al suelo
+ *  legible: 10,5 px por 0,9 son 9,45 px, y un rótulo de 9,5 px se queda en
+ *  8,55. Ahí la UI lo oculta o lo refluye (`.texto-compacto`). */
+export const ZOOM_TEXTO_MIN = 0.9;
+
 export type Vista = { x: number; y: number; k: number };
 
 const acotar = (valor: number, min: number, max: number) => Math.min(max, Math.max(min, valor));
@@ -426,6 +431,8 @@ export function useCamara({
     vista,
     // Por debajo del suelo legible solo se llega con «ver completo».
     completo: vista.k < ZOOM_MIN - 1e-9,
+    // El secundario se esconde o refluye cuando el zoom ya no lo deja legible.
+    compacto: vista.k < ZOOM_TEXTO_MIN - 1e-9,
     arrastrando,
     encuadrar,
     encuadrarCompleto,

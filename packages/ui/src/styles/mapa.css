@@ -179,6 +179,68 @@
   transform-origin: top left;
 }
 
+/* Por debajo de 0,9 el zoom dejaría el texto secundario por debajo del suelo
+ * legible (9,5 px efectivos). Ahí se refluye: cada rol conserva su tamaño real
+ * sobre la pantalla con `--texto` = 4/3. El factor es fijo —el valor exacto al
+ * 75 %— para que mover el zoom dentro de la banda no recolque el mapa y los
+ * cables no se muevan. Los títulos no entran: ya superan el suelo por sí solos. */
+.map.texto-compacto .fila-descripcion,
+.map.texto-compacto .fila-rechazo,
+.map.texto-compacto .fila-depende,
+.map.texto-compacto .fila-aviso,
+.map.texto-compacto .requisito-titulo,
+.map.texto-compacto .git-detalle,
+.map.texto-compacto .hint {
+  font-size: calc(11px * var(--texto, 1));
+}
+
+.map.texto-compacto .fila-estado,
+.map.texto-compacto .fila-acciones,
+.map.texto-compacto .fase-indice,
+.map.texto-compacto .fase-estado-texto,
+.map.texto-compacto .git-commit {
+  font-size: calc(10.5px * var(--texto, 1));
+}
+
+.map.texto-compacto .fila-rotulo,
+.map.texto-compacto .fases-cabecera,
+.map.texto-compacto .fase-check,
+.map.texto-compacto .count,
+.map.texto-compacto .git-estado {
+  font-size: calc(9.5px * var(--texto, 1));
+}
+
+.map.texto-compacto .btn.ghost.mover,
+.map.texto-compacto .rama-titulo {
+  font-size: calc(12.5px * var(--texto, 1));
+}
+
+.map.texto-compacto .fila-secundaria .btn.ghost.mover,
+.map.texto-compacto .rama-sub {
+  font-size: calc(10.5px * var(--texto, 1));
+}
+
+/* Las cifras crecen con el reflujo y se pegaban al canto del carril, donde el
+ * «0/1» parecía cortado. Se les da aire a la derecha —sin tocar el alto de la
+ * cabecera, que mueve la maqueta del mapa— y se les quita volumen: el mismo
+ * tamaño de letra en un contador más recogido. */
+.map.texto-compacto .node-head,
+.map.texto-compacto .row-head {
+  padding-right: calc(9px * var(--texto, 1));
+}
+
+.map.texto-compacto .count {
+  min-width: 16px;
+  padding: 0 4px;
+}
+
+/* Una cifra no se comprime: si falta sitio cede el título, que ya lleva puntos
+ * suspensivos. Sin esto el contador se recortaba por dentro. */
+.node-head .count,
+.row-head .count {
+  flex: none;
+}
+
 /* «Ver completo»: el mapa entero por debajo del suelo legible. A esa escala el
  * detalle sería barro, así que quedan el título, los carriles y los cables; la
  * descripción, las fases, las dependencias, los contadores y los mandos de cada

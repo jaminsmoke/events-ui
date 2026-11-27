@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 
 import { api } from "./core/api";
 
@@ -231,7 +232,8 @@ export default function App({
   const [anchoResumen] = useState(() => medidaMarco("--ancho-resumen"));
   const insetDerecha = derechaVisible ? anchoResumen : 0;
 
-  const { vista, completo, arrastrando, encuadrarCompleto, zoom, reset, olvidar, mano } = useCamara({
+  const { vista, completo, compacto, arrastrando, encuadrarCompleto, zoom, reset, olvidar, mano } =
+    useCamara({
     repo,
     mapa,
     listo: tree !== null,
@@ -607,9 +609,16 @@ export default function App({
             {!busy && tree && (
               <div
                 key={mapa}
-                className={`map mapa-${mapa}${completo ? " vista-completa" : ""}`}
+                className={`map mapa-${mapa}${completo ? " vista-completa" : ""}${
+                  compacto ? " texto-compacto" : ""
+                }`}
                 ref={mapRef}
-                style={{ transform: `translate(${vista.x}px, ${vista.y}px) scale(${vista.k})` }}
+                style={
+                  {
+                    transform: `translate(${vista.x}px, ${vista.y}px) scale(${vista.k})`,
+                    "--texto": compacto ? 4 / 3 : 1,
+                  } as CSSProperties
+                }
               >
                 <Lienzo
                   mapa={mapa}

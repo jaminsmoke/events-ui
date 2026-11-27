@@ -3,8 +3,9 @@ import { createPortal } from "react-dom";
 
 import type { Puerta, WorkItem, WorkItemUpdate } from "../core/api";
 import type { PuedeIr } from "../core/useProtocolos";
+import { BotonEliminar } from "../mapa/BotonEliminar";
 import { BotonesMover } from "../mapa/BotonesMover";
-import { ETIQUETA_ESTADO, LANES, laneOf, sePuedeEliminar } from "../mapa/carriles";
+import { ETIQUETA_ESTADO, LANES, laneOf } from "../mapa/carriles";
 import type { Status } from "../mapa/carriles";
 import { ETIQUETA_FASE } from "../mapa/fase";
 import { fechaCorta } from "../mapa/formato";
@@ -44,9 +45,6 @@ export function CuerpoItem({
   acciones: AccionesItem;
   onSeleccionar: (seleccion: Seleccion) => void;
 }) {
-  const [trabajando, setTrabajando] = useState(false);
-  const [fallo, setFallo] = useState<string | null>(null);
-  const [confirmando, setConfirmando] = useState(false);
   const [descartando, setDescartando] = useState(false);
   const fases = item.fases ?? [];
   const deps = item.depende_de ?? [];
@@ -55,15 +53,6 @@ export function CuerpoItem({
   const carril = lane ? LANES.find((l) => l.id === lane)?.title : "Entrada";
   // El historial es un archivo: ni se edita, ni se mueve, ni se borra.
   const enHistorial = item.status === "historial";
-
-  const hacer = (fn: () => Promise<void>, alOk?: () => void) => {
-    setTrabajando(true);
-    setFallo(null);
-    fn()
-      .then(() => alOk?.())
-      .catch((err: unknown) => setFallo(err instanceof Error ? err.message : String(err)))
-      .finally(() => setTrabajando(false));
-  };
 
   return (
     <div className="panel-cuerpo inspector-cuerpo">
@@ -194,7 +183,9 @@ export function CuerpoItem({
               exigeFases={acciones.exigeFases}
               exigeFasesListas={acciones.exigeFasesListas}
               exigeFasesCompletas={acciones.exigeFasesCompletas}
-              trabajando={trabajando}
+              // El traslado no avisa de su progreso aquí; el borrado lleva el
+              // suyo dentro de `BotonEliminar`.
+              trabajando={false}
               onMover={acciones.onMover}
               onDescartar={acciones.onEditar ? () => setDescartando(true) : undefined}
               className="btn ghost"
@@ -210,41 +201,15 @@ export function CuerpoItem({
                 Editar datos…
               </button>
             )}
-            {acciones.onBorrar && sePuedeEliminar(item.status) && !confirmando && (
-              <button
-                type="button"
-                className="btn ghost"
-                title="Pasa por Eliminadas y se quema; no se guarda"
-                onClick={() => setConfirmando(true)}
-              >
-                Eliminar
-              </button>
-            )}
-            {acciones.onBorrar && sePuedeEliminar(item.status) && confirmando && (
-              <span className="fila-acciones">
-                ¿Eliminar del todo?
-                <button
-                  className="btn ghost"
-                  type="button"
-                  disabled={trabajando}
-                  onClick={() => hacer(() => acciones.onBorrar?.(item.uid) ?? Promise.resolve())}
-                >
-                  Sí
-                </button>
-                <button
-                  className="btn ghost"
-                  type="button"
-                  onClick={() => setConfirmando(false)}
-                >
-                  No
-                </button>
-              </span>
-            )}
+            <BotonEliminar
+              uid={item.uid}
+              estado={item.status}
+              onBorrar={acciones.onBorrar}
+              className="btn ghost"
+            />
           </div>
         </>
       )}
-
-      {fallo && <p className="hint error">{fallo}</p>}
 
       {descartando &&
         acciones.onEditar &&

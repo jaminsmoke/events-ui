@@ -7,8 +7,9 @@ import type { WorkItem, WorkItemUpdate } from "../core/api";
 import type { PuedeIr } from "../core/useProtocolos";
 import { DescartaItem } from "../pantalla/DescartaItem";
 import type { TreeNode } from "./arbol";
+import { BotonEliminar } from "./BotonEliminar";
 import { BotonesMover } from "./BotonesMover";
-import { ETIQUETA_ESTADO, sePuedeEliminar } from "./carriles";
+import { ETIQUETA_ESTADO } from "./carriles";
 import type { Status } from "./carriles";
 import { FasesItem } from "./fases";
 import { comoFases, mismasFases, type Fase } from "./fase";
@@ -134,7 +135,6 @@ export function NodeRow({
   ).length;
 
   const [descartando, setDescartando] = useState(false);
-  const [confirmando, setConfirmando] = useState(false);
   const [fallo, setFallo] = useState<string | null>(null);
   const [trabajando, setTrabajando] = useState(false);
   const [fichaFases, setFichaFases] = useState(false);
@@ -353,36 +353,7 @@ export function NodeRow({
               Fases · {hechas}/{fases.length}
             </button>
           )}
-          {onBorrar && sePuedeEliminar(estado) && !confirmando && (
-            <button
-              type="button"
-              className="btn ghost mover"
-              title="Pasa por Eliminadas y se quema; no se guarda"
-              onClick={() => setConfirmando(true)}
-            >
-              Eliminar
-            </button>
-          )}
-          {onBorrar && sePuedeEliminar(estado) && confirmando && (
-            <span className="fila-acciones">
-              ¿Eliminar del todo?
-              <button
-                className="btn ghost mover"
-                type="button"
-                disabled={trabajando}
-                onClick={() => hacer(() => onBorrar(uid!))}
-              >
-                Sí
-              </button>
-              <button
-                className="btn ghost mover"
-                type="button"
-                onClick={() => setConfirmando(false)}
-              >
-                No
-              </button>
-            </span>
-          )}
+          {estado && <BotonEliminar uid={uid!} estado={estado} onBorrar={onBorrar} />}
         </div>
       </div>
 

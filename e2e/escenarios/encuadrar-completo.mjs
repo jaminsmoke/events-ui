@@ -24,29 +24,9 @@ export default {
     let uid = null;
 
     try {
-      // Una ficha con descripción y fase: el detalle que se oculta al alejar.
-      const crear = await api("/items?repo=lab", {
-        method: "POST",
-        headers: cabeceras,
-        body: JSON.stringify({
-          title: "Encuadrar E2E",
-          description: "Detalle que no debe verse por debajo del suelo",
-          status: "proposed",
-        }),
-      });
-      expect(crear.status === 201, `no se pudo crear el ítem: ${crear.status}`);
-      uid = crear.data.uid;
-      const plan = await api(`/items/${uid}?repo=lab`, {
-        method: "PATCH",
-        headers: cabeceras,
-        body: JSON.stringify({
-          status: "roadmap",
-          fases: [{ titulo: "Vista", requisitos: [{ titulo: "Ver entero" }] }],
-        }),
-      });
-      expect(plan.status === 200, `roadmap: ${JSON.stringify(plan.data)}`);
-
-      // 1) Encuadre normal: suelo del 75 % y centrado, en las dos apps.
+      // 1) Encuadre normal: suelo del 75 % y centrado, en las dos apps. Se mide
+      // con el lab vacío, que es el encuadre de todos los días: una ficha de
+      // más cambia el alto del mapa y el centrado deja de ser comparable.
       const medirNormal = async (app) => {
         await app.keyboard.press("f");
         await app.waitForTimeout(400);
@@ -111,7 +91,30 @@ export default {
         );
       }
 
-      // 2) Vista completa con el aviso, en desktop y a los tres anchos.
+      // 2) Vista completa con el aviso, en desktop y a los tres anchos. Aquí
+      // sí hace falta una ficha con descripción y fase: es el detalle que se
+      // oculta al alejar.
+      const crear = await api("/items?repo=lab", {
+        method: "POST",
+        headers: cabeceras,
+        body: JSON.stringify({
+          title: "Encuadrar E2E",
+          description: "Detalle que no debe verse por debajo del suelo",
+          status: "proposed",
+        }),
+      });
+      expect(crear.status === 201, `no se pudo crear el ítem: ${crear.status}`);
+      uid = crear.data.uid;
+      const plan = await api(`/items/${uid}?repo=lab`, {
+        method: "PATCH",
+        headers: cabeceras,
+        body: JSON.stringify({
+          status: "roadmap",
+          fases: [{ titulo: "Vista", requisitos: [{ titulo: "Ver entero" }] }],
+        }),
+      });
+      expect(plan.status === 200, `roadmap: ${JSON.stringify(plan.data)}`);
+
       await page.goto(UI, { waitUntil: "domcontentloaded" });
       await page.evaluate(() => localStorage.removeItem("eui.repo"));
       await page.reload({ waitUntil: "domcontentloaded" });

@@ -128,3 +128,21 @@ def test_el_listado_aguanta_una_fila_con_tags_no_lista(client, repo):  # noqa: A
     r = client.get("/items", params={"repo": repo})
     assert r.status_code == 200, r.json()
     assert r.json()[0]["tags"] == ["dos"]
+
+
+def test_un_patch_sin_tags_las_conserva(client, repo):  # noqa: ANN001, ANN202
+    """Cambiar otro campo no toca las etiquetas: ausente no es vacío.
+
+    Era la mitad de servidor del e2e `editor-conserva-etiquetas`: el editor
+    no manda `tags` cuando no pudo leerlas y las guardadas sobreviven.
+    """
+    creada = client.post(
+        "/items", params={"repo": repo}, json={"title": "Con tags", "tags": ["base", "q3"]}
+    )
+    assert creada.status_code == 201, creada.json()
+    uid = creada.json()["uid"]
+
+    r = client.patch(f"/items/{uid}", params={"repo": repo}, json={"description": "solo esto"})
+    assert r.status_code == 200, r.json()
+    assert r.json()["description"] == "solo esto"
+    assert r.json()["tags"] == ["base", "q3"]

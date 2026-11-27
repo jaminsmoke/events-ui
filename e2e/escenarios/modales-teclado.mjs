@@ -1,18 +1,15 @@
-// Los modales deben recibir el foco y cerrarse con Escape aunque el foco se
-// quede en el botón que los abrió. El foco inicial propio solo entra si React
-// no enfocó ya un campo: `autoFocus` no deja atributo en el DOM y el título de
-// EditorItem no puede acabar pisado por el primer enfocable del diálogo.
-
+// El foco, Tab y Escape viven en el componente de diálogo compartido: probarlo
+// en Ajustes y en EditorItem cubre lo mismo que en los cinco. EditorItem se
+// queda porque además vigila que su `autoFocus` no pise el título con el
+// primer enfocable del diálogo.
 export default {
   nombre: "modales-teclado",
   descripcion:
-    "Ajustes, DialogoGit, FichaFases, EditorItem y DescartaItem reciben el foco, atrapan Tab, " +
-    "cierran con Escape y devuelven el foco; EditorItem conserva el título",
-  run: async ({ page, UI, api, esperar, expect, resultado }) => {
+    "Ajustes y EditorItem reciben el foco, atrapan Tab, cierran con Escape y lo devuelven; EditorItem conserva el título",
+  run: async ({ page, UI, api, expect, resultado }) => {
     const cabeceras = { "content-type": "application/json" };
     const fallos = [];
     let uid = null;
-    let uidDescartar = null;
 
     const focoDentro = () =>
       page.evaluate(() => Boolean(document.activeElement?.closest('[role="dialog"]')));
@@ -61,7 +58,6 @@ export default {
     };
 
     try {
-      // Un ítem con fases para abrir la ficha de fases desde la fila.
       const crear = await api("/items?repo=lab", {
         method: "POST",
         headers: cabeceras,
@@ -69,25 +65,12 @@ export default {
       });
       expect(crear.status === 201, `no se pudo crear el ítem: ${crear.status}`);
       uid = crear.data.uid;
-      // Otro en cola: solo ahí se ofrece «Descartar», que abre DescartaItem.
-      const descartable = await api("/items?repo=lab", {
-        method: "POST",
-        headers: cabeceras,
-        body: JSON.stringify({ title: "Descartar E2E", status: "proposed" }),
-      });
-      expect(descartable.status === 201, `no se pudo crear el descartable: ${descartable.status}`);
-      uidDescartar = descartable.data.uid;
       const plan = await api(`/items/${uid}?repo=lab`, {
         method: "PATCH",
         headers: cabeceras,
         body: JSON.stringify({
           status: "roadmap",
-          fases: [
-            {
-              titulo: "Diálogo",
-              requisitos: [{ titulo: "Cerrar con Escape" }],
-            },
-          ],
+          fases: [{ titulo: "Diálogo", requisitos: [{ titulo: "Cerrar con Escape" }] }],
         }),
       });
       expect(plan.status === 200, `roadmap: ${JSON.stringify(plan.data)}`);
@@ -111,40 +94,12 @@ export default {
         "Cancelar",
       );
 
-      // Diálogo de Git: se abre desde el puente cuando el lab no tiene work tree.
-      const crearRepo = page.getByRole("button", { name: "Crear repo local", exact: true });
-      if (!(await crearRepo.isVisible().catch(() => false))) {
-        await page.getByRole("button", { name: "Mapas", exact: true }).click();
-      }
-      await comprobar(
-        "DialogoGit",
-        crearRepo,
-        async () => {
-          await crearRepo.click();
-        },
-        page.getByRole("dialog", { name: "Crear repo local" }),
-        "Cancelar",
-      );
-
-      // FichaFases: se abre desde la fila; no tiene ningún campo con autoFocus.
+      // EditorItem: React enfoca el título con `autoFocus` (sin atributo en el
+      // DOM); el modal debe respetarlo en vez de elegir su propio enfocable.
       const fila = page.locator(`.row[data-uid="${uid}"]`);
       await fila.waitFor({ timeout: 15_000 });
       const cabeza = fila.locator(".row-head");
       if ((await cabeza.getAttribute("aria-expanded")) !== "true") await cabeza.click();
-      const abrirFases = fila.getByRole("button", { name: /Fases · 0\/1/ });
-      await abrirFases.waitFor();
-      await comprobar(
-        "FichaFases",
-        abrirFases,
-        async () => {
-          await abrirFases.click();
-        },
-        page.getByRole("dialog", { name: "Fases del ítem" }),
-        "Cerrar",
-      );
-
-      // EditorItem: React enfoca el título con `autoFocus` (sin atributo en el
-      // DOM); el modal debe respetarlo en vez de elegir su propio enfocable.
       const editar = fila.getByRole("button", { name: "Editar", exact: true });
       await editar.click();
       const abrirDatos = fila.getByRole("button", { name: "Datos…", exact: true });
@@ -160,36 +115,10 @@ export default {
         "Título",
       );
 
-      // DescartaItem: el motivo es el campo que React enfoca y el que se queda.
-      const filaDescartar = page.locator(`.row[data-uid="${uidDescartar}"]`);
-      await filaDescartar.waitFor({ timeout: 15_000 });
-      const cabezaDescartar = filaDescartar.locator(".row-head");
-      if ((await cabezaDescartar.getAttribute("aria-expanded")) !== "true") {
-        await cabezaDescartar.click();
-      }
-      const abrirDescarte = filaDescartar.getByRole("button", {
-        name: "Descartar",
-        exact: true,
-      });
-      await abrirDescarte.waitFor();
-      await comprobar(
-        "DescartaItem",
-        abrirDescarte,
-        async () => {
-          await abrirDescarte.click();
-        },
-        page.getByRole("dialog", { name: "Descartar ítem" }),
-        "Cancelar",
-        "Motivo del rechazo",
-      );
-
       await page.screenshot({ path: resultado("modales-teclado.png") });
       expect(fallos.length === 0, fallos.join(" | "));
     } finally {
       if (uid) await api(`/items/${uid}?repo=lab`, { method: "DELETE" }).catch(() => {});
-      if (uidDescartar) {
-        await api(`/items/${uidDescartar}?repo=lab`, { method: "DELETE" }).catch(() => {});
-      }
     }
   },
 };

@@ -1,166 +1,28 @@
-import { execFileSync } from "node:child_process";
-import { rmSync, writeFileSync } from "node:fs";
-import { DatabaseSync } from "node:sqlite";
-import path from "node:path";
-
+// El lanzador siembra todos los carriles con fases y dependencias: el mapa
+// reparte las fichas, el roadmap enseña sus fases y sus dependencias, los
+// cables son ortogonales y no se mueven al arrastrar, y la limpieza deja el
+// laboratorio vacío.
+//
+// El puente de Git, el commit desde el panel y el guion `commit-panel` viven en
+// git-local y vuelo-commit; el recuento de las nueve tablas tras reiniciar, en
+// test_item_cola.py.
 import { esperarCables } from "../cables.mjs";
-
-/** Git del sistema, siempre dentro de la carpeta indicada. */
-function git(carpeta, ...args) {
-  return execFileSync("git", ["-C", carpeta, ...args], { encoding: "utf8" });
-}
-
-const tablasOperativas = [
-  "work_item_data",
-  "work_item_node",
-  "rejected_node",
-  "roadmap_node",
-  "verificacion_node",
-  "revision_node",
-  "work_item_fase",
-  "work_item_requisito",
-  "event",
-];
 
 export default {
   nombre: "mapa-completo",
   descripcion:
-    "El lanzador siembra todos los carriles con fases y dependencias, el commit se escribe en el panel " +
-    "y el laboratorio queda vacío",
-  run: async ({ page, UI, esperar, expect, resultado, tmp }) => {
+    "El lanzador siembra todos los carriles con fases y dependencias, el mapa los reparte y la limpieza lo deja vacío",
+  run: async ({ page, UI, esperar, expect, resultado }) => {
     await page.goto(UI, { waitUntil: "domcontentloaded" });
     const selector = page.getByRole("button", { name: "lab", exact: true });
     const pruebas = page.getByRole("button", { name: "Pruebas", exact: true });
     await selector.or(pruebas).first().waitFor();
     if (await selector.isVisible()) await selector.click();
     await pruebas.waitFor();
-    // Los panes arrancan cerrados: «Mapas» es quien tiene las pestañas de mapa
-    // (la de Git sale deshabilitada mientras no haya work tree).
+    // Los panes arrancan cerrados: «Mapas» es quien tiene las pestañas de mapa.
     await page.getByRole("button", { name: "Mapas", exact: true }).click();
     await page.locator('.pane[aria-label="Mapas"]').waitFor();
     await esperarCables(page, esperar);
-    // El puente a Documentos reusa la clase `nodo-git`: se nombra el de Git.
-    const puenteGit = page.locator('.nodo-git[aria-label="Entregar a Git"]');
-
-    // Git se simula con el lab vacío, antes de sembrar: la prueba se vacía sola
-    // seis segundos después de sembrada y estas comprobaciones no caben a la vez.
-    await esperar(
-      () => puenteGit.evaluate((el) => el.classList.contains("apagado")),
-      "el puente a Git apagado",
-    );
-    expect(
-      (await puenteGit.innerText()).includes("Sin repositorio local"),
-      "el puente apagado debe explicar por qué",
-    );
-    const pestanaGit = page.getByRole("button", { name: "Mapa de Git", exact: true });
-    expect(await pestanaGit.isDisabled(), "la pestaña de Git debe estar deshabilitada sin repo");
-    expect(
-      (await pestanaGit.getAttribute("title")) === "Sin repositorio local",
-      "la pestaña deshabilitada debe explicar que no hay work tree",
-    );
-    // Un `git init` propio enciende el puente y el Mapa de Git con sus cambios.
-    const lab = path.join(tmp, "repos", "lab");
-    git(lab, "init", "-b", "main");
-    // Sin autor, `git commit` se niega: el del panel da ese error tal cual.
-    git(lab, "config", "user.email", "test@example.com");
-    git(lab, "config", "user.name", "Test");
-    // Un cambio de verdad en el work tree: el almacén de la app (`.EUI`) no
-    // cuenta como cambio, así que sin esto el nodo sale vacío.
-    writeFileSync(path.join(lab, "nota.txt"), "primera versión\n", "utf8");
-    await esperar(
-      () => puenteGit.evaluate((el) => el.classList.contains("activo")),
-      "el puente a Git activo tras git init",
-      15_000,
-    );
-    const puenteActivo = await puenteGit.innerText();
-    expect(puenteActivo.includes("main"), "el puente activo debe mostrar la rama main");
-    expect(puenteActivo.includes("sin commits"), "un repo vacío no debe inventar un commit");
-    await page.getByRole("button", { name: /Abrir mapa de Git/ }).click();
-    await esperar(
-      () => page.locator(".linea-git").count().then((n) => n === 1),
-      "el Mapa de Git",
-      15_000,
-    );
-    await esperar(
-      () => page.locator(".nodo-cambios.activo").count().then((n) => n === 1),
-      "los cambios activos en el Mapa de Git",
-      15_000,
-    );
-    await esperar(
-      () => page.locator(".nodo-cambios .fila-cambio").count().then((n) => n > 0),
-      "los cambios sin commit en el Mapa de Git",
-      15_000,
-    );
-    // La vista se funde al cambiar de mapa: se espera a que asiente.
-    expect(
-      (await page.locator(".nodo-cambios").innerText()).includes("nota.txt"),
-      "el nodo de cambios debe enseñar el archivo del work tree",
-    );
-    await page.waitForTimeout(900);
-    await page.screenshot({ path: resultado("mapa-completo-git.png") });
-
-    // La prueba manual nueva, «Commit desde el panel»: cambia sola al Mapa de
-    // Git, escribe el commit y deja la rama con uno más.
-    await pruebas.click();
-    const dialogoPruebas = page.getByRole("dialog", { name: "Pruebas del laboratorio" });
-    await dialogoPruebas.getByLabel("Prueba").selectOption("commit-panel");
-    await dialogoPruebas.getByRole("button", { name: "Lanzar", exact: true }).click();
-    await dialogoPruebas.getByRole("button", { name: "Cerrar", exact: true }).click();
-    await esperar(
-      () => page.locator(".nodo-commits .fila-commit").count().then((n) => n === 1),
-      "el commit de la prueba manual",
-      60_000,
-    );
-    expect(
-      (await page.locator(".nodo-commits").innerText()).includes(
-        "Prueba: commit desde el panel",
-      ),
-      "el historial debe enseñar el asunto con el que commitea la prueba",
-    );
-    // Al terminar se vacía sola: hay que dejarla acabar antes de sembrar ítems.
-    await pruebas.click();
-    await page.getByText(/Completada.*Laboratorio limpio/).waitFor({ timeout: 90_000 });
-    await dialogoPruebas.getByRole("button", { name: "Cerrar", exact: true }).click();
-    await page.screenshot({ path: resultado("mapa-completo-prueba.png") });
-
-    // Y el mismo commit a mano en el panel, con un cambio nuevo: los cambios se
-    // vacían y el historial suma el segundo.
-    writeFileSync(path.join(lab, "nota.txt"), "segunda versión\n", "utf8");
-    await esperar(
-      () => page.locator(".nodo-cambios .fila-cambio").count().then((n) => n === 1),
-      "el cambio nuevo tras el primer commit",
-      15_000,
-    );
-    await page.getByRole("button", { name: "Control de código fuente", exact: true }).click();
-    const panelGit = page.locator('.pane[aria-label="Control de código fuente"]');
-    await panelGit.getByLabel("Mensaje del commit").fill("Commit desde el panel, en la prueba");
-    await panelGit.getByRole("button", { name: "Commit", exact: true }).click();
-    await esperar(
-      () => page.locator(".nodo-cambios .fila-cambio").count().then((n) => n === 0),
-      "los cambios vacíos al commitear",
-      15_000,
-    );
-    await esperar(
-      () => page.locator(".nodo-commits .fila-commit").count().then((n) => n === 2),
-      "el segundo commit en el historial",
-      15_000,
-    );
-    expect(
-      (await page.locator(".nodo-commits").innerText()).includes(
-        "Commit desde el panel, en la prueba",
-      ),
-      "el historial debe enseñar el asunto del commit",
-    );
-    expect(
-      (await panelGit.innerText()).includes("Nada sin commit."),
-      "el panel debe quedarse sin cambios al commitear",
-    );
-    await page.screenshot({ path: resultado("mapa-completo-commit.png") });
-    // El pane de Git y el de Mapas son excluyentes: volver a Mapas deja las
-    // pestañas de mapa donde estaban antes de commitear.
-    await page.getByRole("button", { name: "Mapas", exact: true }).click();
-    await page.getByRole("button", { name: "Mapa de Trabajo", exact: true }).click();
-    await esperarCables(page, esperar, "de vuelta a Trabajo");
 
     await pruebas.click();
     const dialogo = page.getByRole("dialog", { name: "Pruebas del laboratorio" });
@@ -269,18 +131,7 @@ export default {
     );
     await page.screenshot({ path: resultado("mapa-completo.png") });
 
-    // Fuera el repo propio: el puente y la pestaña vuelven a apagarse.
-    rmSync(path.join(lab, ".git"), { recursive: true, force: true });
-    await esperar(
-      () => page.locator(".nodo-git.apagado").count().then((n) => n === 1),
-      "el puente apagado al quitar el repo",
-      15_000,
-    );
-    expect(
-      await page.getByRole("button", { name: "Mapa de Git", exact: true }).isDisabled(),
-      "la pestaña de Git debe volver a deshabilitarse",
-    );
-
+    // La limpieza del lanzador deja el laboratorio vacío.
     await pruebas.click();
     await page.getByText(/Completada.*Laboratorio limpio/).waitFor({ timeout: 90_000 });
     await dialogo.getByRole("button", { name: "Cerrar", exact: true }).click();
@@ -293,22 +144,16 @@ export default {
       15_000,
     );
 
-    for (const lane of ["root", "cola", "roadmap", "verificacion", "revision_aprobada", "descartadas"]) {
+    for (const lane of [
+      "root",
+      "cola",
+      "roadmap",
+      "verificacion",
+      "revision_aprobada",
+      "descartadas",
+    ]) {
       expect((await cuenta(lane)).includes("0"), `el carril ${lane} no quedó vacío`);
     }
     await page.screenshot({ path: resultado("mapa-completo-limpio.png") });
-
-    const db = new DatabaseSync(
-      path.join(tmp, "repos", "lab", ".EUI", "EUI_DATABASE.sqlite"),
-      { readOnly: true },
-    );
-    try {
-      for (const tabla of tablasOperativas) {
-        const n = db.prepare(`SELECT count(*) AS n FROM ${tabla}`).get().n;
-        expect(n === 0, `la limpieza dejó ${n} filas en ${tabla}`);
-      }
-    } finally {
-      db.close();
-    }
   },
 };

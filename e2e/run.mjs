@@ -310,6 +310,23 @@ async function main() {
       page.on("dialog", async (d) => d.accept());
       const web = await contexto.newPage();
       web.on("dialog", async (d) => d.accept());
+      /* Cada escenario estrena contexto y, con él, almacén. Si alguien vuelve
+       * a compartir la pestaña, el segundo escenario hereda el `eui.repo` del
+       * primero: aquí se corta con un mensaje claro en vez de dejar que un
+       * escenario dependa del orden. */
+      const almacen = await contexto.storageState();
+      const sucio = almacen.origins.filter((origen) => (origen.localStorage ?? []).length > 0);
+      if (sucio.length > 0) {
+        throw new Error(
+          "el contexto arranca con localStorage: " +
+            sucio
+              .map(
+                (origen) =>
+                  `${origen.origin} (${origen.localStorage.map((c) => c.name).join(", ")})`,
+              )
+              .join("; "),
+        );
+      }
       return { contexto, page, web };
     };
 

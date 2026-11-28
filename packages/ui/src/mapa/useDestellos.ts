@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { Animacion } from "./animaciones";
 import type { Cable } from "./cables";
-import { duracionChispa } from "./geometria";
+import { duracionChispa } from "../modelo/geometria";
 
 /** El fogonazo de llegada de cada chispa y el cable que la recorre.
  *

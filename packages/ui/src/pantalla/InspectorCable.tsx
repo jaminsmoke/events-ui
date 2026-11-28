@@ -1,8 +1,8 @@
 import type { Paso } from "../core/useProtocolos";
 import type { Cable } from "../mapa/cables";
-import { ETIQUETA_ESTADO, tituloCarril } from "../mapa/carriles";
-import type { Status } from "../mapa/carriles";
-import { estadoUnion } from "../mapa/protocolos";
+import { ETIQUETA_ESTADO, tituloCarril } from "../modelo/carriles";
+import type { Status } from "../modelo/carriles";
+import { estadoUnion } from "../modelo/protocolos";
 
 /** La ficha de un cable y de su compuerta: las uniones que cruza, cómo está
  *  cada una y por qué. Los tramos de archivo no son uniones de protocolo y la

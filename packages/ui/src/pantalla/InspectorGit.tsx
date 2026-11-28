@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import type { CambioGit, CommitGit, ProyeccionRepo } from "../core/api";
 import { fechaCorta } from "../core/formato";
-import type { Seleccion } from "../mapa/seleccion";
+import type { Seleccion } from "../modelo/seleccion";
 
 /** Búsqueda sin tildes ni mayúsculas: el historial se filtra como se lee. */
 function normalizar(texto: string): string {

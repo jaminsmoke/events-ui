@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
 import type { VistaDerecha, VistaPane } from "../pantalla/Actividad";
-import type { Seleccion } from "./seleccion";
+import type { Seleccion } from "../modelo/seleccion";
 
 /** Lo seleccionado en el lienzo y cómo se abre desde ahí el panel derecho.
  *

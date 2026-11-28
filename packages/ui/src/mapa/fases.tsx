@@ -2,8 +2,8 @@
 
 import { useState, type ReactNode } from "react";
 
-import type { Status } from "./carriles";
-import { ESTADOS_FASE, ETIQUETA_FASE, type Fase } from "./fase";
+import type { Status } from "../modelo/carriles";
+import { ESTADOS_FASE, ETIQUETA_FASE, type Fase } from "../modelo/fase";
 import {
   conEstado,
   conNota,
@@ -14,7 +14,7 @@ import {
   requisitosDe,
   sinFase,
   sinRequisito,
-} from "./fasesModelo";
+} from "../modelo/fasesModelo";
 import { fechaCorta } from "../core/formato";
 import { useGuardarFases } from "./useGuardarFases";
 

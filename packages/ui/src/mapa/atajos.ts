@@ -3,8 +3,8 @@ import type { Dispatch, SetStateAction } from "react";
 
 import type { VistaDerecha, VistaPane } from "../pantalla/Actividad";
 import { siguienteIndice } from "./paradas";
-import { mismoElemento } from "./seleccion";
-import type { Seleccion } from "./seleccion";
+import { mismoElemento } from "../modelo/seleccion";
+import type { Seleccion } from "../modelo/seleccion";
 
 /** Índice de la selección dentro de las paradas, o -1 si no está. */
 function indiceParada(paradas: readonly Seleccion[], seleccion: Seleccion | null): number {

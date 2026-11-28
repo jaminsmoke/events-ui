@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import type { WorkItem } from "../core/api";
 import { actividadEntre } from "./actividad";
 import type { Animacion, LaneId, TonoPulso } from "./actividad";
-import { laneOf } from "./carriles";
+import { laneOf } from "../modelo/carriles";
 
 export type { Animacion, NodoId, Pulso, TonoPulso } from "./actividad";
 

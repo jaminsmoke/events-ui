@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import type { Fase } from "./fase";
+import type { Fase } from "../modelo/fase";
 
 /** Guardar una lista de fases y enseñar el fallo, igual en la fila y en la
  *  ficha. Sin `alGuardar` (ficha de solo lectura), no hace nada. */

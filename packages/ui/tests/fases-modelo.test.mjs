@@ -16,7 +16,7 @@ import {
   requisitosDe,
   sinFase,
   sinRequisito,
-} from "../src/mapa/fasesModelo.ts";
+} from "../src/modelo/fasesModelo.ts";
 
 const base = () => [
   {

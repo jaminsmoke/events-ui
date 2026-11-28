@@ -2,20 +2,20 @@ import { useLayoutEffect, useState } from "react";
 import type { RefObject } from "react";
 
 import type { Tree } from "./arbol";
-import { LANES } from "./carriles";
-import type { LaneId, Status } from "./carriles";
+import { LANES } from "../modelo/carriles";
+import type { LaneId, Status } from "../modelo/carriles";
 import type { Vista } from "./camara";
-import { largo, puntoEnTrazo, repartirCompuertas, trazoDe } from "./geometria";
-import type { Nudo, Punto } from "./geometria";
-import { UNIONES } from "./protocolos";
-import type { Union } from "./protocolos";
+import { largo, puntoEnTrazo, repartirCompuertas, trazoDe } from "../modelo/geometria";
+import type { Nudo, Punto } from "../modelo/geometria";
+import { UNIONES } from "../modelo/protocolos";
+import type { Union } from "../modelo/protocolos";
 
 // La geometría vive en `geometria.ts`, sin DOM: aquí solo queda la medición de
 // las cajas y el trazado de los cables. Se reexporta porque es parte del
 // contrato del mapa: `compuertas.tsx` mide con `CELDA` y `App.tsx` pide aquí la
 // duración de la chispa.
-export { CELDA, duracionChispa } from "./geometria";
-export type { Nudo, Punto } from "./geometria";
+export { CELDA, duracionChispa } from "../modelo/geometria";
+export type { Nudo, Punto } from "../modelo/geometria";
 
 /** El nodo Git cierra la línea, pero no es un carril de items: solo aporta
  *  su color y su cable. */

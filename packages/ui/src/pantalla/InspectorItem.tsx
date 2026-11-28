@@ -5,11 +5,11 @@ import type { Puerta, WorkItem, WorkItemUpdate } from "../core/api";
 import type { PuedeIr } from "../core/useProtocolos";
 import { BotonEliminar } from "../mapa/BotonEliminar";
 import { BotonesMover } from "../mapa/BotonesMover";
-import { ETIQUETA_ESTADO, LANES, laneOf } from "../mapa/carriles";
-import type { Status } from "../mapa/carriles";
-import { ETIQUETA_FASE } from "../mapa/fase";
+import { ETIQUETA_ESTADO, LANES, laneOf } from "../modelo/carriles";
+import type { Status } from "../modelo/carriles";
+import { ETIQUETA_FASE } from "../modelo/fase";
 import { fechaCorta } from "../core/formato";
-import type { Seleccion } from "../mapa/seleccion";
+import type { Seleccion } from "../modelo/seleccion";
 import { DescartaItem } from "./DescartaItem";
 
 /** Las acciones de el ítem, tal como las ofrece el mapa: la fila y el

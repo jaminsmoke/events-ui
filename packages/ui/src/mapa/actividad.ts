@@ -6,7 +6,7 @@
  *  deja: eso haría creer que también llega algo.
  */
 import type { WorkItem } from "../core/api";
-import type { LaneId } from "./carriles";
+import type { LaneId } from "../modelo/carriles";
 
 export type { LaneId };
 

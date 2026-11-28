@@ -7,10 +7,10 @@ import type { WorkItem, WorkItemUpdate } from "../core/api";
 import type { PuedeIr } from "../core/useProtocolos";
 import type { TonoPulso } from "./animaciones";
 import type { TreeNode } from "./arbol";
-import type { Status } from "./carriles";
+import type { Status } from "../modelo/carriles";
 import { Arrow, NodeRow } from "./fila";
-import { mismoElemento } from "./seleccion";
-import type { Seleccion } from "./seleccion";
+import { mismoElemento } from "../modelo/seleccion";
+import type { Seleccion } from "../modelo/seleccion";
 import type { Vuelo } from "./vuelos";
 
 export {

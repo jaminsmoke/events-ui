@@ -1,8 +1,8 @@
 import type { Paso } from "../core/useProtocolos";
 import { CELDA } from "./cables";
 import type { DestinoCable } from "./cables";
-import { TEXTO_EXIGENCIA } from "./protocolos";
-import type { Union } from "./protocolos";
+import { TEXTO_EXIGENCIA } from "../modelo/protocolos";
+import type { Union } from "../modelo/protocolos";
 
 /** El protocolo de un cable, ya resuelto para pintar su compuerta. Si cruza
  *  varias uniones (el descarte sale de la entrada y de la cola), la compuerta

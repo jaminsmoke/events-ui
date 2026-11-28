@@ -1,8 +1,8 @@
 import type { Paso } from "../core/useProtocolos";
 import type { Cable, Nudo } from "../mapa/cables";
-import { ETIQUETA_ESTADO, tituloCarril } from "../mapa/carriles";
-import type { Status } from "../mapa/carriles";
-import { estadoUnion } from "../mapa/protocolos";
+import { ETIQUETA_ESTADO, tituloCarril } from "../modelo/carriles";
+import type { Status } from "../modelo/carriles";
+import { estadoUnion } from "../modelo/protocolos";
 
 /** La ficha de un nudo del mapa: las compuertas que viven dentro de su rombo,
  *  una por cable que sale de él, con la unión y lo que exige el protocolo. */

@@ -10,11 +10,11 @@ import {
   ESTADOS_POR_CARRIL,
   ETIQUETA_ESTADO,
   LANES,
-} from "../mapa/carriles";
-import type { LaneId, Status } from "../mapa/carriles";
-import { TEXTO_EXIGENCIA } from "../mapa/protocolos";
+} from "../modelo/carriles";
+import type { LaneId, Status } from "../modelo/carriles";
+import { TEXTO_EXIGENCIA } from "../modelo/protocolos";
 import { fechaCorta } from "../core/formato";
-import type { Seleccion } from "../mapa/seleccion";
+import type { Seleccion } from "../modelo/seleccion";
 import type { VistaDerecha } from "./Actividad";
 import { CuerpoCable } from "./InspectorCable";
 import {

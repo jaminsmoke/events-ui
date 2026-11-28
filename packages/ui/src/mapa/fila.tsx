@@ -9,14 +9,14 @@ import { DescartaItem } from "../pantalla/DescartaItem";
 import type { TreeNode } from "./arbol";
 import { BotonEliminar } from "./BotonEliminar";
 import { BotonesMover } from "./BotonesMover";
-import { ETIQUETA_ESTADO } from "./carriles";
-import type { Status } from "./carriles";
+import { ETIQUETA_ESTADO } from "../modelo/carriles";
+import type { Status } from "../modelo/carriles";
 import { FasesItem } from "./fases";
-import { comoFases, mismasFases, type Fase } from "./fase";
+import { comoFases, mismasFases, type Fase } from "../modelo/fase";
 import { FichaFases } from "./ficha-fases";
 import { fechaCorta } from "../core/formato";
-import { mismoElemento } from "./seleccion";
-import type { Seleccion } from "./seleccion";
+import { mismoElemento } from "../modelo/seleccion";
+import type { Seleccion } from "../modelo/seleccion";
 
 /** Flecha de plegado. Vacía si el nodo no tiene items. */
 export function Arrow({ open }: { open: boolean }) {

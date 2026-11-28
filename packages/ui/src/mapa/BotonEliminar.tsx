@@ -8,8 +8,8 @@
  */
 import { useState } from "react";
 
-import { sePuedeEliminar } from "./carriles";
-import type { Status } from "./carriles";
+import { sePuedeEliminar } from "../modelo/carriles";
+import type { Status } from "../modelo/carriles";
 
 export function BotonEliminar({
   uid,

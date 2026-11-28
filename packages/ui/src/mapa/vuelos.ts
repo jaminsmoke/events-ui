@@ -2,8 +2,8 @@ import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 
 import type { WorkItem } from "../core/api";
-import type { LaneId } from "./carriles";
-import { LANES, laneOf } from "./carriles";
+import type { LaneId } from "../modelo/carriles";
+import { LANES, laneOf } from "../modelo/carriles";
 import type { Vista } from "./camara";
 
 /** Rectángulo relativo al mapa: lo que un vuelo necesita para saber de dónde a dónde. */

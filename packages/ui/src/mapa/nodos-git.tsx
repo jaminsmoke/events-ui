@@ -5,8 +5,8 @@ import type { Ref } from "react";
 
 import type { CommitGit } from "../core/api";
 import { fechaCommit } from "../core/formato";
-import { mismoElemento } from "./seleccion";
-import type { Seleccion } from "./seleccion";
+import { mismoElemento } from "../modelo/seleccion";
+import type { Seleccion } from "../modelo/seleccion";
 import type { FilaVueloCommit } from "./vuelos-git";
 
 /** El primer nodo del Mapa de Git: los cambios que aún no tienen commit.

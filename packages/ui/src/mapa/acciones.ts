@@ -3,8 +3,8 @@
  *  Lo comparten la fila del mapa y el inspector de item: si cambia una acción
  *  o un requisito del protocolo, cambia en los dos sitios a la vez. */
 import type { PuedeIr } from "../core/useProtocolos";
-import type { Status } from "./carriles";
-import type { Fase } from "./fase";
+import type { Status } from "../modelo/carriles";
+import type { Fase } from "../modelo/fase";
 
 export type AccionEstado = {
   estado: Status;

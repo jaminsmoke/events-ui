@@ -15,7 +15,7 @@ import {
   repartirCompuertas,
   salida,
   trazoDe,
-} from "../src/mapa/geometria.ts";
+} from "../src/modelo/geometria.ts";
 
 /** Un codo recto de 100 px + 100 px: total 200. */
 const CODO = [

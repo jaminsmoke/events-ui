@@ -12,8 +12,8 @@ import type { MapaLienzo } from "../pantalla/Actividad";
 import type { Animacion, Pulso, TonoPulso } from "./animaciones";
 import type { Tree } from "./arbol";
 import type { Cable, Nudo, RamaRechazo } from "./cables";
-import type { LaneId, Status } from "./carriles";
-import type { Seleccion } from "./seleccion";
+import type { LaneId, Status } from "../modelo/carriles";
+import type { Seleccion } from "../modelo/seleccion";
 import type { Vuelo } from "./vuelos";
 import type { FilaVueloCommit } from "./vuelos-git";
 

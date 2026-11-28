@@ -5,10 +5,10 @@ import { createPortal } from "react-dom";
 
 import type { WorkItem } from "../core/api";
 import { Modal } from "../pantalla/Modal";
-import type { Status } from "./carriles";
-import type { Fase } from "./fase";
+import type { Status } from "../modelo/carriles";
+import type { Fase } from "../modelo/fase";
 import { FasesLista } from "./fases";
-import { progreso } from "./fasesModelo";
+import { progreso } from "../modelo/fasesModelo";
 
 /** Un archivo anotado: ruta, estado y, si lo hay, su parche desplegable.
  *  Sin contenido (sin Git, sin commits o demasiado grande) queda la fila: la

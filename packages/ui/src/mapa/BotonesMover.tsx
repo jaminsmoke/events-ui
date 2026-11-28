@@ -6,8 +6,8 @@
  */
 import type { PuedeIr } from "../core/useProtocolos";
 import { ACCIONES_ESTADO, motivoBloqueo } from "./acciones";
-import type { Status } from "./carriles";
-import type { Fase } from "./fase";
+import type { Status } from "../modelo/carriles";
+import type { Fase } from "../modelo/fase";
 
 export function BotonesMover({
   uid,

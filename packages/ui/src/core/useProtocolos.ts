@@ -3,8 +3,8 @@ import { z } from "zod";
 
 import { api, unwrap } from "./api";
 import { suscribirSondeo } from "./sondeo";
-import { GRUPOS, grupoDeEstado } from "../mapa/carriles";
-import type { Status } from "../mapa/carriles";
+import { GRUPOS, grupoDeEstado } from "../modelo/carriles";
+import type { Status } from "../modelo/carriles";
 
 /** Los protocolos de flujo (`GET /protocolos`): la allowlist de uniones
  *  permitidas entre carriles. Se valida con Zod porque es configuración del

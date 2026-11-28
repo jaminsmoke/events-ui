@@ -1,6 +1,6 @@
 import type { WorkItem } from "../core/api";
-import { LANES, laneOf } from "./carriles";
-import type { LaneId } from "./carriles";
+import { LANES, laneOf } from "../modelo/carriles";
+import type { LaneId } from "../modelo/carriles";
 
 /* ---------- el nodo, estilo Unreal ----------
  *

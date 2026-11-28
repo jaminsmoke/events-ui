@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { Ref } from "react";
 
 import type { CommitGit } from "../core/api";
+import { fechaCommit } from "../core/formato";
 import { mismoElemento } from "./seleccion";
 import type { Seleccion } from "./seleccion";
 import type { FilaVueloCommit } from "./vuelos-git";
@@ -85,13 +86,6 @@ export function NodoCambios({
  *  temporal al estilo del grafo de VS Code. Un riel a la izquierda une los
  *  puntos de cada commit —el de arriba es HEAD— y a su derecha van el asunto
  *  y, en segundo plano, el hash, el autor y la fecha. */
-const FECHA_COMMIT = new Intl.DateTimeFormat("es-ES", { day: "2-digit", month: "short" });
-
-function fechaCommit(iso: string): string {
-  const fecha = new Date(iso);
-  return Number.isNaN(fecha.getTime()) ? iso : FECHA_COMMIT.format(fecha);
-}
-
 export function NodoCommits({
   activo,
   commits,

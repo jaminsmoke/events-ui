@@ -15,7 +15,7 @@ import {
   sinFase,
   sinRequisito,
 } from "./fasesModelo";
-import { fechaCorta } from "./formato";
+import { fechaCorta } from "../core/formato";
 import { useGuardarFases } from "./useGuardarFases";
 
 type RequisitoFase = NonNullable<Fase["requisitos"]>[number];

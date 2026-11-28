@@ -8,7 +8,7 @@ import { BotonesMover } from "../mapa/BotonesMover";
 import { ETIQUETA_ESTADO, LANES, laneOf } from "../mapa/carriles";
 import type { Status } from "../mapa/carriles";
 import { ETIQUETA_FASE } from "../mapa/fase";
-import { fechaCorta } from "../mapa/formato";
+import { fechaCorta } from "../core/formato";
 import type { Seleccion } from "../mapa/seleccion";
 import { DescartaItem } from "./DescartaItem";
 

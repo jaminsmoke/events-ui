@@ -1,17 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { CambioGit, CommitGit, ProyeccionRepo } from "../core/api";
+import { fechaCorta } from "../core/formato";
 import type { Seleccion } from "../mapa/seleccion";
-
-const FECHA_LARGA = new Intl.DateTimeFormat("es-ES", {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
-
-function fechaLarga(iso: string): string {
-  const fecha = new Date(iso);
-  return Number.isNaN(fecha.getTime()) ? iso : FECHA_LARGA.format(fecha);
-}
 
 /** Búsqueda sin tildes ni mayúsculas: el historial se filtra como se lee. */
 function normalizar(texto: string): string {
@@ -102,7 +93,7 @@ export function CuerpoCommit({
         <dt>Autor</dt>
         <dd>{commit.autor}</dd>
         <dt>Fecha</dt>
-        <dd title={commit.fecha}>{fechaLarga(commit.fecha)}</dd>
+        <dd title={commit.fecha}>{fechaCorta(commit.fecha)}</dd>
         <dt>Rama</dt>
         <dd className="inspector-mono">{rama ?? "—"}</dd>
         <dt>Posición</dt>

@@ -14,7 +14,7 @@ import type { Status } from "./carriles";
 import { FasesItem } from "./fases";
 import { comoFases, mismasFases, type Fase } from "./fase";
 import { FichaFases } from "./ficha-fases";
-import { fechaCorta } from "./formato";
+import { fechaCorta } from "../core/formato";
 import { mismoElemento } from "./seleccion";
 import type { Seleccion } from "./seleccion";
 

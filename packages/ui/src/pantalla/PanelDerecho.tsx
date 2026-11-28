@@ -13,7 +13,7 @@ import {
 } from "../mapa/carriles";
 import type { LaneId, Status } from "../mapa/carriles";
 import { TEXTO_EXIGENCIA } from "../mapa/protocolos";
-import { fechaCorta } from "../mapa/formato";
+import { fechaCorta } from "../core/formato";
 import type { Seleccion } from "../mapa/seleccion";
 import type { VistaDerecha } from "./Actividad";
 import { CuerpoCable } from "./InspectorCable";

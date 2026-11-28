@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 
 import type { CommitGit, ProyeccionRepo } from "../core/api";
-import { fechaCorta } from "../mapa/formato";
+import { fechaCorta } from "../core/formato";
 
 /** Pane de Control de código fuente, al estilo de VS Code: la rama y el commit
  *  arriba, los archivos sin commit y una línea de tiempo con el historial.

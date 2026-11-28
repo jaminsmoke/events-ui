@@ -53,6 +53,16 @@ async function esperarUrl(url, timeoutMs = TIMEOUT_MS) {
   return false;
 }
 
+/** Las líneas de acceso 2xx/3xx del core son ruido en la batería: decenas por
+ *  escenario que tapan el resumen. Se descartan salvo que se pida el log
+ *  completo con `EUI_E2E_LOG=completo`. El arranque, los 4xx/5xx y las trazas
+ *  se ven siempre, que es lo que hace falta para diagnosticar un fallo. */
+const LOG_COMPLETO = process.env.EUI_E2E_LOG === "completo";
+
+function esRuido(linea) {
+  return /"[A-Z]+ \S+ HTTP\/[\d.]+" [23]\d\d\b/.test(linea);
+}
+
 /** La salida de un hijo, línea a línea en la consola con su etiqueta. Sin esto
  *  los pipes no los lee nadie y un fallo de escenario se diagnostica a ciegas:
  *  no se sabe si el core recibió el `POST`, si respondió 500 o si ni arrancó. */
@@ -63,7 +73,10 @@ function etiquetar(etiqueta, child) {
     const volcar = (texto) => {
       const lineas = texto.split("\n");
       resto = lineas.pop() ?? "";
-      for (const linea of lineas) console.log(`${etiqueta} ${linea}`);
+      for (const linea of lineas) {
+        if (!LOG_COMPLETO && esRuido(linea)) continue;
+        console.log(`${etiqueta} ${linea}`);
+      }
     };
     flujo.setEncoding("utf8");
     flujo.on("data", volcar);

@@ -39,7 +39,7 @@ cd "$CLON" || exit 1
 
 echo "== dependencias =="
 corepack pnpm install --frozen-lockfile --reporter=append-only 2>&1 | tail -3
-uv run --directory services/core python -c "import events_core; print('core', events_core.__version__)" 2>&1 | tail -2
+uv run --directory shared/core python -c "import events_core; print('core', events_core.__version__)" 2>&1 | tail -2
 
 echo "== navegador =="
 if [ ! -f "$LIBS/libnss3.so" ]; then

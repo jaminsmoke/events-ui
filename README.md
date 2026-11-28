@@ -20,7 +20,7 @@ packages/ui       UI compartida: mapa de trabajo, selector de repo y API, sin
                   envoltorio. Las dos apps comparten el explorador de `/fs`, la
                   lista de `GET /repos` y la ruta manual; desktop añade el
                   diálogo nativo.
-services/core     FastAPI + SQLite WAL          (uv)
+shared/core       FastAPI + SQLite WAL          (uv)
 repoprobe/        laboratorio: material analizado y su .EUI
 ```
 
@@ -71,7 +71,7 @@ corepack pnpm fix          # aplica ruff --fix + ruff format + eslint --fix
 `openapi.json`/`schema.ts` no coinciden con el core: cambiar la API sin
 `gen:api` no pasa), `check:ui` (`tsc --noEmit` y ESLint en desktop, web y la UI
 compartida), `check:py` (`ruff check` y `ruff format --check`, config en
-`services/core/pyproject.toml`), `check:test` (`pytest` en `services/core/tests`)
+`shared/core/pyproject.toml`), `check:test` (`pytest` en `shared/core/tests`)
 y `check:rust` (`cargo check`). Para compilar de
 verdad están `build:web` (Vite) y `build` (bundle Tauri).
 
@@ -110,25 +110,25 @@ coincidente, raíz y permiso de escritura; `--json` devuelve una línea para
 agentes y sale con 1 si algo falla:
 
 ```bash
-uv run --directory services/core python -m events_core.cli doctor
-uv run --directory services/core python -m events_core.cli config --json
-uv run --directory services/core python -m events_core.cli repo
-uv run --directory services/core python -m events_core.cli mapa --json
-uv run --directory services/core python -m events_core.cli puertas --json
-uv run --directory services/core python -m events_core.cli guard
-uv run --directory services/core python -m events_core.cli item list --status proposed
-uv run --directory services/core python -m events_core.cli schema --pretty
-uv run --directory services/core python -m events_core.cli schema migrate --pretty
-uv run --directory services/core python -m events_core.cli migrate scan docs --json
-uv run --directory services/core python -m events_core.cli migrate classify docs --json
-uv run --directory services/core python -m events_core.cli migrate check migracion/plan.json
-uv run --directory services/core python -m events_core.cli migrate apply migracion/plan.json
-uv run --directory services/core python -m events_core.cli migrate undo <lote>
-uv run --directory services/core python -m events_core.cli item create --title "Revisar el login" --tag ui
-uv run --directory services/core python -m events_core.cli item edit <uid> --description "..."
-uv run --directory services/core python -m events_core.cli item move <uid> roadmap --resultado "..."
-uv run --directory services/core python -m events_core.cli item fases <uid> fases.json
-uv run --directory services/core python -m events_core.cli item requisito <uid> 1 1 --hecho
+uv run --directory shared/core python -m events_core.cli doctor
+uv run --directory shared/core python -m events_core.cli config --json
+uv run --directory shared/core python -m events_core.cli repo
+uv run --directory shared/core python -m events_core.cli mapa --json
+uv run --directory shared/core python -m events_core.cli puertas --json
+uv run --directory shared/core python -m events_core.cli guard
+uv run --directory shared/core python -m events_core.cli item list --status proposed
+uv run --directory shared/core python -m events_core.cli schema --pretty
+uv run --directory shared/core python -m events_core.cli schema migrate --pretty
+uv run --directory shared/core python -m events_core.cli migrate scan docs --json
+uv run --directory shared/core python -m events_core.cli migrate classify docs --json
+uv run --directory shared/core python -m events_core.cli migrate check migracion/plan.json
+uv run --directory shared/core python -m events_core.cli migrate apply migracion/plan.json
+uv run --directory shared/core python -m events_core.cli migrate undo <lote>
+uv run --directory shared/core python -m events_core.cli item create --title "Revisar el login" --tag ui
+uv run --directory shared/core python -m events_core.cli item edit <uid> --description "..."
+uv run --directory shared/core python -m events_core.cli item move <uid> roadmap --resultado "..."
+uv run --directory shared/core python -m events_core.cli item fases <uid> fases.json
+uv run --directory shared/core python -m events_core.cli item requisito <uid> 1 1 --hecho
 ```
 
 `repo` enseña la raíz configurada (`repo list`, las del laboratorio), `mapa`
@@ -188,7 +188,7 @@ solo se anuncian con `--permitir-escritura` o `EVENTSUI_MCP_ESCRITURA=1`.
     "events-ui": {
       "command": "uv",
       "args": [
-        "run", "--directory", "<ruta-a-events-ui>/services/core",
+        "run", "--directory", "<ruta-a-events-ui>/shared/core",
         "python", "-m", "events_core.mcp_servidor"
       ],
       "env": { "EVENTSUI_MCP_ESCRITURA": "1" }
@@ -368,7 +368,7 @@ dentro de `repoprobe/repos`. Va en query porque las rutas de Windows no son un
 segmento válido de URL.
 
 Sin ORM y sin scripts sueltos: el esquema vive en
-`services/core/src/events_core/schema/*.sql` y las operaciones se hacen por API,
+`shared/core/src/events_core/schema/*.sql` y las operaciones se hacen por API,
 navegable desde `/docs`.
 
 `schema/` es el estado **final**: con eso nace un almacén nuevo. Los cambios de

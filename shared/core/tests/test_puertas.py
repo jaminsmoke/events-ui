@@ -14,7 +14,7 @@ from events_core.items import InvalidInput, resolve_repo
 from events_core.items.base.esquema import ensure_repo
 from events_core.items.modelo import puertas
 
-# `services/core/tests/test_puertas.py` -> raíz del proyecto.
+# `shared/core/tests/test_puertas.py` -> raíz del proyecto.
 RAIZ = Path(__file__).resolve().parents[3]
 
 

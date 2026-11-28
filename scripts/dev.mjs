@@ -54,7 +54,7 @@ async function esperarCore() {
 function arrancarCore() {
   return spawn(
     "uv",
-    ["run", "--directory", "services/core", "python", "-m", "events_core.serve"],
+    ["run", "--directory", "shared/core", "python", "-m", "events_core.serve"],
     {
       cwd: ROOT,
       stdio: "inherit",

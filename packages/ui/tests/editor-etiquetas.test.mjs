@@ -6,7 +6,7 @@
  *  con su API (`onCargar`/`onGuardar`): que la carga sea una sola, que un
  *  refresco del padre no pise el borrador y que guardar sin etiquetas
  *  cargadas no las mande. El core conserva las guardadas, y eso lo fija
- *  `services/core/tests/test_etiquetas.py`.
+ *  `shared/core/tests/test_etiquetas.py`.
  */
 import assert from "node:assert/strict";
 import { test } from "node:test";

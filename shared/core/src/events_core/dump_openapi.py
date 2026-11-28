@@ -3,7 +3,7 @@
 Lo usa la generación de tipos TS del cliente (`pnpm gen:api` en la raíz):
 así el contrato se lee del código, no de un core que tenga que estar vivo.
 
-    uv run --directory services/core python -m events_core.dump_openapi
+    uv run --directory shared/core python -m events_core.dump_openapi
 """
 
 from __future__ import annotations

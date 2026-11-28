@@ -33,16 +33,18 @@ from .db import barridos_retencion
 REGISTRO_ENV_VAR = "EVENTSUI_REGISTRO_DB"
 
 
-def _raiz_del_repo() -> Path:
+def _raiz_del_repo(fichero: Path | None = None) -> Path:
     """La raíz del repo aunque se arranque desde otro directorio.
 
-    `src/events_core/registro.py` está a cuatro niveles de la raíz. El marcador
-    `services/core` evita confundirla con el temporal donde PyInstaller
-    descomprime el paquete: allí no se reconoce y el estado va al directorio de
-    datos del usuario (`%LOCALAPPDATA%/EventsUI`), no al de trabajo.
+    `src/events_core/registro.py` está a cuatro niveles de la raíz, y el paquete
+    lleva su `pyproject.toml` al lado de `src`: esa marca —y no la carpeta donde
+    vive el core— distingue el árbol de fuentes del temporal donde PyInstaller
+    descomprime el paquete y de una copia instalada en `site-packages`. En esos
+    dos no hay `pyproject.toml` y el estado va al directorio de datos del
+    usuario (`%LOCALAPPDATA%/EventsUI`), no al de trabajo.
     """
-    padres = Path(__file__).resolve().parents
-    if len(padres) > 4 and (padres[4] / "services" / "core").is_dir():
+    padres = (fichero or Path(__file__)).resolve().parents
+    if len(padres) > 4 and (padres[2] / "pyproject.toml").is_file():
         return padres[4]
     return raiz_datos_usuario()
 
@@ -50,7 +52,7 @@ def _raiz_del_repo() -> Path:
 def raiz_datos_usuario() -> Path:
     """Dónde dejar el estado cuando no hay raíz de proyecto (sidecar congelado).
 
-    El binario instalado no reconoce `services/core` y su directorio de trabajo
+    El binario instalado no reconoce el árbol de fuentes y su directorio de trabajo
     es el que herede del lanzador (un acceso directo puede dejarlo en
     `System32`): no sirve para guardar el registro. Se usa el directorio de
     datos del usuario, que existe y es escribible en cualquier instalación.

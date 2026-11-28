@@ -5,8 +5,8 @@ Comandos: `doctor` (la puerta), `config`, y la lectura `repo`, `item` y
 Los dos clientes se abren con `--webapp` (la web en el navegador) y
 `--desktop`; si no están instalados, el CLI ofrece instalarlos.
 
-    uv run --directory services/core python -m events_core.cli doctor
-    uv run --directory services/core python -m events_core.cli config --json
+    uv run --directory shared/core python -m events_core.cli doctor
+    uv run --directory shared/core python -m events_core.cli config --json
 
 Códigos de salida: 0 bien, 1 algo no cuadra, 2 uso o valor inválido (argparse
 sale con 2 por su cuenta).

@@ -77,7 +77,7 @@ jobs:
       # misma salida que deja el pre-commit en local, y sale con 1 si hay algo.
       - name: Guarda del flujo
         run: >-
-          uv run --directory services/core python -m events_core.cli guard
+          uv run --directory shared/core python -m events_core.cli guard
           --repo "$GITHUB_WORKSPACE"
 
   windows:

@@ -91,7 +91,7 @@ function arrancarCore(tmp, puerto) {
   // Uvicorn directo (no events_core.serve): así el runner controla su puerto
   // sin colisionar con la comprobación de puerto del arranque en dev.
   const hijo = spawn(
-    `uv run --directory services/core python -m uvicorn events_core.main:app --host 127.0.0.1 --port ${puerto}`,
+    `uv run --directory shared/core python -m uvicorn events_core.main:app --host 127.0.0.1 --port ${puerto}`,
     {
       cwd: ROOT,
       shell: true,

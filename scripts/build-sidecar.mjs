@@ -12,7 +12,7 @@
 //   el binario se ejecuta en frío, con el puerto libre, y se mata al final.
 //
 // Con `--solo-eui` (lo que corre la matriz de CI) se salta el desktop y el
-// core: compila únicamente `eui` y lo deja en `services/core/dist/`, que es lo
+// core: compila únicamente `eui` y lo deja en `shared/core/dist/`, que es lo
 // que CI adjunta al release como `eui-<os>-<arch>` y de donde el paquete npm
 // de la web se lo baja la primera vez. Un solo binario: `eui` también levanta
 // el core (`eui serve`).
@@ -31,7 +31,7 @@ import { PUERTO_CORE } from "./puerto.mjs";
 import { pidsEnPuerto } from "./puertos.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const CORE = path.join(ROOT, "services", "core");
+const CORE = path.join(ROOT, "shared", "core");
 const SRC_TAURI = path.join(ROOT, "apps", "desktop", "src-tauri");
 const DESTINO = path.join(SRC_TAURI, "binaries");
 const ES_WINDOWS = process.platform === "win32";
@@ -66,7 +66,7 @@ function tripleHost() {
 
 const sufijo = ES_WINDOWS ? ".exe" : "";
 const nombreBinario = `events-core${sufijo}`;
-// Ojo: `uv run --directory` cambia el cwd a services/core, así que las rutas
+// Ojo: `uv run --directory` cambia el cwd a shared/core, así que las rutas
 // que lee PyInstaller tienen que ser absolutas (si no, "Script file ...
 // does not exist" aunque el fichero esté).
 const srcCore = path.join(CORE, "src");
@@ -80,7 +80,7 @@ let triple = null;
 if (!SOLO_EUI) {
   triple = tripleHost();
   const pyinstaller = execSync(
-    `uv run --directory services/core pyinstaller --onefile --windowed --noconfirm --name events-core --paths ${srcCore} --collect-all events_core ${path.join(srcCore, "events_core", "sidecar.py")}`,
+    `uv run --directory shared/core pyinstaller --onefile --windowed --noconfirm --name events-core --paths ${srcCore} --collect-all events_core ${path.join(srcCore, "events_core", "sidecar.py")}`,
     { cwd: ROOT, encoding: "utf8", shell: true },
   );
   console.log(pyinstaller.trim().split("\n").slice(-3).join("\n"));
@@ -101,7 +101,7 @@ if (!SOLO_EUI) {
 // En el paquete npm es el único: `eui serve` levanta el core desde él mismo.
 const cli = path.join(srcCore, "events_core", "eui.py");
 const pyinstallerCli = execSync(
-  `uv run --directory services/core pyinstaller --onefile --noconfirm --name eui --paths ${srcCore} --collect-all events_core ${cli}`,
+  `uv run --directory shared/core pyinstaller --onefile --noconfirm --name eui --paths ${srcCore} --collect-all events_core ${cli}`,
   { cwd: ROOT, encoding: "utf8", shell: true },
 );
 console.log(pyinstallerCli.trim().split("\n").slice(-3).join("\n"));

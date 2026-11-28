@@ -24,10 +24,10 @@ corepack pnpm core:seed <repo>
 Equivalente sin pnpm:
 
 ```bash
-uv run --directory services/core python -m events_core.seed <repo>
+uv run --directory shared/core python -m events_core.seed <repo>
 ```
 
-El seed es idempotente y aplica `services/core/src/events_core/schema/ideas.sql`.
+El seed es idempotente y aplica `shared/core/src/events_core/schema/ideas.sql`.
 Crea `repoprobe/repos/<repo>/.EUI/EUI_DATABASE.sqlite` si no existe.
 
 La carpeta que pasas es la raíz y la única que se siembra: el seed no recorre

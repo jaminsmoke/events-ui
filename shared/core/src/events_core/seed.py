@@ -1,7 +1,7 @@
 """Siembra la raíz de un repo con su `.EUI/EUI_DATABASE`.
 
 Uso:
-    uv run --directory services/core python -m events_core.seed <carpeta-raíz>
+    uv run --directory shared/core python -m events_core.seed <carpeta-raíz>
     corepack pnpm core:seed <carpeta-raíz>            # atajo equivalente
 
 La carpeta es la raíz: no recorre subcarpetas ni crea `.EUI` en ellas. Es

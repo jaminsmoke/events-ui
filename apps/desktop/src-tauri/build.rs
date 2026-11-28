@@ -1,6 +1,6 @@
 // Build del desktop: genera la constante del puerto del core y llama a Tauri.
 //
-// El puerto tiene una sola copia, `services/core/src/events_core/puerto.json`,
+// El puerto tiene una sola copia, `shared/core/src/events_core/puerto.json`,
 // que también leen el core (Python) y los guiones. Aquí se convierte en una
 // `const` de Rust en `OUT_DIR`, para que `lib.rs` la use como siempre.
 
@@ -10,7 +10,7 @@ use std::path::Path;
 
 fn main() {
     let manifest = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR");
-    let fuente = Path::new(&manifest).join("../../../services/core/src/events_core/puerto.json");
+    let fuente = Path::new(&manifest).join("../../../shared/core/src/events_core/puerto.json");
     println!("cargo:rerun-if-changed={}", fuente.display());
 
     let texto = fs::read_to_string(&fuente)

@@ -7,7 +7,7 @@ Aquí se usa el API de backup de SQLite: lee una transacción del origen y vuelc
 un fichero completo, con lo confirmado que aún vive en `-wal`.
 
 Uso:
-    uv run --directory services/core python -m events_core.instantanea <origen> <destino>
+    uv run --directory shared/core python -m events_core.instantanea <origen> <destino>
 """
 
 from __future__ import annotations

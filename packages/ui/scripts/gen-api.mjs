@@ -28,7 +28,7 @@ const CHECK = process.argv.includes("--check");
 // vive en un módulo del propio core (`events_core.dump_openapi`).
 const schema = execFileSync(
   "uv",
-  ["run", "--directory", "services/core", "python", "-m", "events_core.dump_openapi"],
+  ["run", "--directory", "shared/core", "python", "-m", "events_core.dump_openapi"],
   { cwd: ROOT, encoding: "utf8" },
 );
 

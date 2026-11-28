@@ -23,7 +23,7 @@ export const ARCHIVOS = [
 export const CARGO_PATH = "apps/desktop/src-tauri/Cargo.toml";
 
 /** La versión del core, que publican Swagger, `/health` y el CLI. */
-export const CORE_VERSION_PATH = "services/core/src/events_core/__init__.py";
+export const CORE_VERSION_PATH = "shared/core/src/events_core/__init__.py";
 
 /** Lo que genera el propio release a partir de la versión; el bump no lo escribe. */
 export const GENERADOS = [

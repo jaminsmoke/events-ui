@@ -117,7 +117,7 @@ WAL. La instantánea se saca con el API de backup de SQLite, que lee una
 transacción y escribe una copia completa:
 
 ```sh
-uv run --directory services/core python -m events_core.instantanea \
+uv run --directory shared/core python -m events_core.instantanea \
   repoprobe/repos/<repo>/.EUI/EUI_DATABASE.sqlite /tmp/EUI_DATABASE.sqlite
 ```
 
@@ -126,10 +126,10 @@ El comando deja la copia sin auxiliares, en modo rollback, y comprueba
 versionado por la copia y se comprueba desde un directorio limpio abriéndola:
 debe ver los mismos ítems que la app, sin `-wal` al lado.
 
-Fuentes del modelo: [ítems y protocolos](../services/core/src/events_core/schema/items.sql),
-[eventos](../services/core/src/events_core/schema/eventos.sql),
-[registro](../services/core/src/events_core/registro.py) y
-[migraciones](../services/core/src/events_core/migraciones/).
+Fuentes del modelo: [ítems y protocolos](../shared/core/src/events_core/schema/items.sql),
+[eventos](../shared/core/src/events_core/schema/eventos.sql),
+[registro](../shared/core/src/events_core/registro.py) y
+[migraciones](../shared/core/src/events_core/migraciones/).
 
 ## Histórico `idea`
 
@@ -156,7 +156,7 @@ integridad y referencias. Las escrituras de prueba se hicieron en bases temporal
 | Ficheros observados | Resultado |
 | --- | --- |
 | Dos almacenes de ítems | Ambos en v13 y WAL, con siete protocolos (la observación es anterior a la 0021). Uno tenía seis ítems repartidos entre los carriles, sin tabla `event`. El otro estaba vacío y sí tenía `event`. |
-| Dos registros operativos | Uno bajo `data/` y otro bajo `services/core/data/`, con una y 21 entradas respectivamente. La ruta predeterminada depende del directorio de arranque. |
+| Dos registros operativos | Uno bajo `data/` y otro bajo `shared/core/data/`, con una y 21 entradas respectivamente. La ruta predeterminada depende del directorio de arranque. |
 | Integridad | `PRAGMA integrity_check` devolvió `ok` en los cuatro ficheros y `PRAGMA foreign_key_check` devolvió cero filas. En ambos almacenes había cero conexiones y cero ítems en varias fichas a la vez. |
 
 Los datos locales por sí solos no ejercitan las relaciones entre ítems. Con

@@ -432,7 +432,7 @@ jobs:
         run: |
           set -euo pipefail
           nombre="eui-${{ matrix.plataforma }}"
-          origen="services/core/dist/eui"
+          origen="shared/core/dist/eui"
           if [ "${{ runner.os }}" = "Windows" ]; then
             origen="$origen.exe"
             nombre="$nombre.exe"

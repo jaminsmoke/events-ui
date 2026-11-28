@@ -15,7 +15,7 @@ use tauri::{AppHandle, Manager};
 use crate::versiones::{ruta_del_core, version_triple};
 
 // El puerto del core: el mismo que llama la UI empaquetada (`.env.production`).
-// Generado por `build.rs` desde `services/core/src/events_core/puerto.json`, la
+// Generado por `build.rs` desde `shared/core/src/events_core/puerto.json`, la
 // única copia del número (la comparten el core, el desktop y los guiones).
 include!(concat!(env!("OUT_DIR"), "/puerto_core.rs"));
 

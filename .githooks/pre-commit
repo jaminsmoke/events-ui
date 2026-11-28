@@ -5,13 +5,13 @@ raiz=$(git rev-parse --show-toplevel) || exit 0
 cd "$raiz" || exit 0
 
 # El intérprete del proyecto, sin depender de uv en cada commit.
-if [ -x services/core/.venv/Scripts/python.exe ]; then
-  interprete=services/core/.venv/Scripts/python.exe
-elif [ -x services/core/.venv/bin/python ]; then
-  interprete=services/core/.venv/bin/python
+if [ -x shared/core/.venv/Scripts/python.exe ]; then
+  interprete=shared/core/.venv/Scripts/python.exe
+elif [ -x shared/core/.venv/bin/python ]; then
+  interprete=shared/core/.venv/bin/python
 else
-  echo "aviso: sin entorno de Python en services/core; la guarda no se ejecuta" >&2
+  echo "aviso: sin entorno de Python en shared/core; la guarda no se ejecuta" >&2
   exit 0
 fi
 
-PYTHONPATH=services/core/src "$interprete" -m events_core.cli guard --repo "$raiz"
+PYTHONPATH=shared/core/src "$interprete" -m events_core.cli guard --repo "$raiz"

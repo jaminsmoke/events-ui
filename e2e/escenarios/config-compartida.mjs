@@ -44,7 +44,7 @@ export default {
     }
 
     const cli = (args) =>
-      execFileSync("uv", ["run", "--directory", "services/core", "python", "-m", "events_core.cli", ...args], {
+      execFileSync("uv", ["run", "--directory", "shared/core", "python", "-m", "events_core.cli", ...args], {
         encoding: "utf8",
         env: { ...process.env, EVENTSUI_CONFIG: configPath },
         shell: process.platform === "win32",

@@ -12,7 +12,7 @@ export const RAIZ_JSON = "package.json";
 /** Los ficheros con `version` en JSON, con el camino hasta el valor. */
 export const ARCHIVOS = [
   { ruta: RAIZ_JSON, clave: "version" },
-  { ruta: "packages/ui/package.json", clave: "version" },
+  { ruta: "shared/ui/package.json", clave: "version" },
   { ruta: "packages/protocols/package.json", clave: "version" },
   { ruta: "apps/desktop/package.json", clave: "version" },
   { ruta: "apps/web/package.json", clave: "version" },
@@ -29,8 +29,8 @@ export const CORE_VERSION_PATH = "shared/core/src/events_core/__init__.py";
 export const GENERADOS = [
   "pnpm-lock.yaml",
   "apps/desktop/src-tauri/Cargo.lock",
-  "packages/ui/openapi.json",
-  "packages/ui/src/core/schema.ts",
+  "shared/ui/openapi.json",
+  "shared/ui/src/core/schema.ts",
 ];
 
 /** Lo que `release.mjs` commitea: lo versionado, lo generado y nada más. */

@@ -16,10 +16,12 @@ y hace tail por cursor. No hay watcher de ficheros ni poller de git.
 ```
 apps/desktop      Envoltorio Tauri 2 (diálogo nativo) sobre la UI compartida
 apps/web          Envoltorio web (Vite, 15174) sobre la misma UI compartida
-packages/ui       UI compartida: mapa de trabajo, selector de repo y API, sin
+packages/         solo lo que se publica: hoy, `protocols` (npm)
+shared/ui         UI compartida: mapa de trabajo, selector de repo y API, sin
                   envoltorio. Las dos apps comparten el explorador de `/fs`, la
                   lista de `GET /repos` y la ruta manual; desktop añade el
                   diálogo nativo.
+shared/config     preset de Vite, `tsconfig` base y ESLint de las apps
 shared/core       FastAPI + SQLite WAL          (uv)
 repoprobe/        laboratorio: material analizado y su .EUI
 ```
@@ -218,7 +220,7 @@ core con [`openapi-typescript`](https://openapi-ts.dev/) y las llamadas van
 por [`openapi-fetch`](https://openapi-ts.dev/openapi-fetch), tipado por esos
 `paths`: ruta, query y el **cuerpo** de POST/PATCH se comprueban contra el
 contrato (`api.POST("/items", { params, body })` compone el `body` contra
-`WorkItemCreate` generado). El cliente vive en `packages/ui/src/core/api.ts` junto
+`WorkItemCreate` generado). El cliente vive en `shared/ui/src/core/api.ts` junto
 con `unwrap`, que convierte el error del core en su `detail`. Tras
 cambiar la API del core:
 
@@ -226,8 +228,8 @@ cambiar la API del core:
 corepack pnpm gen:api    # vuelca app.openapi() y regenera la UI
 ```
 
-Eso deja `packages/ui/openapi.json` (snapshot versionado: el diff muestra qué
-cambió del contrato) y `packages/ui/src/core/schema.ts` (generado, no editar).
+Eso deja `shared/ui/openapi.json` (snapshot versionado: el diff muestra qué
+cambió del contrato) y `shared/ui/src/core/schema.ts` (generado, no editar).
 `api.ts` deriva `WorkItem`, `Mapa`, `Revision` y `RepoListado` de
 ahí, así que un cambio en el core se ve en el siguiente `check`. No necesita
 el core en marcha: el volcado importa la app con `uv run` (módulo

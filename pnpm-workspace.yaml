@@ -1,5 +1,7 @@
 packages:
   - "apps/*"
+  - "shared/*"
+  # `packages/` es solo lo que se publica (hoy, `protocols`).
   - "packages/*"
 
 # pnpm 11+ no ejecuta postinstall de dependencias sin permiso explícito, y

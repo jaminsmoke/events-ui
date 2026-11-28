@@ -1,6 +1,6 @@
 /** Los dos envoltorios comparten un solo preset de Vite.
  *
- *  El preset vive en `packages/config/vite.base.mjs`; cada app solo declara su
+ *  El preset vive en `shared/config/vite.base.mjs`; cada app solo declara su
  *  puerto (y desktop, el watcher que ignora Rust). Se comparan las
  *  configuraciones **resueltas** con la API de Vite, no el texto.
  */
@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 
 import { resolveConfig } from "vite";
 
-import { presetVite } from "../../../packages/config/vite.base.mjs";
+import { presetVite } from "../../../shared/config/vite.base.mjs";
 import { RUTA_PUERTO } from "../../../scripts/puerto.mjs";
 
 // Se lee el JSON por su ruta (la de `scripts/puerto.mjs`) en vez de reutilizar

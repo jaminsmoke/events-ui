@@ -1,4 +1,4 @@
-// Guarda del mapa estado → carril: una sola tabla, en `packages/ui/src/modelo/carriles.ts`.
+// Guarda del mapa estado → carril: una sola tabla, en `shared/ui/src/modelo/carriles.ts`.
 //
 // El grupo de un estado y el carril donde vive estaban declarados en cinco
 // sitios (`_grupo` del core, `laneOf`, los estados por carril del panel,
@@ -12,7 +12,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const UI = path.join(ROOT, "packages/ui/src");
+const UI = path.join(ROOT, "shared/ui/src");
 const CARRILES = path.join(UI, "modelo/carriles.ts");
 const PROTOCOLOS = path.join(UI, "core/useProtocolos.ts");
 

@@ -3,7 +3,7 @@
  *
  *  Las fichas (ítem, carril, cable, nudo y puente), las zonas de golpe y los
  *  atajos bajaron a pruebas de componente en jsdom
- *  (`packages/ui/tests/inspector-panel.test.mjs`, `mapa-seleccion.test.mjs` y
+ *  (`shared/ui/tests/inspector-panel.test.mjs`, `mapa-seleccion.test.mjs` y
  *  `atajos-lienzo.test.mjs`); aquí queda solo el cableado de `App`, que no se
  *  puede montar sin navegador. */
 export default {

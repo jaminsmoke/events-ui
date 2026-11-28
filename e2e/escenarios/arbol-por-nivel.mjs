@@ -1,7 +1,7 @@
 // El árbol se refresca con el latido y ve lo que se crea fuera de la app.
 //
 // Que el latido no serialice el mapa entero y que un nivel quieto conserve su
-// array lo mide packages/ui/tests/niveles.test.mjs; aquí queda el viaje: se
+// array lo mide shared/ui/tests/niveles.test.mjs; aquí queda el viaje: se
 // despliega una carpeta, se escribe un archivo por detrás y aparece solo.
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";

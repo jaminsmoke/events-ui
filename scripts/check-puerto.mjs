@@ -17,7 +17,7 @@ const FUENTE = RUTA_PUERTO;
 // Código que se ejecuta. Documentación, OpenAPI y esquemas generados no cuentan:
 // repiten el número como texto y no lo consumen.
 const EXTENSIONES = [".py", ".rs", ".mjs", ".ts", ".tsx"];
-const GENERADOS = new Set(["packages/ui/src/core/schema.ts"]);
+const GENERADOS = new Set(["shared/ui/src/core/schema.ts"]);
 
 const { core } = JSON.parse(readFileSync(FUENTE, "utf8"));
 if (!Number.isInteger(core) || core < 1 || core > 65535) {

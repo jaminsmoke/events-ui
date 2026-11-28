@@ -24,7 +24,7 @@
     "check:versiones-ficheros": "node scripts/check-versiones-ficheros.mjs",
     "check:carriles": "node scripts/check-carriles.mjs",
     "check:estructura": "node scripts/check-estructura.mjs",
-    "check:geometria": "node --test \"packages/ui/tests/**/*.test.mjs\"",
+    "check:geometria": "node --test \"shared/ui/tests/**/*.test.mjs\"",
     "check:compartido": "node --test \"apps/web/tests/**/*.test.mjs\"",
     "check:escritorio": "node --test \"apps/desktop/tests/**/*.test.mjs\"",
     "check:contract": "corepack pnpm --filter @events-ui/ui check:contract",

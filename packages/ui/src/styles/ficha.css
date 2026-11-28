@@ -86,8 +86,8 @@
  * ficha. El chip de estado de fase de la ficha no entra aquí. */
 .fila-cabecera .fila-estado {
   color: var(--tinte, var(--muted));
-  border-color: color-mix(in srgb, var(--tinte, #33465e) 55%, transparent);
-  background: color-mix(in srgb, var(--tinte, #33465e) 14%, transparent);
+  border-color: color-mix(in srgb, var(--tinte, var(--borde-tenue)) 55%, transparent);
+  background: color-mix(in srgb, var(--tinte, var(--borde-tenue)) 14%, transparent);
   font-weight: 600;
 }
 
@@ -168,7 +168,7 @@
 }
 
 .fila-secundaria .btn.ghost.mover:hover:not(:disabled) {
-  border-color: #33465e;
+  border-color: var(--borde-tenue);
   color: var(--fg);
   opacity: 1;
 }
@@ -176,7 +176,7 @@
 /* Editar es un modo: mientras está activo, el botón lo dice. */
 .fila-secundaria .btn.ghost.mover[aria-pressed="true"] {
   color: var(--fg);
-  border-color: #33465e;
+  border-color: var(--borde-tenue);
   opacity: 1;
 }
 
@@ -273,7 +273,7 @@
 
 .fila-estado {
   padding: 0 7px;
-  border: 1px solid #33465e;
+  border: 1px solid var(--borde-tenue);
   border-radius: 99px;
   color: var(--muted);
   font-size: 10.5px;
@@ -304,7 +304,7 @@
 
 .chip-depende.aprobada {
   border-color: #2f6f45;
-  color: #7ee2a8;
+  color: var(--ok-texto);
 }
 
 .chip-quitar {
@@ -321,7 +321,7 @@
   width: 100%;
   max-width: 220px;
   padding: 2px 6px;
-  border: 1px solid #33465e;
+  border: 1px solid var(--borde-tenue);
   border-radius: 6px;
   background: #0d1117;
   color: var(--muted);

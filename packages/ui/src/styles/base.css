@@ -9,6 +9,16 @@
   --warn: #d29922;
   --bad: #f85149;
   --accent: #58a6ff;
+  /* Verde de hecho y en curso. */
+  --ok: #3fb950;
+  /* Su texto, legible sobre el fondo oscuro. */
+  --ok-texto: #7ee2a8;
+  /* Borde de ese verde. */
+  --ok-borde: #2b5c3f;
+  /* Fondo tenue de ese verde. */
+  --ok-fondo: #122719;
+  /* Borde de tarjeta sin acento. */
+  --borde-tenue: #33465e;
   /* Escala de la ficha: título de ítem, título de fila, subtítulo, cuerpo y
    * rótulos. Los tamaños bajan en ese orden para que la jerarquía se lea de
    * un vistazo y los controles no compitan con el contenido. */

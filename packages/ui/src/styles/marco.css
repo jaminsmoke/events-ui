@@ -416,7 +416,7 @@ button.arbol-fila:hover {
 .arbol-cambio {
   flex: none;
   margin-left: auto;
-  color: #d29922;
+  color: var(--warn);
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: 10px;
 }
@@ -512,7 +512,7 @@ button.arbol-fila:hover {
 .pane-cambio-estado {
   flex: none;
   width: 14px;
-  color: #d29922;
+  color: var(--warn);
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: 10px;
 }
@@ -745,7 +745,7 @@ button.arbol-fila:hover {
 }
 
 .inspector-union {
-  color: #7ee2a8;
+  color: var(--ok-texto);
   font-size: 10.5px;
 }
 

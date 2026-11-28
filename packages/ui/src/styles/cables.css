@@ -60,7 +60,7 @@
 .wire.revision_aprobada,
 .chevron.revision_aprobada,
 .compuerta.revision_aprobada {
-  --wire: #3fb950;
+  --wire: var(--ok);
 }
 
 /* Archivo: el cable de la aprobación se apaga hacia un verde gastado. */
@@ -107,7 +107,7 @@
  * regla heredaba un `--wire` inexistente y la caja quedaba invisible. */
 .wire.git,
 .compuerta.git {
-  --wire: #3fb950;
+  --wire: var(--ok);
 }
 
 .wire.git.apagado {
@@ -217,7 +217,7 @@
 }
 
 .junction {
-  fill: #58a6ff;
+  fill: var(--accent);
   filter: drop-shadow(0 0 6px #1f6feb);
 }
 
@@ -251,7 +251,7 @@
 
 .spark {
   fill: #9ecbff;
-  filter: drop-shadow(0 0 6px #58a6ff);
+  filter: drop-shadow(0 0 6px var(--accent));
   animation: chispa 1100ms ease-out both;
 }
 

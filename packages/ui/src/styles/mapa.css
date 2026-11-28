@@ -462,8 +462,8 @@
 }
 
 .nodo-puente.activo .puente-abrir:hover:not(:disabled) {
-  border-color: #2b5c3f;
-  color: #7ee2a8;
+  border-color: var(--ok-borde);
+  color: var(--ok-texto);
   box-shadow: 0 0 10px #3fb95033;
 }
 
@@ -478,7 +478,7 @@
 }
 
 .nodo-cambios .node-head:hover {
-  background: #122719;
+  background: var(--ok-fondo);
 }
 
 .nodo-cambios.apagado .node-head {
@@ -558,7 +558,7 @@
 }
 
 .nodo-commits .node-head:hover {
-  background: #122719;
+  background: var(--ok-fondo);
 }
 
 .nodo-commits.apagado .node-head {
@@ -654,7 +654,7 @@
 
 /* HEAD es el punto que enseña el estado del repo: encendido, con halo. */
 .fila-commit.head .commit-punto {
-  background: #3fb950;
+  background: var(--ok);
   box-shadow: 0 0 0 3px #10151c, 0 0 8px #3fb95066;
 }
 
@@ -683,12 +683,12 @@
 }
 
 .fila-commit.seleccionado .commit-punto {
-  background: #58a6ff;
+  background: var(--accent);
   box-shadow: 0 0 0 3px #10151c, 0 0 0 4px #58a6ff66;
 }
 
 .fila-commit.head.seleccionado .commit-punto {
-  background: #3fb950;
+  background: var(--ok);
   box-shadow: 0 0 0 3px #10151c, 0 0 0 4px #58a6ff66;
 }
 
@@ -709,9 +709,9 @@
 
 .commit-head {
   padding: 0 5px;
-  border: 1px solid #2b5c3f;
+  border: 1px solid var(--ok-borde);
   border-radius: 999px;
-  color: #7ee2a8;
+  color: var(--ok-texto);
   font-size: 8.5px;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -726,9 +726,9 @@
 /* La rama de la que es la línea temporal, en la cabecera del nodo. */
 .commit-rama {
   padding: 0 6px;
-  border: 1px solid #2b5c3f;
+  border: 1px solid var(--ok-borde);
   border-radius: 999px;
-  color: #7ee2a8;
+  color: var(--ok-texto);
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: 9.5px;
 }

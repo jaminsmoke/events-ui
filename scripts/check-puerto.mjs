@@ -8,8 +8,11 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { RUTA_PUERTO } from "./puerto.mjs";
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const FUENTE = path.join(ROOT, "services", "core", "src", "events_core", "puerto.json");
+// La ruta viene del módulo que lee el puerto: si el core se mueve, se mueve una.
+const FUENTE = RUTA_PUERTO;
 
 // Código que se ejecuta. Documentación, OpenAPI y esquemas generados no cuentan:
 // repiten el número como texto y no lo consumen.

@@ -1,14 +1,12 @@
-import { readFileSync } from "node:fs";
-
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv } from "vite";
 
-// El puerto del core vive en `puerto.json` y en ningún otro sitio. Se lee con
-// `readFileSync` y no con un import de JSON para que el preset funcione igual
-// al cargarlo Node en una prueba que al empaquetarlo Vite.
-const PUERTO_CORE = JSON.parse(
-  readFileSync(new URL("../../services/core/src/events_core/puerto.json", import.meta.url), "utf8"),
-).core;
+import { PUERTO_CORE } from "../../scripts/puerto.mjs";
+
+// El puerto del core se importa de `scripts/puerto.mjs`, que lo lee de
+// `puerto.json` (la única copia del número). Aquí no se compone la ruta: el
+// import funciona igual al cargar el preset desde Node en una prueba que al
+// empaquetarlo Vite.
 
 /** La configuración común de los dos envoltorios.
  *

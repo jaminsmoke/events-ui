@@ -5,7 +5,7 @@
  *  configuraciones **resueltas** con la API de Vite, no el texto.
  */
 import assert from "node:assert/strict";
-import { createRequire } from "node:module";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -13,9 +13,12 @@ import { fileURLToPath } from "node:url";
 import { resolveConfig } from "vite";
 
 import { presetVite } from "../../../packages/config/vite.base.mjs";
+import { RUTA_PUERTO } from "../../../scripts/puerto.mjs";
 
-const require = createRequire(import.meta.url);
-const puertoCore = require("../../../services/core/src/events_core/puerto.json");
+// Se lee el JSON por su ruta (la de `scripts/puerto.mjs`) en vez de reutilizar
+// `PUERTO_CORE`: así la prueba sigue siendo un oráculo independiente de lo que
+// hace el preset.
+const puertoCore = JSON.parse(readFileSync(RUTA_PUERTO, "utf8"));
 const raiz = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 
 // El entorno del e2e fija otros puertos; aquí se prueba el defecto.

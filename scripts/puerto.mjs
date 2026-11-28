@@ -5,7 +5,13 @@
 // configs de Vite. Aquí no se escribe el puerto: si hiciera falta, se cambia en
 // el JSON y todos lo ven.
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
-export const PUERTO_CORE = JSON.parse(
-  readFileSync(new URL("../services/core/src/events_core/puerto.json", import.meta.url), "utf8"),
-).core;
+/** La ruta del JSON, escrita una sola vez. La importan los consumidores
+ *  (`check-puerto`, el preset de Vite y su prueba) en vez de componerla cada
+ *  uno: mover el core es un cambio aquí y no en cuatro sitios. */
+export const RUTA_PUERTO = fileURLToPath(
+  new URL("../services/core/src/events_core/puerto.json", import.meta.url),
+);
+
+export const PUERTO_CORE = JSON.parse(readFileSync(RUTA_PUERTO, "utf8")).core;

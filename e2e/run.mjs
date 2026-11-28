@@ -16,7 +16,7 @@
 // nuestro sobrevivió, se remata y se avisa. Si algo falla, el resumen sale
 // igual con el nombre del escenario y la causa.
 
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { mkdir, mkdtemp, readdir } from "node:fs/promises";
 import net from "node:net";
 import os from "node:os";
@@ -24,6 +24,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { matarArbol } from "../scripts/procesos.mjs";
 import { esperarPuertoLibre, matarEnPuerto, pidsEnPuerto } from "../scripts/puertos.mjs";
 import { PUERTO_CORE as PUERTO_CORE_POR_DEFECTO } from "../scripts/puerto.mjs";
 
@@ -37,25 +38,6 @@ const PUERTO_WEB = 15174;
 const TIMEOUT_MS = 45_000;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-function matar(child) {
-  if (!child || child.pid === undefined) return;
-  if (process.platform === "win32") {
-    // Con árbol: el shell intermedio (`shell: true`) deja al hijo vivo.
-    // Síncrono a propósito: si se lanzara y acto seguido saliera el proceso,
-    // el `taskkill` no llegaría a correr y el hijo quedaría huérfano.
-    spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore" });
-  } else {
-    // Grupo de proceso (`detached` al arrancar): matar solo al shell deja a
-    // `uv`/Python y a pnpm/node de Vite vivos como huérfanos. El grupo
-    // sobrevive al líder, así que vale aunque el hijo ya hubiera salido.
-    try {
-      process.kill(-child.pid, "SIGTERM");
-    } catch {
-      /* el grupo ya no existe */
-    }
-  }
-}
 
 async function esperarUrl(url, timeoutMs = TIMEOUT_MS) {
   const deadline = Date.now() + timeoutMs;
@@ -252,9 +234,9 @@ async function main() {
     if (limpiando) return;
     limpiando = true;
     await browser?.close().catch(() => {});
-    matar(core);
-    matar(vite);
-    matar(viteWeb);
+    matarArbol(core);
+    matarArbol(vite);
+    matarArbol(viteWeb);
     for (const puerto of puertos) {
       if (await esperarPuertoLibre(puerto, 5_000)) continue;
       const restos = matarEnPuerto(puerto);
@@ -350,7 +332,7 @@ async function main() {
     // mismo puerto: los repos son de disco, así que no se pierde nada. `core`
     // es `let` para que el cierre mate el que quede vivo.
     const matarCore = async () => {
-      matar(core);
+      matarArbol(core);
       if (!(await esperarPuertoLibre(puertoCore, 5_000))) {
         throw new Error(`el core no soltó el puerto ${puertoCore}`);
       }

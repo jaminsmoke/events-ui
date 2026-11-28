@@ -14,14 +14,15 @@
 // Uso: `node scripts/dev.mjs` (Tauri) o `node scripts/dev.mjs web` (solo web,
 // en 15174; `ui` es un alias histórico). Ambas montan la UI de `@events-ui/ui`.
 
-import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import process from "node:process";
 
-import { esperarPuertoLibre, matarEnPuerto } from "./puertos.mjs";
+import { matarArbol } from "./procesos.mjs";
 import { PUERTO_CORE } from "./puerto.mjs";
+import { esperarPuertoLibre, matarEnPuerto } from "./puertos.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CORE = `http://127.0.0.1:${PUERTO_CORE}`;
@@ -57,6 +58,10 @@ function arrancarCore() {
     {
       cwd: ROOT,
       stdio: "inherit",
+      // Grupo propio en POSIX: `matarArbol` mata el grupo (`kill(-pid)`) y sin
+      // `detached` el hijo vive en el grupo de este script, donde no se le
+      // alcanza. Con él, el `uv` de este core se lleva a Python por delante.
+      detached: process.platform !== "win32",
       // El core de dev abre el comodín de orígenes de bucle local: Vite sirve
       // la UI en un puerto que puede no ser el de siempre.
       env: { ...process.env, EVENTSUI_DESARROLLO: "1" },
@@ -67,23 +72,13 @@ function arrancarCore() {
 /** `corepack` es un shim `.cmd` en Windows y no se puede lanzar sin shell;
  *  se usa `cmd /c`/`sh -c` con argumentos fijos, sin `shell:true` (DEP0190). */
 function arrancarComando(comando) {
-  const opciones = { cwd: ROOT, stdio: "inherit" };
+  // `detached` por lo mismo que en el core: sin grupo propio, matar el `sh`
+  // deja vivos a `pnpm` y a `node` de Vite.
+  const opciones = { cwd: ROOT, stdio: "inherit", detached: process.platform !== "win32" };
   if (process.platform === "win32") {
     return spawn(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", comando], opciones);
   }
   return spawn("sh", ["-c", comando], opciones);
-}
-
-function matar(child) {
-  if (!child || child.exitCode !== null) return;
-  // En Windows hay que matar el árbol: el shell intermedio deja al hijo vivo.
-  // Síncrono a propósito: si se lanza y acto seguido sale el proceso, el
-  // `taskkill` no llega a correr y el core queda huérfano escuchando.
-  if (process.platform === "win32") {
-    spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore" });
-  } else {
-    child.kill("SIGTERM");
-  }
 }
 
 /** Tauri exige que existan los `externalBin` para compilar, aunque en dev el
@@ -132,7 +127,7 @@ async function main() {
       `El core no respondió en ${CORE}/health en ${TIMEOUT_MS / 1000} s. ` +
         "Mira el mensaje de arriba o prueba aparte: corepack pnpm core:dev",
     );
-    matar(core);
+    matarArbol(core);
     process.exit(1);
   }
   console.log("Core listo.");
@@ -145,14 +140,14 @@ async function main() {
   const ui = arrancarComando(comando);
 
   const apagar = () => {
-    matar(ui);
-    matar(core);
+    matarArbol(ui);
+    matarArbol(core);
   };
   process.on("SIGINT", apagar);
   process.on("SIGTERM", apagar);
 
   ui.on("exit", (code) => {
-    matar(core);
+    matarArbol(core);
     process.exit(code ?? 0);
   });
 }

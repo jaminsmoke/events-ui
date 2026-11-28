@@ -5,6 +5,8 @@
 import { execFileSync } from "node:child_process";
 import process from "node:process";
 
+import { matarPid } from "./procesos.mjs";
+
 /** PIDs que escuchan en `puerto` (Windows con `netstat`, POSIX con `lsof`). */
 export function pidsEnPuerto(puerto) {
   if (process.platform === "win32") {
@@ -38,21 +40,11 @@ export function pidsEnPuerto(puerto) {
   }
 }
 
-/** Mata (con árbol, como `matar` de dev.mjs) a quien escuche en `puerto`.
- *  Devuelve los PIDs que se han terminado. */
+/** Mata a quien escuche en `puerto` con el mismo `matarPid` que el resto de
+ *  los scripts (árbol en Windows). Devuelve los PIDs que se han terminado. */
 export function matarEnPuerto(puerto) {
   const pids = pidsEnPuerto(puerto);
-  for (const pid of pids) {
-    if (process.platform === "win32") {
-      execFileSync("taskkill", ["/PID", String(pid), "/T", "/F"], { stdio: "ignore" });
-    } else {
-      try {
-        process.kill(pid, "SIGTERM");
-      } catch {
-        /* ya no vivía */
-      }
-    }
-  }
+  for (const pid of pids) matarPid(pid);
   return pids;
 }
 

@@ -26,8 +26,9 @@ import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { pidsEnPuerto } from "./puertos.mjs";
+import { matarArbol } from "./procesos.mjs";
 import { PUERTO_CORE } from "./puerto.mjs";
+import { pidsEnPuerto } from "./puertos.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CORE = path.join(ROOT, "services", "core");
@@ -200,17 +201,9 @@ try {
   }
 } finally {
   // El proceso puede haber muerto ya (p. ej. porque /health no respondió y
-  // salió con error): taskkill sin proceso devuelve 128 y no debe tapar el
-  // error original ni impedir la limpieza.
-  try {
-    if (ES_WINDOWS) {
-      execSync(`taskkill /PID ${proceso.pid} /T /F`, { stdio: "ignore", shell: true });
-    } else {
-      proceso.kill("SIGTERM");
-    }
-  } catch {
-    // ya no vivía
-  }
+  // salió con error): matar a quien ya no vive no debe tapar el error original
+  // ni impedir la limpieza.
+  matarArbol(proceso);
   await terminado;
   // En Windows el exe puede seguir bloqueado un instante tras el exit:
   // sin reintento, `rmSync(dist)` revienta con EPERM aunque el health OK.

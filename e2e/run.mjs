@@ -53,14 +53,38 @@ async function esperarUrl(url, timeoutMs = TIMEOUT_MS) {
   return false;
 }
 
+/** La salida de un hijo, línea a línea en la consola con su etiqueta. Sin esto
+ *  los pipes no los lee nadie y un fallo de escenario se diagnostica a ciegas:
+ *  no se sabe si el core recibió el `POST`, si respondió 500 o si ni arrancó. */
+function etiquetar(etiqueta, child) {
+  for (const flujo of [child.stdout, child.stderr]) {
+    if (!flujo) continue;
+    let resto = "";
+    const volcar = (texto) => {
+      const lineas = texto.split("\n");
+      resto = lineas.pop() ?? "";
+      for (const linea of lineas) console.log(`${etiqueta} ${linea}`);
+    };
+    flujo.setEncoding("utf8");
+    flujo.on("data", volcar);
+    flujo.on("end", () => {
+      if (resto) console.log(`${etiqueta} ${resto}`);
+      resto = "";
+    });
+  }
+}
+
 function arrancarCore(tmp, puerto) {
   // Uvicorn directo (no events_core.serve): así el runner controla su puerto
   // sin colisionar con la comprobación de puerto del arranque en dev.
-  return spawn(
+  const hijo = spawn(
     `uv run --directory services/core python -m uvicorn events_core.main:app --host 127.0.0.1 --port ${puerto}`,
     {
       cwd: ROOT,
       shell: true,
+      // Los pipes se leen y se etiquetan (`etiquetar`): el log del fallo lleva
+      // las peticiones y los errores del core.
+      stdio: ["ignore", "pipe", "pipe"],
       // En POSIX, grupo de proceso propio: así `matar` lleva el árbol entero
       // (uv → Python) y no queda huérfano si se interrumpe el runner.
       detached: process.platform !== "win32",
@@ -80,6 +104,8 @@ function arrancarCore(tmp, puerto) {
       },
     },
   );
+  etiquetar("core:", hijo);
+  return hijo;
 }
 
 function arrancarVite(filtro, puertoUi, puertoCore) {
@@ -87,16 +113,19 @@ function arrancarVite(filtro, puertoUi, puertoCore) {
   // proxy por entorno, que `vite.config.ts` lee con `loadEnv`.
   // pnpm reenvía lo que sigue al script tal cual: con `--` Vite lo recibía
   // como argumento propio y arrancaba en su puerto por defecto.
-  return spawn(`corepack pnpm --filter ${filtro} dev --port ${puertoUi}`, {
+  const hijo = spawn(`corepack pnpm --filter ${filtro} dev --port ${puertoUi}`, {
     cwd: ROOT,
     shell: true,
     detached: process.platform !== "win32",
+    stdio: ["ignore", "pipe", "pipe"],
     env: {
       ...process.env,
       EVENTSUI_UI_PORT: String(puertoUi),
       EVENTSUI_CORE_URL: `http://127.0.0.1:${puertoCore}`,
     },
   });
+  etiquetar(filtro === "desktop" ? "ui:" : "web:", hijo);
+  return hijo;
 }
 
 /** Un puerto que además se puede enlazar: en Windows hay rangos excluidos que

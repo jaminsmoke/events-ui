@@ -295,10 +295,18 @@
 
 /* Las filas no son tarjetas: son líneas del nodo, sin caja ni borde propio.
  *  Llegan deslizándose desde el cable: el cambio es instantáneo, el movimiento
- *  no, y así se puede seguir con la vista. */
+ *  no, y así se puede seguir con la vista.
+ *
+ *  Sin `both`: con la animación retenida, cada fila terminada seguía aplicada y
+ *  el compositor la mantenía como capa propia. En el Changelog largo son
+ *  cientos de capas dentro de un mapa escalado y cada una rasteriza su borde de
+ *  1 px; al desplazar y hacer zoom esos bordes se reutilizaban y dejaban las
+ *  «líneas fantasma» del Mapa de Documentos. `backwards` conserva el estado
+ *  inicial (no hay destello antes de empezar) y, al terminar, la capa se suelta
+ *  y el texto y los bordes se rasterizan en la capa del mapa. */
 .row {
   border-top: 1px solid #1b2534;
-  animation: llegar 420ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation: llegar 420ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
 }
 
 @keyframes llegar {

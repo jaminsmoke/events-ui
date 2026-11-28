@@ -295,7 +295,12 @@ export function useCamara({
     if (!board) return;
 
     const rueda = (e: WheelEvent) => {
-      const lista = e.target instanceof Element ? e.target.closest(".lane-cola > .node-body") : null;
+      // La cola y el archivo ruedan dentro de su nodo: sobre esas listas la
+      // rueda desplaza, no hace zoom.
+      const lista =
+        e.target instanceof Element
+          ? e.target.closest(".lane-cola > .node-body, .linea-documentos > .node > .node-body")
+          : null;
       if (lista && lista.scrollHeight > lista.clientHeight && !e.ctrlKey) return;
       const mapa = mapRef.current;
       if (!mapa || !e.deltaY) return;

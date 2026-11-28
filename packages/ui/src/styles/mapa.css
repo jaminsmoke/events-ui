@@ -300,6 +300,37 @@
   overscroll-behavior: contain;
 }
 
+/* El archivo crece con el repo y no puede estirar el mapa: con 200 documentos
+ * el nodo medía 5.332 px y el mapa 5.376, más de lo que el compositor maneja
+ * cómodo en una capa, con las líneas de 1 px de cada fila rasterizadas a la
+ * escala del zoom. Ahí salían las «líneas fantasma» al desplazar. Se acota como
+ * la cola: la lista rueda dentro del nodo y el mapa vuelve a medir lo que la
+ * ventana. */
+.linea-documentos {
+  --altura-documentos: min(520px, 58vh);
+}
+
+/* La cabecera ocupa las siete columnas, así que en la fila 1 no cabía al lado
+ * del nodo y el grid la mandaba a la 2: «Archivo / Mapa de Documentos» salía
+ * debajo del Changelog (con el nodo enorme, al final del todo). Va arriba. */
+.linea.linea-documentos > .git-cabecera {
+  grid-row: 1;
+}
+
+/* Misma especificidad que `.linea:not(.linea-git) > .node` (fila 1): si no,
+ * la cabecera y el nodo caen en la misma celda y el nodo la tapa. */
+.linea.linea-documentos > .node {
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+  max-height: var(--altura-documentos);
+}
+
+.linea-documentos > .node > .node-body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .linea > .lane-descartadas {
   grid-column: 2;
   margin-top: calc(var(--altura-cola) + 36px);

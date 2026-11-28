@@ -23,14 +23,6 @@ export default {
       await esperarCables(page, esperar);
     };
 
-    /** Deja la marca de la prueba como la dejaría una ejecución: `latido`
-     *  viejo = se cerró a medias; latido de ahora = sigue viva. */
-    const marcar = (repo, latido) =>
-      page.evaluate(
-        ([clave, marca]) => localStorage.setItem(clave, JSON.stringify(marca)),
-        [`eui.prueba:${repo}`, { ejecucion: "cerrada", prueba: "prueba-1", latido }],
-      );
-
     const sembrar = async (title) => {
       const r = await api("/items?repo=lab", {
         method: "POST",
@@ -48,7 +40,21 @@ export default {
 
       // Prueba interrumpida: datos en el laboratorio y una marca sin latido.
       await sembrar("Reparto · interrumpida");
-      await marcar(repo, Date.now() - 60_000);
+      /* La marca se escribe en la carga siguiente, antes de que arranque la
+       * app (`addInitScript`), no en la página viva. Escribirla aquí deja una
+       * ventana de milisegundos en la que el panel de Pruebas la cobra en el
+       * siguiente render —vacía el laboratorio, la suelta y pinta el aviso en
+       * la página que se va a recargar— y el escenario fallaba ~1 de cada 9
+       * veces esperando un aviso que ya no iba a salir. Medido: con 3 s de
+       * retraso ahí, fallaba 3 de 3. Así la marca existe antes del primer
+       * render y no hay orden posible que la cobre antes del reload. */
+      await page.context().addInitScript(
+        ([clave, marca]) => localStorage.setItem(clave, marca),
+        [
+          `eui.prueba:${repo}`,
+          JSON.stringify({ ejecucion: "cerrada", prueba: "prueba-1", latido: Date.now() - 60_000 }),
+        ],
+      );
       await page.reload({ waitUntil: "domcontentloaded" });
       await page.getByText(/el laboratorio quedó vacío/).waitFor({ timeout: 20_000 });
       await esperar(() => Promise.resolve(items() === 0), "el vaciado pendiente", 20_000);

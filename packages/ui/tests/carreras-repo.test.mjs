@@ -31,7 +31,7 @@ test("la persistencia del repo vive en usePersistirRepo, no en useItems", async 
 });
 
 test("el borrado comprueba el repo después de la espera", async () => {
-  const app = await leer("src/App.tsx");
-  assert.match(app, /repoAlBorrar/, "el borrado no captura el repo");
-  assert.match(app, /repoRef\.current/, "el borrado no comprueba el repo actual");
+  const hook = await leer("src/core/useAccionesItems.ts");
+  assert.match(hook, /repoAlBorrar/, "el borrado no captura el repo");
+  assert.match(hook, /repoRef\.current/, "el borrado no comprueba el repo actual");
 });

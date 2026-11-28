@@ -7,7 +7,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { siguienteIndice } from "../src/mapa/paradas.ts";
+import "./entorno-ts.mjs";
+
+const { siguienteIndice } = await import("../src/mapa/paradas.ts");
 
 test("siguienteIndice recorre las paradas en circular", () => {
   assert.equal(siguienteIndice(5, 2, 1), 3);

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 
 import { api } from "./core/api";
@@ -13,16 +13,15 @@ import { useAtajosLienzo } from "./mapa/atajos";
 import { useCables } from "./mapa/cables";
 import { LeyendaCompuertas } from "./mapa/compuertas";
 import { useCamara } from "./mapa/camara";
-import { LANES, sePuedeEliminar } from "./modelo/carriles";
-import type { LaneId, Status } from "./modelo/carriles";
+import type { LaneId } from "./modelo/carriles";
 import { Lienzo } from "./mapa/Lienzo";
-import type { AccionesLienzo } from "./mapa/vista";
-import type { Seleccion } from "./modelo/seleccion";
+import { paradasDe } from "./mapa/paradas";
 import { useVueloCommit } from "./mapa/vuelos-git";
 import { useVuelos } from "./mapa/vuelos";
 import { useArbolMapa } from "./mapa/useArbolMapa";
 import { useDestellos } from "./mapa/useDestellos";
 import { useSeleccion } from "./mapa/useSeleccion";
+import { useAccionesItems } from "./core/useAccionesItems";
 import { useEventos } from "./core/useEventos";
 import { useEmpujeMapa } from "./core/useEmpujeMapa";
 import { usePersistirRepo } from "./core/usePersistirRepo";
@@ -74,16 +73,11 @@ export default function App({
 }) {
   const PanelPruebas = pruebas?.componente;
   const [repo, setRepo] = useState<string | null>(storedRepo);
-  const repoRef = useRef(repo);
-  useEffect(() => {
-    repoRef.current = repo;
-  }, [repo]);
   // La carpeta se recuerda y se manda al core una vez por repo; el SSE puede
   // repintar `App` sin repetir el PUT (ver `usePersistirRepo`).
   usePersistirRepo(repo, (r) => api.PUT("/config", { body: { repo: r } }));
   const [selectorAbierto, setSelectorAbierto] = useState(false);
   const [nuevaAbierta, setNuevaAbierta] = useState(false);
-  const [falloAccion, setFalloAccion] = useState<string | null>(null);
   // Lo plegado, no lo abierto: por defecto el flujo se ve entero.
   const [cerrados, setCerrados] = useState<ReadonlySet<string>>(() => new Set());
   const [ajustesAbiertos, setAjustesAbiertos] = useState(false);
@@ -95,14 +89,6 @@ export default function App({
   // Crear o eliminar el repo local: no se hace al pulsar, hay confirmación.
   const [dialogoGit, setDialogoGit] = useState<null | "crear" | "eliminar">(null);
   const [avisoRecuperacion, setAvisoRecuperacion] = useState<string | null>(null);
-  // El editor de la fila vive aquí, no dentro de la fila: la fila le monta
-  // un `createPortal` a body y con el ratón sus clics no llegaban (Guardar/
-  // Cancelar morían). En la raíz, como Registro/Pruebas, todo funciona.
-  const [editando, setEditando] = useState<{
-    uid: string;
-    titulo: string;
-    descripcion: string;
-  } | null>(null);
   // Flyout del log (al estilo VS Code): la statusbar tiene una sola
   // entrada, **Log**, que abre el flyout en la pestaña usada en último
   // lugar (Eventos por defecto); las pestañas de dentro alternan.
@@ -177,20 +163,7 @@ export default function App({
     commit,
     refrescar,
   } = useRepo(repo);
-  // Filas que cruzan Descartadas→Eliminadas: solo UI, se queman y luego
-  // se borra el dato. No hay status `eliminadas` en el almacén.
-  const [quemas, setQuemas] = useState<
-    { id: number; repo: string; uid: string; title: string }[]
-  >([]);
-  const quemaSeq = useRef(0);
-  // El filtro se memoriza: `useArbolMapa` y `useCables` dependen de la
-  // identidad de `quemas`; un array nuevo por render rehacía el árbol y
-  // volvía a medir los cables en cada fotograma.
-  const quemasDelRepo = useMemo(
-    () => quemas.filter((quema) => quema.repo === repo),
-    [quemas, repo],
-  );
-  const tree = useArbolMapa(items, quemasDelRepo);
+
   // F1: el log del repo en vivo (cada `EUI_DATABASE` lleva el suyo).
   const { eventos, conectado, limpiar: limpiarLog } = useEventos(repo);
   useEmpujeMapa(eventos, refrescar);
@@ -201,6 +174,34 @@ export default function App({
   // Las puertas son del repo: se piden aquí una vez, no cada vez que se abre
   // el panel derecho.
   const { puertas, error: falloPuertas } = usePuertas(repo);
+
+  // Descartadas→Eliminadas despliega el carril: la quema se ve al borrar.
+  const desplegarEliminadas = useCallback(() => {
+    setCerrados((prev) => {
+      const next = new Set(prev);
+      next.delete("lane-eliminadas");
+      return next;
+    });
+  }, []);
+
+  // Mover, borrar y editar ítems: una sola forma para el lienzo y el panel.
+  const { acciones, falloAccion, editando, cerrarEdicion, quemasDelRepo } = useAccionesItems({
+    repo,
+    items,
+    puedeIr,
+    exigeFases,
+    exigeFasesListas,
+    exigeFasesCompletas,
+    mover,
+    editar,
+    borrar,
+    cargarItem,
+    expandirEliminadas: desplegarEliminadas,
+  });
+
+  // Las quemas ya filtradas por repo: si el array cambiara de identidad en
+  // cada render, el árbol y los cables se volverían a medir cada fotograma.
+  const tree = useArbolMapa(items, quemasDelRepo);
 
   const boardRef = useRef<HTMLElement | null>(null);
   const mapRef = useRef<HTMLDivElement | null>(null);
@@ -294,43 +295,12 @@ export default function App({
     [irGit, irDocumentos, irItems],
   );
 
-  // Paradas del teclado, en el orden en que se lee el lienzo: la Entrada, los
-  // carriles, los ítems, los nudos, los cables y los puentes. En el Mapa de
-  // Git: nodo, historial, commits y cambios. En Documentos: el Changelog.
-  const paradas = useMemo<Seleccion[]>(() => {
-    if (mapa === "git") {
-      const cambios = proyeccion?.git_cambios ?? [];
-      return [
-        { tipo: "git" },
-        { tipo: "commits" },
-        ...commits.map((commit) => ({ tipo: "commit" as const, hash: commit.hash })),
-        ...(cambios.length > 0 ? [{ tipo: "cambios" as const }] : []),
-        ...cambios.map((cambio) => ({ tipo: "cambio" as const, ruta: cambio.ruta })),
-      ];
-    }
-    if (mapa === "documentos") {
-      return [
-        { tipo: "carril", clave: "lane-historial" },
-        ...(items ?? [])
-          .filter((item) => item.status === "historial")
-          .map((item) => ({ tipo: "item" as const, uid: item.uid })),
-      ];
-    }
-    return [
-      { tipo: "cajon" },
-      ...LANES.filter((lane) => lane.id !== "historial").map((lane) => ({
-        tipo: "carril" as const,
-        clave: `lane-${lane.id}`,
-      })),
-      ...(items ?? [])
-        .filter((item) => item.status !== "historial")
-        .map((item) => ({ tipo: "item" as const, uid: item.uid })),
-      ...nudos.map((nudo) => ({ tipo: "nudo" as const, id: nudo.id })),
-      ...cables.map((cable) => ({ tipo: "cable" as const, id: cable.id })),
-      { tipo: "puente" },
-      { tipo: "puente_documentos" },
-    ];
-  }, [mapa, proyeccion, commits, items, nudos, cables]);
+  // Las paradas del teclado, en el orden en que se lee el lienzo: la regla
+  // vive en `mapa/paradas` y aquí solo se recalcula cuando cambia el mapa.
+  const paradas = useMemo(
+    () => paradasDe({ mapa, proyeccion, commits, items, nudos, cables }),
+    [mapa, proyeccion, commits, items, nudos, cables],
+  );
 
   useAtajosLienzo({
     paradas,
@@ -349,46 +319,6 @@ export default function App({
     irDocumentos,
   });
 
-  // Mover entre carriles es cambiar el `status` (PATCH tipado). El sondeo
-  // de `/revision` relee el mapa y el vuelo existente anima la fila.
-  const alMover = useCallback(
-    (uid: string, status: Status) => {
-      setFalloAccion(null);
-      void mover(uid, status).catch((err: unknown) => {
-        setFalloAccion(err instanceof Error ? err.message : String(err));
-      });
-    },
-    [mover],
-  );
-
-  /** Descartadas → Eliminadas: quema visual y luego borrado real. */
-  const alEliminar = useCallback(
-    async (uid: string) => {
-      const item = items?.find((item) => item.uid === uid);
-      if (!item || !sePuedeEliminar(item.status)) {
-        throw new Error("Solo se eliminan ítems que ya están en Descartadas");
-      }
-      const id = ++quemaSeq.current;
-      const repoAlBorrar = repo;
-      if (!repoAlBorrar) throw new Error("Sin repo no se puede borrar");
-      setQuemas((prev) => [...prev, { id, repo: repoAlBorrar, uid, title: item.title }]);
-      setCerrados((prev) => {
-        const next = new Set(prev);
-        next.delete("lane-eliminadas");
-        return next;
-      });
-      await new Promise((resolve) => setTimeout(resolve, 1400));
-      try {
-        // La espera es de la animación: si mientras tanto se cambió de
-        // carpeta, el cierre capturado no puede borrar en el repo viejo.
-        if (repoRef.current === repoAlBorrar) await borrar(uid);
-      } finally {
-        setQuemas((prev) => prev.filter((quema) => quema.id !== id));
-      }
-    },
-    [repo, items, borrar],
-  );
-
   const toggle = useCallback((key: string) => {
     setCerrados((prev) => {
       const next = new Set(prev);
@@ -400,39 +330,6 @@ export default function App({
 
   // `null` = todavía sin respuesta; `[]` = el repo está sembrado pero vacío.
   const busy = repo !== null && items === null && error === null;
-
-  const pedirEdicion = useCallback(
-    (uid: string, titulo: string, descripcion: string) =>
-      setEditando({ uid, titulo, descripcion }),
-    [],
-  );
-  /* Lo que el lienzo y el panel piden al almacén: una sola forma para los
-   *  dos, así una acción nueva no se queda en uno de los lados. Memorizado:
-   *  es prop de `Lienzo` y no puede cambiar por un movimiento de cámara. */
-  const acciones = useMemo<AccionesLienzo>(
-    () => ({
-      puedeIr,
-      exigeFases,
-      exigeFasesListas,
-      exigeFasesCompletas,
-      onMover: alMover,
-      onEditar: editar,
-      onBorrar: alEliminar,
-      onCargar: cargarItem,
-      onPideEditar: pedirEdicion,
-    }),
-    [
-      puedeIr,
-      exigeFases,
-      exigeFasesListas,
-      exigeFasesCompletas,
-      alMover,
-      editar,
-      alEliminar,
-      cargarItem,
-      pedirEdicion,
-    ],
-  );
 
   /* Frame: topbar, viewport (el graph) y statusbar *abajo*. Dentro del
    *  viewport, la barra de actividad y el pane van antes del lienzo; el panel
@@ -500,7 +397,7 @@ export default function App({
           descripcion={editando.descripcion}
           onCargar={() => cargarItem(editando.uid)}
           onGuardar={(cambios) => editar(editando.uid, cambios)}
-          onCerrar={() => setEditando(null)}
+          onCerrar={cerrarEdicion}
         />
       )}
 

@@ -1,20 +1,10 @@
-"""Los comandos de ítems, el mapa, las puertas y el guard del repo.
+"""Los comandos de ítems y el mapa: `eui item …` y `eui mapa`.
 
 (Parte del paquete `cli`; la fachada está en `events_core.cli`.)
 
-Original: CLI `eui`: lo que un agente usa en vez de la API cruda.
-
-Comandos: `doctor` (la puerta), `config`, y la lectura `repo`, `item` y
-`schema`, todos sobre el mismo cliente HTTP. La migración llega después.
-Los dos clientes se abren con `--webapp` (la web en el navegador) y
-`--desktop`; si no están instalados, el CLI ofrece instalarlos.
-
-    uv run --directory services/core python -m events_core.cli doctor
-    uv run --directory services/core python -m events_core.cli config --json
-
-Códigos de salida: 0 bien, 1 algo no cuadra, 2 uso o valor inválido (argparse
-sale con 2 por su cuenta).
-"""
+`item` lee y escribe un ítem (`list`, `get`, `create`, `edit`,
+`move`, `fases`, `requisito`), con `--json` para agentes; `mapa`
+devuelve el mapa entero en una lectura."""
 
 from __future__ import annotations
 

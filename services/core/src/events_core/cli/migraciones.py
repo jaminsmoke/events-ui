@@ -1,20 +1,11 @@
-"""Los comandos de migración de Markdown.
+"""Los comandos `eui migrate`: del Markdown al almacén de Events UI.
 
 (Parte del paquete `cli`; la fachada está en `events_core.cli`.)
 
-Original: CLI `eui`: lo que un agente usa en vez de la API cruda.
-
-Comandos: `doctor` (la puerta), `config`, y la lectura `repo`, `item` y
-`schema`, todos sobre el mismo cliente HTTP. La migración llega después.
-Los dos clientes se abren con `--webapp` (la web en el navegador) y
-`--desktop`; si no están instalados, el CLI ofrece instalarlos.
-
-    uv run --directory services/core python -m events_core.cli doctor
-    uv run --directory services/core python -m events_core.cli config --json
-
-Códigos de salida: 0 bien, 1 algo no cuadra, 2 uso o valor inválido (argparse
-sale con 2 por su cuenta).
-"""
+`scan` y `classify` proponen, `check` valida el plan, `apply` lo
+escribe como un lote y `undo` lo deshace si nadie tocó sus ítems;
+`absorb`, `export` y `guard` rematan la migración. Solo `apply`
+escribe en el almacén."""
 
 from __future__ import annotations
 

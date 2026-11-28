@@ -1,20 +1,11 @@
-"""Los lanzadores del CLI: web, desktop, serve, mcp y schema.
+"""La descarga e instalación de la web app y el desktop.
 
 (Parte del paquete `cli`; la fachada está en `events_core.cli`.)
 
-Original: CLI `eui`: lo que un agente usa en vez de la API cruda.
-
-Comandos: `doctor` (la puerta), `config`, y la lectura `repo`, `item` y
-`schema`, todos sobre el mismo cliente HTTP. La migración llega después.
-Los dos clientes se abren con `--webapp` (la web en el navegador) y
-`--desktop`; si no están instalados, el CLI ofrece instalarlos.
-
-    uv run --directory services/core python -m events_core.cli doctor
-    uv run --directory services/core python -m events_core.cli config --json
-
-Códigos de salida: 0 bien, 1 algo no cuadra, 2 uso o valor inválido (argparse
-sale con 2 por su cuenta).
-"""
+`_dist_de_la_webapp` busca la dist que dejó npm, `_instalar_desktop`
+baja el instalador del release y comprueba su sha256 y `_abrir`
+lanza lo instalado. `_confirmar` y `_ejecutar` son los ayudantes de
+consola que usan los lanzadores."""
 
 from __future__ import annotations
 

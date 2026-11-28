@@ -22,31 +22,11 @@ import process from "node:process";
 
 import { matarArbol } from "./procesos.mjs";
 import { PUERTO_CORE } from "./puerto.mjs";
-import { esperarPuertoLibre, matarEnPuerto } from "./puertos.mjs";
+import { esperarHttp, esperarPuertoLibre, matarEnPuerto } from "./puertos.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CORE = `http://127.0.0.1:${PUERTO_CORE}`;
 const TIMEOUT_MS = 20_000;
-
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-async function coreVivo() {
-  try {
-    const res = await fetch(`${CORE}/health`, { signal: AbortSignal.timeout(1_000) });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
-async function esperarCore() {
-  const deadline = Date.now() + TIMEOUT_MS;
-  while (Date.now() < deadline) {
-    if (await coreVivo()) return true;
-    await sleep(250);
-  }
-  return false;
-}
 
 // Mismo comando que `pnpm core:dev` en la raíz. `uv` es un ejecutable real en
 // Windows y Unix; sin `shell` no hay que concatenar argumentos ni avisar por
@@ -122,7 +102,7 @@ async function main() {
     console.error("¿Está `uv` en el PATH? Prueba aparte: corepack pnpm core:dev");
     process.exit(1);
   });
-  if (!(await esperarCore())) {
+  if (!(await esperarHttp(`${CORE}/health`, { timeoutMs: TIMEOUT_MS }))) {
     console.error(
       `El core no respondió en ${CORE}/health en ${TIMEOUT_MS / 1000} s. ` +
         "Mira el mensaje de arriba o prueba aparte: corepack pnpm core:dev",

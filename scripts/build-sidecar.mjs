@@ -22,13 +22,12 @@
 
 import { execFileSync, execSync, spawn } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
-import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { matarArbol } from "./procesos.mjs";
 import { PUERTO_CORE } from "./puerto.mjs";
-import { pidsEnPuerto } from "./puertos.mjs";
+import { pidsEnPuerto, puertoEfimero, puertoSePuedeEnlazar, esperarHttp } from "./puertos.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CORE = path.join(ROOT, "shared", "core");
@@ -36,26 +35,6 @@ const SRC_TAURI = path.join(ROOT, "apps", "desktop", "src-tauri");
 const DESTINO = path.join(SRC_TAURI, "binaries");
 const ES_WINDOWS = process.platform === "win32";
 const SOLO_EUI = process.argv.includes("--solo-eui");
-
-function puertoLibre(puerto, host = "127.0.0.1") {
-  return new Promise((resolve) => {
-    const sonda = net.createServer();
-    sonda.once("error", () => resolve(false));
-    sonda.listen(puerto, host, () => sonda.close(() => resolve(true)));
-  });
-}
-
-/** Un puerto que el sistema acaba de dar por libre, o 0 si no hay. */
-function puertoEfimero(host = "127.0.0.1") {
-  return new Promise((resolve) => {
-    const sonda = net.createServer();
-    sonda.once("error", () => resolve(0));
-    sonda.listen(0, host, () => {
-      const { port } = sonda.address();
-      sonda.close(() => resolve(port));
-    });
-  });
-}
 
 function tripleHost() {
   const out = execFileSync("rustc", ["-vV"], { encoding: "utf8" });
@@ -141,7 +120,7 @@ if (SOLO_EUI) {
 const congelaCore = path.join(CORE, "dist", nombreBinario);
 const PUERTO_REAL = PUERTO_CORE;
 let puertoPrueba = PUERTO_REAL;
-if (!(await puertoLibre(PUERTO_REAL))) {
+if (!(await puertoSePuedeEnlazar(PUERTO_REAL))) {
   puertoPrueba = await puertoEfimero();
   if (!puertoPrueba) {
     const quien = pidsEnPuerto(PUERTO_REAL);
@@ -171,24 +150,8 @@ proceso.stderr.on("data", (d) => (salida += d.toString()));
 // colgado; Node saldría por «unsettled top-level await» y taparía el error real.
 const terminado = new Promise((listo) => proceso.on("exit", listo));
 
-async function esperarHealth() {
-  const limite = Date.now() + 30_000;
-  while (Date.now() < limite) {
-    try {
-      const res = await fetch(`http://127.0.0.1:${puertoPrueba}/health`, {
-        signal: AbortSignal.timeout(1_000),
-      });
-      if (res.ok) return true;
-    } catch {
-      // aún no escucha (descomprimiendo el onefile)
-    }
-    await new Promise((r) => setTimeout(r, 300));
-  }
-  return false;
-}
-
 try {
-  if (await esperarHealth()) {
+  if (await esperarHttp(`http://127.0.0.1:${puertoPrueba}/health`, { timeoutMs: 30_000 })) {
     console.log(`Sidecar congelado responde a /health en 127.0.0.1:${puertoPrueba}. OK`);
   } else {
     throw new Error(

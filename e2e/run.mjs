@@ -18,14 +18,19 @@
 
 import { spawn } from "node:child_process";
 import { mkdir, mkdtemp, readdir } from "node:fs/promises";
-import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { matarArbol } from "../scripts/procesos.mjs";
-import { esperarPuertoLibre, matarEnPuerto, pidsEnPuerto } from "../scripts/puertos.mjs";
+import {
+  buscarPuertoLibre,
+  esperarHttp,
+  esperarPuertoLibre,
+  matarEnPuerto,
+  pidsEnPuerto,
+} from "../scripts/puertos.mjs";
 import { PUERTO_CORE as PUERTO_CORE_POR_DEFECTO } from "../scripts/puerto.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -38,20 +43,6 @@ const PUERTO_WEB = 15174;
 const TIMEOUT_MS = 45_000;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-async function esperarUrl(url, timeoutMs = TIMEOUT_MS) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(1_000) });
-      if (res.ok) return true;
-    } catch {
-      /* aún no */
-    }
-    await sleep(300);
-  }
-  return false;
-}
 
 /** Las líneas de acceso 2xx/3xx del core son ruido en la batería: decenas por
  *  escenario que tapan el resumen. Se descartan salvo que se pida el log
@@ -141,26 +132,6 @@ function arrancarVite(filtro, puertoUi, puertoCore) {
   return hijo;
 }
 
-/** Un puerto que además se puede enlazar: en Windows hay rangos excluidos que
- *  `listen(0)` devuelve igualmente y luego Vite no arranca. Se prueba desde
- *  `desde` hacia arriba, saltando lo que ya escucha alguien. */
-async function puertoLibre(desde) {
-  for (let puerto = desde; puerto <= desde + 100; puerto++) {
-    if (pidsEnPuerto(puerto).length > 0) continue;
-    try {
-      await new Promise((resolve, reject) => {
-        const servidor = net.createServer();
-        servidor.once("error", reject);
-        servidor.listen(puerto, "127.0.0.1", () => servidor.close(resolve));
-      });
-      return puerto;
-    } catch {
-      // Ocupado o excluido por el sistema: se prueba el siguiente.
-    }
-  }
-  throw new Error(`sin puertos libres a partir de ${desde}`);
-}
-
 /** El puerto pedido si está libre. Si lo pidió el usuario, se respeta y se
  *  avisa; si era el de por defecto, se busca otro. */
 async function elegirPuerto(pedido, explicito, etiqueta) {
@@ -172,7 +143,7 @@ async function elegirPuerto(pedido, explicito, etiqueta) {
     );
     process.exit(1);
   }
-  const libre = await puertoLibre(pedido + 1);
+  const libre = await buscarPuertoLibre(pedido + 1);
   console.log(`Puerto ${etiqueta} ${pedido} ocupado: el runner usa ${libre}.`);
   return libre;
 }
@@ -315,14 +286,20 @@ async function main() {
     core.on("error", (err) => console.error(`core: ${err.message}`));
     vite.on("error", (err) => console.error(`vite: ${err.message}`));
     viteWeb.on("error", (err) => console.error(`vite web: ${err.message}`));
-    if (!(await esperarUrl(`${CORE}/health`))) throw new Error("el core no respondió /health");
+    if (!(await esperarHttp(`${CORE}/health`, { timeoutMs: TIMEOUT_MS }))) {
+      throw new Error("el core no respondió /health");
+    }
     // La lista de la UI (`/repos`) solo enseña carpetas ya sembradas: el
     // escenario clásico abre `lab`, así que se siembra aquí mismo para que
     // el botón exista desde el primer fotograma. El log lo siembra el core
     // con el almacén: el runner no crea tablas a mano.
     await fetch(`${CORE}/mapa?repo=lab`).catch(() => {});
-    if (!(await esperarUrl(`${UI}/`))) throw new Error(`Vite no respondió en ${UI}`);
-    if (!(await esperarUrl(`${WEB}/`))) throw new Error(`Vite web no respondió en ${WEB}`);
+    if (!(await esperarHttp(`${UI}/`, { timeoutMs: TIMEOUT_MS }))) {
+      throw new Error(`Vite no respondió en ${UI}`);
+    }
+    if (!(await esperarHttp(`${WEB}/`, { timeoutMs: TIMEOUT_MS }))) {
+      throw new Error(`Vite web no respondió en ${WEB}`);
+    }
 
     browser = await chromium.launch();
     /* Cada escenario estrena contexto: localStorage, cookies, permisos y
@@ -382,7 +359,7 @@ async function main() {
     const levantarCore = async () => {
       core = arrancarCore(tmp, puertoCore);
       core.on("error", (err) => console.error(`core: ${err.message}`));
-      if (!(await esperarUrl(`${CORE}/health`))) {
+      if (!(await esperarHttp(`${CORE}/health`, { timeoutMs: TIMEOUT_MS }))) {
         throw new Error("el core no volvió a responder /health");
       }
     };
